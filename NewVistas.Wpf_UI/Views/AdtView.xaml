@@ -1,0 +1,79 @@
+<UserControl x:Class="NewVistas.Wpf_UI.Views.AdtView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <ScrollViewer VerticalScrollBarVisibility="Auto">
+        <StackPanel Margin="24">
+            <TextBlock Style="{StaticResource PageTitle}" Text="ADT — Admission, Discharge, Transfer"/>
+            <TextBlock Style="{StaticResource ErrorText}" Text="{Binding Error}"
+                       Visibility="{Binding Error, Converter={StaticResource NullToVisibility}}"/>
+
+            <StackPanel Orientation="Horizontal" Margin="0,0,0,12">
+                <Button Content="Load Movements" Style="{StaticResource PrimaryButton}"
+                        Command="{Binding LoadCommand}" Margin="0,0,8,0"/>
+                <Button Content="+ Admit Patient" Style="{StaticResource SecondaryButton}"
+                        Command="{Binding ToggleAdmitFormCommand}" Margin="0,0,8,0"/>
+                <ProgressBar IsIndeterminate="True" Width="120" Height="20"
+                             Visibility="{Binding IsLoading, Converter={StaticResource BoolToVisibility}}"/>
+            </StackPanel>
+
+            <!-- Admit form -->
+            <Border Style="{StaticResource FormPanel}"
+                    Visibility="{Binding ShowAdmitForm, Converter={StaticResource BoolToVisibility}}">
+                <StackPanel>
+                    <TextBlock Style="{StaticResource SectionHeader}" Text="Record Admission"/>
+                    <TextBlock Style="{StaticResource FieldLabel}" Text="Ward / Location"/>
+                    <TextBox Text="{Binding WardLocationName, UpdateSourceTrigger=PropertyChanged}" Width="300" HorizontalAlignment="Left"/>
+                    <TextBlock Style="{StaticResource FieldLabel}" Text="Room / Bed"/>
+                    <TextBox Text="{Binding RoomBed, UpdateSourceTrigger=PropertyChanged}" Width="160" HorizontalAlignment="Left"/>
+                    <TextBlock Style="{StaticResource FieldLabel}" Text="Treating Specialty"/>
+                    <TextBox Text="{Binding TreatingSpecialty, UpdateSourceTrigger=PropertyChanged}" Width="300" HorizontalAlignment="Left"/>
+                    <TextBlock Style="{StaticResource FieldLabel}" Text="Attending Physician"/>
+                    <TextBox Text="{Binding AttendingPhysicianName, UpdateSourceTrigger=PropertyChanged}" Width="300" HorizontalAlignment="Left"/>
+                    <TextBlock Style="{StaticResource FieldLabel}" Text="Admission Diagnosis"/>
+                    <TextBox Text="{Binding AdmissionDiagnosis, UpdateSourceTrigger=PropertyChanged}" Width="400" HorizontalAlignment="Left"/>
+                    <StackPanel Orientation="Horizontal" Margin="0,12,0,0">
+                        <Button Content="Admit" Style="{StaticResource PrimaryButton}"
+                                Command="{Binding RecordAdmissionCommand}" Margin="0,0,8,0"/>
+                        <Button Content="Cancel" Style="{StaticResource SecondaryButton}"
+                                Command="{Binding ToggleAdmitFormCommand}"/>
+                    </StackPanel>
+                </StackPanel>
+            </Border>
+
+            <!-- Discharge form -->
+            <Border Style="{StaticResource FormPanel}"
+                    Visibility="{Binding ShowDischargeForm, Converter={StaticResource BoolToVisibility}}">
+                <StackPanel>
+                    <TextBlock Style="{StaticResource SectionHeader}" Text="Record Discharge"/>
+                    <TextBlock Style="{StaticResource FieldLabel}" Text="Discharge Diagnosis"/>
+                    <TextBox Text="{Binding DischargeDiagnosis, UpdateSourceTrigger=PropertyChanged}" Width="400" HorizontalAlignment="Left"/>
+                    <TextBlock Style="{StaticResource FieldLabel}" Text="Disposition"/>
+                    <ComboBox ItemsSource="{Binding DispositionOptions}" SelectedItem="{Binding Disposition}" Width="200" HorizontalAlignment="Left"/>
+                    <StackPanel Orientation="Horizontal" Margin="0,12,0,0">
+                        <Button Content="Discharge" Style="{StaticResource PrimaryButton}"
+                                Command="{Binding RecordDischargeCommand}" Margin="0,0,8,0"/>
+                        <Button Content="Cancel" Style="{StaticResource SecondaryButton}"
+                                Command="{Binding ToggleDischargeFormCommand}"/>
+                    </StackPanel>
+                </StackPanel>
+            </Border>
+
+            <DataGrid ItemsSource="{Binding Movements}" SelectedItem="{Binding SelectedMovement}">
+                <DataGrid.Columns>
+                    <DataGridTextColumn Header="Type" Binding="{Binding MovementType}" Width="100"/>
+                    <DataGridTextColumn Header="Ward" Binding="{Binding WardLocationName}" Width="160"/>
+                    <DataGridTextColumn Header="Room/Bed" Binding="{Binding RoomBed}" Width="100"/>
+                    <DataGridTextColumn Header="Specialty" Binding="{Binding TreatingSpecialty}" Width="160"/>
+                    <DataGridTextColumn Header="Attending" Binding="{Binding AttendingPhysicianName}" Width="160"/>
+                    <DataGridTextColumn Header="Date" Binding="{Binding MovementDate, StringFormat=d}" Width="110"/>
+                    <DataGridTextColumn Header="Status" Binding="{Binding Status}" Width="100"/>
+                </DataGrid.Columns>
+            </DataGrid>
+
+            <Button Content="Discharge Patient" Style="{StaticResource DangerButton}"
+                    Command="{Binding ToggleDischargeFormCommand}" Margin="0,8,0,0"
+                    HorizontalAlignment="Left"
+                    Visibility="{Binding SelectedMovement, Converter={StaticResource NullToVisibility}}"/>
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>

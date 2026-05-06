@@ -1,0 +1,638 @@
+@page "/clinical-registries"
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+@rendermode InteractiveServer
+@using NewVistas.BlazorWeb.Services
+@using NewVistas.Abstractions.GrainInterfaces
+@using NewVistas.Abstractions.GrainStates
+@inject OrleansGrainService Grains
+
+<PageTitle>Clinical Case Registries</PageTitle>
+
+<h2>Clinical Case Registries</h2>
+
+<div class="tab-bar">
+    <button class="@TabClass(1)" @onclick="() => SetTab(1)">HIV Registry</button>
+    <button class="@TabClass(2)" @onclick="() => SetTab(2)">Hepatitis C Registry</button>
+    <button class="@TabClass(3)" @onclick="() => SetTab(3)">Diabetes Registry</button>
+</div>
+
+@if (error != null)
+{
+    <div class="error-banner">@error</div>
+}
+
+@* ── Shared Registry Table (all 3 tabs) ──────────────────────────────────── *@
+<div class="toolbar">
+    <label><input type="checkbox" @bind="showActiveOnly" @bind:after="LoadCurrentRegistry" /> Active only</label>
+    <button @onclick="LoadCurrentRegistry" disabled="@loading">Refresh</button>
+</div>
+
+@if (loading)
+{
+    <p>Loading...</p>
+}
+else if (entries.Count == 0)
+{
+    <p class="empty">No patients found in this registry.</p>
+}
+else if (activeTab == 1)
+{
+    <table class="data-table">
+        <thead>
+            <tr>
+                <th>Patient</th>
+                <th>Status</th>
+                <th>Stage</th>
+                <th>CD4 (cells/mm³)</th>
+                <th>Viral Load (cp/mL)</th>
+                <th>Suppressed</th>
+                <th>Enrolled</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var e in entries)
+            {
+                bool isSel = selectedPatientId == e.PatientId;
+                <tr class="@(isSel ? "selected-row" : "")" @onclick="() => SelectEntry(e.PatientId, RegistryType.HIV)">
+                    <td>@e.PatientName<br /><small>@e.PatientId</small></td>
+                    <td><span class="badge badge-@BadgeClass(e.Status)">@e.Status</span></td>
+                    <td>@(isSel && selectedDetail?.HIVStage != null ? selectedDetail!.HIVStage.ToString() : "—")</td>
+                    <td>@(isSel && selectedDetail?.CD4CountCellsPerMm3 != null ? selectedDetail!.CD4CountCellsPerMm3!.Value.ToString("F0") : "—")</td>
+                    <td>@(isSel && selectedDetail?.ViralLoadCopiesPerMl != null ? selectedDetail!.ViralLoadCopiesPerMl!.Value.ToString("N0") : "—")</td>
+                    <td>@(isSel && selectedDetail != null ? (selectedDetail.IsVirallySuppressed ? "Yes" : "No") : "—")</td>
+                    <td>@e.EnrollmentDate.ToString("yyyy-MM-dd")</td>
+                </tr>
+            }
+        </tbody>
+    </table>
+    @if (selectedDetail != null)
+    {
+        <div class="detail-panel">
+            <h4>HIV Detail — @selectedDetail.PatientName</h4>
+            <div class="detail-grid">
+                <span>ART Regimen:</span><span>@(selectedDetail.CurrentARTRegimen ?? "—")</span>
+                <span>ART Start:</span><span>@(selectedDetail.ARTStartDate?.ToString("yyyy-MM-dd") ?? "—")</span>
+                <span>HIV Dx Date:</span><span>@(selectedDetail.HIVDiagnosisDate?.ToString("yyyy-MM-dd") ?? "—")</span>
+                <span>Provider:</span><span>@selectedDetail.PrimaryProviderName</span>
+                <span>Site:</span><span>@selectedDetail.SiteName</span>
+                <span>Notes:</span><span>@(selectedDetail.Notes ?? "—")</span>
+            </div>
+        </div>
+    }
+}
+else if (activeTab == 2)
+{
+    <table class="data-table">
+        <thead>
+            <tr>
+                <th>Patient</th>
+                <th>Status</th>
+                <th>Genotype</th>
+                <th>Fibrosis (kPa)</th>
+                <th>Treatment Status</th>
+                <th>SVR Achieved</th>
+                <th>Enrolled</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var e in entries)
+            {
+                bool isSel = selectedPatientId == e.PatientId;
+                <tr class="@(isSel ? "selected-row" : "")" @onclick="() => SelectEntry(e.PatientId, RegistryType.HepatitisCVirus)">
+                    <td>@e.PatientName<br /><small>@e.PatientId</small></td>
+                    <td><span class="badge badge-@BadgeClass(e.Status)">@e.Status</span></td>
+                    <td>@(isSel && selectedDetail?.HepCGenotype != null ? selectedDetail!.HepCGenotype.ToString() : "—")</td>
+                    <td>@(isSel && selectedDetail?.FibrosisScoreKpa != null ? selectedDetail!.FibrosisScoreKpa!.Value.ToString("F1") : "—")</td>
+                    <td>@(isSel && selectedDetail?.HepCTreatmentStatus != null ? selectedDetail!.HepCTreatmentStatus.ToString() : "—")</td>
+                    <td>@(isSel && selectedDetail != null ? (selectedDetail.SVRAchieved ? "Yes" : "No") : "—")</td>
+                    <td>@e.EnrollmentDate.ToString("yyyy-MM-dd")</td>
+                </tr>
+            }
+        </tbody>
+    </table>
+    @if (selectedDetail != null)
+    {
+        <div class="detail-panel">
+            <h4>Hepatitis C Detail — @selectedDetail.PatientName</h4>
+            <div class="detail-grid">
+                <span>Tx Start:</span><span>@(selectedDetail.HepCTreatmentStartDate?.ToString("yyyy-MM-dd") ?? "—")</span>
+                <span>Tx End:</span><span>@(selectedDetail.HepCTreatmentEndDate?.ToString("yyyy-MM-dd") ?? "—")</span>
+                <span>SVR Date:</span><span>@(selectedDetail.SVRDate?.ToString("yyyy-MM-dd") ?? "—")</span>
+                <span>Provider:</span><span>@selectedDetail.PrimaryProviderName</span>
+                <span>Site:</span><span>@selectedDetail.SiteName</span>
+                <span>Notes:</span><span>@(selectedDetail.Notes ?? "—")</span>
+            </div>
+        </div>
+    }
+}
+else
+{
+    <table class="data-table">
+        <thead>
+            <tr>
+                <th>Patient</th>
+                <th>Status</th>
+                <th>Type</th>
+                <th>HbA1c (%)</th>
+                <th>Insulin</th>
+                <th>Complications</th>
+                <th>Enrolled</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var e in entries)
+            {
+                bool isSel = selectedPatientId == e.PatientId;
+                <tr class="@(isSel ? "selected-row" : "")" @onclick="() => SelectEntry(e.PatientId, RegistryType.DiabetesMellitus)">
+                    <td>@e.PatientName<br /><small>@e.PatientId</small></td>
+                    <td><span class="badge badge-@BadgeClass(e.Status)">@e.Status</span></td>
+                    <td>@(isSel && selectedDetail?.DiabetesType != null ? selectedDetail!.DiabetesType.ToString() : "—")</td>
+                    <td>@(isSel && selectedDetail?.HbA1cPct != null ? selectedDetail!.HbA1cPct!.Value.ToString("F1") + "%" : "—")</td>
+                    <td>@(isSel && selectedDetail != null ? (selectedDetail.IsInsulinDependent ? "Yes" : "No") : "—")</td>
+                    <td>@(isSel && selectedDetail != null ? selectedDetail.DiabetesComplications.Count.ToString() : "—")</td>
+                    <td>@e.EnrollmentDate.ToString("yyyy-MM-dd")</td>
+                </tr>
+            }
+        </tbody>
+    </table>
+    @if (selectedDetail != null)
+    {
+        <div class="detail-panel">
+            <h4>Diabetes Detail — @selectedDetail.PatientName</h4>
+            <div class="detail-grid">
+                <span>Dx Date:</span><span>@(selectedDetail.DiabetesDiagnosisDate?.ToString("yyyy-MM-dd") ?? "—")</span>
+                <span>HbA1c Date:</span><span>@(selectedDetail.HbA1cDate?.ToString("yyyy-MM-dd") ?? "—")</span>
+                <span>Complications:</span><span>@(selectedDetail.DiabetesComplications.Count > 0 ? string.Join(", ", selectedDetail.DiabetesComplications) : "None")</span>
+                <span>Provider:</span><span>@selectedDetail.PrimaryProviderName</span>
+                <span>Site:</span><span>@selectedDetail.SiteName</span>
+                <span>Notes:</span><span>@(selectedDetail.Notes ?? "—")</span>
+            </div>
+        </div>
+    }
+}
+
+@* ── Sub-tabs: Enroll / Condition Data ────────────────────────────────────── *@
+<div class="sub-tabs">
+    <button class="@SubTabClass(1)" @onclick="() => activeSubTab = 1">Enroll New Patient</button>
+    @if (activeTab == 1) { <button class="@SubTabClass(2)" @onclick="() => activeSubTab = 2">Update HIV Data</button> }
+    @if (activeTab == 2) { <button class="@SubTabClass(3)" @onclick="() => activeSubTab = 3">Update HepC Data</button> }
+    @if (activeTab == 3) { <button class="@SubTabClass(4)" @onclick="() => activeSubTab = 4">Update Diabetes Data</button> }
+</div>
+
+@if (submitMessage != null)
+{
+    <p class="submit-msg">@submitMessage</p>
+}
+
+@* ── Enroll form (shared) ─────────────────────────────────────────────────── *@
+@if (activeSubTab == 1)
+{
+    <div class="form-section">
+        <h5>Enroll in @CurrentTypeName Registry</h5>
+        <div class="form-row"><label>Patient ID</label><input @bind="enroll.PatientId" /></div>
+        <div class="form-row"><label>Patient Name</label><input @bind="enroll.PatientName" /></div>
+        <div class="form-row"><label>Date of Birth</label><input type="date" @bind="enroll.DateOfBirth" /></div>
+        <div class="form-row"><label>Enrolled By ID</label><input @bind="enroll.EnrolledById" /></div>
+        <div class="form-row"><label>Enrolled By Name</label><input @bind="enroll.EnrolledByName" /></div>
+        <div class="form-row"><label>Site ID</label><input @bind="enroll.SiteId" /></div>
+        <div class="form-row"><label>Site Name</label><input @bind="enroll.SiteName" /></div>
+        <div class="form-row"><label>Primary Provider ID</label><input @bind="enroll.PrimaryProviderId" /></div>
+        <div class="form-row"><label>Primary Provider Name</label><input @bind="enroll.PrimaryProviderName" /></div>
+        <div class="form-row"><label>Notes</label><textarea @bind="enroll.Notes" rows="2"></textarea></div>
+        <button @onclick="SubmitEnroll" disabled="@submitting">Enroll Patient</button>
+    </div>
+}
+
+@* ── HIV Data form ────────────────────────────────────────────────────────── *@
+@if (activeSubTab == 2 && activeTab == 1)
+{
+    <div class="form-section">
+        <h5>Update HIV Data</h5>
+        <div class="form-row"><label>Patient ID</label><input @bind="hivForm.PatientId" /></div>
+        <div class="form-row">
+            <label>Stage</label>
+            <select @bind="hivForm.Stage">
+                @foreach (var s in Enum.GetValues<HIVStage>()) { <option value="@s">@s</option> }
+            </select>
+        </div>
+        <div class="form-row"><label>CD4 Count (cells/mm³)</label><input type="number" @bind="hivForm.CD4Count" /></div>
+        <div class="form-row"><label>CD4 Date</label><input type="date" @bind="hivForm.CD4Date" /></div>
+        <div class="form-row"><label>Viral Load (copies/mL)</label><input type="number" @bind="hivForm.ViralLoadCopies" /></div>
+        <div class="form-row"><label>VL Date</label><input type="date" @bind="hivForm.ViralLoadDate" /></div>
+        <div class="form-row"><label>Virally Suppressed</label><input type="checkbox" @bind="hivForm.IsVirallySuppressed" /></div>
+        <div class="form-row"><label>ART Start Date</label><input type="date" @bind="hivForm.ARTStartDate" /></div>
+        <div class="form-row"><label>ART Regimen</label><input @bind="hivForm.ARTRegimen" /></div>
+        <button @onclick="SubmitHIVUpdate" disabled="@submitting">Update HIV Data</button>
+    </div>
+}
+
+@* ── HepC Data form ───────────────────────────────────────────────────────── *@
+@if (activeSubTab == 3 && activeTab == 2)
+{
+    <div class="form-section">
+        <h5>Update Hepatitis C Data</h5>
+        <div class="form-row"><label>Patient ID</label><input @bind="hepcForm.PatientId" /></div>
+        <div class="form-row">
+            <label>Genotype</label>
+            <select @bind="hepcForm.Genotype">
+                @foreach (var g in Enum.GetValues<HepCGenotype>()) { <option value="@g">@g</option> }
+            </select>
+        </div>
+        <div class="form-row"><label>Fibrosis Score (kPa)</label><input type="number" step="0.1" @bind="hepcForm.FibrosisScore" /></div>
+        <div class="form-row">
+            <label>Treatment Status</label>
+            <select @bind="hepcForm.TxStatus">
+                @foreach (var t in Enum.GetValues<HepCTreatmentStatus>()) { <option value="@t">@t</option> }
+            </select>
+        </div>
+        <div class="form-row"><label>Tx Start Date</label><input type="date" @bind="hepcForm.TxStartDate" /></div>
+        <div class="form-row"><label>Tx End Date</label><input type="date" @bind="hepcForm.TxEndDate" /></div>
+        <div class="form-row"><label>SVR Achieved</label><input type="checkbox" @bind="hepcForm.SVRAchieved" /></div>
+        <div class="form-row"><label>SVR Date</label><input type="date" @bind="hepcForm.SVRDate" /></div>
+        <button @onclick="SubmitHepCUpdate" disabled="@submitting">Update HepC Data</button>
+    </div>
+}
+
+@* ── Diabetes Data form ───────────────────────────────────────────────────── *@
+@if (activeSubTab == 4 && activeTab == 3)
+{
+    <div class="form-section">
+        <h5>Update Diabetes Data</h5>
+        <div class="form-row"><label>Patient ID</label><input @bind="diabetesForm.PatientId" /></div>
+        <div class="form-row">
+            <label>Diabetes Type</label>
+            <select @bind="diabetesForm.DiabetesType">
+                @foreach (var t in Enum.GetValues<DiabetesType>()) { <option value="@t">@t</option> }
+            </select>
+        </div>
+        <div class="form-row"><label>HbA1c (%)</label><input type="number" step="0.1" @bind="diabetesForm.HbA1cPct" /></div>
+        <div class="form-row"><label>HbA1c Date</label><input type="date" @bind="diabetesForm.HbA1cDate" /></div>
+        <div class="form-row"><label>Insulin Dependent</label><input type="checkbox" @bind="diabetesForm.IsInsulinDependent" /></div>
+        <div class="form-row"><label>Complications</label><input @bind="diabetesForm.Complications" placeholder="Retinopathy, Nephropathy, ..." /></div>
+        <button @onclick="SubmitDiabetesUpdate" disabled="@submitting">Update Diabetes Data</button>
+    </div>
+}
+
+<style>
+    .tab-bar { display: flex; gap: 4px; margin-bottom: 16px; }
+    .tab-btn { padding: 6px 16px; border: 1px solid #555; background: #2a2a2a; color: #ccc; cursor: pointer; border-radius: 4px 4px 0 0; }
+    .tab-btn.active { background: #1a3a5c; color: #fff; }
+    .sub-tabs { display: flex; gap: 4px; margin: 16px 0 8px; }
+    .sub-tab-btn { padding: 5px 12px; border: 1px solid #444; background: #222; color: #ccc; cursor: pointer; border-radius: 4px; }
+    .sub-tab-btn.active { background: #2a4a6a; color: #fff; }
+    .toolbar { display: flex; gap: 12px; align-items: center; margin-bottom: 12px; }
+    .data-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    .data-table th { background: #1e2a38; color: #8ab4d8; padding: 6px 8px; text-align: left; }
+    .data-table td { padding: 5px 8px; border-bottom: 1px solid #2a2a2a; }
+    .data-table tr:hover { background: #1a2535; cursor: pointer; }
+    .selected-row { background: #1a3a5c !important; }
+    .empty { color: #888; font-style: italic; }
+    .error-banner { background: #5c1a1a; color: #ffaaaa; padding: 8px; margin-bottom: 12px; border-radius: 4px; }
+    .detail-panel { background: #1a2535; border: 1px solid #2a4a6a; border-radius: 6px; padding: 16px; margin-top: 16px; }
+    .detail-grid { display: grid; grid-template-columns: 160px 1fr; gap: 4px 12px; font-size: 13px; }
+    .detail-grid span:nth-child(odd) { color: #8ab4d8; }
+    .form-section { max-width: 600px; margin-top: 8px; }
+    .form-row { display: flex; align-items: baseline; gap: 8px; margin-bottom: 8px; }
+    .form-row label:first-child { width: 160px; min-width: 160px; color: #8ab4d8; font-size: 13px; }
+    .form-row input, .form-row select, .form-row textarea { flex: 1; background: #1a2535; border: 1px solid #2a4a6a; color: #e0e0e0; padding: 4px 8px; border-radius: 4px; font-size: 13px; }
+    .badge { padding: 2px 8px; border-radius: 10px; font-size: 11px; font-weight: bold; }
+    .badge-active { background: #1a4a1a; color: #88dd88; }
+    .badge-inactive { background: #3a3a1a; color: #dddd88; }
+    .badge-losttofollowup { background: #3a1a3a; color: #dd88dd; }
+    .badge-transferredout { background: #1a1a4a; color: #8888dd; }
+    .badge-deceased { background: #3a1a1a; color: #dd8888; }
+    .submit-msg { color: #88dd88; margin-top: 6px; }
+    button { padding: 6px 16px; background: #1a3a5c; color: #fff; border: none; border-radius: 4px; cursor: pointer; }
+    button:hover { background: #2a5a8c; }
+    button:disabled { opacity: 0.5; cursor: not-allowed; }
+    h5 { color: #8ab4d8; margin: 12px 0 8px; }
+</style>
+
+@code {
+    private int activeTab = 1;
+    private int activeSubTab = 1;
+    private string? error;
+    private bool loading;
+    private bool showActiveOnly = true;
+
+    private List<EntrySummaryDto> entries = new();
+    private string? selectedPatientId;
+    private EntryDetailDto? selectedDetail;
+
+    private bool submitting;
+    private string? submitMessage;
+
+    private EnrollForm enroll = new();
+    private HIVUpdateForm hivForm = new();
+    private HepCUpdateForm hepcForm = new();
+    private DiabetesUpdateForm diabetesForm = new();
+
+    private RegistryType CurrentType => activeTab switch
+    {
+        1 => RegistryType.HIV,
+        2 => RegistryType.HepatitisCVirus,
+        _ => RegistryType.DiabetesMellitus
+    };
+
+    private string CurrentTypeName => activeTab switch
+    {
+        1 => "HIV",
+        2 => "Hepatitis C",
+        _ => "Diabetes"
+    };
+
+    protected override async Task OnInitializedAsync() => await LoadCurrentRegistry();
+
+    private string TabClass(int tab) => $"tab-btn{(activeTab == tab ? " active" : "")}";
+    private string SubTabClass(int tab) => $"sub-tab-btn{(activeSubTab == tab ? " active" : "")}";
+    private string BadgeClass(CCREnrollmentStatus s) => s switch
+    {
+        CCREnrollmentStatus.Active => "active",
+        CCREnrollmentStatus.Inactive => "inactive",
+        CCREnrollmentStatus.LostToFollowUp => "losttofollowup",
+        CCREnrollmentStatus.TransferredOut => "transferredout",
+        CCREnrollmentStatus.Deceased => "deceased",
+        _ => "inactive"
+    };
+
+    private async Task SetTab(int tab)
+    {
+        activeTab = tab;
+        activeSubTab = 1;
+        selectedPatientId = null;
+        selectedDetail = null;
+        submitMessage = null;
+        await LoadCurrentRegistry();
+    }
+
+    private async Task LoadCurrentRegistry()
+    {
+        loading = true;
+        error = null;
+        try
+        {
+            var regIdx = Grains.GetGrain<IClinicalRegistryIndexGrain>($"CCR-IDX:{CurrentType}");
+            var rawEntries = showActiveOnly ? await regIdx.GetActiveEntriesAsync() : await regIdx.GetAllEntriesAsync();
+            entries = rawEntries.Select(e => new EntrySummaryDto
+            {
+                PatientId = e.PatientId, PatientName = e.PatientName,
+                Status = e.Status, EnrollmentDate = e.EnrollmentDate
+            }).ToList();
+            selectedPatientId = null;
+            selectedDetail = null;
+        }
+        catch (Exception ex) { error = $"Error loading registry: {ex.Message}"; }
+        finally { loading = false; }
+    }
+
+    private async Task SelectEntry(string patientId, RegistryType type)
+    {
+        selectedPatientId = patientId;
+        selectedDetail = null;
+        try
+        {
+            var entryGrain = Grains.GetGrain<IClinicalRegistryEntryGrain>($"CCR:{type}:{patientId}");
+            var es = await entryGrain.GetEntryAsync();
+            selectedDetail = new EntryDetailDto
+            {
+                PatientId = es.PatientId, PatientName = es.PatientName,
+                PrimaryProviderName = es.PrimaryProviderName, SiteName = es.SiteName,
+                Notes = es.Notes,
+                HIVStage = es.HIVStage, CD4CountCellsPerMm3 = es.CD4CountCellsPerMm3,
+                ViralLoadCopiesPerMl = es.ViralLoadCopiesPerMl, IsVirallySuppressed = es.IsVirallySuppressed,
+                CurrentARTRegimen = es.CurrentARTRegimen, ARTStartDate = es.ARTStartDate,
+                HIVDiagnosisDate = es.HIVDiagnosisDate,
+                HepCGenotype = es.HepCGenotype, FibrosisScoreKpa = es.FibrosisScoreKpa,
+                HepCTreatmentStatus = es.HepCTreatmentStatus, SVRAchieved = es.SVRAchieved,
+                DiabetesType = es.DiabetesType, HbA1cPct = es.HbA1cPct,
+                IsInsulinDependent = es.IsInsulinDependent
+            };
+        }
+        catch { error = "Could not load patient details."; }
+    }
+
+    private async Task SubmitEnroll()
+    {
+        if (string.IsNullOrWhiteSpace(enroll.PatientId)) { submitMessage = "Patient ID is required."; return; }
+        submitting = true;
+        submitMessage = null;
+        try
+        {
+            var payload = new
+            {
+                patientName = enroll.PatientName,
+                dateOfBirth = enroll.DateOfBirth,
+                enrolledById = enroll.EnrolledById,
+                enrolledByName = enroll.EnrolledByName,
+                siteId = enroll.SiteId,
+                siteName = enroll.SiteName,
+                primaryProviderId = enroll.PrimaryProviderId,
+                primaryProviderName = enroll.PrimaryProviderName,
+                notes = enroll.Notes
+            };
+            string enrollPtId = enroll.PatientId.Trim();
+            var enrollGrain = Grains.GetGrain<IClinicalRegistryEntryGrain>($"CCR:{CurrentType}:{enrollPtId}");
+            await enrollGrain.EnrollPatientAsync(
+                enrollPtId, enroll.PatientName, enroll.DateOfBirth, CurrentType,
+                enroll.EnrolledById, enroll.EnrolledByName,
+                enroll.SiteId, enroll.SiteName,
+                enroll.PrimaryProviderId, enroll.PrimaryProviderName, enroll.Notes);
+            var enrollState = await enrollGrain.GetEntryAsync();
+            var enrollIdx = Grains.GetGrain<IClinicalRegistryIndexGrain>($"CCR-IDX:{CurrentType}");
+            await enrollIdx.UpsertEntryAsync(new CCREntrySummary
+            {
+                PatientId = enrollState.PatientId, PatientName = enrollState.PatientName,
+                Status = enrollState.EnrollmentStatus, EnrollmentDate = enrollState.EnrollmentDate
+            });
+            submitMessage = "Patient enrolled successfully.";
+            enroll = new();
+            await LoadCurrentRegistry();
+        }
+        catch (Exception ex) { submitMessage = $"Error: {ex.Message}"; }
+        finally { submitting = false; }
+    }
+
+    private async Task SubmitHIVUpdate()
+    {
+        if (string.IsNullOrWhiteSpace(hivForm.PatientId)) { submitMessage = "Patient ID is required."; return; }
+        submitting = true;
+        submitMessage = null;
+        try
+        {
+            var payload = new
+            {
+                stage = hivForm.Stage,
+                cD4Count = hivForm.CD4Count,
+                cD4Date = hivForm.CD4Date,
+                viralLoadCopies = hivForm.ViralLoadCopies,
+                viralLoadDate = hivForm.ViralLoadDate,
+                isVirallySuppressed = hivForm.IsVirallySuppressed,
+                aRTStartDate = hivForm.ARTStartDate,
+                aRTRegimen = hivForm.ARTRegimen
+            };
+            var hivGrain = Grains.GetGrain<IClinicalRegistryEntryGrain>($"CCR:{RegistryType.HIV}:{hivForm.PatientId.Trim()}");
+            await hivGrain.UpdateHIVDataAsync(
+                hivForm.Stage, hivForm.CD4Count, hivForm.CD4Date,
+                hivForm.ViralLoadCopies, hivForm.ViralLoadDate, hivForm.IsVirallySuppressed,
+                hivForm.ARTStartDate, hivForm.ARTRegimen);
+            submitMessage = "HIV data updated.";
+        }
+        catch (Exception ex) { submitMessage = $"Error: {ex.Message}"; }
+        finally { submitting = false; }
+    }
+
+    private async Task SubmitHepCUpdate()
+    {
+        if (string.IsNullOrWhiteSpace(hepcForm.PatientId)) { submitMessage = "Patient ID is required."; return; }
+        submitting = true;
+        submitMessage = null;
+        try
+        {
+            var payload = new
+            {
+                genotype = hepcForm.Genotype,
+                fibrosisScore = hepcForm.FibrosisScore,
+                txStatus = hepcForm.TxStatus,
+                txStartDate = hepcForm.TxStartDate,
+                txEndDate = hepcForm.TxEndDate,
+                sVRAchieved = hepcForm.SVRAchieved,
+                sVRDate = hepcForm.SVRDate
+            };
+            var hepcGrain = Grains.GetGrain<IClinicalRegistryEntryGrain>($"CCR:{RegistryType.HepatitisCVirus}:{hepcForm.PatientId.Trim()}");
+            await hepcGrain.UpdateHepCDataAsync(
+                hepcForm.Genotype, hepcForm.FibrosisScore, hepcForm.TxStatus,
+                hepcForm.TxStartDate, hepcForm.TxEndDate, hepcForm.SVRAchieved, hepcForm.SVRDate);
+            submitMessage = "HepC data updated.";
+        }
+        catch (Exception ex) { submitMessage = $"Error: {ex.Message}"; }
+        finally { submitting = false; }
+    }
+
+    private async Task SubmitDiabetesUpdate()
+    {
+        if (string.IsNullOrWhiteSpace(diabetesForm.PatientId)) { submitMessage = "Patient ID is required."; return; }
+        submitting = true;
+        submitMessage = null;
+        try
+        {
+            var comps = diabetesForm.Complications
+                .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                .ToList();
+            var payload = new
+            {
+                diabetesType = diabetesForm.DiabetesType,
+                hbA1cPct = diabetesForm.HbA1cPct,
+                hbA1cDate = diabetesForm.HbA1cDate,
+                isInsulinDependent = diabetesForm.IsInsulinDependent,
+                complications = comps
+            };
+            var dmGrain = Grains.GetGrain<IClinicalRegistryEntryGrain>($"CCR:{RegistryType.DiabetesMellitus}:{diabetesForm.PatientId.Trim()}");
+            await dmGrain.UpdateDiabetesDataAsync(
+                diabetesForm.DiabetesType, diabetesForm.HbA1cPct, diabetesForm.HbA1cDate,
+                diabetesForm.IsInsulinDependent, comps);
+            submitMessage = "Diabetes data updated.";
+        }
+        catch (Exception ex) { submitMessage = $"Error: {ex.Message}"; }
+        finally { submitting = false; }
+    }
+
+    // ── Local form models ─────────────────────────────────────────────────────
+
+    private class EnrollForm
+    {
+        public string PatientId { get; set; } = string.Empty;
+        public string PatientName { get; set; } = string.Empty;
+        public DateTime? DateOfBirth { get; set; }
+        public string EnrolledById { get; set; } = string.Empty;
+        public string EnrolledByName { get; set; } = string.Empty;
+        public string SiteId { get; set; } = string.Empty;
+        public string SiteName { get; set; } = string.Empty;
+        public string PrimaryProviderId { get; set; } = string.Empty;
+        public string PrimaryProviderName { get; set; } = string.Empty;
+        public string? Notes { get; set; }
+    }
+
+    private class HIVUpdateForm
+    {
+        public string PatientId { get; set; } = string.Empty;
+        public HIVStage Stage { get; set; } = HIVStage.Stage1;
+        public decimal? CD4Count { get; set; }
+        public DateTime? CD4Date { get; set; }
+        public decimal? ViralLoadCopies { get; set; }
+        public DateTime? ViralLoadDate { get; set; }
+        public bool IsVirallySuppressed { get; set; }
+        public DateTime? ARTStartDate { get; set; }
+        public string? ARTRegimen { get; set; }
+    }
+
+    private class HepCUpdateForm
+    {
+        public string PatientId { get; set; } = string.Empty;
+        public HepCGenotype Genotype { get; set; } = HepCGenotype.Unknown;
+        public decimal? FibrosisScore { get; set; }
+        public HepCTreatmentStatus TxStatus { get; set; } = HepCTreatmentStatus.NeverTreated;
+        public DateTime? TxStartDate { get; set; }
+        public DateTime? TxEndDate { get; set; }
+        public bool SVRAchieved { get; set; }
+        public DateTime? SVRDate { get; set; }
+    }
+
+    private class DiabetesUpdateForm
+    {
+        public string PatientId { get; set; } = string.Empty;
+        public DiabetesType DiabetesType { get; set; } = DiabetesType.Type2;
+        public decimal? HbA1cPct { get; set; }
+        public DateTime? HbA1cDate { get; set; }
+        public bool IsInsulinDependent { get; set; }
+        public string Complications { get; set; } = string.Empty;
+    }
+
+    // ── Response DTOs ─────────────────────────────────────────────────────────
+
+    private class EntrySummaryDto
+    {
+        public string PatientId { get; set; } = string.Empty;
+        public string PatientName { get; set; } = string.Empty;
+        public RegistryType RegistryType { get; set; }
+        public CCREnrollmentStatus Status { get; set; }
+        public DateTime EnrollmentDate { get; set; }
+        public string SiteId { get; set; } = string.Empty;
+        public string PrimaryProviderName { get; set; } = string.Empty;
+        public DateTime LastModifiedDate { get; set; }
+    }
+
+    private class EntryDetailDto
+    {
+        public string PatientId { get; set; } = string.Empty;
+        public string PatientName { get; set; } = string.Empty;
+        public RegistryType RegistryType { get; set; }
+        public CCREnrollmentStatus EnrollmentStatus { get; set; }
+        public DateTime EnrollmentDate { get; set; }
+        public string PrimaryProviderName { get; set; } = string.Empty;
+        public string SiteName { get; set; } = string.Empty;
+        public string? Notes { get; set; }
+        // HIV
+        public DateTime? HIVDiagnosisDate { get; set; }
+        public HIVStage? HIVStage { get; set; }
+        public decimal? CD4CountCellsPerMm3 { get; set; }
+        public decimal? ViralLoadCopiesPerMl { get; set; }
+        public bool IsVirallySuppressed { get; set; }
+        public string? CurrentARTRegimen { get; set; }
+        public DateTime? ARTStartDate { get; set; }
+        // HepC
+        public HepCGenotype? HepCGenotype { get; set; }
+        public decimal? FibrosisScoreKpa { get; set; }
+        public HepCTreatmentStatus? HepCTreatmentStatus { get; set; }
+        public DateTime? HepCTreatmentStartDate { get; set; }
+        public DateTime? HepCTreatmentEndDate { get; set; }
+        public bool SVRAchieved { get; set; }
+        public DateTime? SVRDate { get; set; }
+        // Diabetes
+        public DiabetesType? DiabetesType { get; set; }
+        public decimal? HbA1cPct { get; set; }
+        public DateTime? HbA1cDate { get; set; }
+        public bool IsInsulinDependent { get; set; }
+        public List<string> DiabetesComplications { get; set; } = new();
+        public DateTime? DiabetesDiagnosisDate { get; set; }
+    }
+}

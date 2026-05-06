@@ -1,0 +1,51 @@
+// Copyright 2026 Merrimack Valley Software Works, LLC. All rights reserved.
+using NewVistas.Abstractions.GrainInterfaces;
+using NewVistas.Abstractions.GrainStates;
+using NewVistas.Wpf_UI.ViewModels;
+using NSubstitute;
+using NSubstitute.ExceptionExtensions;
+
+namespace NewVistas.Wpf_UI_Tests;
+
+[TestFixture]
+public class AllergiesViewModelTests : ViewModelTestBase
+{
+    [Test]
+    public async Task LoadAsync_PopulatesAllergies()
+    {
+        var testData = new List<AllergySummary>
+        {
+            new() { AllergyId = "A1", Allergen = "Penicillin", Severity = "SEVERE" },
+            new() { AllergyId = "A2", Allergen = "Aspirin", Severity = "MODERATE" }
+        };
+        MockWorkflowGrain.GetAllergiesAsync().Returns(testData);
+        SelectPatient("PATIENT-001");
+        var vm = new AllergiesViewModel(GrainService, ApiClient, PatientContext);
+
+        await vm.LoadAsync();
+
+        Assert.That(vm.Allergies, Has.Count.EqualTo(2));
+        Assert.That(vm.IsLoading, Is.False);
+        Assert.That(vm.Error, Is.Null);
+    }
+
+    [Test]
+    public async Task LoadAsync_SetsErrorOnFailure()
+    {
+        MockWorkflowGrain.GetAllergiesAsync().Throws(new Exception("Grain error"));
+        SelectPatient("PATIENT-001");
+        var vm = new AllergiesViewModel(GrainService, ApiClient, PatientContext);
+
+        await vm.LoadAsync();
+
+        Assert.That(vm.Error, Is.Not.Null);
+        Assert.That(vm.IsLoading, Is.False);
+    }
+
+    [Test]
+    public void LoadAsync_RequiresPatient()
+    {
+        var vm = new AllergiesViewModel(GrainService, ApiClient, PatientContext);
+        Assert.That(vm.LoadCommand.CanExecute(null), Is.False);
+    }
+}

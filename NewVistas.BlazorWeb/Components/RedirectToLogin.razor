@@ -1,0 +1,11 @@
+@inject NavigationManager Navigation
+
+@code {
+    protected override void OnInitialized()
+    {
+        // forceLoad: true ensures the redirect works during SSR pre-render.
+        // In interactive mode this causes a full navigation, but the login page
+        // is lightweight so the UX impact is acceptable.
+        Navigation.NavigateTo("/login", forceLoad: true);
+    }
+}

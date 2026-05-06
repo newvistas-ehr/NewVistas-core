@@ -1,0 +1,211 @@
+@page "/collection-letters"
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+@rendermode InteractiveServer
+@using NewVistas.BlazorWeb.Services
+@using NewVistas.Abstractions.GrainInterfaces
+@using NewVistas.Abstractions.GrainStates
+@inject OrleansGrainService Grains
+
+<PageTitle>Collection Letters</PageTitle>
+
+<h3>Collection Letter Generation</h3>
+<p class="text-muted">PRCA Dunning Letters &amp; AR Correspondence (RCCLLT*.m, RCCL*.m)</p>
+
+<div class="mb-3 d-flex gap-2">
+    <input class="form-control" style="max-width:260px" placeholder="Patient ID" @bind="patientId" @bind:event="oninput" />
+    <button class="btn btn-primary" @onclick="LoadLetters" disabled="@loading">Load</button>
+    <button class="btn btn-outline-secondary" @onclick="LoadDemo" disabled="@loading">Load Demo</button>
+</div>
+
+@if (error != null) { <div class="alert alert-danger">@error</div> }
+
+<ul class="nav nav-tabs mb-3">
+    <li class="nav-item"><button class="nav-link @(tab == "list" ? "active" : "")" @onclick='() => tab = "list"'>Letter History</button></li>
+    <li class="nav-item"><button class="nav-link @(tab == "detail" ? "active" : "")" @onclick='() => tab = "detail"'>Letter Detail</button></li>
+    <li class="nav-item"><button class="nav-link @(tab == "generate" ? "active" : "")" @onclick='() => tab = "generate"'>Generate Letter</button></li>
+</ul>
+
+@if (tab == "list")
+{
+    @if (letters != null && letters.Count > 0)
+    {
+        <table class="table table-sm table-striped">
+            <thead><tr><th>Seq</th><th>Type</th><th>Status</th><th>Amount Due</th><th>Generated</th><th></th></tr></thead>
+            <tbody>
+                @foreach (var l in letters)
+                {
+                    <tr>
+                        <td>@l.DunningSequence</td>
+                        <td>@l.LetterType</td>
+                        <td><span class="badge @StatusBadge(l.Status)">@l.Status</span></td>
+                        <td>@l.TotalAmountDue.ToString("C")</td>
+                        <td>@l.GeneratedDate.ToString("MM/dd/yyyy HH:mm")</td>
+                        <td><button class="btn btn-sm btn-outline-primary" @onclick="() => ViewDetail(l.LetterId)">View</button></td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    }
+    else if (!loading) { <p class="text-muted">No collection letters found.</p> }
+}
+
+@if (tab == "detail" && selected != null)
+{
+    <div class="card mb-3">
+        <div class="card-header d-flex justify-content-between">
+            <span><strong>@selected.LetterType</strong> — Sequence #@selected.DunningSequence <span class="badge @StatusBadge(selected.Status) ms-2">@selected.Status</span></span>
+            <span class="text-muted">@selected.GeneratedDate.ToString("yyyy-MM-dd HH:mm")</span>
+        </div>
+        <div class="card-body">
+            <div class="row mb-3">
+                <div class="col-md-4"><strong>To:</strong> @selected.PatientName</div>
+                <div class="col-md-4"><strong>Address:</strong> @(selected.MailingAddress ?? "—")</div>
+                <div class="col-md-4"><strong>Amount Due:</strong> @selected.TotalAmountDue.ToString("C")</div>
+            </div>
+            <div class="row mb-3">
+                <div class="col-md-3"><strong>Payment Due:</strong> @selected.PaymentDueDate?.ToString("yyyy-MM-dd")</div>
+                <div class="col-md-3"><strong>Response Days:</strong> @selected.ResponseDays</div>
+                <div class="col-md-3"><strong>Printed:</strong> @(selected.PrintedDate?.ToString("MM/dd HH:mm") ?? "—")</div>
+                <div class="col-md-3"><strong>Mailed:</strong> @(selected.MailedDate?.ToString("MM/dd HH:mm") ?? "—")</div>
+            </div>
+
+            @if (selected.LineItems.Count > 0)
+            {
+                <h6>Line Items</h6>
+                <table class="table table-sm table-bordered">
+                    <thead><tr><th>Description</th><th>Original</th><th>Balance</th><th>Days Past Due</th></tr></thead>
+                    <tbody>
+                        @foreach (var li in selected.LineItems)
+                        {
+                            <tr><td>@li.Description</td><td>@li.OriginalAmount.ToString("C")</td><td>@li.CurrentBalance.ToString("C")</td><td>@li.DaysPastDue</td></tr>
+                        }
+                    </tbody>
+                </table>
+            }
+
+            <h6>Letter Body</h6>
+            <pre class="bg-light p-3 border" style="white-space:pre-wrap">@selected.LetterBody</pre>
+
+            <div class="d-flex gap-2 mt-3">
+                @if (selected.Status == CollectionLetterStatus.Generated)
+                {
+                    <button class="btn btn-sm btn-outline-primary" @onclick="() => MarkPrinted(selected.LetterId)">Mark Printed</button>
+                    <button class="btn btn-sm btn-outline-danger" @onclick="() => Cancel(selected.LetterId)">Cancel</button>
+                }
+                @if (selected.Status == CollectionLetterStatus.Printed)
+                {
+                    <button class="btn btn-sm btn-outline-success" @onclick="() => MarkMailed(selected.LetterId)">Mark Mailed</button>
+                }
+                @if (selected.Status == CollectionLetterStatus.Mailed)
+                {
+                    <button class="btn btn-sm btn-outline-warning" @onclick="() => MarkReturned(selected.LetterId)">Mark Returned</button>
+                }
+            </div>
+        </div>
+    </div>
+}
+
+@if (tab == "generate")
+{
+    <div class="card">
+        <div class="card-header">Generate Collection Letter</div>
+        <div class="card-body">
+            <div class="row g-2 mb-3">
+                <div class="col-md-4">
+                    <label class="form-label">Letter Type</label>
+                    <select class="form-select" @bind="newLetterType">
+                        <option value="@CollectionLetterType.FirstNotice">First Notice</option>
+                        <option value="@CollectionLetterType.SecondNotice">Second Notice</option>
+                        <option value="@CollectionLetterType.ThirdNotice">Third/Final Notice</option>
+                        <option value="@CollectionLetterType.IntentToCollect">Intent to Collect</option>
+                        <option value="@CollectionLetterType.Statement">Statement</option>
+                        <option value="@CollectionLetterType.PaymentPlanOffer">Payment Plan Offer</option>
+                        <option value="@CollectionLetterType.TopPreReferral">TOP Pre-Referral</option>
+                        <option value="@CollectionLetterType.AdministrativeReview">Administrative Review</option>
+                    </select>
+                </div>
+                <div class="col-md-8">
+                    <label class="form-label">Notes (optional)</label>
+                    <input class="form-control" @bind="newNotes" />
+                </div>
+            </div>
+            <button class="btn btn-success" @onclick="Generate" disabled="@generating">
+                @(generating ? "Generating..." : "Generate Letter")
+            </button>
+            @if (genResult != null) { <div class="alert alert-success mt-2">@genResult</div> }
+        </div>
+    </div>
+}
+
+@code {
+    private string patientId = string.Empty;
+    private string tab = "list";
+    private bool loading;
+    private string? error;
+    private List<CollectionLetterIndexEntry>? letters;
+    private CollectionLetterState? selected;
+    private CollectionLetterType newLetterType = CollectionLetterType.FirstNotice;
+    private string? newNotes;
+    private bool generating;
+    private string? genResult;
+
+    private async Task LoadLetters()
+    {
+        if (string.IsNullOrWhiteSpace(patientId)) return;
+        loading = true; error = null;
+        try { letters = await Grains.GetGrain<IPatientWorkflowGrain>(patientId.Trim()).GetCollectionLettersAsync(); }
+        catch (Exception ex) { error = ex.Message; }
+        finally { loading = false; }
+    }
+
+    private async Task ViewDetail(string letterId)
+    {
+        error = null;
+        try { selected = await Grains.GetGrain<IPatientWorkflowGrain>(patientId.Trim()).GetCollectionLetterAsync(letterId); tab = "detail"; }
+        catch (Exception ex) { error = ex.Message; }
+    }
+
+    private async Task Generate()
+    {
+        if (string.IsNullOrWhiteSpace(patientId)) return;
+        generating = true; error = null; genResult = null;
+        try
+        {
+            string id = await Grains.GetGrain<IPatientWorkflowGrain>(patientId.Trim())
+                .GenerateCollectionLetterAsync(newLetterType, null, null, newNotes);
+            genResult = $"Letter generated: {id}";
+            await LoadLetters();
+        }
+        catch (Exception ex) { error = ex.Message; }
+        finally { generating = false; }
+    }
+
+    private async Task MarkPrinted(string id) { await Grains.GetGrain<IPatientWorkflowGrain>(patientId.Trim()).MarkCollectionLetterPrintedAsync(id); await ViewDetail(id); await LoadLetters(); }
+    private async Task MarkMailed(string id) { await Grains.GetGrain<IPatientWorkflowGrain>(patientId.Trim()).MarkCollectionLetterMailedAsync(id); await ViewDetail(id); await LoadLetters(); }
+    private async Task MarkReturned(string id) { await Grains.GetGrain<IPatientWorkflowGrain>(patientId.Trim()).MarkCollectionLetterReturnedAsync(id); await ViewDetail(id); await LoadLetters(); }
+    private async Task Cancel(string id) { await Grains.GetGrain<IPatientWorkflowGrain>(patientId.Trim()).CancelCollectionLetterAsync(id, "Cancelled via UI"); await ViewDetail(id); await LoadLetters(); }
+
+    private async Task LoadDemo()
+    {
+        if (string.IsNullOrWhiteSpace(patientId)) return;
+        loading = true; error = null;
+        try
+        {
+            IPatientWorkflowGrain wf = Grains.GetGrain<IPatientWorkflowGrain>(patientId.Trim());
+            await wf.CreateARAccountAsync(null, "CopayOutpatient", 50m, DateTime.UtcNow.AddDays(-70));
+            await wf.CreateARAccountAsync(null, "CopayPharmacy", 24m, DateTime.UtcNow.AddDays(-15));
+            await wf.GenerateCollectionLetterAsync(CollectionLetterType.FirstNotice, "DEMO", "Demo User", null);
+            await wf.GenerateCollectionLetterAsync(CollectionLetterType.SecondNotice, "DEMO", "Demo User", null);
+            letters = await wf.GetCollectionLettersAsync();
+        }
+        catch (Exception ex) { error = ex.Message; }
+        finally { loading = false; }
+    }
+
+    private string StatusBadge(CollectionLetterStatus s) => s switch
+    {
+        CollectionLetterStatus.Generated => "bg-info", CollectionLetterStatus.Printed => "bg-primary",
+        CollectionLetterStatus.Mailed => "bg-success", CollectionLetterStatus.Returned => "bg-warning text-dark",
+        CollectionLetterStatus.Cancelled => "bg-danger", _ => "bg-secondary",
+    };
+}

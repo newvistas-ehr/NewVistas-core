@@ -1,0 +1,226 @@
+﻿@page "/ward-stock"
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+@rendermode InteractiveServer
+@using NewVistas.BlazorWeb.Services
+@using NewVistas.Abstractions.GrainInterfaces
+@using NewVistas.Abstractions.GrainStates
+@inject OrleansGrainService Grains
+
+<PageTitle>Ward Stock</PageTitle>
+
+<h1>Ward Stock / Auto Replenishment</h1>
+
+@if (error != null) { <div class="alert alert-error">@error</div> }
+
+<div class="ward-selector">
+    <label>Ward:</label>
+    <input type="text" @bind="wardId" style="width:200px" />
+    <button class="btn btn-primary" @onclick="LoadStock">Load</button>
+    <button class="btn btn-demo" @onclick="LoadDemo">Load Demo</button>
+</div>
+
+<div class="tab-bar">
+    <button class="@TabClass(0)" @onclick="async () => { activeTab = 0; await LoadStock(); }">Inventory</button>
+    <button class="@TabClass(1)" @onclick="async () => { activeTab = 1; await LoadLowStock(); }">Low Stock Alerts</button>
+    <button class="@TabClass(2)" @onclick="async () => { activeTab = 2; await LoadReplenishLog(); }">Replenishment Log</button>
+</div>
+
+@* ─── Tab 0: Inventory ───────────────────────────────────────────────── *@
+@if (activeTab == 0 && items != null)
+{
+    @if (items.Count == 0)
+    {
+        <div class="empty-state">No ward stock items configured.</div>
+    }
+    else
+    {
+        <table class="data-table">
+            <thead>
+                <tr><th>Drug</th><th>On Hand</th><th>Par</th><th>Reorder Pt</th><th>UOM</th><th>Status</th><th>CS</th></tr>
+            </thead>
+            <tbody>
+                @foreach (var i in items)
+                {
+                    <tr class="@(i.NeedsReplenishment ? "row-low" : "")">
+                        <td>@i.DrugName</td>
+                        <td class="qty @(i.NeedsReplenishment ? "qty-low" : "")">@i.QuantityOnHand</td>
+                        <td>@i.ParLevel</td>
+                        <td>@i.ReorderPoint</td>
+                        <td>@i.UnitOfMeasure</td>
+                        <td>
+                            @if (i.ReplenishmentPending) { <span class="badge badge-pending">REORDER PENDING</span> }
+                            else if (i.NeedsReplenishment) { <span class="badge badge-low">LOW</span> }
+                            else { <span class="badge badge-ok">OK</span> }
+                        </td>
+                        <td>@(i.IsControlledSubstance ? "CS" : "")</td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    }
+}
+
+@* ─── Tab 1: Low Stock ───────────────────────────────────────────────── *@
+@if (activeTab == 1 && lowStockItems != null)
+{
+    @if (lowStockItems.Count == 0)
+    {
+        <div class="empty-state">All items are adequately stocked.</div>
+    }
+    else
+    {
+        <table class="data-table">
+            <thead>
+                <tr><th>Drug</th><th>On Hand</th><th>Reorder Pt</th><th>Par</th><th>Status</th></tr>
+            </thead>
+            <tbody>
+                @foreach (var i in lowStockItems)
+                {
+                    <tr class="row-low">
+                        <td>@i.DrugName</td>
+                        <td class="qty qty-low">@i.QuantityOnHand</td>
+                        <td>@i.ReorderPoint</td>
+                        <td>@i.ParLevel</td>
+                        <td>@(i.ReplenishmentPending ? "REORDER PENDING" : "NEEDS REORDER")</td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    }
+}
+
+@* ─── Tab 2: Replenishment Log ───────────────────────────────────────── *@
+@if (activeTab == 2 && replenishLog != null)
+{
+    @if (replenishLog.Count == 0)
+    {
+        <div class="empty-state">No replenishment requests.</div>
+    }
+    else
+    {
+        <table class="data-table">
+            <thead>
+                <tr><th>Drug</th><th>Qty Requested</th><th>Status</th><th>Requested</th><th>Filled</th></tr>
+            </thead>
+            <tbody>
+                @foreach (var r in replenishLog)
+                {
+                    <tr>
+                        <td>@r.DrugName</td>
+                        <td>@r.QuantityRequested</td>
+                        <td><span class="badge badge-@r.Status.ToLower()">@r.Status</span></td>
+                        <td class="date">@r.RequestDate.ToString("MM/dd HH:mm")</td>
+                        <td class="date">@(r.FilledDate?.ToString("MM/dd HH:mm") ?? "—")</td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    }
+}
+
+@code {
+    private string wardId = "WARD-MED-3A";
+    private List<StockEntryDto>? items;
+    private List<StockEntryDto>? lowStockItems;
+    private List<ReplenishDto>? replenishLog;
+    private string? error;
+    private int activeTab;
+
+    private IWardStockIndexGrain GetStockIndex() =>
+        Grains.GetGrain<IWardStockIndexGrain>($"WARD-STOCK-INDEX:{wardId}");
+
+    private IWardReplenishmentLogGrain GetReplenishLog() =>
+        Grains.GetGrain<IWardReplenishmentLogGrain>($"WARD-REPLENISH-LOG:{wardId}");
+
+    protected override async Task OnInitializedAsync() => await LoadStock();
+
+    private async Task LoadStock()
+    {
+        activeTab = 0; error = null;
+        try
+        {
+            List<WardStockSummaryEntry> entries = await GetStockIndex().GetAllItemsAsync();
+            items = entries.Select(e => new StockEntryDto
+            {
+                DrugId = e.DrugId, DrugName = e.DrugName, QuantityOnHand = e.QuantityOnHand,
+                ParLevel = e.ParLevel, ReorderPoint = e.ReorderPoint, UnitOfMeasure = e.UnitOfMeasure,
+                NeedsReplenishment = e.NeedsReplenishment, ReplenishmentPending = e.ReplenishmentPending,
+                IsControlledSubstance = e.IsControlledSubstance
+            }).ToList();
+        }
+        catch (Exception ex) { error = ex.Message; }
+    }
+
+    private async Task LoadLowStock()
+    {
+        activeTab = 1; error = null;
+        try
+        {
+            List<WardStockSummaryEntry> entries = await GetStockIndex().GetLowStockItemsAsync();
+            lowStockItems = entries.Select(e => new StockEntryDto
+            {
+                DrugId = e.DrugId, DrugName = e.DrugName, QuantityOnHand = e.QuantityOnHand,
+                ParLevel = e.ParLevel, ReorderPoint = e.ReorderPoint, UnitOfMeasure = e.UnitOfMeasure,
+                NeedsReplenishment = e.NeedsReplenishment, ReplenishmentPending = e.ReplenishmentPending,
+                IsControlledSubstance = e.IsControlledSubstance
+            }).ToList();
+        }
+        catch (Exception ex) { error = ex.Message; }
+    }
+
+    private async Task LoadReplenishLog()
+    {
+        activeTab = 2; error = null;
+        try
+        {
+            List<ReplenishmentRequest> entries = await GetReplenishLog().GetRequestsAsync();
+            replenishLog = entries.Select(e => new ReplenishDto
+            {
+                RequestId = e.RequestId, DrugName = e.DrugName, QuantityRequested = e.QuantityRequested,
+                Status = e.Status, RequestDate = e.RequestDate, FilledDate = e.FilledDate
+            }).ToList();
+        }
+        catch (Exception ex) { error = ex.Message; }
+    }
+
+    private async Task LoadDemo()
+    {
+        error = "Demo load is only available when running the API server.";
+    }
+
+    private string TabClass(int tab) => activeTab == tab ? "tab active" : "tab";
+
+    private class StockEntryDto { public string DrugId { get; set; } = ""; public string DrugName { get; set; } = ""; public int QuantityOnHand { get; set; } public int ParLevel { get; set; } public int ReorderPoint { get; set; } public string UnitOfMeasure { get; set; } = ""; public bool NeedsReplenishment { get; set; } public bool ReplenishmentPending { get; set; } public bool IsControlledSubstance { get; set; } }
+    private class ReplenishDto { public string RequestId { get; set; } = ""; public string DrugName { get; set; } = ""; public int QuantityRequested { get; set; } public string Status { get; set; } = ""; public DateTime RequestDate { get; set; } public DateTime? FilledDate { get; set; } }
+}
+
+<style>
+    .ward-selector { display: flex; align-items: center; gap: 0.5rem; margin-bottom: 1rem; }
+    .ward-selector label { font-weight: 600; font-size: 0.85rem; }
+    .ward-selector input { padding: 0.35rem 0.6rem; border: 1px solid #d1d5db; border-radius: 4px; font-size: 0.85rem; }
+    .tab-bar { display: flex; gap: 0; margin-bottom: 1.5rem; border-bottom: 2px solid #d4d9e0; }
+    .tab { padding: 0.6rem 1.25rem; border: none; background: transparent; cursor: pointer; font-size: 0.85rem; color: #666; border-bottom: 2px solid transparent; margin-bottom: -2px; }
+    .tab.active { color: #003f72; font-weight: 600; border-bottom: 2px solid #003f72; }
+    .btn { padding: 0.5rem 1.25rem; border: none; border-radius: 4px; cursor: pointer; font-size: 0.85rem; }
+    .btn-primary { background: #003f72; color: white; }
+    .btn-demo { background: #059669; color: white; }
+    .alert { padding: 0.75rem 1rem; border-radius: 4px; margin-bottom: 1rem; }
+    .alert-error { background: #fde8e8; color: #b91c1c; border: 1px solid #f5c6c6; }
+    .alert-success { background: #d1fae5; color: #065f46; border: 1px solid #a7f3d0; }
+    .empty-state { color: #999; font-style: italic; padding: 2rem 0; }
+    .data-table { width: 100%; border-collapse: collapse; font-size: 0.85rem; border: 1px solid #d4d9e0; }
+    .data-table thead { background: #1e3a5f; color: white; }
+    .data-table th { text-align: left; padding: 0.5rem; font-weight: 600; font-size: 0.75rem; text-transform: uppercase; }
+    .data-table td { padding: 0.4rem 0.5rem; border-bottom: 1px solid #e5e7eb; }
+    .data-table tr:hover { background: #f0f4f8; }
+    .row-low { background: #fff7ed; }
+    .qty { font-weight: 700; }
+    .qty-low { color: #dc2626; }
+    .date { color: #888; font-size: 0.8rem; }
+    .badge { padding: 0.15rem 0.5rem; border-radius: 10px; font-size: 0.7rem; font-weight: 600; }
+    .badge-ok { background: #d1fae5; color: #065f46; }
+    .badge-low { background: #fde8e8; color: #b91c1c; }
+    .badge-pending { background: #fef3c7; color: #92400e; }
+    .badge-filled { background: #d1fae5; color: #065f46; }
+    .badge-cancelled { background: #f3f4f6; color: #6b7280; }
+</style>

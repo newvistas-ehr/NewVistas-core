@@ -1,0 +1,286 @@
+@page "/audit-trail"
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+@rendermode InteractiveServer
+@using NewVistas.BlazorWeb.Services
+@using NewVistas.Abstractions.GrainInterfaces
+@using NewVistas.Abstractions.GrainStates
+@inject OrleansGrainService Grains
+
+<PageTitle>Audit Trail</PageTitle>
+
+<h1>Audit Trail</h1>
+
+<div class="lookup-bar">
+    <input type="text" @bind="patientId" @bind:event="oninput" @onkeydown="HandleKeyDown"
+           placeholder="Patient ID" class="lookup-input" />
+    <button @onclick="LoadAuditEvents" disabled="@(string.IsNullOrWhiteSpace(patientId) || loading)" class="btn btn-primary">
+        @if (loading) { <span>Loading...</span> } else { <span>Load Audit Trail</span> }
+    </button>
+</div>
+
+@if (error != null)
+{
+    <div class="alert alert-error">@error</div>
+}
+
+@if (events != null)
+{
+    <div class="filter-bar">
+        <select @bind="domainFilter" @bind:after="ApplyFilters">
+            <option value="">All Domains</option>
+            <option value="ORDERS">Orders</option>
+            <option value="LABS">Labs</option>
+            <option value="PHARMACY">Pharmacy</option>
+            <option value="NOTES">Notes</option>
+            <option value="VITALS">Vitals</option>
+            <option value="ALLERGIES">Allergies</option>
+            <option value="PROBLEMS">Problems</option>
+            <option value="CONSULTS">Consults</option>
+            <option value="ADT">ADT</option>
+            <option value="SCHEDULING">Scheduling</option>
+            <option value="PCE">PCE</option>
+            <option value="BCMA">BCMA</option>
+            <option value="DEMOGRAPHICS">Demographics</option>
+        </select>
+        <input type="date" @bind="fromDate" @bind:after="ApplyFilters" />
+        <input type="date" @bind="toDate" @bind:after="ApplyFilters" />
+        <span class="result-count">@filteredEvents.Count event(s)</span>
+    </div>
+
+    @if (filteredEvents.Count == 0)
+    {
+        <p class="empty-state">No audit events found for the selected filters.</p>
+    }
+    else
+    {
+        <table class="audit-table">
+            <thead>
+                <tr>
+                    <th>Timestamp (UTC)</th>
+                    <th>Domain</th>
+                    <th>Action</th>
+                    <th>Entity</th>
+                    <th>User</th>
+                    <th>Location</th>
+                    <th>Details</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var evt in filteredEvents)
+                {
+                    <tr class="audit-row @(selectedEventId == evt.EventId ? "selected" : "")">
+                        <td class="ts">@evt.Timestamp.ToString("yyyy-MM-dd HH:mm:ss")</td>
+                        <td><span class="domain-badge domain-@evt.Domain.ToLower()">@evt.Domain</span></td>
+                        <td class="action">@evt.Action</td>
+                        <td class="entity">
+                            <span class="entity-type">@evt.EntityType</span>
+                            <span class="entity-id">@TruncateId(evt.EntityId)</span>
+                        </td>
+                        <td>@(evt.UserName ?? "—")</td>
+                        <td>@(evt.LocationName ?? "—")</td>
+                        <td class="details">@(evt.Details ?? "—")</td>
+                        <td>
+                            <button class="btn btn-sm" @onclick="() => LoadDetail(evt.EventId)">Detail</button>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    }
+}
+
+@if (selectedEvent != null)
+{
+    <div class="detail-panel">
+        <h3>Event Detail</h3>
+        <button class="btn btn-sm close-btn" @onclick="() => selectedEvent = null">Close</button>
+        <table class="detail-table">
+            <tr><th>Event ID</th><td>@selectedEvent.EventId</td></tr>
+            <tr><th>Timestamp</th><td>@selectedEvent.Timestamp.ToString("yyyy-MM-dd HH:mm:ss UTC")</td></tr>
+            <tr><th>Domain</th><td>@selectedEvent.Domain</td></tr>
+            <tr><th>Action</th><td>@selectedEvent.Action</td></tr>
+            <tr><th>Entity Type</th><td>@selectedEvent.EntityType</td></tr>
+            <tr><th>Entity ID</th><td>@selectedEvent.EntityId</td></tr>
+            <tr><th>User</th><td>@($"{selectedEvent.UserName} ({selectedEvent.UserId})")</td></tr>
+            <tr><th>Location</th><td>@($"{selectedEvent.LocationName} ({selectedEvent.LocationId})")</td></tr>
+            <tr><th>Details</th><td>@(selectedEvent.Details ?? "—")</td></tr>
+            @if (!string.IsNullOrEmpty(selectedEvent.OldValue))
+            {
+                <tr><th>Old Value</th><td class="old-value">@selectedEvent.OldValue</td></tr>
+            }
+            @if (!string.IsNullOrEmpty(selectedEvent.NewValue))
+            {
+                <tr><th>New Value</th><td class="new-value">@selectedEvent.NewValue</td></tr>
+            }
+        </table>
+    </div>
+}
+
+@code {
+    private string patientId = string.Empty;
+    private bool loading;
+    private string? error;
+    private string? domainFilter;
+    private DateTime? fromDate;
+    private DateTime? toDate;
+
+    private List<AuditEventSummary> events = new();
+    private List<AuditEventSummary> filteredEvents = new();
+    private string? selectedEventId;
+    private AuditEventDetail? selectedEvent;
+
+    private async Task HandleKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter") await LoadAuditEvents();
+    }
+
+    private async Task LoadAuditEvents()
+    {
+        if (string.IsNullOrWhiteSpace(patientId)) return;
+        loading = true;
+        error = null;
+        selectedEvent = null;
+        selectedEventId = null;
+
+        try
+        {
+            var workflow = Grains.GetGrain<IPatientWorkflowGrain>(patientId.Trim());
+            var entries = await workflow.GetRecentAuditEventsAsync(200);
+            events = entries.Select(e => new AuditEventSummary
+            {
+                EventId = e.EventId, Domain = e.Domain, Action = e.Action,
+                EntityType = e.EntityType, EntityId = e.EntityId,
+                UserName = e.UserName, LocationName = e.LocationName,
+                Details = e.Details, Timestamp = e.Timestamp
+            }).ToList();
+            ApplyFilters();
+        }
+        catch (Exception ex)
+        {
+            error = $"Error: {ex.Message}";
+        }
+        finally
+        {
+            loading = false;
+        }
+    }
+
+    private void ApplyFilters()
+    {
+        IEnumerable<AuditEventSummary> query = events;
+
+        if (!string.IsNullOrEmpty(domainFilter))
+            query = query.Where(e => e.Domain.Equals(domainFilter, StringComparison.OrdinalIgnoreCase));
+
+        if (fromDate.HasValue)
+            query = query.Where(e => e.Timestamp.Date >= fromDate.Value.Date);
+
+        if (toDate.HasValue)
+            query = query.Where(e => e.Timestamp.Date <= toDate.Value.Date);
+
+        filteredEvents = query.ToList();
+    }
+
+    private async Task LoadDetail(string eventId)
+    {
+        selectedEventId = eventId;
+        error = null;
+
+        try
+        {
+            var workflow = Grains.GetGrain<IPatientWorkflowGrain>(patientId.Trim());
+            var state = await workflow.GetAuditEventAsync(eventId);
+            selectedEvent = new AuditEventDetail
+            {
+                EventId = state.EventId, Domain = state.Domain, Action = state.Action,
+                EntityType = state.EntityType, EntityId = state.EntityId,
+                UserId = state.UserId, UserName = state.UserName,
+                LocationId = state.LocationId, LocationName = state.LocationName,
+                Details = state.Details, Timestamp = state.Timestamp,
+                OldValue = state.OldValue, NewValue = state.NewValue,
+                CreatedDate = state.CreatedDate
+            };
+        }
+        catch (Exception ex)
+        {
+            error = $"Error: {ex.Message}";
+        }
+    }
+
+    private static string TruncateId(string id)
+    {
+        if (id.Length <= 20) return id;
+        return id[..8] + "…" + id[^6..];
+    }
+
+    private class AuditEventSummary
+    {
+        public string EventId { get; set; } = string.Empty;
+        public string Domain { get; set; } = string.Empty;
+        public string Action { get; set; } = string.Empty;
+        public string EntityType { get; set; } = string.Empty;
+        public string EntityId { get; set; } = string.Empty;
+        public string? UserName { get; set; }
+        public string? LocationName { get; set; }
+        public string? Details { get; set; }
+        public DateTime Timestamp { get; set; }
+    }
+
+    private class AuditEventDetail : AuditEventSummary
+    {
+        public string? UserId { get; set; }
+        public string? LocationId { get; set; }
+        public string? OldValue { get; set; }
+        public string? NewValue { get; set; }
+        public DateTime CreatedDate { get; set; }
+    }
+}
+
+<style>
+    .lookup-bar { display: flex; gap: 0.5rem; margin-bottom: 1rem; align-items: center; }
+    .lookup-input { flex: 0 0 260px; padding: 0.4rem 0.6rem; border: 1px solid #ccc; border-radius: 4px; }
+    .filter-bar { display: flex; gap: 0.75rem; align-items: center; margin-bottom: 1rem; }
+    .filter-bar select, .filter-bar input[type=date] { padding: 0.35rem 0.5rem; border: 1px solid #ccc; border-radius: 4px; }
+    .result-count { font-size: 0.85rem; color: #666; margin-left: auto; }
+    .audit-table { width: 100%; border-collapse: collapse; font-size: 0.88rem; }
+    .audit-table th { background: #1a3a5c; color: #fff; padding: 0.5rem 0.6rem; text-align: left; }
+    .audit-table td { padding: 0.4rem 0.6rem; border-bottom: 1px solid #e5e7eb; vertical-align: top; }
+    .audit-row:hover { background: #f0f4f8; }
+    .audit-row.selected { background: #dbeafe; }
+    .ts { font-family: monospace; white-space: nowrap; color: #444; }
+    .domain-badge { font-size: 0.75rem; font-weight: 600; padding: 2px 7px; border-radius: 10px;
+        background: #e2e8f0; color: #334155; }
+    .domain-badge.domain-orders { background: #dbeafe; color: #1e40af; }
+    .domain-badge.domain-labs { background: #dcfce7; color: #166534; }
+    .domain-badge.domain-pharmacy { background: #fef3c7; color: #92400e; }
+    .domain-badge.domain-notes { background: #ede9fe; color: #5b21b6; }
+    .domain-badge.domain-vitals { background: #fee2e2; color: #991b1b; }
+    .domain-badge.domain-allergies { background: #fce7f3; color: #9d174d; }
+    .domain-badge.domain-adt { background: #f0fdf4; color: #14532d; }
+    .domain-badge.domain-bcma { background: #fff7ed; color: #9a3412; }
+    .action { font-weight: 600; }
+    .entity { font-size: 0.82rem; }
+    .entity-type { display: block; color: #555; }
+    .entity-id { display: block; font-family: monospace; color: #888; font-size: 0.78rem; }
+    .details { max-width: 260px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #444; }
+    .btn { padding: 0.35rem 0.8rem; border-radius: 4px; border: none; cursor: pointer; font-size: 0.9rem; }
+    .btn-primary { background: #1a3a5c; color: #fff; }
+    .btn-primary:hover:not(:disabled) { background: #2563eb; }
+    .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
+    .btn-sm { padding: 0.2rem 0.55rem; font-size: 0.8rem; background: #e2e8f0; color: #1e293b; }
+    .btn-sm:hover { background: #cbd5e1; }
+    .alert-error { background: #fee2e2; border: 1px solid #fca5a5; border-radius: 4px;
+        padding: 0.75rem 1rem; color: #7f1d1d; margin-bottom: 1rem; }
+    .empty-state { color: #666; font-style: italic; padding: 2rem; text-align: center; }
+    .detail-panel { position: relative; margin-top: 1.5rem; border: 1px solid #cbd5e1;
+        border-radius: 6px; padding: 1.25rem; background: #f8fafc; }
+    .detail-panel h3 { margin: 0 0 1rem; font-size: 1rem; color: #1e293b; }
+    .close-btn { position: absolute; top: 1rem; right: 1rem; }
+    .detail-table { width: 100%; border-collapse: collapse; font-size: 0.88rem; }
+    .detail-table th { width: 130px; text-align: left; padding: 0.3rem 0.6rem 0.3rem 0;
+        color: #64748b; font-weight: 600; vertical-align: top; }
+    .detail-table td { padding: 0.3rem 0; color: #1e293b; word-break: break-all; }
+    .old-value { color: #b91c1c; }
+    .new-value { color: #166534; }
+</style>

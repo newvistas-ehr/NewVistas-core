@@ -1,0 +1,44 @@
+<UserControl x:Class="NewVistas.Wpf_UI.Views.BloodBankView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <ScrollViewer VerticalScrollBarVisibility="Auto">
+        <StackPanel Margin="24">
+            <TextBlock Style="{StaticResource PageTitle}" Text="Blood Bank"/>
+            <TextBlock Style="{StaticResource ErrorText}" Text="{Binding Error}"
+                       Visibility="{Binding Error, Converter={StaticResource NullToVisibility}}"/>
+            <StackPanel Orientation="Horizontal" Margin="0,0,0,12">
+                <Button Content="Load" Style="{StaticResource PrimaryButton}"
+                        Command="{Binding LoadCommand}" Margin="0,0,8,0"/>
+                <ProgressBar IsIndeterminate="True" Width="120" Height="20"
+                             Visibility="{Binding IsLoading, Converter={StaticResource BoolToVisibility}}"/>
+            </StackPanel>
+            <StackPanel Visibility="{Binding Patient, Converter={StaticResource NullToVisibility}}">
+                <TextBlock Style="{StaticResource SectionHeader}" Text="Patient Blood Type"/>
+                <StackPanel Orientation="Horizontal" Margin="0,4,0,8">
+                    <TextBlock Style="{StaticResource FieldLabel}" Text="ABO/Rh: " Margin="0,0,4,0"/>
+                    <TextBlock Text="{Binding Patient.BloodType}" FontWeight="Bold" FontSize="16" Foreground="{StaticResource VaBlueBrush}"/>
+                    <TextBlock Margin="16,0,4,0" Style="{StaticResource FieldLabel}" Text="Antibodies: "/>
+                    <TextBlock Text="{Binding Patient.AntibodyScreen}"/>
+                </StackPanel>
+            </StackPanel>
+            <TextBlock Style="{StaticResource SectionHeader}" Text="Crossmatches"/>
+            <DataGrid ItemsSource="{Binding Crossmatches}" AutoGenerateColumns="False" MaxHeight="200">
+                <DataGrid.Columns>
+                    <DataGridTextColumn Header="Date" Binding="{Binding RequestDate, StringFormat=d}" Width="110"/>
+                    <DataGridTextColumn Header="Product" Binding="{Binding ProductType}" Width="160"/>
+                    <DataGridTextColumn Header="Status" Binding="{Binding Status}" Width="120"/>
+                    <DataGridTextColumn Header="Units" Binding="{Binding UnitsRequested}" Width="70"/>
+                </DataGrid.Columns>
+            </DataGrid>
+            <TextBlock Style="{StaticResource SectionHeader}" Text="Transfusion History" Margin="0,12,0,0"/>
+            <DataGrid ItemsSource="{Binding Transfusions}" AutoGenerateColumns="False" MaxHeight="200">
+                <DataGrid.Columns>
+                    <DataGridTextColumn Header="Start" Binding="{Binding StartDateTime, StringFormat=g}" Width="140"/>
+                    <DataGridTextColumn Header="Product" Binding="{Binding ProductType}" Width="160"/>
+                    <DataGridTextColumn Header="Status" Binding="{Binding Status}" Width="120"/>
+                    <DataGridTextColumn Header="Volume (mL)" Binding="{Binding VolumeInfusedMl}" Width="100"/>
+                </DataGrid.Columns>
+            </DataGrid>
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>

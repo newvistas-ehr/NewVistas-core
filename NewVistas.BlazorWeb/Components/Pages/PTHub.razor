@@ -1,0 +1,182 @@
+@page "/pt"
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+@rendermode InteractiveServer
+@using NewVistas.BlazorWeb.Services
+@using NewVistas.PT.GrainInterfaces
+@using NewVistas.PT.Models
+@inject OrleansGrainService Grains
+@inject PatientContextService PatientContext
+@inject NavigationManager Nav
+
+<PageTitle>Physical Therapy</PageTitle>
+
+<h1>Physical Therapy</h1>
+
+<div class="lookup-bar">
+    <input type="text" @bind="patientId" @bind:event="oninput" @onkeydown="HandleKeyDown"
+           placeholder="Patient ID" class="lookup-input" />
+    <button @onclick="Load" disabled="@(string.IsNullOrWhiteSpace(patientId) || loading)" class="btn btn-primary">
+        @if (loading) { <span>Loading...</span> } else { <span>Load</span> }
+    </button>
+</div>
+
+@if (error != null) { <div class="alert alert-error">@error</div> }
+
+@if (loaded)
+{
+    <div class="pt-nav-section">
+        <button class="pt-nav-btn" @onclick='() => Nav.NavigateTo($"/pt/goals?patientId={Uri.EscapeDataString(patientId!.Trim())}")'>
+            <span class="pt-nav-icon">🎯</span>
+            <span class="pt-nav-label">Goals</span>
+            <span class="pt-nav-desc">Track ROM, strength, and pain reduction goals</span>
+        </button>
+        <button class="pt-nav-btn" @onclick='() => Nav.NavigateTo($"/pt/hep?patientId={Uri.EscapeDataString(patientId!.Trim())}")'>
+            <span class="pt-nav-icon">🏠</span>
+            <span class="pt-nav-label">Home Exercises</span>
+            <span class="pt-nav-desc">Prescribe and track home exercise programs</span>
+        </button>
+        <button class="pt-nav-btn" @onclick='() => Nav.NavigateTo($"/pt/referrals?patientId={Uri.EscapeDataString(patientId!.Trim())}")'>
+            <span class="pt-nav-icon">📋</span>
+            <span class="pt-nav-label">Referrals</span>
+            <span class="pt-nav-desc">Track referring provider orders and visit authorizations</span>
+        </button>
+    </div>
+
+    <div class="bodygroup-section">
+        <h2>Body Group Workflows</h2>
+        <p class="section-desc">Select a body group to record ROM and strength measurements or view session history.</p>
+
+        @if (bodyGroupsWithData != null && bodyGroupsWithData.Count > 0)
+        {
+            <div class="active-groups">
+                <h3>Active (has recorded data)</h3>
+                <div class="bodygroup-grid">
+                    @foreach (var bg in bodyGroupsWithData)
+                    {
+                        <button class="bodygroup-card active" @onclick="() => NavigateToGroup(bg)">
+                            <span class="bg-icon">@GetIcon(bg)</span>
+                            <span class="bg-name">@FormatName(bg)</span>
+                            <span class="bg-badge">Has Data</span>
+                        </button>
+                    }
+                </div>
+            </div>
+        }
+
+        <h3>All Body Groups</h3>
+        <div class="bodygroup-grid">
+            @foreach (var bg in allBodyGroups)
+            {
+                bool hasData = bodyGroupsWithData?.Contains(bg) ?? false;
+                <button class="bodygroup-card @(hasData ? "active" : "")" @onclick="() => NavigateToGroup(bg)">
+                    <span class="bg-icon">@GetIcon(bg)</span>
+                    <span class="bg-name">@FormatName(bg)</span>
+                    @if (hasData) { <span class="bg-badge">Has Data</span> }
+                </button>
+            }
+        </div>
+    </div>
+}
+
+@code {
+    [SupplyParameterFromQuery] public string? patientId { get; set; }
+    private bool loading;
+    private bool loaded;
+    private string? error;
+    private List<BodyGroup>? bodyGroupsWithData;
+    private List<BodyGroup> allBodyGroups = BodyGroupDefinitions.GetAllBodyGroups().ToList();
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (string.IsNullOrWhiteSpace(patientId) && !string.IsNullOrWhiteSpace(PatientContext.PatientId))
+            patientId = PatientContext.PatientId;
+        if (!string.IsNullOrWhiteSpace(patientId))
+            await Load();
+    }
+
+    private async Task HandleKeyDown(KeyboardEventArgs e) { if (e.Key == "Enter") await Load(); }
+
+    private async Task Load()
+    {
+        if (string.IsNullOrWhiteSpace(patientId)) return;
+        loading = true; error = null;
+        try
+        {
+            var grain = Grains.GetGrain<IPTWorkflowGrain>(patientId.Trim());
+            bodyGroupsWithData = await grain.GetBodyGroupsWithDataAsync();
+            PatientContext.SetPatient(patientId.Trim());
+            loaded = true;
+        }
+        catch (Exception ex) { error = $"Error loading PT data: {ex.Message}"; }
+        finally { loading = false; }
+    }
+
+    private void NavigateToGroup(BodyGroup bg)
+    {
+        Nav.NavigateTo($"/pt/{bg}?patientId={Uri.EscapeDataString(patientId!.Trim())}");
+    }
+
+    private static string FormatName(BodyGroup bg) => bg switch
+    {
+        BodyGroup.Cervical => "Cervical (Neck)",
+        BodyGroup.ThoracicSpine => "Thoracic Spine",
+        BodyGroup.LumbarSpine => "Lumbar Spine",
+        BodyGroup.TMJ => "TMJ",
+        _ => bg.ToString()
+    };
+
+    private static string GetIcon(BodyGroup bg) => bg switch
+    {
+        BodyGroup.Cervical => "🦴",
+        BodyGroup.Shoulder => "💪",
+        BodyGroup.Elbow => "🦾",
+        BodyGroup.Wrist => "🤚",
+        BodyGroup.Hand => "✋",
+        BodyGroup.Hip => "🦵",
+        BodyGroup.Knee => "🦿",
+        BodyGroup.Ankle => "🦶",
+        BodyGroup.Foot => "👣",
+        BodyGroup.ThoracicSpine => "🔙",
+        BodyGroup.LumbarSpine => "🔙",
+        BodyGroup.TMJ => "😬",
+        _ => "🏥"
+    };
+}
+
+<style>
+    .lookup-bar { display: flex; gap: 0.5rem; margin-bottom: 1.5rem; }
+    .lookup-input { width: 280px; padding: 0.5rem 0.75rem; border: 1px solid #ccc; border-radius: 4px; font-size: 0.9rem; }
+    .btn { padding: 0.5rem 1.25rem; border: none; border-radius: 4px; cursor: pointer; font-size: 0.85rem; }
+    .btn-primary { background: #003f72; color: white; }
+    .btn-primary:disabled { background: #999; cursor: not-allowed; }
+    .alert-error { background: #fde8e8; color: #b91c1c; border: 1px solid #f5c6c6; padding: 0.75rem 1rem; border-radius: 4px; margin-bottom: 1rem; }
+
+    .bodygroup-section { margin-top: 1rem; }
+    .section-desc { font-size: 0.85rem; color: #666; margin-bottom: 1rem; }
+    .active-groups { margin-bottom: 1.5rem; }
+    h2 { font-size: 1.1rem; color: #003f72; margin-bottom: 0.5rem; }
+    h3 { font-size: 0.9rem; color: #555; margin-bottom: 0.5rem; border-bottom: 1px solid #e5e7eb; padding-bottom: 0.25rem; }
+
+    .bodygroup-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 0.75rem; margin-bottom: 1.5rem; }
+    .bodygroup-card {
+        display: flex; flex-direction: column; align-items: center; gap: 0.25rem;
+        padding: 1rem 0.75rem; border: 1px solid #d4d9e0; border-radius: 6px;
+        background: white; cursor: pointer; transition: all 0.15s;
+    }
+    .bodygroup-card:hover { border-color: #003f72; background: #f4f6f9; }
+    .bodygroup-card.active { border-color: #2563eb; background: #eff6ff; }
+    .bg-icon { font-size: 1.5rem; }
+    .bg-name { font-size: 0.8rem; font-weight: 600; color: #333; text-align: center; }
+    .bg-badge { font-size: 0.65rem; background: #dcfce7; color: #166534; padding: 0.1rem 0.4rem; border-radius: 8px; }
+
+    .pt-nav-section { display: flex; gap: 0.75rem; margin-bottom: 1.5rem; }
+    .pt-nav-btn {
+        display: flex; flex-direction: column; align-items: flex-start; gap: 0.2rem;
+        padding: 1rem 1.25rem; border: 1px solid #d4d9e0; border-radius: 6px;
+        background: white; cursor: pointer; transition: all 0.15s; flex: 1; max-width: 300px; text-align: left;
+    }
+    .pt-nav-btn:hover { border-color: #003f72; background: #f4f6f9; }
+    .pt-nav-icon { font-size: 1.25rem; }
+    .pt-nav-label { font-size: 0.9rem; font-weight: 600; color: #003f72; }
+    .pt-nav-desc { font-size: 0.7rem; color: #888; }
+</style>

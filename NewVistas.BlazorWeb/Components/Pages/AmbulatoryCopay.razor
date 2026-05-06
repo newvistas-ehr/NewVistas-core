@@ -1,0 +1,331 @@
+@page "/ambulatory-copay"
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+@rendermode InteractiveServer
+@using NewVistas.BlazorWeb.Services
+@using NewVistas.Abstractions.GrainInterfaces
+@using NewVistas.Abstractions.GrainStates
+@inject OrleansGrainService Grains
+
+<PageTitle>Ambulatory Copay Check-Off Sheet</PageTitle>
+
+<h2>Ambulatory Copay Check-Off Sheet</h2>
+<p class="subtitle">VistA File #350.7 — billable item capture for outpatient visits</p>
+
+<div class="tabs">
+    <button class="@TabClass("lookup")" @onclick='() => SetTab("lookup")'>Sheet Lookup</button>
+    <button class="@TabClass("create")" @onclick='() => SetTab("create")'>Create Sheet</button>
+</div>
+
+@if (!string.IsNullOrEmpty(error))
+{
+    <div class="error">@error</div>
+}
+
+@if (!string.IsNullOrEmpty(successMsg))
+{
+    <div class="success">@successMsg</div>
+}
+
+@* ── Tab 1: Sheet Lookup ──────────────────────────────────── *@
+@if (activeTab == "lookup")
+{
+    <div class="toolbar">
+        <input @bind="sheetIdInput" placeholder="Sheet ID (e.g. DEMO-SHEET-001)" class="input-id" />
+        <button @onclick="LoadSheet" disabled="@loading">Load Sheet</button>
+        <button @onclick="LoadDemo" disabled="@loading" class="btn-demo">Load Demo Data</button>
+    </div>
+
+    @if (loading) { <p class="loading-msg">Loading...</p> }
+
+    @if (sheet is not null)
+    {
+        <div class="detail-panel">
+            <h3>Sheet: @sheet.SheetId</h3>
+            <div class="info-grid">
+                <div class="info-item"><span class="label">Patient:</span> @sheet.PatientId</div>
+                <div class="info-item"><span class="label">Encounter:</span> @(sheet.EncounterId ?? "N/A")</div>
+                <div class="info-item"><span class="label">Visit Date:</span> @sheet.VisitDate.ToLocalTime().ToString("MM/dd/yyyy HH:mm")</div>
+                <div class="info-item"><span class="label">Clinic:</span> @(sheet.ClinicName ?? sheet.ClinicId ?? "N/A")</div>
+                <div class="info-item">
+                    <span class="label">Status:</span>
+                    @if (sheet.IsComplete)
+                    {
+                        <span class="badge badge-complete">COMPLETE</span>
+                    }
+                    else
+                    {
+                        <span class="badge badge-open">OPEN</span>
+                    }
+                </div>
+                <div class="info-item"><span class="label">Billable Items:</span> @sheet.TotalBillableItems</div>
+            </div>
+
+            @if (sheet.IsComplete && sheet.CompletedByUserName is not null)
+            {
+                <p class="completed-info">Completed by @sheet.CompletedByUserName on @(sheet.CompletedDateTime?.ToLocalTime().ToString("MM/dd/yyyy HH:mm") ?? "N/A")</p>
+            }
+
+            <h4>Checklist Items</h4>
+            @if (sheet.ChecklistItems.Count > 0)
+            {
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>Code</th>
+                            <th>Description</th>
+                            <th>Checked</th>
+                            <th>Checked By</th>
+                            <th>Date</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (CopayChecklistItem item in sheet.ChecklistItems)
+                        {
+                            <tr>
+                                <td>@item.ItemCode</td>
+                                <td>@item.ItemDescription</td>
+                                <td>
+                                    @if (item.IsChecked)
+                                    {
+                                        <span class="badge badge-checked">YES</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="badge badge-unchecked">NO</span>
+                                    }
+                                </td>
+                                <td>@(item.CheckedByUserName ?? "—")</td>
+                                <td>@(item.CheckedDateTime?.ToLocalTime().ToString("MM/dd HH:mm") ?? "—")</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            }
+            else
+            {
+                <p>No items on this sheet yet.</p>
+            }
+
+            @if (sheet.BillingActionIds.Count > 0)
+            {
+                <h4>Linked Billing Actions</h4>
+                <ul>
+                    @foreach (string baId in sheet.BillingActionIds)
+                    {
+                        <li>@baId</li>
+                    }
+                </ul>
+            }
+
+            @if (!sheet.IsComplete)
+            {
+                <div class="action-panel">
+                    <h4>Check Item</h4>
+                    <label>Item Code: <input @bind="checkItemCode" placeholder="e.g. 99213" /></label>
+                    <label>Description: <input @bind="checkItemDesc" placeholder="Office visit level 3" /></label>
+                    <label>User ID: <input @bind="checkUserId" /></label>
+                    <label>User Name: <input @bind="checkUserName" /></label>
+                    <button @onclick="SubmitCheckItem">Check Item</button>
+                </div>
+
+                <div class="action-panel">
+                    <h4>Complete Sheet</h4>
+                    <label>User ID: <input @bind="completeUserId" /></label>
+                    <label>User Name: <input @bind="completeUserName" /></label>
+                    <button @onclick="SubmitComplete">Mark Complete</button>
+                </div>
+            }
+
+            <div class="action-panel">
+                <h4>Link Billing Action</h4>
+                <label>Billing Action ID: <input @bind="linkBillingId" /></label>
+                <button @onclick="SubmitLinkBilling">Link</button>
+            </div>
+        </div>
+    }
+}
+
+@* ── Tab 2: Create Sheet ──────────────────────────────────── *@
+@if (activeTab == "create")
+{
+    <div class="form-panel">
+        <h3>Create New Check-Off Sheet</h3>
+        <label>Patient ID: <input @bind="newPatientId" /></label>
+        <label>Encounter ID: <input @bind="newEncounterId" placeholder="(optional)" /></label>
+        <label>Visit Date: <input type="datetime-local" @bind="newVisitDate" /></label>
+        <label>Clinic ID: <input @bind="newClinicId" placeholder="(optional)" /></label>
+        <label>Clinic Name: <input @bind="newClinicName" placeholder="(optional)" /></label>
+        <button @onclick="SubmitCreate" disabled="@(loading || string.IsNullOrWhiteSpace(newPatientId))">Create Sheet</button>
+    </div>
+}
+
+@code {
+    string activeTab = "lookup";
+    bool loading;
+    string? error;
+    string? successMsg;
+
+    // Lookup
+    string sheetIdInput = string.Empty;
+    AmbulatoryCopaySheetState? sheet;
+
+    // Check item fields
+    string checkItemCode = string.Empty;
+    string checkItemDesc = string.Empty;
+    string checkUserId = string.Empty;
+    string checkUserName = string.Empty;
+
+    // Complete fields
+    string completeUserId = string.Empty;
+    string completeUserName = string.Empty;
+
+    // Link billing fields
+    string linkBillingId = string.Empty;
+
+    // Create fields
+    string newPatientId = string.Empty;
+    string? newEncounterId;
+    DateTime newVisitDate = DateTime.Now;
+    string? newClinicId;
+    string? newClinicName;
+
+    string TabClass(string tab) => activeTab == tab ? "tab-btn active" : "tab-btn";
+
+    void SetTab(string tab) { activeTab = tab; error = null; successMsg = null; }
+
+    private IAmbulatoryCopaySheetGrain GetSheetGrain(string id) =>
+        Grains.GetGrain<IAmbulatoryCopaySheetGrain>($"IB-SHEET:{id.Trim()}");
+
+    async Task LoadSheet()
+    {
+        if (string.IsNullOrWhiteSpace(sheetIdInput)) return;
+        loading = true; error = null; successMsg = null;
+        try
+        {
+            sheet = await GetSheetGrain(sheetIdInput).GetAsync();
+        }
+        catch (Exception ex) { error = ex.Message; }
+        finally { loading = false; }
+    }
+
+    async Task SubmitCheckItem()
+    {
+        if (sheet is null || string.IsNullOrWhiteSpace(checkItemCode)) return;
+        error = null; successMsg = null;
+        try
+        {
+            await GetSheetGrain(sheet.SheetId).CheckItemAsync(checkItemCode, checkItemDesc, checkUserId, checkUserName);
+            successMsg = $"Item {checkItemCode} checked.";
+            checkItemCode = string.Empty; checkItemDesc = string.Empty;
+            await LoadSheet();
+        }
+        catch (Exception ex) { error = ex.Message; }
+    }
+
+    async Task SubmitComplete()
+    {
+        if (sheet is null) return;
+        error = null; successMsg = null;
+        try
+        {
+            await GetSheetGrain(sheet.SheetId).CompleteAsync(completeUserId, completeUserName);
+            successMsg = "Sheet marked complete.";
+            await LoadSheet();
+        }
+        catch (Exception ex) { error = ex.Message; }
+    }
+
+    async Task SubmitLinkBilling()
+    {
+        if (sheet is null || string.IsNullOrWhiteSpace(linkBillingId)) return;
+        error = null; successMsg = null;
+        try
+        {
+            await GetSheetGrain(sheet.SheetId).LinkBillingActionAsync(linkBillingId);
+            successMsg = $"Billing action {linkBillingId} linked.";
+            linkBillingId = string.Empty;
+            await LoadSheet();
+        }
+        catch (Exception ex) { error = ex.Message; }
+    }
+
+    async Task SubmitCreate()
+    {
+        if (string.IsNullOrWhiteSpace(newPatientId)) return;
+        loading = true; error = null; successMsg = null;
+        try
+        {
+            string newId = Guid.NewGuid().ToString();
+            IAmbulatoryCopaySheetGrain grain = GetSheetGrain(newId);
+            string createdId = await grain.CreateAsync(
+                newPatientId, newEncounterId, newVisitDate.ToUniversalTime(), newClinicId, newClinicName);
+            successMsg = $"Sheet created: {createdId}";
+            sheetIdInput = createdId;
+            activeTab = "lookup";
+            await LoadSheet();
+        }
+        catch (Exception ex) { error = ex.Message; }
+        finally { loading = false; }
+    }
+
+    async Task LoadDemo()
+    {
+        loading = true; error = null; successMsg = null;
+        try
+        {
+            // Create demo sheets directly via grains
+            IAmbulatoryCopaySheetGrain s1 = GetSheetGrain("DEMO-SHEET-001");
+            await s1.CreateAsync("P-001", "ENC-001", DateTime.UtcNow.AddDays(-3), "CL-PRIMARY", "Primary Care Clinic");
+            await s1.CheckItemAsync("99213", "Office visit, established patient, level 3", "USR-CLERK-1", "Mary Johnson");
+            await s1.CheckItemAsync("85025", "CBC with differential", "USR-CLERK-1", "Mary Johnson");
+            await s1.CompleteAsync("USR-CLERK-1", "Mary Johnson");
+
+            IAmbulatoryCopaySheetGrain s2 = GetSheetGrain("DEMO-SHEET-002");
+            await s2.CreateAsync("P-002", "ENC-002", DateTime.UtcNow, "CL-CARDIO", "Cardiology Clinic");
+            await s2.CheckItemAsync("99214", "Office visit, established patient, level 4", "USR-CLERK-2", "Robert Davis");
+
+            successMsg = "Demo data loaded. Try sheet IDs: DEMO-SHEET-001, DEMO-SHEET-002";
+            sheetIdInput = "DEMO-SHEET-001";
+            await LoadSheet();
+        }
+        catch (Exception ex) { error = ex.Message; }
+        finally { loading = false; }
+    }
+}
+
+<style>
+    .subtitle { color: #888; margin-top: -8px; font-size: 0.9em; }
+    .tabs { display: flex; gap: 4px; margin: 16px 0 12px; }
+    .tab-btn { padding: 8px 18px; border: 1px solid #555; border-bottom: none; border-radius: 6px 6px 0 0; cursor: pointer; background: #333; color: #ccc; }
+    .tab-btn.active { background: #1a1a2e; color: #fff; font-weight: bold; border-color: #667; }
+    .toolbar { display: flex; gap: 8px; margin: 12px 0; align-items: center; }
+    .input-id { padding: 6px; border: 1px solid #555; border-radius: 4px; width: 280px; background: #1a1a2e; color: #eee; }
+    button { padding: 6px 14px; border: 1px solid #555; border-radius: 4px; cursor: pointer; background: #2a2a3e; color: #eee; }
+    button:hover:not(:disabled) { background: #3a3a5e; }
+    button:disabled { opacity: .5; cursor: not-allowed; }
+    .btn-demo { background: #1a3a5a; }
+    .loading-msg { color: #aaa; }
+    .error { color: #f66; margin: 8px 0; padding: 8px; background: #3a1a1a; border-radius: 4px; }
+    .success { color: #6f6; margin: 8px 0; padding: 8px; background: #1a3a1a; border-radius: 4px; }
+    .detail-panel { margin-top: 16px; padding: 16px; background: #1a1a2e; border: 1px solid #444; border-radius: 6px; }
+    .info-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 8px; margin-bottom: 16px; }
+    .info-item { padding: 4px 0; }
+    .info-item .label { color: #888; font-weight: bold; }
+    .completed-info { color: #8c8; font-style: italic; }
+    .data-table { width: 100%; border-collapse: collapse; font-size: 0.88em; margin-top: 10px; }
+    .data-table th { background: #2a2a4e; color: #ddd; padding: 6px 10px; text-align: left; }
+    .data-table td { padding: 5px 10px; border-bottom: 1px solid #333; color: #ccc; }
+    .data-table tr:hover { background: #252540; }
+    .badge { padding: 2px 8px; border-radius: 10px; font-size: 0.78em; font-weight: bold; }
+    .badge-complete { background: #4a4; color: #fff; }
+    .badge-open { background: #d80; color: #fff; }
+    .badge-checked { background: #4a4; color: #fff; }
+    .badge-unchecked { background: #666; color: #fff; }
+    .action-panel { margin-top: 16px; padding: 16px; background: #1e1e30; border: 1px solid #555; border-radius: 6px; display: flex; flex-direction: column; gap: 8px; max-width: 480px; }
+    .action-panel label { display: flex; gap: 10px; align-items: center; color: #ccc; }
+    .action-panel input { flex: 1; padding: 4px; border: 1px solid #555; border-radius: 3px; background: #1a1a2e; color: #eee; }
+    .form-panel { padding: 16px; background: #1a1a2e; border: 1px solid #444; border-radius: 6px; display: flex; flex-direction: column; gap: 10px; max-width: 480px; }
+    .form-panel label { display: flex; gap: 10px; align-items: center; color: #ccc; }
+    .form-panel input { flex: 1; padding: 4px; border: 1px solid #555; border-radius: 3px; background: #12122a; color: #eee; }
+    ul { color: #ccc; }
+</style>

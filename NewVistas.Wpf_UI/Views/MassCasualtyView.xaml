@@ -1,0 +1,51 @@
+<UserControl x:Class="NewVistas.Wpf_UI.Views.MassCasualtyView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <ScrollViewer VerticalScrollBarVisibility="Auto">
+        <StackPanel Margin="24">
+            <TextBlock Style="{StaticResource PageTitle}" Text="Mass Casualty Mode"/>
+
+            <Border Background="#FFF3CD" BorderBrush="#FFC107" BorderThickness="1" CornerRadius="3"
+                    Padding="12,8" Margin="0,0,0,12"
+                    Visibility="{Binding IsFeatureEnabled, Converter={StaticResource InverseBoolToVisibility}}">
+                <TextBlock Text="Mass Casualty Mode is not currently enabled for this site." Foreground="#856404" FontSize="13"/>
+            </Border>
+
+            <TextBlock Style="{StaticResource ErrorText}" Text="{Binding Error}" Visibility="{Binding Error, Converter={StaticResource NullToVisibility}}"/>
+
+            <StackPanel Orientation="Horizontal" Margin="0,0,0,12">
+                <Button Content="Load Active Incidents" Style="{StaticResource PrimaryButton}" Command="{Binding LoadCommand}" Margin="0,0,8,0"/>
+                <ProgressBar IsIndeterminate="True" Width="120" Height="20" Visibility="{Binding IsLoading, Converter={StaticResource BoolToVisibility}}"/>
+            </StackPanel>
+
+            <TextBlock Style="{StaticResource SectionHeader}" Text="Active Incidents"/>
+            <DataGrid ItemsSource="{Binding Incidents}" AutoGenerateColumns="False" IsReadOnly="True" MaxHeight="200">
+                <DataGrid.Columns>
+                    <DataGridTextColumn Header="Name" Binding="{Binding IncidentName}" Width="200"/>
+                    <DataGridTextColumn Header="Type" Binding="{Binding IncidentType}" Width="140"/>
+                    <DataGridTextColumn Header="Severity" Binding="{Binding Severity}" Width="100"/>
+                    <DataGridTextColumn Header="Est." Binding="{Binding EstimatedCasualties}" Width="60"/>
+                    <DataGridTextColumn Header="Registered" Binding="{Binding RegisteredCasualtyCount}" Width="80"/>
+                    <DataGridTextColumn Header="Activated" Binding="{Binding ActivatedDate, StringFormat=g}" Width="140"/>
+                </DataGrid.Columns>
+            </DataGrid>
+
+            <TextBlock Style="{StaticResource SectionHeader}" Text="Casualty Board" Margin="0,16,0,0"/>
+            <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+                <TextBlock Text="Incident ID:" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                <TextBox Text="{Binding IncidentIdFilter, UpdateSourceTrigger=PropertyChanged}" Width="200" Margin="0,0,8,0"/>
+                <Button Content="Load Casualties" Style="{StaticResource SecondaryButton}" Command="{Binding LoadCasualtiesCommand}"/>
+            </StackPanel>
+            <DataGrid ItemsSource="{Binding Casualties}" AutoGenerateColumns="False" IsReadOnly="True" MaxHeight="300">
+                <DataGrid.Columns>
+                    <DataGridTextColumn Header="Tag" Binding="{Binding TriageTag}" Width="80"/>
+                    <DataGridTextColumn Header="Triage" Binding="{Binding TriageCategory}" Width="100"/>
+                    <DataGridTextColumn Header="Patient" Binding="{Binding PatientName}" Width="160"/>
+                    <DataGridTextColumn Header="Area" Binding="{Binding TreatmentArea}" Width="120"/>
+                    <DataGridTextColumn Header="Disposition" Binding="{Binding Disposition}" Width="100"/>
+                    <DataGridTextColumn Header="Registered" Binding="{Binding RegisteredDate, StringFormat=t}" Width="80"/>
+                </DataGrid.Columns>
+            </DataGrid>
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>

@@ -1,0 +1,56 @@
+<UserControl x:Class="NewVistas.Wpf_UI.Views.RadiologyView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <ScrollViewer VerticalScrollBarVisibility="Auto">
+        <StackPanel Margin="24">
+            <TextBlock Style="{StaticResource PageTitle}" Text="Radiology"/>
+            <TextBlock Style="{StaticResource ErrorText}" Text="{Binding Error}"
+                       Visibility="{Binding Error, Converter={StaticResource NullToVisibility}}"/>
+
+            <StackPanel Orientation="Horizontal" Margin="0,0,0,12">
+                <Button Content="Load Studies" Style="{StaticResource PrimaryButton}"
+                        Command="{Binding LoadCommand}" Margin="0,0,8,0"/>
+                <Button Content="+ Order Study" Style="{StaticResource SecondaryButton}"
+                        Command="{Binding ToggleOrderFormCommand}" Margin="0,0,8,0"/>
+                <ProgressBar IsIndeterminate="True" Width="120" Height="20"
+                             Visibility="{Binding IsLoading, Converter={StaticResource BoolToVisibility}}"/>
+            </StackPanel>
+
+            <Border Style="{StaticResource FormPanel}"
+                    Visibility="{Binding ShowOrderForm, Converter={StaticResource BoolToVisibility}}">
+                <StackPanel>
+                    <TextBlock Style="{StaticResource SectionHeader}" Text="Order Radiology Study"/>
+                    <TextBlock Style="{StaticResource FieldLabel}" Text="Procedure Name"/>
+                    <TextBox Text="{Binding ProcedureName, UpdateSourceTrigger=PropertyChanged}" Width="400" HorizontalAlignment="Left"/>
+                    <TextBlock Style="{StaticResource FieldLabel}" Text="Clinical History"/>
+                    <TextBox Text="{Binding ClinicalHistory, UpdateSourceTrigger=PropertyChanged}"
+                             Width="400" HorizontalAlignment="Left" AcceptsReturn="True" Height="60" VerticalScrollBarVisibility="Auto"/>
+                    <TextBlock Style="{StaticResource FieldLabel}" Text="Priority"/>
+                    <ComboBox ItemsSource="{Binding PriorityOptions}" SelectedItem="{Binding Priority}" Width="160" HorizontalAlignment="Left"/>
+                    <StackPanel Orientation="Horizontal" Margin="0,12,0,0">
+                        <Button Content="Order" Style="{StaticResource PrimaryButton}"
+                                Command="{Binding OrderStudyCommand}" Margin="0,0,8,0"/>
+                        <Button Content="Cancel" Style="{StaticResource SecondaryButton}"
+                                Command="{Binding ToggleOrderFormCommand}"/>
+                    </StackPanel>
+                </StackPanel>
+            </Border>
+
+            <DataGrid ItemsSource="{Binding Studies}" SelectedItem="{Binding SelectedStudy}">
+                <DataGrid.Columns>
+                    <DataGridTextColumn Header="Procedure" Binding="{Binding ProcedureName}" Width="*"/>
+                    <DataGridTextColumn Header="Status" Binding="{Binding Status}" Width="110"/>
+                    <DataGridTextColumn Header="Priority" Binding="{Binding Priority}" Width="80"/>
+                    <DataGridTextColumn Header="Date" Binding="{Binding ExamDate, StringFormat=d}" Width="110"/>
+                    <DataGridTextColumn Header="Radiologist" Binding="{Binding RadiologistName}" Width="160"/>
+                    <DataGridTextColumn Header="Report" Binding="{Binding ReportStatus}" Width="100"/>
+                </DataGrid.Columns>
+            </DataGrid>
+
+            <StackPanel Visibility="{Binding SelectedStudy, Converter={StaticResource NullToVisibility}}" Margin="0,12,0,0">
+                <TextBlock Style="{StaticResource SectionHeader}" Text="Report"/>
+                <TextBlock Text="{Binding SelectedStudy.ReportText}" TextWrapping="Wrap" FontSize="13"/>
+            </StackPanel>
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>

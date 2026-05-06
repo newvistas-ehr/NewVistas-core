@@ -1,0 +1,493 @@
+@page "/mental-health"
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+@rendermode InteractiveServer
+@using NewVistas.BlazorWeb.Services
+@using NewVistas.Abstractions.GrainInterfaces
+@using NewVistas.Abstractions.GrainStates
+@inject OrleansGrainService Grains
+
+<PageTitle>Mental Health Screening</PageTitle>
+<h1>Mental Health Screening</h1>
+
+<div class="lookup-bar">
+    <input type="text" @bind="patientId" @bind:event="oninput" @onkeydown="HandleKeyDown" placeholder="Patient ID" class="lookup-input" />
+    <button @onclick="Load" disabled="@(string.IsNullOrWhiteSpace(patientId) || loading)" class="btn btn-primary">@(loading ? "Loading..." : "Load")</button>
+</div>
+
+@if (error != null) { <div class="alert alert-error">@error</div> }
+@if (success != null) { <div class="alert alert-success">@success</div> }
+
+@if (items != null || detail != null)
+{
+    <div class="tab-bar">
+        <button class="tab @(activeTab == "list" ? "tab-active" : "")" @onclick='() => SetTab("list")'>Screenings</button>
+        @if (detail != null)
+        {
+            <button class="tab @(activeTab == "detail" ? "tab-active" : "")" @onclick='() => SetTab("detail")'>Screening Detail</button>
+        }
+        <button class="tab @(activeTab == "new" ? "tab-active" : "")" @onclick='() => SetTab("new")'>New Screening</button>
+    </div>
+}
+
+@* -- Screenings List Tab -- *@
+@if (activeTab == "list" && items != null)
+{
+    @if (items.Count == 0) { <div class="empty-state">No mental health screens found.</div> }
+    else
+    {
+        <table class="data-table">
+            <thead><tr><th>Date</th><th>Instrument</th><th>Score</th><th>Interpretation</th><th>Positive?</th><th>Risk</th><th>Status</th></tr></thead>
+            <tbody>
+                @foreach (var s in items)
+                {
+                    <tr class="clickable" @onclick="() => ViewDetail(s.InstrumentId)">
+                        <td class="date">@s.AdministrationDateTime.ToString("MM/dd/yyyy")</td>
+                        <td>@s.InstrumentName</td><td>@s.TotalScore</td><td>@s.ScoreInterpretation</td>
+                        <td>@(s.IsPositiveScreen == true ? "YES" : s.IsPositiveScreen == false ? "No" : "--")</td>
+                        <td>@RiskLabel(s.RiskLevel)</td>
+                        <td><span class="badge @(s.IsPositiveScreen == true ? "badge-red" : "badge-green")">@s.Status</span></td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    }
+}
+
+@* -- Screening Detail Tab -- *@
+@if (activeTab == "detail" && detail != null)
+{
+    <div class="detail-panel">
+        <div class="detail-header">
+            <h3>@detail.InstrumentName</h3>
+            <span class="badge @(detail.IsPositiveScreen == true ? "badge-red" : "badge-green")">@detail.Status</span>
+            @if (detail.RiskLevel.HasValue)
+            {
+                <span class="badge @RiskBadge(detail.RiskLevel.Value)">Risk: @RiskLabel(detail.RiskLevel)</span>
+            }
+            <button @onclick="CloseDetail" class="btn btn-outline btn-sm-action">Close</button>
+        </div>
+        <div class="detail-grid">
+            <div><strong>Instrument ID:</strong> @detail.InstrumentId</div>
+            <div><strong>Date:</strong> @detail.AdministrationDateTime.ToString("MM/dd/yyyy HH:mm")</div>
+            <div><strong>Total Score:</strong> @(detail.TotalScore?.ToString() ?? "--")</div>
+            <div><strong>Interpretation:</strong> @(detail.ScoreInterpretation ?? "--")</div>
+            <div><strong>Positive Screen:</strong> @(detail.IsPositiveScreen == true ? "YES" : detail.IsPositiveScreen == false ? "No" : "--")</div>
+            <div><strong>Scoring Method:</strong> @(detail.ScoringMethodUsed ?? "--")</div>
+            <div><strong>Administered By:</strong> @(detail.AdministeredByName ?? "--")</div>
+            <div><strong>Location:</strong> @(detail.LocationName ?? "--")</div>
+            @if (!string.IsNullOrEmpty(detail.Comments))
+            {
+                <div class="full"><strong>Comments:</strong> @detail.Comments</div>
+            }
+            @if (!string.IsNullOrEmpty(detail.ClinicalRecommendation))
+            {
+                <div class="full"><strong>Clinical Recommendation:</strong> @detail.ClinicalRecommendation</div>
+            }
+        </div>
+
+        @* -- Score Trending -- *@
+        <div class="section">
+            <h4>Score Trending</h4>
+            <div class="detail-grid">
+                <div><strong>Current Score:</strong> @(detail.TotalScore?.ToString() ?? "--")</div>
+                <div><strong>Previous Score:</strong> @(detail.PreviousScore?.ToString() ?? "--")</div>
+                @if (detail.PreviousAdministrationDate.HasValue)
+                {
+                    <div><strong>Previous Date:</strong> @detail.PreviousAdministrationDate.Value.ToString("MM/dd/yyyy")</div>
+                }
+                @if (scoreChange.HasValue)
+                {
+                    <div><strong>Change:</strong>
+                        <span class="@(scoreChange > 0 ? "trend-up" : scoreChange < 0 ? "trend-down" : "")">
+                            @(scoreChange > 0 ? "+" : "")@scoreChange.Value.ToString("F1")
+                        </span>
+                    </div>
+                }
+            </div>
+            <div class="form-actions">
+                <button @onclick="AutoScore" disabled="@saving" class="btn btn-primary">Auto-Score</button>
+                <button @onclick="GetScoreChange" disabled="@saving" class="btn btn-outline">Calculate Change</button>
+            </div>
+        </div>
+
+        @* -- Risk Assessment -- *@
+        <div class="section">
+            <h4>Risk Assessment</h4>
+            @if (detail.RiskLevel.HasValue)
+            {
+                <div class="detail-grid">
+                    <div><strong>Risk Level:</strong> <span class="badge @RiskBadge(detail.RiskLevel.Value)">@RiskLabel(detail.RiskLevel)</span></div>
+                    @if (!string.IsNullOrEmpty(detail.RiskAssessmentNotes))
+                    {
+                        <div class="full"><strong>Notes:</strong> @detail.RiskAssessmentNotes</div>
+                    }
+                </div>
+            }
+            <div class="entry-form compact">
+                <div class="form-grid">
+                    <div class="form-row"><label>Risk Level *</label>
+                        <select @bind="ra_level">
+                            <option value="0">0 - None</option>
+                            <option value="1">1 - Low</option>
+                            <option value="2">2 - Moderate</option>
+                            <option value="3">3 - High</option>
+                            <option value="4">4 - Imminent</option>
+                        </select>
+                    </div>
+                    <div class="form-row full"><label>Risk Assessment Notes</label><textarea @bind="ra_notes" rows="2"></textarea></div>
+                </div>
+                <div class="form-actions">
+                    <button @onclick="SubmitRiskAssessment" disabled="@saving" class="btn btn-primary">Record Risk Assessment</button>
+                </div>
+            </div>
+        </div>
+
+        @* -- Follow-Up -- *@
+        <div class="section">
+            <h4>Follow-Up</h4>
+            @if (detail.RequiresFollowUp)
+            {
+                <div class="detail-grid">
+                    <div><strong>Requires Follow-Up:</strong> <span class="badge badge-orange">YES</span></div>
+                    <div><strong>Due Date:</strong> @(detail.FollowUpDueDate?.ToString("MM/dd/yyyy") ?? "--")</div>
+                    @if (!string.IsNullOrEmpty(detail.FollowUpPlan))
+                    {
+                        <div class="full"><strong>Plan:</strong> @detail.FollowUpPlan</div>
+                    }
+                </div>
+            }
+            <div class="entry-form compact">
+                <div class="form-grid">
+                    <div class="form-row"><label>Requires Follow-Up</label>
+                        <select @bind="fu_required">
+                            <option value="true">Yes</option>
+                            <option value="false">No</option>
+                        </select>
+                    </div>
+                    <div class="form-row"><label>Due Date</label><input type="date" @bind="fu_date" /></div>
+                    <div class="form-row full"><label>Follow-Up Plan</label><textarea @bind="fu_plan" rows="2"></textarea></div>
+                </div>
+                <div class="form-actions">
+                    <button @onclick="SubmitFollowUp" disabled="@saving" class="btn btn-primary">Set Follow-Up</button>
+                </div>
+            </div>
+        </div>
+
+        @* -- Item Responses -- *@
+        <div class="section">
+            <h4>Item Responses (@detail.ItemResponses.Count)</h4>
+            @if (detail.ItemResponses.Count > 0)
+            {
+                <table class="data-table">
+                    <thead><tr><th>#</th><th>Question</th><th>Value</th><th>Response</th></tr></thead>
+                    <tbody>
+                        @foreach (var ir in detail.ItemResponses.OrderBy(x => x.ItemNumber))
+                        {
+                            <tr>
+                                <td>@ir.ItemNumber</td>
+                                <td>@ir.QuestionText</td>
+                                <td><strong>@ir.ResponseValue</strong></td>
+                                <td>@(ir.ResponseText ?? "--")</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            }
+            <div class="entry-form compact">
+                <div class="form-grid">
+                    <div class="form-row"><label>Item # *</label><input type="number" @bind="ir_num" min="1" /></div>
+                    <div class="form-row"><label>Response Value *</label><input type="number" @bind="ir_value" min="0" /></div>
+                    <div class="form-row full"><label>Question Text *</label><input type="text" @bind="ir_question" /></div>
+                    <div class="form-row full"><label>Response Text</label><input type="text" @bind="ir_text" placeholder="e.g. Not at all, Several days, etc." /></div>
+                </div>
+                <div class="form-actions">
+                    <button @onclick="AddItemResponse" disabled="@(saving || string.IsNullOrWhiteSpace(ir_question))" class="btn btn-primary">Add Response</button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@* -- New Screening Tab -- *@
+@if (activeTab == "new")
+{
+    <div class="entry-form">
+        <h3>Record Mental Health Screen</h3>
+        <div class="form-grid">
+            <div class="form-row"><label>Instrument *</label>
+                <select @bind="f_instrument"><option>PHQ-2</option><option>PHQ-9</option><option>GAD-7</option><option>PC-PTSD-5</option><option>AUDIT-C</option><option>Columbia Suicide Severity</option></select>
+            </div>
+            <div class="form-row"><label>Date Administered</label><input type="datetime-local" @bind="f_date" /></div>
+            <div class="form-row"><label>Total Score</label><input type="number" @bind="f_score" step="0.1" /></div>
+            <div class="form-row"><label>Score Interpretation</label>
+                <select @bind="f_interp"><option value="">--</option><option>MINIMAL</option><option>MILD</option><option>MODERATE</option><option>MODERATELY SEVERE</option><option>SEVERE</option></select>
+            </div>
+            <div class="form-row"><label>Positive Screen?</label>
+                <select @bind="f_positive"><option value="">--</option><option value="true">Yes</option><option value="false">No</option></select>
+            </div>
+            <div class="form-row"><label>Administered By</label><input type="text" @bind="f_admin" /></div>
+            <div class="form-row"><label>Location</label><input type="text" @bind="f_location" /></div>
+            <div class="form-row full"><label>Comments</label><textarea @bind="f_comments" rows="2"></textarea></div>
+        </div>
+        <div class="form-actions">
+            <button @onclick="Submit" disabled="@saving" class="btn btn-primary">@(saving ? "Saving..." : "Record")</button>
+        </div>
+    </div>
+}
+
+@code {
+    [SupplyParameterFromQuery] public string? patientId { get; set; }
+    private List<MhListDto>? items;
+    private MhDetailDto? detail;
+    private decimal? scoreChange;
+    private bool loading, saving;
+    private string? error, success;
+    private string activeTab = "list";
+
+    // New screening form
+    private string f_instrument = "PHQ-2", f_interp = "", f_positive = "", f_admin = "", f_location = "", f_comments = "";
+    private decimal? f_score;
+    private DateTime f_date = DateTime.Now;
+
+    // Risk assessment form
+    private int ra_level;
+    private string ra_notes = "";
+
+    // Follow-up form
+    private string fu_required = "true";
+    private DateTime? fu_date;
+    private string fu_plan = "";
+
+    // Item response form
+    private int ir_num = 1;
+    private int ir_value;
+    private string ir_question = "", ir_text = "";
+
+    private IPatientWorkflowGrain GetWorkflow() => Grains.GetGrain<IPatientWorkflowGrain>(patientId!.Trim());
+
+    protected override async Task OnParametersSetAsync() { if (!string.IsNullOrWhiteSpace(patientId)) await Load(); }
+    private async Task HandleKeyDown(KeyboardEventArgs e) { if (e.Key == "Enter") await Load(); }
+    private void SetTab(string tab) { activeTab = tab; success = null; }
+    private void CloseDetail() { detail = null; activeTab = "list"; }
+
+    private async Task Load()
+    {
+        if (string.IsNullOrWhiteSpace(patientId)) return; loading = true; error = null;
+        try
+        {
+            var summaries = await GetWorkflow().GetMentalHealthScreensAsync();
+            items = summaries.Select(s => new MhListDto
+            {
+                InstrumentId = s.InstrumentId, InstrumentName = s.InstrumentName,
+                AdministrationDateTime = s.AdministrationDateTime, TotalScore = s.TotalScore,
+                ScoreInterpretation = s.ScoreInterpretation, IsPositiveScreen = s.IsPositiveScreen,
+                Status = s.Status
+            }).ToList();
+        }
+        catch (Exception ex) { error = $"Error: {ex.Message}"; } finally { loading = false; }
+    }
+
+    private async Task ViewDetail(string instrumentId)
+    {
+        error = null; scoreChange = null;
+        try
+        {
+            var state = await Grains.GetGrain<IMentalHealthGrain>(instrumentId).GetInstrumentAsync();
+            detail = new MhDetailDto
+            {
+                InstrumentId = state.InstrumentId, InstrumentName = state.InstrumentName,
+                AdministrationDateTime = state.AdministrationDateTime, TotalScore = state.TotalScore,
+                ScoreInterpretation = state.ScoreInterpretation, IsPositiveScreen = state.IsPositiveScreen,
+                AdministeredByName = state.AdministeredByName, LocationName = state.LocationName,
+                Comments = state.Comments, Status = state.Status,
+                ScoringMethodUsed = state.ScoringMethodUsed,
+                RiskLevel = state.RiskLevel, RiskAssessmentNotes = state.RiskAssessmentNotes,
+                RequiresFollowUp = state.RequiresFollowUp, FollowUpDueDate = state.FollowUpDueDate,
+                FollowUpPlan = state.FollowUpPlan, PreviousScore = state.PreviousScore,
+                PreviousAdministrationDate = state.PreviousAdministrationDate,
+                ClinicalRecommendation = state.ClinicalRecommendation,
+                ItemResponses = state.ItemResponses.Select(ir => new MhItemResponseDto
+                {
+                    ItemNumber = ir.ItemNumber, QuestionText = ir.QuestionText,
+                    ResponseValue = ir.ResponseValue, ResponseText = ir.ResponseText
+                }).ToList()
+            };
+            activeTab = "detail";
+            ra_level = detail.RiskLevel ?? 0;
+            ra_notes = "";
+            fu_required = detail.RequiresFollowUp ? "true" : "false";
+            fu_date = detail.FollowUpDueDate;
+            fu_plan = detail.FollowUpPlan ?? "";
+            ir_num = detail.ItemResponses.Count + 1;
+            ir_value = 0; ir_question = ""; ir_text = "";
+        }
+        catch (Exception ex) { error = $"Error: {ex.Message}"; }
+    }
+
+    private async Task Submit()
+    {
+        saving = true; error = null;
+        try
+        {
+            bool? posScreen = string.IsNullOrEmpty(f_positive) ? null : bool.Parse(f_positive);
+            await GetWorkflow().RecordMentalHealthScreenAsync(
+                f_instrument, f_date, f_score, NullIfEmpty(f_interp), posScreen,
+                null, null, NullIfEmpty(f_admin), null, NullIfEmpty(f_location), NullIfEmpty(f_comments));
+            activeTab = "list"; success = "Screen recorded."; await Load();
+        }
+        catch (Exception ex) { error = $"Error: {ex.Message}"; } finally { saving = false; }
+    }
+
+    private async Task SubmitRiskAssessment()
+    {
+        saving = true; error = null;
+        try
+        {
+            await GetWorkflow().RecordMentalHealthRiskAssessmentAsync(detail!.InstrumentId, ra_level, NullIfEmpty(ra_notes));
+            success = "Risk assessment recorded."; await ViewDetail(detail.InstrumentId);
+        }
+        catch (Exception ex) { error = $"Error: {ex.Message}"; } finally { saving = false; }
+    }
+
+    private async Task SubmitFollowUp()
+    {
+        saving = true; error = null;
+        try
+        {
+            await GetWorkflow().SetMentalHealthFollowUpAsync(detail!.InstrumentId, bool.Parse(fu_required), fu_date, NullIfEmpty(fu_plan));
+            success = "Follow-up set."; await ViewDetail(detail.InstrumentId);
+        }
+        catch (Exception ex) { error = $"Error: {ex.Message}"; } finally { saving = false; }
+    }
+
+    private async Task AddItemResponse()
+    {
+        if (string.IsNullOrWhiteSpace(ir_question)) { error = "Question text required."; return; }
+        saving = true; error = null;
+        try
+        {
+            await GetWorkflow().AddMentalHealthItemResponseAsync(detail!.InstrumentId, ir_num, ir_question, ir_value, NullIfEmpty(ir_text));
+            success = "Item response added."; ir_question = ""; ir_text = ""; ir_num++; ir_value = 0; await ViewDetail(detail.InstrumentId);
+        }
+        catch (Exception ex) { error = $"Error: {ex.Message}"; } finally { saving = false; }
+    }
+
+    private async Task AutoScore()
+    {
+        saving = true; error = null;
+        try
+        {
+            await GetWorkflow().ScoreMentalHealthInstrumentAsync(detail!.InstrumentId);
+            success = "Instrument scored."; await ViewDetail(detail.InstrumentId);
+        }
+        catch (Exception ex) { error = $"Error: {ex.Message}"; } finally { saving = false; }
+    }
+
+    private async Task GetScoreChange()
+    {
+        error = null;
+        try
+        {
+            scoreChange = await GetWorkflow().CalculateMentalHealthScoreChangeAsync(detail!.InstrumentId);
+            if (scoreChange == null) success = "No previous score for comparison.";
+            else success = $"Score change: {(scoreChange > 0 ? "+" : "")}{scoreChange.Value:F1}";
+        }
+        catch (Exception ex) { error = $"Error: {ex.Message}"; }
+    }
+
+    private static string? NullIfEmpty(string s) => string.IsNullOrWhiteSpace(s) ? null : s;
+    private static string RiskLabel(int? level) => level switch { 0 => "None", 1 => "Low", 2 => "Moderate", 3 => "High", 4 => "Imminent", _ => "--" };
+    private static string RiskBadge(int level) => level switch { 4 => "badge-red", 3 => "badge-red", 2 => "badge-orange", 1 => "badge-yellow", _ => "badge-green" };
+
+    private class MhListDto
+    {
+        public string InstrumentId { get; set; } = "";
+        public string InstrumentName { get; set; } = "";
+        public DateTime AdministrationDateTime { get; set; }
+        public decimal? TotalScore { get; set; }
+        public string? ScoreInterpretation { get; set; }
+        public bool? IsPositiveScreen { get; set; }
+        public int? RiskLevel { get; set; }
+        public string Status { get; set; } = "";
+    }
+
+    private class MhDetailDto
+    {
+        public string InstrumentId { get; set; } = "";
+        public string InstrumentName { get; set; } = "";
+        public DateTime AdministrationDateTime { get; set; }
+        public decimal? TotalScore { get; set; }
+        public string? ScoreInterpretation { get; set; }
+        public bool? IsPositiveScreen { get; set; }
+        public string? AdministeredByName { get; set; }
+        public string? LocationName { get; set; }
+        public string? Comments { get; set; }
+        public string Status { get; set; } = "";
+        public string? ScoringMethodUsed { get; set; }
+        public int? RiskLevel { get; set; }
+        public string? RiskAssessmentNotes { get; set; }
+        public bool RequiresFollowUp { get; set; }
+        public DateTime? FollowUpDueDate { get; set; }
+        public string? FollowUpPlan { get; set; }
+        public decimal? PreviousScore { get; set; }
+        public DateTime? PreviousAdministrationDate { get; set; }
+        public string? ClinicalRecommendation { get; set; }
+        public List<MhItemResponseDto> ItemResponses { get; set; } = new();
+    }
+
+    private class MhItemResponseDto
+    {
+        public int ItemNumber { get; set; }
+        public string QuestionText { get; set; } = "";
+        public int ResponseValue { get; set; }
+        public string? ResponseText { get; set; }
+    }
+}
+
+<style>
+    h1 { color: #003f72; margin-bottom: 1.25rem; font-size: 1.4rem; }
+    .lookup-bar { display: flex; gap: .5rem; margin-bottom: 1.5rem; align-items: center; }
+    .lookup-input { width: 280px; padding: .5rem .75rem; border: 1px solid #ccc; border-radius: 4px; font-size: .9rem; }
+    .btn { padding: .5rem 1.25rem; border: none; border-radius: 4px; cursor: pointer; font-size: .85rem; }
+    .btn-primary { background: #003f72; color: white; } .btn-primary:disabled { background: #999; cursor: not-allowed; }
+    .btn-outline { background: white; border: 1px solid #ccc; color: #333; }
+    .btn-sm-action { padding: 4px 12px; font-size: .8rem; }
+    .alert { padding: .75rem 1rem; border-radius: 4px; margin-bottom: 1rem; font-size: .85rem; }
+    .alert-error { background: #fde8e8; color: #b91c1c; border: 1px solid #f5c6c6; }
+    .alert-success { background: #dcfce7; color: #166534; border: 1px solid #bbf7d0; }
+    .empty-state { color: #999; font-style: italic; padding: 2rem 0; }
+    .tab-bar { display: flex; gap: 0; border-bottom: 2px solid #d4d9e0; margin-bottom: 1.25rem; }
+    .tab { background: none; border: none; padding: .6rem 1.25rem; cursor: pointer; font-size: .85rem; color: #555; border-bottom: 2px solid transparent; margin-bottom: -2px; }
+    .tab-active { color: #003f72; font-weight: 600; border-bottom-color: #003f72; }
+    .entry-form { border: 1px solid #d4d9e0; border-radius: 6px; padding: 1.25rem; margin-bottom: 1.5rem; background: #f9fafb; }
+    .entry-form.compact { margin-top: .75rem; padding: 1rem; }
+    .entry-form h3 { margin-bottom: 1rem; color: #003f72; }
+    .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: .75rem; }
+    .form-row { display: flex; flex-direction: column; gap: .25rem; }
+    .form-row.full { grid-column: 1 / -1; }
+    .form-row label { font-size: .8rem; font-weight: 600; color: #555; }
+    .form-row input, .form-row select, .form-row textarea { padding: .4rem .6rem; border: 1px solid #ccc; border-radius: 4px; font-size: .85rem; }
+    .form-row textarea { resize: vertical; }
+    .form-actions { display: flex; gap: .5rem; margin-top: .75rem; }
+    .data-table { width: 100%; border-collapse: collapse; font-size: .85rem; border: 1px solid #d4d9e0; }
+    .data-table thead { background: #f4f6f9; }
+    .data-table th { text-align: left; padding: .5rem; font-weight: 600; color: #003f72; border-bottom: 2px solid #d4d9e0; font-size: .75rem; text-transform: uppercase; }
+    .data-table td { padding: .4rem .5rem; border-bottom: 1px solid #f0f0f0; }
+    .data-table tr.clickable { cursor: pointer; }
+    .data-table tr.clickable:hover { background: #eef3f9; }
+    .date { color: #888; font-size: .8rem; white-space: nowrap; }
+    .badge { padding: 2px 8px; border-radius: 3px; font-size: .7rem; font-weight: 600; }
+    .badge-green { background: #dcfce7; color: #166534; }
+    .badge-red { background: #fde8e8; color: #b91c1c; }
+    .badge-orange { background: #fef3c7; color: #92400e; }
+    .badge-yellow { background: #fef9c3; color: #854d0e; }
+    .detail-panel { border: 1px solid #d4d9e0; border-radius: 6px; padding: 1.25rem; margin-bottom: 1.5rem; }
+    .detail-header { display: flex; align-items: center; gap: .75rem; margin-bottom: 1rem; }
+    .detail-header h3 { margin: 0; color: #003f72; flex: 1; }
+    .detail-grid { display: grid; grid-template-columns: 1fr 1fr; gap: .5rem; font-size: .85rem; margin-bottom: .5rem; }
+    .detail-grid .full { grid-column: 1 / -1; }
+    .section { border-top: 1px solid #e5e7eb; padding-top: 1rem; margin-top: 1rem; }
+    .section h4 { color: #003f72; margin-bottom: .75rem; font-size: .95rem; }
+    .trend-up { color: #dc2626; font-weight: 600; }
+    .trend-down { color: #16a34a; font-weight: 600; }
+</style>

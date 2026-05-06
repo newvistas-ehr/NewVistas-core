@@ -1,0 +1,370 @@
+﻿@inherits LayoutComponentBase
+@implements IDisposable
+@using Microsoft.AspNetCore.Components.Authorization
+@using NewVistas.BlazorWeb.Services
+@inject AuthenticationStateProvider AuthStateProvider
+@inject NavigationManager Navigation
+@inject PatientContextService PatientContext
+@inject UserSecurityContext SecurityContext
+@using NewVistas.Abstractions.Security
+
+<div class="app-container">
+    <header class="app-header">
+        <div class="header-brand">
+            <span class="header-icon">🏥</span>
+            <span class="header-title">NewVistas</span>
+            <span class="header-subtitle">Clinical Information System</span>
+        </div>
+        <AuthorizeView>
+            <Authorized>
+                <div class="header-user">
+                    <span class="user-name">@context.User.Identity?.Name</span>
+                    <button class="btn-logout" @onclick="Logout">Sign Out</button>
+                </div>
+            </Authorized>
+        </AuthorizeView>
+    </header>
+
+    <div class="app-body">
+        <nav class="sidebar">
+            <NavLink class="nav-item" href="/" Match="NavLinkMatch.All">
+                <span class="nav-icon">🏠</span>
+                <span class="nav-label">Home</span>
+            </NavLink>
+            <NavLink class="nav-item" href="/patient-lookup">
+                <span class="nav-icon">🔍</span>
+                <span class="nav-label">Patient Lookup</span>
+            </NavLink>
+
+            @if (SecurityContext.HasAccess(MenuArea.Clinical))
+            {
+            <div class="nav-divider"></div>
+            <div class="nav-section-title">Clinical</div>
+
+            <NavLink class="nav-item" href="/cover-sheet">
+                <span class="nav-icon">📋</span>
+                <span class="nav-label">Cover Sheet</span>
+            </NavLink>
+            <NavLink class="nav-item" href="/problems">
+                <span class="nav-icon">⚠️</span>
+                <span class="nav-label">Problems</span>
+            </NavLink>
+            <NavLink class="nav-item" href="/medications">
+                <span class="nav-icon">💊</span>
+                <span class="nav-label">Medications</span>
+            </NavLink>
+            <NavLink class="nav-item" href="/orders">
+                <span class="nav-icon">📝</span>
+                <span class="nav-label">Orders</span>
+            </NavLink>
+            <NavLink class="nav-item" href="/notes">
+                <span class="nav-icon">🗒️</span>
+                <span class="nav-label">Notes</span>
+            </NavLink>
+            <NavLink class="nav-item" href="/consults">
+                <span class="nav-icon">🩺</span>
+                <span class="nav-label">Consults</span>
+            </NavLink>
+            <NavLink class="nav-item" href="/external-referrals">
+                <span class="nav-icon">🔗</span>
+                <span class="nav-label">Ext. Referrals</span>
+            </NavLink>
+            <NavLink class="nav-item" href="/labs">
+                <span class="nav-icon">🔬</span>
+                <span class="nav-label">Labs</span>
+            </NavLink>
+            <NavLink class="nav-item" href="/vitals">
+                <span class="nav-icon">❤️</span>
+                <span class="nav-label">Vitals</span>
+            </NavLink>
+            <NavLink class="nav-item" href="/allergies">
+                <span class="nav-icon">🚫</span>
+                <span class="nav-label">Allergies</span>
+            </NavLink>
+            <NavLink class="nav-item" href="/immunizations">
+                <span class="nav-icon">💉</span>
+                <span class="nav-label">Immunizations</span>
+            </NavLink>
+            <NavLink class="nav-item" href="/immunization-forecast">
+                <span class="nav-icon">📅</span>
+                <span class="nav-label">Imm. Forecast</span>
+            </NavLink>
+            <NavLink class="nav-item" href="/surgery">
+                <span class="nav-icon">🏥</span>
+                <span class="nav-label">Surgery</span>
+            </NavLink>
+            <NavLink class="nav-item" href="/radiology">
+                <span class="nav-icon">📡</span>
+                <span class="nav-label">Radiology</span>
+            </NavLink>
+            <NavLink class="nav-item" href="/imaging">
+                <span class="nav-icon">🖼️</span>
+                <span class="nav-label">Imaging</span>
+            </NavLink>
+            <NavLink class="nav-item" href="/bcma">
+                <span class="nav-icon">💊</span>
+                <span class="nav-label">BCMA</span>
+            </NavLink>
+            <NavLink class="nav-item" href="/mental-health">
+                <span class="nav-icon">🧠</span>
+                <span class="nav-label">Mental Health</span>
+            </NavLink>
+            <NavLink class="nav-item" href="/dietetics">
+                <span class="nav-icon">🥗</span>
+                <span class="nav-label">Dietetics</span>
+            </NavLink>
+            <NavLink class="nav-item" href="/reminders">
+                <span class="nav-icon">⏰</span>
+                <span class="nav-label">Reminders</span>
+            </NavLink>
+            <NavLink class="nav-item" href="/health-factors">
+                <span class="nav-icon">📊</span>
+                <span class="nav-label">Health Factors</span>
+            </NavLink>
+            <NavLink class="nav-item" href="/health-summary">
+                <span class="nav-icon">📃</span>
+                <span class="nav-label">Health Summary</span>
+            </NavLink>
+            <NavLink class="nav-item" href="/pt">
+                <span class="nav-icon">🏋️</span>
+                <span class="nav-label">Physical Therapy</span>
+            </NavLink>
+            <NavLink class="nav-item" href="/ecr">
+                <span class="nav-icon">📡</span>
+                <span class="nav-label">eCR</span>
+            </NavLink>
+            <NavLink class="nav-item" href="/dsi">
+                <span class="nav-icon">🧩</span>
+                <span class="nav-label">Decision Support</span>
+            </NavLink>
+            <NavLink class="nav-item" href="/cancerregistry">
+                <span class="nav-icon">🎗️</span>
+                <span class="nav-label">Cancer Registry</span>
+            </NavLink>
+            <NavLink class="nav-item" href="/cqm">
+                <span class="nav-icon">📈</span>
+                <span class="nav-label">CQM</span>
+            </NavLink>
+            }
+
+            @if (SecurityContext.HasAccess(MenuArea.Pharmacy))
+            {
+            <div class="nav-divider"></div>
+            <div class="nav-section-title">Pharmacy</div>
+
+            <NavLink class="nav-item" href="/pharmacy" Match="NavLinkMatch.All">
+                <span class="nav-icon">💊</span>
+                <span class="nav-label">Pharmacy Hub</span>
+            </NavLink>
+            <NavLink class="nav-item" href="/outpatientpharmacy">
+                <span class="nav-icon">📋</span>
+                <span class="nav-label">Outpatient Rx</span>
+            </NavLink>
+            <NavLink class="nav-item" href="/inpatientpharmacy">
+                <span class="nav-icon">🏥</span>
+                <span class="nav-label">Inpatient Meds</span>
+            </NavLink>
+            <NavLink class="nav-item" href="/drugaccountability">
+                <span class="nav-icon">📦</span>
+                <span class="nav-label">Drug Accountability</span>
+            </NavLink>
+            <NavLink class="nav-item" href="/pharmacybenefits">
+                <span class="nav-icon">💳</span>
+                <span class="nav-label">Benefits &amp; PA</span>
+            </NavLink>
+            <NavLink class="nav-item" href="/drug-utilization-review">
+                <span class="nav-icon">🔬</span>
+                <span class="nav-label">DUR</span>
+            </NavLink>
+            <NavLink class="nav-item" href="/interaction-blocking">
+                <span class="nav-icon">⚠️</span>
+                <span class="nav-label">Interactions</span>
+            </NavLink>
+            }
+
+            @if (SecurityContext.HasAccess(MenuArea.Registration))
+            {
+            <div class="nav-divider"></div>
+            <div class="nav-section-title">Administrative</div>
+
+            <NavLink class="nav-item" href="/adt">
+                <span class="nav-icon">🛏️</span>
+                <span class="nav-label">ADT</span>
+            </NavLink>
+            <NavLink class="nav-item" href="/means-test">
+                <span class="nav-icon">📋</span>
+                <span class="nav-label">Means Test</span>
+            </NavLink>
+            <NavLink class="nav-item" href="/service-connected">
+                <span class="nav-icon">🎖️</span>
+                <span class="nav-label">SC Conditions</span>
+            </NavLink>
+            <NavLink class="nav-item" href="/prosthetics">
+                <span class="nav-icon">🦿</span>
+                <span class="nav-label">Prosthetics</span>
+            </NavLink>
+            <NavLink class="nav-item" href="/consult-services">
+                <span class="nav-icon">📂</span>
+                <span class="nav-label">Consult Services</span>
+            </NavLink>
+            }
+
+            @if (SecurityContext.HasAccess(MenuArea.SystemAdmin))
+            {
+            <NavLink class="nav-item" href="/site-parameters">
+                <span class="nav-icon">⚙️</span>
+                <span class="nav-label">Site Parameters</span>
+            </NavLink>
+            <NavLink class="nav-item" href="/patient-merge">
+                <span class="nav-icon">🔀</span>
+                <span class="nav-label">Patient Merge</span>
+            </NavLink>
+            <NavLink class="nav-item" href="/direct">
+                <span class="nav-icon">✉️</span>
+                <span class="nav-label">Direct Messaging</span>
+            </NavLink>
+            <NavLink class="nav-item" href="/ds4p">
+                <span class="nav-icon">🔒</span>
+                <span class="nav-label">DS4P</span>
+            </NavLink>
+            }
+
+            @if (SecurityContext.HasAccess(MenuArea.Financial))
+            {
+            <div class="nav-divider"></div>
+            <div class="nav-section-title">Financial</div>
+
+            <NavLink class="nav-item" href="/accounts-receivable">
+                <span class="nav-icon">💰</span>
+                <span class="nav-label">Accounts Receivable</span>
+            </NavLink>
+            <NavLink class="nav-item" href="/integrated-billing">
+                <span class="nav-icon">🧾</span>
+                <span class="nav-label">Integrated Billing</span>
+            </NavLink>
+            <NavLink class="nav-item" href="/edi-billing">
+                <span class="nav-icon">📤</span>
+                <span class="nav-label">EDI Billing</span>
+            </NavLink>
+            <NavLink class="nav-item" href="/agent-cashier">
+                <span class="nav-icon">🏦</span>
+                <span class="nav-label">Agent Cashier</span>
+            </NavLink>
+            <NavLink class="nav-item" href="/fee-basis">
+                <span class="nav-icon">📄</span>
+                <span class="nav-label">Fee Basis</span>
+            </NavLink>
+            <NavLink class="nav-item" href="/ambulatory-copay">
+                <span class="nav-icon">💵</span>
+                <span class="nav-label">Ambulatory Copay</span>
+            </NavLink>
+            <NavLink class="nav-item" href="/ib-site-config">
+                <span class="nav-icon">⚙️</span>
+                <span class="nav-label">IB Site Config</span>
+            </NavLink>
+            <NavLink class="nav-item" href="/ifcap">
+                <span class="nav-icon">🛒</span>
+                <span class="nav-label">IFCAP</span>
+            </NavLink>
+            }
+
+            <div class="nav-divider"></div>
+            <div class="nav-section-title">Reference</div>
+
+            <NavLink class="nav-item" href="/icd10">
+                <span class="nav-icon">📖</span>
+                <span class="nav-label">ICD-10 Codes</span>
+            </NavLink>
+            <NavLink class="nav-item" href="/drugformulary">
+                <span class="nav-icon">📚</span>
+                <span class="nav-label">NDF Formulary</span>
+            </NavLink>
+            <NavLink class="nav-item" href="/drugfile">
+                <span class="nav-icon">🗃️</span>
+                <span class="nav-label">Drug File</span>
+            </NavLink>
+            <NavLink class="nav-item" href="/drug-interactions">
+                <span class="nav-icon">⚗️</span>
+                <span class="nav-label">Drug Interactions</span>
+            </NavLink>
+            <NavLink class="nav-item" href="/lab-shipping">
+                <span class="nav-icon">📦</span>
+                <span class="nav-label">Lab Shipping</span>
+            </NavLink>
+            <NavLink class="nav-item" href="/voluntary-service">
+                <span class="nav-icon">🤝</span>
+                <span class="nav-label">Voluntary Service</span>
+            </NavLink>
+
+            <div class="nav-divider"></div>
+            <div class="nav-section-title">Dashboards</div>
+
+            <NavLink class="nav-item" href="/icare-dashboard">
+                <span class="nav-icon">📊</span>
+                <span class="nav-label">iCare Dashboard</span>
+            </NavLink>
+
+            @if (SecurityContext.HasAccess(MenuArea.SystemAdmin))
+            {
+            <div class="nav-divider"></div>
+            <div class="nav-section-title">Patient Portal</div>
+
+            <NavLink class="nav-item" href="/patient-portal">
+                <span class="nav-icon">🌐</span>
+                <span class="nav-label">Patient Portal</span>
+            </NavLink>
+            }
+        </nav>
+
+        <main class="main-content">
+            @if (!string.IsNullOrEmpty(PatientContext.PatientId))
+            {
+                <div class="patient-context-bar">
+                    <span class="ctx-icon">👤</span>
+                    <span class="ctx-label">Patient:</span>
+                    <span class="ctx-value">@(PatientContext.PatientName ?? PatientContext.PatientId)</span>
+                    <span class="ctx-id">(ID: @PatientContext.PatientId)</span>
+                </div>
+            }
+            @Body
+        </main>
+    </div>
+</div>
+
+<div id="blazor-error-ui" data-nosnippet>
+    An unhandled error has occurred.
+    <a href="." class="reload">Reload</a>
+    <span class="dismiss">🗙</span>
+</div>
+
+@code {
+    protected override void OnInitialized()
+    {
+        PatientContext.OnChanged += StateHasChanged;
+    }
+
+    private void Logout()
+    {
+        PatientContext.Clear();
+        SecurityContext.Clear();
+        ((JwtAuthenticationStateProvider)AuthStateProvider).Logout();
+        Navigation.NavigateTo("/login", forceLoad: false);
+    }
+
+    public void Dispose()
+    {
+        PatientContext.OnChanged -= StateHasChanged;
+    }
+}
+
+<style>
+    .patient-context-bar {
+        background: #eef3f9; border: 1px solid #c5d3e3; border-radius: 4px;
+        padding: 0.4rem 0.75rem; margin-bottom: 1rem;
+        display: flex; align-items: center; gap: 0.5rem; font-size: 0.85rem;
+    }
+    .ctx-icon { font-size: 1rem; }
+    .ctx-label { color: #666; }
+    .ctx-value { font-weight: 600; color: #003f72; }
+    .ctx-id { color: #888; font-size: 0.8rem; }
+</style>

@@ -1,0 +1,41 @@
+<UserControl x:Class="NewVistas.Wpf_UI.Views.BlindRehabilitationView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <ScrollViewer VerticalScrollBarVisibility="Auto">
+        <StackPanel Margin="24">
+            <TextBlock Style="{StaticResource PageTitle}" Text="Blind Rehabilitation"/>
+            <TextBlock Style="{StaticResource ErrorText}" Text="{Binding Error}"
+                       Visibility="{Binding Error, Converter={StaticResource NullToVisibility}}"/>
+            <StackPanel Orientation="Horizontal" Margin="0,0,0,12">
+                <Button Content="Load" Style="{StaticResource PrimaryButton}"
+                        Command="{Binding LoadCommand}" Margin="0,0,8,0"/>
+                <ProgressBar IsIndeterminate="True" Width="120" Height="20"
+                             Visibility="{Binding IsLoading, Converter={StaticResource BoolToVisibility}}"/>
+            </StackPanel>
+            <StackPanel Visibility="{Binding Patient, Converter={StaticResource NullToVisibility}}">
+                <TextBlock Style="{StaticResource SectionHeader}" Text="Patient Information"/>
+                <StackPanel Orientation="Horizontal" Margin="0,4,0,8">
+                    <TextBlock Style="{StaticResource FieldLabel}" Text="Eligibility: " Margin="0,0,4,0"/>
+                    <TextBlock Text="{Binding Patient.Eligibility}" FontWeight="SemiBold"/>
+                </StackPanel>
+            </StackPanel>
+            <TextBlock Style="{StaticResource SectionHeader}" Text="Admissions"/>
+            <DataGrid ItemsSource="{Binding Admissions}" AutoGenerateColumns="False" MaxHeight="200">
+                <DataGrid.Columns>
+                    <DataGridTextColumn Header="Admission Date" Binding="{Binding AdmissionDate, StringFormat=d}" Width="130"/>
+                    <DataGridTextColumn Header="Center" Binding="{Binding CenterName}" Width="*"/>
+                    <DataGridTextColumn Header="Status" Binding="{Binding Status}" Width="120"/>
+                    <DataGridTextColumn Header="Discharge Date" Binding="{Binding DischargeDate, StringFormat=d}" Width="130"/>
+                </DataGrid.Columns>
+            </DataGrid>
+            <TextBlock Style="{StaticResource SectionHeader}" Text="Outpatient Visits" Margin="0,12,0,0"/>
+            <DataGrid ItemsSource="{Binding OutpatientVisits}" AutoGenerateColumns="False" MaxHeight="200">
+                <DataGrid.Columns>
+                    <DataGridTextColumn Header="Visit Date" Binding="{Binding VisitDate, StringFormat=d}" Width="120"/>
+                    <DataGridTextColumn Header="Type" Binding="{Binding VisitType}" Width="140"/>
+                    <DataGridTextColumn Header="Clinician" Binding="{Binding ClinicianName}" Width="*"/>
+                </DataGrid.Columns>
+            </DataGrid>
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>

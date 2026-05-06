@@ -1,0 +1,272 @@
+@page "/ib-site-config"
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+@rendermode InteractiveServer
+@using NewVistas.BlazorWeb.Services
+@using NewVistas.Abstractions.GrainInterfaces
+@using NewVistas.Abstractions.GrainStates
+@inject OrleansGrainService Grains
+
+<PageTitle>IB Site Parameters</PageTitle>
+
+<h2>Integrated Billing Site Parameters</h2>
+<p class="subtitle">VistA File #350.9 — facility-wide billing configuration, copay rates, and thresholds</p>
+
+<div class="toolbar">
+    <button @onclick="LoadSiteParams" disabled="@loading">Load Parameters</button>
+    <button @onclick="LoadDemo" disabled="@loading" class="btn-demo">Load Demo Data</button>
+</div>
+
+@if (!string.IsNullOrEmpty(error))
+{
+    <div class="error">@error</div>
+}
+
+@if (!string.IsNullOrEmpty(successMsg))
+{
+    <div class="success">@successMsg</div>
+}
+
+@if (loading) { <p class="loading-msg">Loading...</p> }
+
+@if (siteParams is not null)
+{
+    <div class="detail-panel">
+        <h3>Current Site Parameters</h3>
+
+        <div class="param-section">
+            <h4>Site Information</h4>
+            <div class="info-grid">
+                <div class="info-item"><span class="label">Site ID:</span> @siteParams.SiteId</div>
+                <div class="info-item"><span class="label">Site Name:</span> @(string.IsNullOrEmpty(siteParams.SiteName) ? "(not configured)" : siteParams.SiteName)</div>
+                <div class="info-item"><span class="label">Mailing Address:</span> @(string.IsNullOrEmpty(siteParams.BillingMailingAddress) ? "—" : siteParams.BillingMailingAddress)</div>
+                <div class="info-item"><span class="label">Billing Email:</span> @(siteParams.BillingEmail ?? "—")</div>
+            </div>
+        </div>
+
+        <div class="param-section">
+            <h4>Copay Rates</h4>
+            <div class="rate-grid">
+                <div class="rate-card">
+                    <div class="rate-label">Outpatient Copay Threshold</div>
+                    <div class="rate-value">@FormatCurrency(siteParams.OutpatientCopayThreshold)</div>
+                </div>
+                <div class="rate-card">
+                    <div class="rate-label">Inpatient Per Diem Rate</div>
+                    <div class="rate-value">@FormatCurrency(siteParams.InpatientPerDiemRate)</div>
+                </div>
+                <div class="rate-card">
+                    <div class="rate-label">NHCU Per Diem Rate</div>
+                    <div class="rate-value">@FormatCurrency(siteParams.NhcuPerDiemRate)</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="param-section">
+            <h4>Pharmacy Copay Tiers</h4>
+            <div class="rate-grid">
+                <div class="rate-card tier1">
+                    <div class="rate-label">Tier 1 (Generic)</div>
+                    <div class="rate-value">@FormatCurrency(siteParams.PharmacyCopayTier1Amount)</div>
+                    <div class="rate-sub">Priority Groups 1-3, SC exempt</div>
+                </div>
+                <div class="rate-card tier2">
+                    <div class="rate-label">Tier 2 (Preferred Brand)</div>
+                    <div class="rate-value">@FormatCurrency(siteParams.PharmacyCopayTier2Amount)</div>
+                    <div class="rate-sub">Priority Groups 4-6</div>
+                </div>
+                <div class="rate-card tier3">
+                    <div class="rate-label">Tier 3 (Non-Preferred)</div>
+                    <div class="rate-value">@FormatCurrency(siteParams.PharmacyCopayTier3Amount)</div>
+                    <div class="rate-sub">Priority Groups 7-8</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="param-section">
+            <h4>Additional Settings</h4>
+            <div class="info-grid">
+                <div class="info-item"><span class="label">Medicare Deductible:</span> @FormatCurrency(siteParams.MedicareDeductibleAmount)</div>
+                <div class="info-item"><span class="label">Annual Copay Cap:</span> @FormatCurrency(siteParams.CopayCapAmount)</div>
+                <div class="info-item">
+                    <span class="label">TRICARE Enabled:</span>
+                    @if (siteParams.IsTricareSiteEnabled)
+                    {
+                        <span class="badge badge-active">YES</span>
+                    }
+                    else
+                    {
+                        <span class="badge badge-inactive">NO</span>
+                    }
+                </div>
+                @if (siteParams.LastUpdatedDate is not null)
+                {
+                    <div class="info-item"><span class="label">Last Updated:</span> @siteParams.LastUpdatedDate.Value.ToLocalTime().ToString("MM/dd/yyyy HH:mm")</div>
+                }
+                @if (siteParams.LastUpdatedByUserId is not null)
+                {
+                    <div class="info-item"><span class="label">Updated By:</span> @siteParams.LastUpdatedByUserId</div>
+                }
+            </div>
+
+            @if (siteParams.BillingTypes.Count > 0)
+            {
+                <div class="billing-types">
+                    <span class="label">Billing Types:</span>
+                    @foreach (string bt in siteParams.BillingTypes)
+                    {
+                        <span class="badge badge-bt">@bt</span>
+                    }
+                </div>
+            }
+        </div>
+    </div>
+}
+
+<div class="form-panel">
+    <h3>Update Site Parameters</h3>
+    <label>Site Name: <input @bind="editSiteName" /></label>
+    <label>Mailing Address: <input @bind="editAddress" /></label>
+    <label>Billing Email: <input @bind="editEmail" placeholder="(optional)" /></label>
+
+    <h4>Rates and Thresholds</h4>
+    <label>Outpatient Copay Threshold ($): <input type="number" @bind="editOpThreshold" step="0.01" /></label>
+    <label>Inpatient Per Diem Rate ($): <input type="number" @bind="editIpRate" step="0.01" /></label>
+    <label>NHCU Per Diem Rate ($): <input type="number" @bind="editNhcuRate" step="0.01" /></label>
+    <label>Pharmacy Tier 1 ($): <input type="number" @bind="editTier1" step="0.01" /></label>
+    <label>Pharmacy Tier 2 ($): <input type="number" @bind="editTier2" step="0.01" /></label>
+    <label>Pharmacy Tier 3 ($): <input type="number" @bind="editTier3" step="0.01" /></label>
+    <label>Medicare Deductible ($): <input type="number" @bind="editMedicare" step="0.01" /></label>
+    <label>Annual Copay Cap ($): <input type="number" @bind="editCopyCap" step="0.01" /></label>
+    <label>
+        <input type="checkbox" @bind="editTricare" /> TRICARE Enabled
+    </label>
+    <label>Updated By User ID: <input @bind="editUserId" /></label>
+    <button @onclick="SubmitUpdate" disabled="@(string.IsNullOrWhiteSpace(editSiteName))">Save Changes</button>
+</div>
+
+@code {
+    bool loading;
+    string? error;
+    string? successMsg;
+
+    IBSiteParametersState? siteParams;
+
+    // Edit fields
+    string editSiteName = string.Empty;
+    string editAddress = string.Empty;
+    string? editEmail;
+    decimal? editOpThreshold;
+    decimal? editIpRate;
+    decimal? editNhcuRate;
+    decimal editTier1;
+    decimal editTier2;
+    decimal editTier3;
+    decimal? editMedicare;
+    decimal? editCopyCap;
+    bool editTricare;
+    string editUserId = string.Empty;
+
+    private IIBSiteParametersGrain GetSiteParams() =>
+        Grains.GetGrain<IIBSiteParametersGrain>("IB-SITE-PARAMS");
+
+    string FormatCurrency(decimal? value) => value.HasValue ? value.Value.ToString("C2") : "—";
+    string FormatCurrency(decimal value) => value.ToString("C2");
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadSiteParams();
+    }
+
+    async Task LoadSiteParams()
+    {
+        loading = true; error = null; successMsg = null;
+        try
+        {
+            siteParams = await GetSiteParams().GetAsync();
+            // Pre-fill edit form with current values
+            editSiteName = siteParams.SiteName;
+            editAddress = siteParams.BillingMailingAddress;
+            editEmail = siteParams.BillingEmail;
+            editOpThreshold = siteParams.OutpatientCopayThreshold;
+            editIpRate = siteParams.InpatientPerDiemRate;
+            editNhcuRate = siteParams.NhcuPerDiemRate;
+            editTier1 = siteParams.PharmacyCopayTier1Amount;
+            editTier2 = siteParams.PharmacyCopayTier2Amount;
+            editTier3 = siteParams.PharmacyCopayTier3Amount;
+            editMedicare = siteParams.MedicareDeductibleAmount;
+            editCopyCap = siteParams.CopayCapAmount;
+            editTricare = siteParams.IsTricareSiteEnabled;
+        }
+        catch (Exception ex) { error = ex.Message; }
+        finally { loading = false; }
+    }
+
+    async Task SubmitUpdate()
+    {
+        if (string.IsNullOrWhiteSpace(editSiteName)) return;
+        error = null; successMsg = null;
+        try
+        {
+            await GetSiteParams().UpdateAsync(
+                editSiteName, editAddress, editEmail, editOpThreshold, editIpRate, editNhcuRate,
+                editTier1, editTier2, editTier3, editMedicare, editCopyCap, editTricare, editUserId);
+            successMsg = "Site parameters updated successfully.";
+            await LoadSiteParams();
+        }
+        catch (Exception ex) { error = ex.Message; }
+    }
+
+    async Task LoadDemo()
+    {
+        loading = true; error = null; successMsg = null;
+        try
+        {
+            await GetSiteParams().UpdateAsync(
+                "James J. Peters VA Medical Center",
+                "130 West Kingsbridge Road, Bronx NY 10468",
+                "billing@va.gov", 50.00m, 1880.00m, 97.00m,
+                5.00m, 8.00m, 11.00m, 1632.00m, 700.00m, true, "ADMIN-DEMO");
+            successMsg = "Demo site parameters loaded.";
+            await LoadSiteParams();
+        }
+        catch (Exception ex) { error = ex.Message; }
+        finally { loading = false; }
+    }
+}
+
+<style>
+    .subtitle { color: #888; margin-top: -8px; font-size: 0.9em; }
+    .toolbar { display: flex; gap: 8px; margin: 16px 0; align-items: center; }
+    button { padding: 6px 14px; border: 1px solid #555; border-radius: 4px; cursor: pointer; background: #2a2a3e; color: #eee; }
+    button:hover:not(:disabled) { background: #3a3a5e; }
+    button:disabled { opacity: .5; cursor: not-allowed; }
+    .btn-demo { background: #1a3a5a; }
+    .loading-msg { color: #aaa; }
+    .error { color: #f66; margin: 8px 0; padding: 8px; background: #3a1a1a; border-radius: 4px; }
+    .success { color: #6f6; margin: 8px 0; padding: 8px; background: #1a3a1a; border-radius: 4px; }
+    .detail-panel { margin-top: 16px; padding: 16px; background: #1a1a2e; border: 1px solid #444; border-radius: 6px; }
+    .param-section { margin-bottom: 20px; }
+    .param-section h4 { color: #aac; border-bottom: 1px solid #333; padding-bottom: 4px; }
+    .info-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 8px; margin-bottom: 8px; }
+    .info-item { padding: 4px 0; color: #ccc; }
+    .info-item .label { color: #888; font-weight: bold; }
+    .rate-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 12px; }
+    .rate-card { padding: 12px; background: #1e1e38; border: 1px solid #444; border-radius: 6px; text-align: center; }
+    .rate-label { color: #999; font-size: 0.85em; margin-bottom: 4px; }
+    .rate-value { color: #fff; font-size: 1.4em; font-weight: bold; }
+    .rate-sub { color: #777; font-size: 0.75em; margin-top: 4px; }
+    .tier1 { border-left: 3px solid #4a4; }
+    .tier2 { border-left: 3px solid #d80; }
+    .tier3 { border-left: 3px solid #c44; }
+    .badge { padding: 2px 8px; border-radius: 10px; font-size: 0.78em; font-weight: bold; }
+    .badge-active { background: #4a4; color: #fff; }
+    .badge-inactive { background: #666; color: #fff; }
+    .badge-bt { background: #2a4a6a; color: #cde; margin: 2px 4px; display: inline-block; }
+    .billing-types { margin-top: 8px; color: #ccc; }
+    .billing-types .label { color: #888; font-weight: bold; margin-right: 8px; }
+    .form-panel { margin-top: 24px; padding: 16px; background: #1a1a2e; border: 1px solid #444; border-radius: 6px; display: flex; flex-direction: column; gap: 10px; max-width: 560px; }
+    .form-panel h3 { color: #ddd; margin-top: 0; }
+    .form-panel h4 { color: #aac; border-bottom: 1px solid #333; padding-bottom: 4px; margin-top: 8px; }
+    .form-panel label { display: flex; gap: 10px; align-items: center; color: #ccc; }
+    .form-panel input[type="text"], .form-panel input[type="number"], .form-panel input:not([type]) { flex: 1; padding: 4px; border: 1px solid #555; border-radius: 3px; background: #12122a; color: #eee; }
+</style>

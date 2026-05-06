@@ -1,0 +1,358 @@
+<UserControl x:Class="NewVistas.WpfDelphiUI.Views.CoverSheetView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="clr-namespace:NewVistas.WpfDelphiUI.ViewModels"
+             xmlns:svc="clr-namespace:NewVistas.WpfDelphiUI.Services"
+             d:DataContext="{d:DesignInstance vm:CoverSheetViewModel}"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             mc:Ignorable="d"
+             Background="White">
+
+    <!--
+        fCover.dfm layout:
+          pnlTop    (3 panels: pnl_1+lst_1  pnl_2+lst_2  pnl_3+pnlFlag+lst_3)
+          pnlMiddle (2 panels: pnl_4+lst_4  pnl_5+lst_5)
+          pnlBottom (3 panels: pnl_6+lst_6  pnl_7+lst_7  pnl_8+lst_8)
+        TSplitters between each panel => WPF GridSplitters
+    -->
+
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="*"/>     <!-- Top row -->
+            <RowDefinition Height="4"/>     <!-- Splitter -->
+            <RowDefinition Height="*"/>     <!-- Middle row -->
+            <RowDefinition Height="4"/>     <!-- Splitter -->
+            <RowDefinition Height="*"/>     <!-- Bottom row -->
+            <!-- Diabetes Registry overlay row — Auto height collapses when -->
+            <!-- the patient is not enrolled (HasDiabetesRegistry == false). -->
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <!-- ═══════════════════════════════════════════════════════════════ -->
+        <!--  TOP ROW — pnlTop                                               -->
+        <!-- ═══════════════════════════════════════════════════════════════ -->
+        <Grid Grid.Row="0">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="4"/>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="4"/>
+                <ColumnDefinition Width="*"/>
+            </Grid.ColumnDefinitions>
+
+            <!-- Panel 1: Active Problems (lst_1) -->
+            <Border Grid.Column="0" Style="{StaticResource CprsPanel}">
+                <DockPanel>
+                    <Border DockPanel.Dock="Top" Style="{StaticResource CprsPanelHeader}">
+                        <TextBlock Text="Active Problems" Style="{StaticResource CprsPanelHeaderText}"/>
+                    </Border>
+                    <ListBox ItemsSource="{Binding Problems}" BorderThickness="0">
+                        <ListBox.ItemTemplate>
+                            <DataTemplate DataType="{x:Type svc:ProblemDto}">
+                                <TextBlock Style="{StaticResource MonoListItem}">
+                                    <Run Text="{Binding IcdCode, Mode=OneWay}"/>
+                                    <Run Text=" "/>
+                                    <Run Text="{Binding Description, Mode=OneWay}"/>
+                                </TextBlock>
+                            </DataTemplate>
+                        </ListBox.ItemTemplate>
+                    </ListBox>
+                </DockPanel>
+            </Border>
+
+            <GridSplitter Grid.Column="1" Width="4" HorizontalAlignment="Stretch"
+                          Background="{StaticResource ControlBrush}"/>
+
+            <!-- Panel 2: Allergies / ADR (lst_2) -->
+            <Border Grid.Column="2" Style="{StaticResource CprsPanel}">
+                <DockPanel>
+                    <Border DockPanel.Dock="Top" Style="{StaticResource CprsPanelHeader}">
+                        <TextBlock Text="Allergies / Adverse Reactions" Style="{StaticResource CprsPanelHeaderText}"/>
+                    </Border>
+                    <ListBox ItemsSource="{Binding Allergies}" BorderThickness="0">
+                        <ListBox.ItemTemplate>
+                            <DataTemplate DataType="{x:Type svc:AllergyDto}">
+                                <TextBlock Style="{StaticResource MonoListItem}">
+                                    <Run Text="{Binding Allergen, Mode=OneWay}"/>
+                                    <Run Text=" ["/>
+                                    <Run Text="{Binding Severity, Mode=OneWay}"/>
+                                    <Run Text="]"/>
+                                </TextBlock>
+                            </DataTemplate>
+                        </ListBox.ItemTemplate>
+                    </ListBox>
+                </DockPanel>
+            </Border>
+
+            <GridSplitter Grid.Column="3" Width="4" HorizontalAlignment="Stretch"
+                          Background="{StaticResource ControlBrush}"/>
+
+            <!-- Panel 3: Patient Record Flags + Postings (pnlFlag + lst_3) -->
+            <Border Grid.Column="4" Style="{StaticResource CprsPanel}">
+                <DockPanel>
+                    <Border DockPanel.Dock="Top" Style="{StaticResource CprsPanelHeader}">
+                        <TextBlock Text="Patient Record Flags / Postings" Style="{StaticResource CprsPanelHeaderText}"/>
+                    </Border>
+                    <ListBox ItemsSource="{Binding Flags}" BorderThickness="0">
+                        <ListBox.ItemTemplate>
+                            <DataTemplate>
+                                <TextBlock Text="{Binding}" Style="{StaticResource FlagText}"/>
+                            </DataTemplate>
+                        </ListBox.ItemTemplate>
+                    </ListBox>
+                </DockPanel>
+            </Border>
+        </Grid>
+
+        <GridSplitter Grid.Row="1" Height="4" HorizontalAlignment="Stretch"
+                      Background="{StaticResource ControlBrush}"/>
+
+        <!-- ═══════════════════════════════════════════════════════════════ -->
+        <!--  MIDDLE ROW — pnlMiddle                                         -->
+        <!-- ═══════════════════════════════════════════════════════════════ -->
+        <Grid Grid.Row="2">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="4"/>
+                <ColumnDefinition Width="*"/>
+            </Grid.ColumnDefinitions>
+
+            <!-- Panel 4: Pending Orders (lst_4) -->
+            <Border Grid.Column="0" Style="{StaticResource CprsPanel}">
+                <DockPanel>
+                    <Border DockPanel.Dock="Top" Style="{StaticResource CprsPanelHeader}">
+                        <TextBlock Text="Pending Orders" Style="{StaticResource CprsPanelHeaderText}"/>
+                    </Border>
+                    <ListBox ItemsSource="{Binding Orders}" BorderThickness="0">
+                        <ListBox.ItemTemplate>
+                            <DataTemplate DataType="{x:Type svc:OrderDto}">
+                                <TextBlock Style="{StaticResource MonoListItem}">
+                                    <Run Text="{Binding OrderText, Mode=OneWay}"/>
+                                    <Run Text=" — "/>
+                                    <Run Text="{Binding Status, Mode=OneWay}" Foreground="{StaticResource NavyBrush}"/>
+                                </TextBlock>
+                            </DataTemplate>
+                        </ListBox.ItemTemplate>
+                    </ListBox>
+                </DockPanel>
+            </Border>
+
+            <GridSplitter Grid.Column="1" Width="4" HorizontalAlignment="Stretch"
+                          Background="{StaticResource ControlBrush}"/>
+
+            <!-- Panel 5: Upcoming Appointments (lst_5) -->
+            <Border Grid.Column="2" Style="{StaticResource CprsPanel}">
+                <DockPanel>
+                    <Border DockPanel.Dock="Top" Style="{StaticResource CprsPanelHeader}">
+                        <TextBlock Text="Upcoming Appointments" Style="{StaticResource CprsPanelHeaderText}"/>
+                    </Border>
+                    <ListBox ItemsSource="{Binding Appointments}" BorderThickness="0">
+                        <ListBox.ItemTemplate>
+                            <DataTemplate DataType="{x:Type svc:AppointmentDto}">
+                                <TextBlock Style="{StaticResource MonoListItem}">
+                                    <Run Text="{Binding AppointmentDate, Mode=OneWay}"/>
+                                    <Run Text="  "/>
+                                    <Run Text="{Binding Clinic, Mode=OneWay}"/>
+                                </TextBlock>
+                            </DataTemplate>
+                        </ListBox.ItemTemplate>
+                    </ListBox>
+                </DockPanel>
+            </Border>
+        </Grid>
+
+        <GridSplitter Grid.Row="3" Height="4" HorizontalAlignment="Stretch"
+                      Background="{StaticResource ControlBrush}"/>
+
+        <!-- ═══════════════════════════════════════════════════════════════ -->
+        <!--  BOTTOM ROW — pnlBottom                                         -->
+        <!-- ═══════════════════════════════════════════════════════════════ -->
+        <Grid Grid.Row="4">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="4"/>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="4"/>
+                <ColumnDefinition Width="*"/>
+            </Grid.ColumnDefinitions>
+
+            <!-- Panel 6: Latest Vital Signs (lst_6) -->
+            <Border Grid.Column="0" Style="{StaticResource CprsPanel}">
+                <DockPanel>
+                    <Border DockPanel.Dock="Top" Style="{StaticResource CprsPanelHeader}">
+                        <TextBlock Text="Latest Vitals" Style="{StaticResource CprsPanelHeaderText}"/>
+                    </Border>
+                    <ListBox ItemsSource="{Binding Vitals}" BorderThickness="0">
+                        <ListBox.ItemTemplate>
+                            <DataTemplate DataType="{x:Type svc:VitalSummaryDto}">
+                                <TextBlock FontFamily="Courier New" FontSize="11" Margin="1,0">
+                                    <Run Text="{Binding VitalType, Mode=OneWay}"/>
+                                    <Run Text=": "/>
+                                    <Run Text="{Binding Value, Mode=OneWay}">
+                                        <Run.Style>
+                                            <Style TargetType="Run">
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding IsAbnormal}" Value="True">
+                                                        <Setter Property="Foreground" Value="#CC0000"/>
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </Run.Style>
+                                    </Run>
+                                    <Run Text=" "/>
+                                    <Run Text="{Binding Units, Mode=OneWay}" Foreground="#555"/>
+                                </TextBlock>
+                            </DataTemplate>
+                        </ListBox.ItemTemplate>
+                    </ListBox>
+                </DockPanel>
+            </Border>
+
+            <GridSplitter Grid.Column="1" Width="4" HorizontalAlignment="Stretch"
+                          Background="{StaticResource ControlBrush}"/>
+
+            <!-- Panel 7: Recent Lab Results (lst_7) -->
+            <Border Grid.Column="2" Style="{StaticResource CprsPanel}">
+                <DockPanel>
+                    <Border DockPanel.Dock="Top" Style="{StaticResource CprsPanelHeader}">
+                        <TextBlock Text="Recent Lab Results" Style="{StaticResource CprsPanelHeaderText}"/>
+                    </Border>
+                    <ListBox ItemsSource="{Binding Labs}" BorderThickness="0">
+                        <ListBox.ItemTemplate>
+                            <DataTemplate DataType="{x:Type svc:LabResultDto}">
+                                <TextBlock FontFamily="Courier New" FontSize="11" Margin="1,0">
+                                    <Run Text="{Binding TestName, Mode=OneWay}"/>
+                                    <Run Text=": "/>
+                                    <Run Text="{Binding Value, Mode=OneWay}">
+                                        <Run.Style>
+                                            <Style TargetType="Run">
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding AbnormalFlag}" Value="H">
+                                                        <Setter Property="Foreground" Value="#CC0000"/>
+                                                    </DataTrigger>
+                                                    <DataTrigger Binding="{Binding AbnormalFlag}" Value="L">
+                                                        <Setter Property="Foreground" Value="#CC0000"/>
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </Run.Style>
+                                    </Run>
+                                    <Run Text=" "/>
+                                    <Run Text="{Binding AbnormalFlag, Mode=OneWay}" Foreground="#CC0000"/>
+                                </TextBlock>
+                            </DataTemplate>
+                        </ListBox.ItemTemplate>
+                    </ListBox>
+                </DockPanel>
+            </Border>
+
+            <GridSplitter Grid.Column="3" Width="4" HorizontalAlignment="Stretch"
+                          Background="{StaticResource ControlBrush}"/>
+
+            <!-- Panel 8: Clinical Reminders (lst_8) -->
+            <Border Grid.Column="4" Style="{StaticResource CprsPanel}">
+                <DockPanel>
+                    <Border DockPanel.Dock="Top" Style="{StaticResource CprsPanelHeader}">
+                        <TextBlock Text="Clinical Reminders" Style="{StaticResource CprsPanelHeaderText}"/>
+                    </Border>
+                    <ListBox ItemsSource="{Binding Reminders}" BorderThickness="0">
+                        <ListBox.ItemTemplate>
+                            <DataTemplate DataType="{x:Type svc:ReminderDto}">
+                                <TextBlock Style="{StaticResource MonoListItem}">
+                                    <Run Text="{Binding Name, Mode=OneWay}"/>
+                                    <Run Text=" — due "/>
+                                    <Run Text="{Binding DueDate, Mode=OneWay}" Foreground="{StaticResource RedBrush}"/>
+                                </TextBlock>
+                            </DataTemplate>
+                        </ListBox.ItemTemplate>
+                    </ListBox>
+                </DockPanel>
+            </Border>
+        </Grid>
+
+        <!-- ═══════════════════════════════════════════════════════════════ -->
+        <!--  DIABETES REGISTRY ROW (visible only if patient enrolled)        -->
+        <!-- ═══════════════════════════════════════════════════════════════ -->
+        <Border Grid.Row="5"
+                Style="{StaticResource CprsPanel}"
+                Margin="0,4,0,0"
+                MinHeight="120"
+                Visibility="{Binding HasDiabetesRegistry, Converter={StaticResource BoolToVis}}">
+            <DockPanel>
+                <Border DockPanel.Dock="Top" Style="{StaticResource CprsPanelHeader}">
+                    <TextBlock Text="{Binding DiabetesHeaderLine}" Style="{StaticResource CprsPanelHeaderText}"/>
+                </Border>
+
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>     <!-- Snapshot summary -->
+                        <ColumnDefinition Width="4"/>
+                        <ColumnDefinition Width="2*"/>    <!-- Pre-visit plan -->
+                    </Grid.ColumnDefinitions>
+
+                    <!-- Snapshot column: HbA1c + kidney + exam status -->
+                    <StackPanel Grid.Column="0" Margin="6,4">
+                        <TextBlock Text="HbA1c" FontWeight="Bold" FontSize="11" Foreground="{StaticResource NavyBrush}"/>
+                        <TextBlock Text="{Binding HbA1cText}"
+                                   Foreground="{Binding HbA1cBrush}"
+                                   FontFamily="Courier New" FontSize="11" Margin="6,1,0,4"/>
+
+                        <TextBlock Text="Kidney function" FontWeight="Bold" FontSize="11" Foreground="{StaticResource NavyBrush}"/>
+                        <TextBlock Text="{Binding KidneyFunctionText}"
+                                   Foreground="{Binding KidneyFunctionBrush}"
+                                   FontFamily="Courier New" FontSize="11" Margin="6,1,0,4"/>
+
+                        <TextBlock Text="Annual exams" FontWeight="Bold" FontSize="11" Foreground="{StaticResource NavyBrush}"/>
+                        <TextBlock Text="{Binding FootExamText}" FontFamily="Courier New" FontSize="11" Margin="6,1,0,0"/>
+                        <TextBlock Text="{Binding EyeExamText}"  FontFamily="Courier New" FontSize="11" Margin="6,1,0,0"/>
+                        <TextBlock Text="{Binding AcrExamText}"  FontFamily="Courier New" FontSize="11" Margin="6,1,0,0"/>
+                    </StackPanel>
+
+                    <GridSplitter Grid.Column="1" Width="4" HorizontalAlignment="Stretch"
+                                  Background="{StaticResource ControlBrush}"/>
+
+                    <!-- Pre-visit plan column: overdue / due / up-to-date -->
+                    <ScrollViewer Grid.Column="2" VerticalScrollBarVisibility="Auto" Padding="6,4">
+                        <StackPanel>
+                            <TextBlock Text="Pre-visit plan (today)" FontWeight="Bold" FontSize="11"
+                                       Foreground="{StaticResource NavyBrush}"/>
+
+                            <TextBlock Text="Overdue" FontWeight="Bold" FontSize="11"
+                                       Foreground="{StaticResource RedBrush}" Margin="0,4,0,0"/>
+                            <ItemsControl ItemsSource="{Binding DiabetesItemsOverdue}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <TextBlock Text="{Binding}" Style="{StaticResource MonoListItem}"
+                                                   Foreground="{StaticResource RedBrush}" Margin="6,0"/>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+
+                            <TextBlock Text="Due" FontWeight="Bold" FontSize="11" Margin="0,4,0,0"/>
+                            <ItemsControl ItemsSource="{Binding DiabetesItemsDue}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <TextBlock Text="{Binding}" Style="{StaticResource MonoListItem}" Margin="6,0"/>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+
+                            <TextBlock Text="Up to date" FontWeight="Bold" FontSize="11"
+                                       Foreground="#777" Margin="0,4,0,0"/>
+                            <ItemsControl ItemsSource="{Binding DiabetesItemsUpToDate}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <TextBlock Text="{Binding}" Style="{StaticResource MonoListItem}"
+                                                   Foreground="#666" Margin="6,0"/>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </StackPanel>
+                    </ScrollViewer>
+                </Grid>
+            </DockPanel>
+        </Border>
+
+    </Grid>
+</UserControl>

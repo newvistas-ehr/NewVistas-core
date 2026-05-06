@@ -1,0 +1,56 @@
+@page "/my-vitals"
+@rendermode InteractiveServer
+@inject HttpClient Http
+
+<PageTitle>My Vitals</PageTitle>
+<h1>My Vitals</h1>
+
+@if (error != null) { <div class="alert alert-error">@error</div> }
+@if (loading) { <p>Loading...</p> }
+else if (items.Count == 0) { <p class="empty-state">No vitals on record.</p> }
+else
+{
+    <table class="health-table">
+        <thead><tr><th>Type</th><th>Value</th><th>Date/Time</th></tr></thead>
+        <tbody>
+            @foreach (VitalDto v in items)
+            {
+                <tr>
+                    <td>@(v.VitalType ?? "—")</td>
+                    <td><strong>@(v.Value ?? "—")</strong> @(v.Units ?? "")</td>
+                    <td>@(v.DateTaken?.ToString("MM/dd/yyyy HH:mm") ?? "—")</td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+
+@code {
+    bool loading = true;
+    string? error;
+    List<VitalDto> items = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        try { items = await Http.GetFromJsonAsync<List<VitalDto>>("api/my/health/vitals") ?? new(); }
+        catch (Exception ex) { error = $"Error: {ex.Message}"; }
+        finally { loading = false; }
+    }
+
+    private class VitalDto
+    {
+        public string? VitalType { get; set; }
+        public string? Value { get; set; }
+        public string? Units { get; set; }
+        public DateTime? DateTaken { get; set; }
+    }
+}
+
+<style>
+    .health-table { width: 100%; border-collapse: collapse; font-size: .9rem; }
+    .health-table th { background: #f1f8f4; text-align: left; padding: .5rem .6rem; border-bottom: 2px solid #d4e8db; }
+    .health-table td { padding: .4rem .6rem; border-bottom: 1px solid #eee; }
+    .health-table tr:hover td { background: #f5faf7; }
+    .empty-state { color: #888; font-style: italic; }
+    .alert-error { background: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; padding: .5rem .75rem; border-radius: 4px; margin-bottom: .5rem; }
+</style>

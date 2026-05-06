@@ -1,0 +1,665 @@
+@page "/quality-management"
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+@rendermode InteractiveServer
+@using NewVistas.BlazorWeb.Services
+@using NewVistas.Abstractions.GrainInterfaces
+@using NewVistas.Abstractions.GrainStates
+@inject OrleansGrainService Grains
+
+<h2>Quality Management / Occurrence Screening</h2>
+<p>Incident reporting, peer review, and root cause analysis (VistA File #680).</p>
+
+@if (error != null)
+{
+    <div style="color:red;margin-bottom:1rem;">@error</div>
+}
+
+<!-- Tab bar -->
+<div style="display:flex;gap:.5rem;margin-bottom:1rem;border-bottom:2px solid #ccc;">
+    <button class="tab-btn @(activeTab=="incidents"?"active":"")" @onclick='()=>SwitchTab("incidents")'>Incident Reporting</button>
+    <button class="tab-btn @(activeTab=="reviews"?"active":"")" @onclick='()=>SwitchTab("reviews")'>Peer Reviews</button>
+    <button class="tab-btn @(activeTab=="dashboard"?"active":"")" @onclick='()=>SwitchTab("dashboard")'>RCA Dashboard</button>
+</div>
+
+<!-- ── Incident Reporting Tab ──────────────────────────────────────────── -->
+@if (activeTab == "incidents")
+{
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.5rem;">
+        <h4 style="margin:0;">Occurrence Screens</h4>
+        <div style="display:flex;gap:.5rem;align-items:center;">
+            <select @bind="severityFilter" style="padding:.3rem .5rem;">
+                <option value="">All Severities</option>
+                @foreach (string s in severities) { <option>@s</option> }
+            </select>
+            <button @onclick="ApplySeverityFilter" style="padding:.3rem .7rem;">Filter</button>
+            <button @onclick="()=>showReportForm=!showReportForm" style="padding:.3rem .7rem;">
+                @(showReportForm ? "Cancel" : "+ Report Incident")
+            </button>
+        </div>
+    </div>
+
+    @if (showReportForm)
+    {
+        <div class="form-card">
+            <h5 style="margin-top:0;">Report Occurrence</h5>
+            <div class="form-grid">
+                <div class="form-row"><label>Patient ID</label><input @bind="newInc.PatientId" /></div>
+                <div class="form-row"><label>Patient Name</label><input @bind="newInc.PatientName" /></div>
+                <div class="form-row"><label>Occurrence Date</label><input type="datetime-local" @bind="newInc.OccurrenceDate" /></div>
+                <div class="form-row"><label>Category</label>
+                    <select @bind="newInc.CategoryStr">@foreach (string c in categories) { <option>@c</option> }</select>
+                </div>
+                <div class="form-row"><label>Severity</label>
+                    <select @bind="newInc.SeverityStr">@foreach (string s in severities) { <option>@s</option> }</select>
+                </div>
+                <div class="form-row"><label>Location</label><input @bind="newInc.Location" /></div>
+                <div class="form-row"><label>Ward / Unit</label><input @bind="newInc.WardUnit" /></div>
+                <div class="form-row"><label>Reported By</label><input @bind="newInc.ReportedBy" /></div>
+                <div class="form-row"><label>Title</label><input @bind="newInc.ReportedByTitle" /></div>
+                <div class="form-row"><label>Diagnosis at Time</label><input @bind="newInc.DiagnosisAtTime" /></div>
+                <div class="form-row"><label>Medication Involved</label><input @bind="newInc.MedicationInvolved" /></div>
+            </div>
+            <div class="form-row" style="margin-top:.5rem;">
+                <label>Description</label>
+                <textarea @bind="newInc.Description" rows="3" style="flex:1;padding:.25rem .5rem;"></textarea>
+            </div>
+            <div class="form-row">
+                <label>Immediate Action</label>
+                <textarea @bind="newInc.ImmediateAction" rows="2" style="flex:1;padding:.25rem .5rem;"></textarea>
+            </div>
+            <button @onclick="ReportIncident" style="margin-top:.5rem;padding:.3rem .8rem;">Submit Report</button>
+            @if (incMsg != null) { <span style="margin-left:.5rem;color:green;">@incMsg</span> }
+        </div>
+    }
+
+    @if (loadingIncidents) { <p>Loading…</p> }
+    else if (incidents.Count == 0) { <p style="color:#666;">No incidents on record.</p> }
+    else
+    {
+        <table class="qm-table">
+            <thead>
+                <tr>
+                    <th>Date</th>
+                    <th>Patient</th>
+                    <th>Category</th>
+                    <th>Severity</th>
+                    <th>Location / Ward</th>
+                    <th>Status</th>
+                    <th>Reviews</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (IncidentSummary i in incidents)
+                {
+                    <tr>
+                        <td>@i.OccurrenceDate.ToLocalTime().ToString("MM/dd/yy")</td>
+                        <td>@i.PatientName</td>
+                        <td>@i.Category</td>
+                        <td><span class="badge @SeverityBadge(i.Severity)">@i.Severity</span></td>
+                        <td>@i.Location / @i.WardUnit</td>
+                        <td><span class="badge @StatusBadge(i.Status)">@i.Status</span></td>
+                        <td>@i.ReviewCount</td>
+                        <td>
+                            @if (i.Status is "Reported" or "UnderReview" or "PeerReviewAssigned" or "RCAInProgress")
+                            {
+                                <button @onclick="()=>SelectIncidentForClose(i.IncidentId)" style="padding:.2rem .5rem;font-size:.8rem;">Close</button>
+                            }
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+
+        @if (closeIncidentId != null)
+        {
+            <div class="form-card" style="margin-top:.5rem;">
+                <h5 style="margin-top:0;">Close Incident</h5>
+                <p style="color:#555;font-size:.9rem;">Confirm closure of incident @closeIncidentId.Split(':').Last()[..8]…</p>
+                <button @onclick="CloseIncident" style="padding:.3rem .7rem;">Confirm Close</button>
+                <button @onclick="()=>closeIncidentId=null" style="margin-left:.5rem;padding:.3rem .7rem;">Cancel</button>
+            </div>
+        }
+    }
+}
+
+<!-- ── Peer Reviews Tab ─────────────────────────────────────────────────── -->
+@if (activeTab == "reviews")
+{
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.5rem;">
+        <h4 style="margin:0;">Peer Reviews &amp; RCAs</h4>
+        <button @onclick="()=>showAssignForm=!showAssignForm" style="padding:.3rem .7rem;">
+            @(showAssignForm ? "Cancel" : "+ Assign Review")
+        </button>
+    </div>
+
+    @if (showAssignForm)
+    {
+        <div class="form-card">
+            <h5 style="margin-top:0;">Assign New Review</h5>
+            <div class="form-grid">
+                <div class="form-row"><label>Incident ID</label><input @bind="newRev.IncidentId" placeholder="QM-INCIDENT:…" /></div>
+                <div class="form-row"><label>Review Type</label>
+                    <select @bind="newRev.ReviewTypeStr">@foreach (string t in reviewTypes) { <option>@t</option> }</select>
+                </div>
+                <div class="form-row"><label>Assigned To</label><input @bind="newRev.AssignedTo" /></div>
+                <div class="form-row"><label>Reviewer Name</label><input @bind="newRev.ReviewerName" /></div>
+                <div class="form-row"><label>Reviewer Title</label><input @bind="newRev.ReviewerTitle" /></div>
+                <div class="form-row"><label>Due Date</label><input type="date" @bind="newRev.DueDate" /></div>
+                <div class="form-row">
+                    <label>Confidential</label>
+                    <input type="checkbox" @bind="newRev.Confidential" style="width:auto;" />
+                    <span style="font-size:.85rem;color:#555;">Peer review protected</span>
+                </div>
+            </div>
+            <button @onclick="AssignReview" style="margin-top:.5rem;padding:.3rem .8rem;">Assign Review</button>
+            @if (revMsg != null) { <span style="margin-left:.5rem;color:green;">@revMsg</span> }
+        </div>
+    }
+
+    @if (loadingReviews) { <p>Loading…</p> }
+    else if (reviews.Count == 0) { <p style="color:#666;">No reviews on record.</p> }
+    else
+    {
+        <table class="qm-table">
+            <thead>
+                <tr>
+                    <th>Type</th>
+                    <th>Reviewer</th>
+                    <th>Assigned To</th>
+                    <th>Due Date</th>
+                    <th>Status</th>
+                    <th>Actions</th>
+                    <th>Completed</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (ReviewSummary r in reviews)
+                {
+                    <tr>
+                        <td>@r.ReviewType</td>
+                        <td>@r.ReviewerName</td>
+                        <td>@r.AssignedTo</td>
+                        <td style="@(IsOverdue(r) ? "color:red;font-weight:bold;" : "")">@r.DueDate.ToLocalTime().ToString("MM/dd/yy")</td>
+                        <td><span class="badge @ReviewBadge(r.Status)">@r.Status</span></td>
+                        <td>@r.ActionItemCount</td>
+                        <td>@(r.CompletedDate.HasValue ? r.CompletedDate.Value.ToLocalTime().ToString("MM/dd/yy") : "—")</td>
+                        <td>
+                            @if (r.Status is "Pending" or "InProgress")
+                            {
+                                <button @onclick="()=>SelectReviewForComplete(r.ReviewId)" style="padding:.2rem .5rem;font-size:.8rem;">Complete</button>
+                            }
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+
+        @if (completeReviewId != null)
+        {
+            <div class="form-card" style="margin-top:.5rem;">
+                <h5 style="margin-top:0;">Complete Review</h5>
+                <div class="form-row"><label>Final Conclusion</label>
+                    <textarea @bind="completeFinalConclusion" rows="3" style="flex:1;padding:.25rem .5rem;"></textarea>
+                </div>
+                <div class="form-row"><label>Lessons Learned</label>
+                    <textarea @bind="completeLessonsLearned" rows="2" style="flex:1;padding:.25rem .5rem;"></textarea>
+                </div>
+                <button @onclick="CompleteReview" style="padding:.3rem .7rem;margin-top:.5rem;">Complete Review</button>
+                <button @onclick="()=>completeReviewId=null" style="margin-left:.5rem;padding:.3rem .7rem;">Cancel</button>
+            </div>
+        }
+    }
+}
+
+<!-- ── RCA Dashboard Tab ──────────────────────────────────────────────── -->
+@if (activeTab == "dashboard")
+{
+    <h4>RCA &amp; QM Dashboard</h4>
+
+    @if (loadingDashboard) { <p>Loading dashboard…</p> }
+    else if (dashboard is not null)
+    {
+        <div style="display:flex;gap:.75rem;flex-wrap:wrap;margin-bottom:1.5rem;">
+            <div class="stat-box">
+                <div class="stat-num">@dashboard.TotalIncidents</div>
+                <div class="stat-lbl">Total Incidents</div>
+            </div>
+            <div class="stat-box @(dashboard.OpenIncidents > 0 ? "stat-warn" : "")">
+                <div class="stat-num">@dashboard.OpenIncidents</div>
+                <div class="stat-lbl">Open Incidents</div>
+            </div>
+            <div class="stat-box @(dashboard.SevereHarmOrDeath > 0 ? "stat-crit" : "")">
+                <div class="stat-num">@dashboard.SevereHarmOrDeath</div>
+                <div class="stat-lbl">Severe Harm / Death</div>
+            </div>
+            <div class="stat-box">
+                <div class="stat-num">@dashboard.NearMisses</div>
+                <div class="stat-lbl">Near Misses</div>
+            </div>
+            <div class="stat-box @(dashboard.OverdueReviews > 0 ? "stat-warn" : "")">
+                <div class="stat-num">@dashboard.OverdueReviews</div>
+                <div class="stat-lbl">Overdue Reviews</div>
+            </div>
+            <div class="stat-box">
+                <div class="stat-num">@dashboard.PendingReviews</div>
+                <div class="stat-lbl">Pending Reviews</div>
+            </div>
+            <div class="stat-box">
+                <div class="stat-num">@dashboard.CompletedReviews</div>
+                <div class="stat-lbl">Completed Reviews</div>
+            </div>
+        </div>
+
+        @if (dashboard.SevereHarmOrDeath > 0 || dashboard.OverdueReviews > 0)
+        {
+            <div style="background:#fff3cd;border:1px solid #ffc107;border-radius:6px;padding:.75rem 1rem;margin-bottom:1rem;">
+                <strong>Attention Required</strong>
+                @if (dashboard.SevereHarmOrDeath > 0)
+                {
+                    <div style="margin-top:.3rem;">⚠ @dashboard.SevereHarmOrDeath severe harm or death event(s) require immediate action.</div>
+                }
+                @if (dashboard.OverdueReviews > 0)
+                {
+                    <div style="margin-top:.3rem;">⚠ @dashboard.OverdueReviews review(s) are past their due date.</div>
+                }
+            </div>
+        }
+    }
+}
+
+<style>
+    .tab-btn { padding:.4rem 1rem;border:1px solid #ccc;border-bottom:none;background:#f5f5f5;cursor:pointer;border-radius:4px 4px 0 0; }
+    .tab-btn.active { background:white;font-weight:bold;border-bottom:2px solid white;margin-bottom:-2px; }
+    .form-card { background:#f9f9f9;border:1px solid #ddd;border-radius:6px;padding:1rem;margin-bottom:1rem; }
+    .form-grid { display:grid;grid-template-columns:1fr 1fr;gap:.25rem; }
+    .form-row { display:flex;align-items:center;gap:.5rem;margin-bottom:.4rem; }
+    .form-row label { width:140px;font-size:.85rem;color:#444;flex-shrink:0; }
+    .form-row input, .form-row select, .form-row textarea { flex:1;padding:.25rem .5rem; }
+    .qm-table { width:100%;border-collapse:collapse;font-size:.9rem; }
+    .qm-table th, .qm-table td { border:1px solid #ddd;padding:.4rem .6rem;text-align:left; }
+    .qm-table th { background:#f0f0f0;font-weight:600; }
+    .qm-table tr:hover { background:#fafafa; }
+    .badge { display:inline-block;padding:.15rem .5rem;border-radius:10px;font-size:.78rem;font-weight:600; }
+    .badge-reported  { background:#dbeafe;color:#1e40af; }
+    .badge-review    { background:#fef9c3;color:#854d0e; }
+    .badge-rca       { background:#fce7f3;color:#9d174d; }
+    .badge-closed    { background:#dcfce7;color:#166534; }
+    .badge-voided    { background:#f3f4f6;color:#374151; }
+    .badge-nearmiss  { background:#f0fdf4;color:#166534; }
+    .badge-noharm    { background:#f0f9ff;color:#0369a1; }
+    .badge-minor     { background:#fef9c3;color:#854d0e; }
+    .badge-moderate  { background:#ffedd5;color:#9a3412; }
+    .badge-severe    { background:#fee2e2;color:#991b1b; }
+    .badge-death     { background:#1f2937;color:white; }
+    .badge-pending   { background:#fef9c3;color:#854d0e; }
+    .badge-progress  { background:#dbeafe;color:#1e40af; }
+    .badge-completed { background:#dcfce7;color:#166534; }
+    .badge-approved  { background:#d1fae5;color:#065f46; }
+    .stat-box { background:#f0f4ff;border:1px solid #c7d7ff;border-radius:6px;padding:.6rem 1.2rem;text-align:center;min-width:110px; }
+    .stat-box.stat-warn { background:#fefce8;border-color:#fbbf24; }
+    .stat-box.stat-crit { background:#fef2f2;border-color:#f87171; }
+    .stat-num { font-size:1.6rem;font-weight:bold;color:#1e40af; }
+    .stat-box.stat-warn .stat-num { color:#b45309; }
+    .stat-box.stat-crit .stat-num { color:#dc2626; }
+    .stat-lbl { font-size:.78rem;color:#555; }
+</style>
+
+@code {
+    string activeTab = "incidents";
+    string? error;
+
+    // Incidents
+    bool loadingIncidents;
+    bool showReportForm;
+    List<IncidentSummary> incidents = new();
+    NewIncidentModel newInc = new();
+    string? incMsg;
+    string severityFilter = string.Empty;
+    string? closeIncidentId;
+
+    // Reviews
+    bool loadingReviews;
+    bool showAssignForm;
+    List<ReviewSummary> reviews = new();
+    NewReviewModel newRev = new();
+    string? revMsg;
+    string? completeReviewId;
+    string completeFinalConclusion = string.Empty;
+    string completeLessonsLearned = string.Empty;
+
+    // Dashboard
+    bool loadingDashboard;
+    DashboardModel? dashboard;
+
+    string[] categories = Enum.GetNames(typeof(OccurrenceCategoryDto));
+    string[] severities = Enum.GetNames(typeof(OccurrenceSeverityDto));
+    string[] reviewTypes = Enum.GetNames(typeof(QMReviewTypeDto));
+
+    protected override async Task OnInitializedAsync() => await SwitchTab("incidents");
+
+    async Task SwitchTab(string tab)
+    {
+        activeTab = tab;
+        error = null;
+        if (tab == "incidents") await LoadIncidents();
+        else if (tab == "reviews") await LoadReviews();
+        else if (tab == "dashboard") await LoadDashboard();
+    }
+
+    async Task LoadIncidents()
+    {
+        loadingIncidents = true;
+        try
+        {
+            var incIdx = Grains.GetGrain<IQMIncidentIndexGrain>("QM-INCIDENT-IDX");
+            incidents = (await incIdx.GetAllIncidentsAsync()).Select(i => new IncidentSummary
+            {
+                IncidentId = i.IncidentId, PatientId = i.PatientId, PatientName = i.PatientName,
+                OccurrenceDate = i.OccurrenceDate, Category = i.Category.ToString(),
+                Severity = i.Severity.ToString(), Location = i.Location, WardUnit = i.WardUnit,
+                Status = i.Status.ToString(), ReviewCount = i.ReviewCount
+            }).ToList();
+        }
+        catch { incidents = new(); }
+        finally { loadingIncidents = false; }
+    }
+
+    async Task ApplySeverityFilter()
+    {
+        if (string.IsNullOrEmpty(severityFilter)) { await LoadIncidents(); return; }
+        loadingIncidents = true;
+        try
+        {
+            var sevIdx = Grains.GetGrain<IQMIncidentIndexGrain>("QM-INCIDENT-IDX");
+            var sevEnum = Enum.Parse<OccurrenceSeverity>(severityFilter);
+            incidents = (await sevIdx.GetIncidentsBySeverityAsync(sevEnum)).Select(i => new IncidentSummary
+            {
+                IncidentId = i.IncidentId, PatientId = i.PatientId, PatientName = i.PatientName,
+                OccurrenceDate = i.OccurrenceDate, Category = i.Category.ToString(),
+                Severity = i.Severity.ToString(), Location = i.Location, WardUnit = i.WardUnit,
+                Status = i.Status.ToString(), ReviewCount = i.ReviewCount
+            }).ToList();
+        }
+        catch { incidents = new(); }
+        finally { loadingIncidents = false; }
+    }
+
+    async Task LoadReviews()
+    {
+        loadingReviews = true;
+        try
+        {
+            var revIdx = Grains.GetGrain<IQMReviewIndexGrain>("QM-REVIEW-IDX");
+            reviews = (await revIdx.GetAllReviewsAsync()).Select(r => new ReviewSummary
+            {
+                ReviewId = r.ReviewId, IncidentId = r.IncidentId,
+                ReviewType = r.ReviewType.ToString(), ReviewerName = r.ReviewerName,
+                Status = r.Status.ToString(), DueDate = r.DueDate
+            }).ToList();
+        }
+        catch { reviews = new(); }
+        finally { loadingReviews = false; }
+    }
+
+    async Task LoadDashboard()
+    {
+        loadingDashboard = true;
+        try
+        {
+            var dashIncIdx = Grains.GetGrain<IQMIncidentIndexGrain>("QM-INCIDENT-IDX");
+            var dashRevIdx = Grains.GetGrain<IQMReviewIndexGrain>("QM-REVIEW-IDX");
+            var allInc = await dashIncIdx.GetAllIncidentsAsync();
+            var allRev = await dashRevIdx.GetAllReviewsAsync();
+            var overdueRev = await dashRevIdx.GetOverdueReviewsAsync();
+            dashboard = new DashboardModel
+            {
+                TotalIncidents = allInc.Count,
+                OpenIncidents = allInc.Count(i => i.Status != IncidentStatus.Closed && i.Status != IncidentStatus.Voided),
+                TotalReviews = allRev.Count,
+                PendingReviews = allRev.Count(r => r.Status == QMReviewStatus.Pending || r.Status == QMReviewStatus.InProgress),
+                OverdueReviews = overdueRev.Count
+            };
+        }
+        catch { dashboard = null; }
+        finally { loadingDashboard = false; }
+    }
+
+    async Task ReportIncident()
+    {
+        incMsg = null;
+        try
+        {
+            var payload = new
+            {
+                newInc.PatientId,
+                newInc.PatientName,
+                newInc.OccurrenceDate,
+                Category = Enum.Parse<OccurrenceCategoryDto>(newInc.CategoryStr),
+                newInc.Description,
+                newInc.Location,
+                newInc.WardUnit,
+                Severity = Enum.Parse<OccurrenceSeverityDto>(newInc.SeverityStr),
+                newInc.ReportedBy,
+                newInc.ReportedByTitle,
+                newInc.ImmediateAction,
+                newInc.DiagnosisAtTime,
+                ProcedureAtTime = string.Empty,
+                newInc.MedicationInvolved,
+                EquipmentInvolved = string.Empty
+            };
+            string incidentId = $"QM-INCIDENT:{Guid.NewGuid()}";
+            var incGrain = Grains.GetGrain<IQMIncidentGrain>(incidentId);
+            await incGrain.ReportIncidentAsync(
+                newInc.PatientId, newInc.PatientName, newInc.OccurrenceDate,
+                Enum.Parse<OccurrenceCategory>(newInc.CategoryStr), newInc.Description,
+                newInc.Location, newInc.WardUnit,
+                Enum.Parse<OccurrenceSeverity>(newInc.SeverityStr),
+                newInc.ReportedBy, newInc.ReportedByTitle, newInc.ImmediateAction,
+                newInc.DiagnosisAtTime, string.Empty, newInc.MedicationInvolved, string.Empty);
+            var incState = await incGrain.GetIncidentAsync();
+            var incIndex = Grains.GetGrain<IQMIncidentIndexGrain>("QM-INCIDENT-IDX");
+            await incIndex.UpsertIncidentAsync(new QMIncidentIndexEntry
+            {
+                IncidentId = incidentId, PatientId = incState.PatientId, PatientName = incState.PatientName,
+                OccurrenceDate = incState.OccurrenceDate, Category = incState.Category,
+                Severity = incState.Severity, Location = incState.Location, WardUnit = incState.WardUnit,
+                Status = incState.Status, ReviewCount = incState.ReviewIds.Count
+            });
+            incMsg = "Incident reported.";
+            newInc = new();
+            showReportForm = false;
+            await LoadIncidents();
+            await LoadDashboard();
+        }
+        catch { incMsg = "Error reporting incident."; }
+    }
+
+    void SelectIncidentForClose(string incidentId) => closeIncidentId = incidentId;
+
+    async Task CloseIncident()
+    {
+        if (closeIncidentId is null) return;
+        try
+        {
+            var closeGrain = Grains.GetGrain<IQMIncidentGrain>(closeIncidentId);
+            await closeGrain.CloseIncidentAsync();
+            closeIncidentId = null;
+            await LoadIncidents();
+            await LoadDashboard();
+        }
+        catch { error = "Error closing incident."; }
+    }
+
+    async Task AssignReview()
+    {
+        revMsg = null;
+        try
+        {
+            var payload = new
+            {
+                IncidentId = newRev.IncidentId,
+                ReviewType = Enum.Parse<QMReviewTypeDto>(newRev.ReviewTypeStr),
+                newRev.AssignedTo,
+                newRev.ReviewerName,
+                newRev.ReviewerTitle,
+                DueDate = newRev.DueDate.ToUniversalTime(),
+                newRev.Confidential
+            };
+            string reviewId = $"QM-REVIEW:{Guid.NewGuid()}";
+            string revIncidentId = Uri.UnescapeDataString(newRev.IncidentId);
+            var revGrain = Grains.GetGrain<IQMReviewGrain>(reviewId);
+            await revGrain.AssignReviewAsync(
+                revIncidentId, Enum.Parse<QMReviewType>(newRev.ReviewTypeStr),
+                newRev.AssignedTo, newRev.ReviewerName, newRev.ReviewerTitle,
+                newRev.DueDate.ToUniversalTime(), newRev.Confidential);
+            var revState = await revGrain.GetReviewAsync();
+            var revIndex = Grains.GetGrain<IQMReviewIndexGrain>("QM-REVIEW-IDX");
+            await revIndex.UpsertReviewAsync(new QMReviewIndexEntry
+            {
+                ReviewId = reviewId, IncidentId = revIncidentId,
+                ReviewType = revState.ReviewType, ReviewerName = revState.ReviewerName,
+                Status = revState.Status, DueDate = revState.DueDate
+            });
+            var incGrain2 = Grains.GetGrain<IQMIncidentGrain>(revIncidentId);
+            await incGrain2.AddReviewToIncidentAsync(reviewId, revState.ReviewType);
+            revMsg = "Review assigned.";
+            newRev = new();
+            showAssignForm = false;
+            await LoadReviews();
+            await LoadIncidents();
+        }
+        catch { revMsg = "Error assigning review."; }
+    }
+
+    void SelectReviewForComplete(string reviewId)
+    {
+        completeReviewId = reviewId;
+        completeFinalConclusion = string.Empty;
+        completeLessonsLearned = string.Empty;
+    }
+
+    async Task CompleteReview()
+    {
+        if (completeReviewId is null) return;
+        try
+        {
+            var compRevGrain = Grains.GetGrain<IQMReviewGrain>(completeReviewId);
+            await compRevGrain.CompleteReviewAsync(completeFinalConclusion, completeLessonsLearned);
+            completeReviewId = null;
+            await LoadReviews();
+            await LoadDashboard();
+        }
+        catch { error = "Error completing review."; }
+    }
+
+    bool IsOverdue(ReviewSummary r) =>
+        r.DueDate < DateTime.Now && r.Status is "Pending" or "InProgress";
+
+    string SeverityBadge(string s) => s.ToLower() switch
+    {
+        "nearmiss"    => "badge-nearmiss",
+        "noharm"      => "badge-noharm",
+        "minorrharm"  => "badge-minor",
+        "moderateharm"=> "badge-moderate",
+        "severeharm"  => "badge-severe",
+        "death"       => "badge-death",
+        _             => "badge-noharm"
+    };
+
+    string StatusBadge(string s) => s.ToLower() switch
+    {
+        "reported"         => "badge-reported",
+        "underreview"      => "badge-review",
+        "peerreviewassigned" => "badge-review",
+        "rcainprogress"    => "badge-rca",
+        "closed"           => "badge-closed",
+        "voided"           => "badge-voided",
+        _                  => "badge-reported"
+    };
+
+    string ReviewBadge(string s) => s.ToLower() switch
+    {
+        "pending"   => "badge-pending",
+        "inprogress"=> "badge-progress",
+        "completed" => "badge-completed",
+        "approved"  => "badge-approved",
+        _           => "badge-pending"
+    };
+
+    // ── Local enums (mirror server-side values) ─────────────────────────────
+
+    enum OccurrenceCategoryDto { MedicationError, FallWithInjury, ProcedureComplication, SurgicalError, DiagnosticError, InfectionEvent, EquipmentFailure, BehavioralHealthIncident, PatientElopement, SuicideAttemptSelfHarm, DelayInTreatment, PressureUlcer, TransfusionReaction, Other }
+    enum OccurrenceSeverityDto { NearMiss, NoHarm, MinorHarm, ModerateHarm, SevereHarm, Death }
+    enum QMReviewTypeDto { PeerReview, RootCauseAnalysis, AggregateReview, FocusedProfessionalPracticeEvaluation, ExternalReview }
+
+    // ── Local model classes ──────────────────────────────────────────────────
+
+    class NewIncidentModel
+    {
+        public string PatientId { get; set; } = string.Empty;
+        public string PatientName { get; set; } = string.Empty;
+        public DateTime OccurrenceDate { get; set; } = DateTime.Now;
+        public string CategoryStr { get; set; } = "Other";
+        public string SeverityStr { get; set; } = "NoHarm";
+        public string Description { get; set; } = string.Empty;
+        public string Location { get; set; } = string.Empty;
+        public string WardUnit { get; set; } = string.Empty;
+        public string ReportedBy { get; set; } = string.Empty;
+        public string ReportedByTitle { get; set; } = string.Empty;
+        public string ImmediateAction { get; set; } = string.Empty;
+        public string DiagnosisAtTime { get; set; } = string.Empty;
+        public string MedicationInvolved { get; set; } = string.Empty;
+    }
+
+    class NewReviewModel
+    {
+        public string IncidentId { get; set; } = string.Empty;
+        public string ReviewTypeStr { get; set; } = "PeerReview";
+        public string AssignedTo { get; set; } = string.Empty;
+        public string ReviewerName { get; set; } = string.Empty;
+        public string ReviewerTitle { get; set; } = string.Empty;
+        public DateTime DueDate { get; set; } = DateTime.Now.AddDays(30);
+        public bool Confidential { get; set; } = true;
+    }
+
+    class IncidentSummary
+    {
+        public string IncidentId { get; set; } = string.Empty;
+        public string PatientId { get; set; } = string.Empty;
+        public string PatientName { get; set; } = string.Empty;
+        public DateTime OccurrenceDate { get; set; }
+        public string Category { get; set; } = string.Empty;
+        public string Severity { get; set; } = string.Empty;
+        public string Status { get; set; } = string.Empty;
+        public string Location { get; set; } = string.Empty;
+        public string WardUnit { get; set; } = string.Empty;
+        public int ReviewCount { get; set; }
+    }
+
+    class ReviewSummary
+    {
+        public string ReviewId { get; set; } = string.Empty;
+        public string IncidentId { get; set; } = string.Empty;
+        public string ReviewType { get; set; } = string.Empty;
+        public string Status { get; set; } = string.Empty;
+        public string ReviewerName { get; set; } = string.Empty;
+        public string AssignedTo { get; set; } = string.Empty;
+        public DateTime DueDate { get; set; }
+        public DateTime? CompletedDate { get; set; }
+        public int ActionItemCount { get; set; }
+    }
+
+    class DashboardModel
+    {
+        public int TotalIncidents { get; set; }
+        public int OpenIncidents { get; set; }
+        public int SevereHarmOrDeath { get; set; }
+        public int NearMisses { get; set; }
+        public int TotalReviews { get; set; }
+        public int PendingReviews { get; set; }
+        public int OverdueReviews { get; set; }
+        public int CompletedReviews { get; set; }
+    }
+}

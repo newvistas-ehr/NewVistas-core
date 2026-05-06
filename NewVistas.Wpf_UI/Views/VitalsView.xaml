@@ -1,0 +1,142 @@
+<UserControl x:Class="NewVistas.Wpf_UI.Views.VitalsView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <ScrollViewer VerticalScrollBarVisibility="Auto">
+        <StackPanel Margin="24" MaxWidth="900">
+            <TextBlock Style="{StaticResource PageTitle}" Text="Vitals"/>
+            <TextBlock Style="{StaticResource ErrorText}" Text="{Binding Error}"
+                       Visibility="{Binding Error, Converter={StaticResource NullToVisibility}}"/>
+
+            <StackPanel Orientation="Horizontal" Margin="0,0,0,12">
+                <Button Content="Load Vitals" Style="{StaticResource PrimaryButton}"
+                        Command="{Binding LoadCommand}" Margin="0,0,8,0"/>
+                <Button Content="+ Record Vitals" Style="{StaticResource SecondaryButton}"
+                        Command="{Binding ToggleRecordFormCommand}" Margin="0,0,8,0"/>
+                <Button Content="Show History" Style="{StaticResource SecondaryButton}"
+                        Command="{Binding ToggleHistoryCommand}" Margin="0,0,8,0"/>
+                <ProgressBar IsIndeterminate="True" Width="120" Height="20"
+                             Visibility="{Binding IsLoading, Converter={StaticResource BoolToVisibility}}"/>
+            </StackPanel>
+
+            <!-- Latest vitals summary -->
+            <StackPanel Visibility="{Binding LatestVitals, Converter={StaticResource NullToVisibility}}">
+                <TextBlock Style="{StaticResource SectionHeader}" Text="Latest Vitals"/>
+                <Border Style="{StaticResource FormPanel}">
+                    <UniformGrid Columns="4">
+                        <StackPanel Margin="8">
+                            <TextBlock Style="{StaticResource FieldLabel}" Text="Blood Pressure"/>
+                            <TextBlock FontSize="16" FontWeight="Bold" Text="{Binding LatestVitals.BloodPressure}"/>
+                        </StackPanel>
+                        <StackPanel Margin="8">
+                            <TextBlock Style="{StaticResource FieldLabel}" Text="Pulse"/>
+                            <TextBlock FontSize="16" FontWeight="Bold" Text="{Binding LatestVitals.Pulse}"/>
+                        </StackPanel>
+                        <StackPanel Margin="8">
+                            <TextBlock Style="{StaticResource FieldLabel}" Text="Temperature (°F)"/>
+                            <TextBlock FontSize="16" FontWeight="Bold" Text="{Binding LatestVitals.Temperature}"/>
+                        </StackPanel>
+                        <StackPanel Margin="8">
+                            <TextBlock Style="{StaticResource FieldLabel}" Text="Resp Rate"/>
+                            <TextBlock FontSize="16" FontWeight="Bold" Text="{Binding LatestVitals.RespiratoryRate}"/>
+                        </StackPanel>
+                        <StackPanel Margin="8">
+                            <TextBlock Style="{StaticResource FieldLabel}" Text="O2 Sat (%)"/>
+                            <TextBlock FontSize="16" FontWeight="Bold" Text="{Binding LatestVitals.OxygenSaturation}"/>
+                        </StackPanel>
+                        <StackPanel Margin="8">
+                            <TextBlock Style="{StaticResource FieldLabel}" Text="Weight (lbs)"/>
+                            <TextBlock FontSize="16" FontWeight="Bold" Text="{Binding LatestVitals.Weight}"/>
+                        </StackPanel>
+                        <StackPanel Margin="8">
+                            <TextBlock Style="{StaticResource FieldLabel}" Text="Height (in)"/>
+                            <TextBlock FontSize="16" FontWeight="Bold" Text="{Binding LatestVitals.Height}"/>
+                        </StackPanel>
+                        <StackPanel Margin="8">
+                            <TextBlock Style="{StaticResource FieldLabel}" Text="Pain (0-10)"/>
+                            <TextBlock FontSize="16" FontWeight="Bold" Text="{Binding LatestVitals.PainScore}"/>
+                        </StackPanel>
+                    </UniformGrid>
+                </Border>
+            </StackPanel>
+
+            <!-- History panel -->
+            <Border Style="{StaticResource FormPanel}"
+                    Visibility="{Binding ShowHistory, Converter={StaticResource BoolToVisibility}}">
+                <StackPanel>
+                    <TextBlock Style="{StaticResource SectionHeader}" Text="Vital Signs History"/>
+                    <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+                        <StackPanel Margin="0,0,16,0">
+                            <TextBlock Style="{StaticResource FieldLabel}" Text="From"/>
+                            <DatePicker SelectedDate="{Binding HistoryFrom}" Width="160"/>
+                        </StackPanel>
+                        <StackPanel Margin="0,0,16,0">
+                            <TextBlock Style="{StaticResource FieldLabel}" Text="To"/>
+                            <DatePicker SelectedDate="{Binding HistoryTo}" Width="160"/>
+                        </StackPanel>
+                        <Button Content="Load History" Style="{StaticResource PrimaryButton}"
+                                Command="{Binding LoadHistoryCommand}" VerticalAlignment="Bottom" Margin="0,0,0,0"/>
+                    </StackPanel>
+                    <DataGrid ItemsSource="{Binding HistoryVitals}" AutoGenerateColumns="False"
+                              IsReadOnly="True" MaxHeight="300"
+                              HeadersVisibility="Column" GridLinesVisibility="Horizontal">
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Header="Vital" Binding="{Binding VitalType}" Width="150"/>
+                            <DataGridTextColumn Header="Value" Binding="{Binding Value}" Width="100"/>
+                            <DataGridTextColumn Header="Units" Binding="{Binding Units}" Width="80"/>
+                            <DataGridTextColumn Header="Flag" Binding="{Binding AbnormalFlag}" Width="80"/>
+                            <DataGridTextColumn Header="Date/Time" Binding="{Binding DateTimeTaken, StringFormat=g}" Width="180"/>
+                        </DataGrid.Columns>
+                    </DataGrid>
+                </StackPanel>
+            </Border>
+
+            <!-- Record form -->
+            <Border Style="{StaticResource FormPanel}"
+                    Visibility="{Binding ShowRecordForm, Converter={StaticResource BoolToVisibility}}">
+                <StackPanel>
+                    <TextBlock Style="{StaticResource SectionHeader}" Text="Record Vitals"/>
+                    <UniformGrid Columns="3">
+                        <StackPanel Margin="0,0,16,0">
+                            <TextBlock Style="{StaticResource FieldLabel}" Text="Blood Pressure (e.g. 120/80)"/>
+                            <TextBox Text="{Binding NewBloodPressure, UpdateSourceTrigger=PropertyChanged}"/>
+                        </StackPanel>
+                        <StackPanel Margin="0,0,16,0">
+                            <TextBlock Style="{StaticResource FieldLabel}" Text="Pulse (bpm)"/>
+                            <TextBox Text="{Binding NewPulse, UpdateSourceTrigger=PropertyChanged}"/>
+                        </StackPanel>
+                        <StackPanel>
+                            <TextBlock Style="{StaticResource FieldLabel}" Text="Temperature (°F)"/>
+                            <TextBox Text="{Binding NewTemperature, UpdateSourceTrigger=PropertyChanged}"/>
+                        </StackPanel>
+                        <StackPanel Margin="0,8,16,0">
+                            <TextBlock Style="{StaticResource FieldLabel}" Text="Resp Rate"/>
+                            <TextBox Text="{Binding NewRespiratoryRate, UpdateSourceTrigger=PropertyChanged}"/>
+                        </StackPanel>
+                        <StackPanel Margin="0,8,16,0">
+                            <TextBlock Style="{StaticResource FieldLabel}" Text="O2 Sat (%)"/>
+                            <TextBox Text="{Binding NewOxygenSaturation, UpdateSourceTrigger=PropertyChanged}"/>
+                        </StackPanel>
+                        <StackPanel Margin="0,8,0,0">
+                            <TextBlock Style="{StaticResource FieldLabel}" Text="Weight (lbs)"/>
+                            <TextBox Text="{Binding NewWeight, UpdateSourceTrigger=PropertyChanged}"/>
+                        </StackPanel>
+                        <StackPanel Margin="0,8,16,0">
+                            <TextBlock Style="{StaticResource FieldLabel}" Text="Height (in)"/>
+                            <TextBox Text="{Binding NewHeight, UpdateSourceTrigger=PropertyChanged}"/>
+                        </StackPanel>
+                        <StackPanel Margin="0,8,0,0">
+                            <TextBlock Style="{StaticResource FieldLabel}" Text="Pain Score (0-10)"/>
+                            <TextBox Text="{Binding NewPainScore, UpdateSourceTrigger=PropertyChanged}"/>
+                        </StackPanel>
+                    </UniformGrid>
+                    <StackPanel Orientation="Horizontal" Margin="0,12,0,0">
+                        <Button Content="Save Vitals" Style="{StaticResource PrimaryButton}"
+                                Command="{Binding RecordVitalsCommand}" Margin="0,0,8,0"/>
+                        <Button Content="Cancel" Style="{StaticResource SecondaryButton}"
+                                Command="{Binding ToggleRecordFormCommand}"/>
+                    </StackPanel>
+                </StackPanel>
+            </Border>
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>

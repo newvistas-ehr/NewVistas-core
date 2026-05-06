@@ -1,0 +1,35 @@
+<UserControl x:Class="NewVistas.Wpf_UI.Views.CompensationPensionView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <ScrollViewer VerticalScrollBarVisibility="Auto">
+        <StackPanel Margin="24">
+            <TextBlock Style="{StaticResource PageTitle}" Text="Compensation &amp; Pension"/>
+            <TextBlock Style="{StaticResource ErrorText}" Text="{Binding Error}"
+                       Visibility="{Binding Error, Converter={StaticResource NullToVisibility}}"/>
+            <StackPanel Orientation="Horizontal" Margin="0,0,0,12">
+                <Button Content="Load" Style="{StaticResource PrimaryButton}"
+                        Command="{Binding LoadCommand}" Margin="0,0,8,0"/>
+                <ProgressBar IsIndeterminate="True" Width="120" Height="20"
+                             Visibility="{Binding IsLoading, Converter={StaticResource BoolToVisibility}}"/>
+            </StackPanel>
+            <TextBlock Style="{StaticResource SectionHeader}" Text="C&amp;P Exams"/>
+            <DataGrid ItemsSource="{Binding Exams}" SelectedItem="{Binding SelectedExam}" AutoGenerateColumns="False" MaxHeight="240">
+                <DataGrid.Columns>
+                    <DataGridTextColumn Header="Exam Type" Binding="{Binding ExamType}" Width="*"/>
+                    <DataGridTextColumn Header="Status" Binding="{Binding Status}" Width="120"/>
+                    <DataGridTextColumn Header="Scheduled" Binding="{Binding ScheduledDate, StringFormat=d}" Width="110"/>
+                    <DataGridTextColumn Header="Examiner" Binding="{Binding ExaminerName}" Width="*"/>
+                </DataGrid.Columns>
+            </DataGrid>
+            <TextBlock Style="{StaticResource SectionHeader}" Text="Disability Benefits Questionnaires (DBQs)" Margin="0,12,0,0"/>
+            <DataGrid ItemsSource="{Binding Dbqs}" AutoGenerateColumns="False" MaxHeight="200">
+                <DataGrid.Columns>
+                    <DataGridTextColumn Header="DBQ Type" Binding="{Binding DbqType}" Width="*"/>
+                    <DataGridTextColumn Header="Status" Binding="{Binding Status}" Width="120"/>
+                    <DataGridTextColumn Header="Rating" Binding="{Binding ProposedRating, StringFormat='{}{0}%'}" Width="80"/>
+                    <DataGridTextColumn Header="Completed" Binding="{Binding CompletedDate, StringFormat=d}" Width="110"/>
+                </DataGrid.Columns>
+            </DataGrid>
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>

@@ -1,0 +1,322 @@
+@page "/security-keys"
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+@rendermode InteractiveServer
+@using NewVistas.BlazorWeb.Services
+@using NewVistas.Abstractions.GrainInterfaces
+@using NewVistas.Abstractions.GrainStates
+@inject OrleansGrainService Grains
+
+<PageTitle>Security Key Management</PageTitle>
+
+<h1>Security Key Management</h1>
+
+<div class="lookup-bar">
+    <input type="text" @bind="userId" @bind:event="oninput" @onkeydown="HandleKeyDown"
+           placeholder="User ID" class="lookup-input" />
+    <button @onclick="LoadUser" disabled="@(string.IsNullOrWhiteSpace(userId) || loading)" class="btn btn-primary">
+        @if (loading) { <span>Loading...</span> } else { <span>Load User</span> }
+    </button>
+    <button @onclick="LoadDemo" disabled="@loading" class="btn btn-secondary">Load Demo Keys</button>
+</div>
+
+@if (error != null) { <div class="alert alert-error">@error</div> }
+@if (successMessage != null) { <div class="alert alert-success">@successMessage</div> }
+
+@if (userState != null)
+{
+    <div class="tab-bar">
+        <button class="tab @(activeTab == "keys" ? "active" : "")" @onclick='() => activeTab = "keys"'>Security Keys</button>
+        <button class="tab @(activeTab == "grant" ? "active" : "")" @onclick='() => activeTab = "grant"'>Grant Key</button>
+        <button class="tab @(activeTab == "audit" ? "active" : "")" @onclick='() => activeTab = "audit"'>Key Audit Log</button>
+    </div>
+
+    <div class="session-banner @(userState.HasActiveSession ? "session-active" : "session-inactive")">
+        <span class="session-indicator">@(userState.HasActiveSession ? "SESSION ACTIVE" : "NO SESSION")</span>
+        @if (userState.HasActiveSession)
+        {
+            <span class="session-detail">Since @userState.SessionStartTime?.ToString("MM/dd/yyyy HH:mm") | Device: @(userState.ClientDevice ?? "—") | IP: @(userState.ClientIpAddress ?? "—") | Timeout: @userState.SessionTimeoutMinutes min</span>
+            <button @onclick="ForceEndSession" class="btn btn-danger btn-sm">End Session</button>
+        }
+    </div>
+
+    @if (activeTab == "keys")
+    {
+        <div class="key-summary">Holding <strong>@userState.SecurityKeys.Count</strong> security key(s)</div>
+
+        @if (userState.SecurityKeys.Count == 0)
+        {
+            <div class="empty-state">No security keys assigned. Use the Grant Key tab to add keys.</div>
+        }
+        else
+        {
+            <table class="data-table">
+                <thead>
+                    <tr><th>Security Key</th><th>Category</th><th>Actions</th></tr>
+                </thead>
+                <tbody>
+                    @foreach (var key in userState.SecurityKeys.OrderBy(k => k))
+                    {
+                        var def = availableKeys?.FirstOrDefault(d => d.KeyName == key);
+                        <tr>
+                            <td class="code">@key</td>
+                            <td>@(def?.Category ?? "—")</td>
+                            <td>
+                                <button @onclick="() => RevokeKey(key)" class="btn btn-danger btn-sm" disabled="@revoking">Revoke</button>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        }
+    }
+    else if (activeTab == "grant")
+    {
+        <div class="form-section">
+            <div class="form-row">
+                <label>Category Filter</label>
+                <select class="form-input" @bind="categoryFilter">
+                    <option value="">All Categories</option>
+                    @foreach (var cat in categories)
+                    {
+                        <option value="@cat">@cat</option>
+                    }
+                </select>
+            </div>
+
+            <table class="data-table">
+                <thead>
+                    <tr><th>Key</th><th>Description</th><th>Category</th><th>Status</th><th>Actions</th></tr>
+                </thead>
+                <tbody>
+                    @foreach (var def in FilteredKeys)
+                    {
+                        bool held = userState.SecurityKeys.Contains(def.KeyName);
+                        <tr class="@(held ? "row-held" : "")">
+                            <td class="code">@def.KeyName</td>
+                            <td>@def.Description</td>
+                            <td>@def.Category</td>
+                            <td class="@(held ? "status-held" : "status-not-held")">@(held ? "HELD" : "—")</td>
+                            <td>
+                                @if (!held)
+                                {
+                                    <button @onclick="() => GrantKey(def.KeyName)" class="btn btn-primary btn-sm" disabled="@granting">Grant</button>
+                                }
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
+    else if (activeTab == "audit")
+    {
+        @if (auditLog == null)
+        {
+            <div class="empty-state">Loading audit log...</div>
+        }
+        else if (auditLog.Count == 0)
+        {
+            <div class="empty-state">No key changes recorded.</div>
+        }
+        else
+        {
+            <table class="data-table">
+                <thead>
+                    <tr><th>Date/Time</th><th>Action</th><th>Key</th><th>By</th><th>Reason</th></tr>
+                </thead>
+                <tbody>
+                    @foreach (var entry in auditLog.OrderByDescending(e => e.ActionDateTime))
+                    {
+                        <tr>
+                            <td class="date">@entry.ActionDateTime.ToString("MM/dd/yyyy HH:mm:ss")</td>
+                            <td class="@(entry.Action == "GRANT" ? "action-grant" : "action-revoke")">@entry.Action</td>
+                            <td class="code">@entry.KeyName</td>
+                            <td>@entry.PerformedByName</td>
+                            <td class="reason">@(entry.Reason ?? "—")</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        }
+    }
+}
+
+@code {
+    private string? userId;
+    private bool loading;
+    private bool granting;
+    private bool revoking;
+    private string? error;
+    private string? successMessage;
+    private string activeTab = "keys";
+    private string categoryFilter = "";
+
+    private AccessControlState? userState;
+    private List<KeyDefinitionDto>? availableKeys;
+    private List<SecurityKeyAuditEntry>? auditLog;
+    private List<string> categories = new();
+
+    private IEnumerable<KeyDefinitionDto> FilteredKeys =>
+        availableKeys?.Where(k => string.IsNullOrEmpty(categoryFilter) || k.Category == categoryFilter)
+        ?? Enumerable.Empty<KeyDefinitionDto>();
+
+    private async Task HandleKeyDown(KeyboardEventArgs e) { if (e.Key == "Enter") await LoadUser(); }
+
+    private async Task LoadUser()
+    {
+        if (string.IsNullOrWhiteSpace(userId)) return;
+        loading = true; error = null; successMessage = null; auditLog = null;
+        try
+        {
+            var grain = Grains.GetGrain<IAccessControlGrain>($"ACL:{userId.Trim()}");
+            userState = await grain.GetAccessControlStateAsync();
+
+            if (availableKeys == null)
+            {
+                // Static key definitions for the admin UI
+                availableKeys = new List<KeyDefinitionDto>
+                {
+                    new() { KeyName = "ORES", Description = "Order Entry/Results Reporting", Category = "CPRS" },
+                    new() { KeyName = "ORELSE", Description = "Order Entry/Results Reporting (Elevated)", Category = "CPRS" },
+                    new() { KeyName = "PROVIDER", Description = "Clinical Provider", Category = "Clinical" },
+                    new() { KeyName = "XUMGR", Description = "System Manager", Category = "System" },
+                    new() { KeyName = "XUPROG", Description = "Programmer", Category = "System" },
+                    new() { KeyName = "XUPROGMODE", Description = "Programmer Mode", Category = "System" },
+                    new() { KeyName = "PSJ RPHARM", Description = "Pharmacy - Registered Pharmacist", Category = "Pharmacy" },
+                    new() { KeyName = "PSORPH", Description = "Pharmacy - Outpatient Pharmacist", Category = "Pharmacy" },
+                    new() { KeyName = "LRVERIFY", Description = "Lab - Verify Results", Category = "Lab" },
+                    new() { KeyName = "LRLAB", Description = "Lab - General Access", Category = "Lab" },
+                    new() { KeyName = "DGADMIT", Description = "ADT - Admit Patients", Category = "ADT" },
+                    new() { KeyName = "DGDISCHARGE", Description = "ADT - Discharge Patients", Category = "ADT" },
+                };
+                categories = availableKeys.Select(k => k.Category).Distinct().OrderBy(c => c).ToList();
+            }
+
+            auditLog = (await grain.GetKeyAuditLogAsync());
+        }
+        catch (Exception ex) { error = $"Error loading user: {ex.Message}"; }
+        finally { loading = false; }
+    }
+
+    private async Task GrantKey(string keyName)
+    {
+        if (string.IsNullOrWhiteSpace(userId)) return;
+        granting = true; error = null; successMessage = null;
+        try
+        {
+            var grain = Grains.GetGrain<IAccessControlGrain>($"ACL:{userId.Trim()}");
+            await grain.GrantKeyAsync(keyName, "ADMIN", "Admin User", "Granted via admin UI");
+            successMessage = $"Key {keyName} granted.";
+            await LoadUser();
+        }
+        catch (Exception ex) { error = $"Error granting key: {ex.Message}"; }
+        finally { granting = false; }
+    }
+
+    private async Task RevokeKey(string keyName)
+    {
+        if (string.IsNullOrWhiteSpace(userId)) return;
+        revoking = true; error = null; successMessage = null;
+        try
+        {
+            var grain = Grains.GetGrain<IAccessControlGrain>($"ACL:{userId.Trim()}");
+            await grain.RevokeKeyAsync(keyName, "ADMIN", "Admin User", "Revoked via admin UI");
+            successMessage = $"Key {keyName} revoked.";
+            await LoadUser();
+        }
+        catch (Exception ex) { error = $"Error revoking key: {ex.Message}"; }
+        finally { revoking = false; }
+    }
+
+    private async Task ForceEndSession()
+    {
+        if (string.IsNullOrWhiteSpace(userId)) return;
+        error = null; successMessage = null;
+        try
+        {
+            var grain = Grains.GetGrain<IAccessControlGrain>($"ACL:{userId.Trim()}");
+            await grain.EndSessionAsync();
+            successMessage = "Session ended.";
+            await LoadUser();
+        }
+        catch (Exception ex) { error = $"Error ending session: {ex.Message}"; }
+    }
+
+    private async Task LoadDemo()
+    {
+        loading = true; error = null; successMessage = null;
+        try
+        {
+            // Grant a standard set of demo keys to the current user
+            if (!string.IsNullOrWhiteSpace(userId))
+            {
+                var grain = Grains.GetGrain<IAccessControlGrain>($"ACL:{userId.Trim()}");
+                await grain.SetKeysAsync(
+                    new List<string> { "ORES", "PROVIDER", "LRLAB", "DGADMIT" },
+                    "SYSTEM", "Demo Loader", "Demo key assignment");
+                successMessage = "Demo keys loaded.";
+                await LoadUser();
+            }
+            else
+            {
+                successMessage = "Demo keys loaded (enter a User ID to see them).";
+            }
+        }
+        catch (Exception ex) { error = $"Error loading demo: {ex.Message}"; }
+        finally { loading = false; }
+    }
+
+    private class KeyDefinitionDto
+    {
+        public string KeyName { get; set; } = "";
+        public string Description { get; set; } = "";
+        public string Category { get; set; } = "";
+    }
+}
+
+<style>
+    .lookup-bar { display: flex; gap: 0.5rem; margin-bottom: 1.5rem; align-items: center; }
+    .lookup-input { width: 320px; padding: 0.5rem 0.75rem; border: 1px solid #ccc; border-radius: 4px; font-size: 0.9rem; }
+    .btn { padding: 0.5rem 1.25rem; border: none; border-radius: 4px; cursor: pointer; font-size: 0.85rem; }
+    .btn-primary { background: #003f72; color: white; }
+    .btn-primary:disabled { background: #999; cursor: not-allowed; }
+    .btn-secondary { background: #6b7280; color: white; }
+    .btn-danger { background: #b91c1c; color: white; }
+    .btn-sm { padding: 0.25rem 0.75rem; font-size: 0.75rem; }
+    .alert { padding: 0.75rem 1rem; border-radius: 4px; margin-bottom: 1rem; }
+    .alert-error { background: #fde8e8; color: #b91c1c; border: 1px solid #f5c6c6; }
+    .alert-success { background: #dcfce7; color: #166534; border: 1px solid #bbf7d0; }
+    .empty-state { color: #999; font-style: italic; padding: 2rem 0; }
+
+    .tab-bar { display: flex; gap: 0; margin-bottom: 1.5rem; border-bottom: 2px solid #d4d9e0; }
+    .tab { padding: 0.5rem 1.25rem; border: none; background: none; cursor: pointer; font-size: 0.85rem; color: #555; border-bottom: 2px solid transparent; margin-bottom: -2px; }
+    .tab.active { color: #003f72; border-bottom-color: #003f72; font-weight: 600; }
+
+    .session-banner { display: flex; align-items: center; gap: 1rem; padding: 0.6rem 1rem; border-radius: 4px; margin-bottom: 1.25rem; font-size: 0.8rem; }
+    .session-active { background: #dcfce7; border: 1px solid #bbf7d0; }
+    .session-inactive { background: #fef3c7; border: 1px solid #fde68a; }
+    .session-indicator { font-weight: 700; font-size: 0.75rem; letter-spacing: 0.05em; }
+    .session-detail { color: #555; }
+
+    .key-summary { font-size: 0.85rem; color: #555; margin-bottom: 0.75rem; }
+
+    .data-table { width: 100%; border-collapse: collapse; font-size: 0.85rem; border: 1px solid #d4d9e0; }
+    .data-table thead { background: #f4f6f9; }
+    .data-table th { text-align: left; padding: 0.5rem; font-weight: 600; color: #003f72; border-bottom: 2px solid #d4d9e0; font-size: 0.75rem; text-transform: uppercase; }
+    .data-table td { padding: 0.4rem 0.5rem; border-bottom: 1px solid #f0f0f0; }
+    .data-table tr:hover { background: #f9fafb; }
+    .row-held { background: #f0fdf4; }
+    .code { font-family: monospace; color: #003f72; }
+    .date { color: #888; font-size: 0.8rem; font-family: monospace; }
+    .reason { color: #555; font-size: 0.8rem; max-width: 300px; }
+
+    .status-held { color: #166534; font-weight: 600; }
+    .status-not-held { color: #ccc; }
+    .action-grant { color: #166534; font-weight: 600; }
+    .action-revoke { color: #b91c1c; font-weight: 600; }
+
+    .form-section { max-width: 900px; }
+    .form-row { display: flex; align-items: center; gap: 1rem; margin-bottom: 0.75rem; }
+    .form-row label:first-child { width: 140px; font-size: 0.85rem; font-weight: 500; color: #333; flex-shrink: 0; }
+    .form-input { flex: 1; padding: 0.4rem 0.6rem; border: 1px solid #ccc; border-radius: 4px; font-size: 0.85rem; max-width: 250px; }
+</style>

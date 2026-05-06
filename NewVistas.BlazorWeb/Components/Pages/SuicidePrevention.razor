@@ -1,0 +1,611 @@
+@page "/suicide-prevention"
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+@rendermode InteractiveServer
+@using NewVistas.BlazorWeb.Services
+@using NewVistas.Abstractions.GrainInterfaces
+@using NewVistas.Abstractions.GrainStates
+@inject OrleansGrainService Grains
+
+<h2>Suicide Prevention &amp; Safety Planning</h2>
+
+@if (error != null)
+{
+    <div class="error-msg">@error</div>
+}
+
+<div class="tabs">
+    <button class="@TabClass(0)" @onclick="() => SetTab(0)">High-Risk Roster</button>
+    <button class="@TabClass(1)" @onclick="() => SetTab(1)">Safety Plans</button>
+    <button class="@TabClass(2)" @onclick="() => SetTab(2)">Follow-Up Tracking</button>
+</div>
+
+@if (activeTab == 0)
+{
+    <!-- High-Risk Roster Tab -->
+    <div class="tab-content">
+        <div class="toolbar">
+            <label><input type="checkbox" @bind="showHighRiskOnly" /> High-Risk Flagged Only</label>
+            <button @onclick="LoadRoster">Refresh</button>
+        </div>
+
+        @if (rosterLoading)
+        {
+            <p>Loading...</p>
+        }
+        else
+        {
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Patient</th>
+                        <th>Risk Level</th>
+                        <th>High-Risk Flag</th>
+                        <th>Last Contact</th>
+                        <th>Active Plans</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (PatientSummaryDto p in FilteredRoster)
+                    {
+                        <tr>
+                            <td>@p.PatientName<br /><small>@p.PatientId</small></td>
+                            <td><span class="badge risk-@p.CurrentRiskLevel.ToLower()">@p.CurrentRiskLevel</span></td>
+                            <td>@(p.IsHighRiskFlagged ? "YES" : "—")</td>
+                            <td>@(p.LastContactDate?.ToString("MM/dd/yyyy") ?? "None")</td>
+                            <td>@p.ActivePlanCount</td>
+                            <td><button @onclick="() => SelectPatient(p.PatientId)">Detail</button></td>
+                        </tr>
+                        @if (selectedPatientId == p.PatientId && patientRisk != null)
+                        {
+                            <tr class="detail-row">
+                                <td colspan="6">
+                                    <div class="detail-panel">
+                                        <strong>Risk Designation History:</strong>
+                                        <ul>
+                                            @foreach (RiskHistoryDto h in patientRisk.DesignationHistory)
+                                            {
+                                                <li>@h.DesignatedDate.ToString("MM/dd/yyyy") — @h.RiskLevel (by @h.ProviderName)</li>
+                                            }
+                                        </ul>
+                                    </div>
+                                </td>
+                            </tr>
+                        }
+                    }
+                </tbody>
+            </table>
+        }
+
+        <hr />
+        <h3>Set Risk Level</h3>
+        <div class="form-grid">
+            <label>Patient ID:<input @bind="riskForm.PatientId" /></label>
+            <label>Patient Name:<input @bind="riskForm.PatientName" /></label>
+            <label>Risk Level:
+                <select @bind="riskForm.RiskLevel">
+                    <option value="NotAssessed">Not Assessed</option>
+                    <option value="Low">Low</option>
+                    <option value="Moderate">Moderate</option>
+                    <option value="High">High</option>
+                    <option value="Imminent">Imminent</option>
+                </select>
+            </label>
+            <label>Provider ID:<input @bind="riskForm.ProviderId" /></label>
+            <label>Provider Name:<input @bind="riskForm.ProviderName" /></label>
+            <label>
+                <input type="checkbox" @bind="riskForm.HighRiskFlag" /> Set High-Risk Flag
+            </label>
+        </div>
+        <button @onclick="SetRiskLevel">Submit</button>
+        @if (riskSubmitMsg != null) { <span class="submit-msg">@riskSubmitMsg</span> }
+    </div>
+}
+
+@if (activeTab == 1)
+{
+    <!-- Safety Plans Tab -->
+    <div class="tab-content">
+        <div class="toolbar">
+            <label>Patient ID:<input @bind="planPatientId" style="width:200px" /></label>
+            <button @onclick="LoadPatientPlans">Load Plans</button>
+        </div>
+
+        @if (plansLoading)
+        {
+            <p>Loading...</p>
+        }
+        else if (patientPlans != null)
+        {
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Status</th>
+                        <th>Created</th>
+                        <th>Last Reviewed</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (PlanSummaryDto plan in patientPlans)
+                    {
+                        <tr>
+                            <td><span class="badge plan-@plan.Status.ToLower()">@plan.Status</span></td>
+                            <td>@plan.CreatedDate.ToString("MM/dd/yyyy")</td>
+                            <td>@(plan.LastReviewedDate?.ToString("MM/dd/yyyy") ?? "—")</td>
+                            <td><button @onclick="() => SelectPlan(plan.PlanId)">View</button></td>
+                        </tr>
+                        @if (selectedPlanId == plan.PlanId && planDetail != null)
+                        {
+                            <tr class="detail-row">
+                                <td colspan="4">
+                                    <div class="plan-detail">
+                                        <div class="plan-section">
+                                            <h4>Warning Signs</h4>
+                                            <ul>@foreach (string s in planDetail.WarningSigns) { <li>@s</li> }</ul>
+                                        </div>
+                                        <div class="plan-section">
+                                            <h4>Internal Coping Strategies</h4>
+                                            <ul>@foreach (string s in planDetail.InternalCopingStrategies) { <li>@s</li> }</ul>
+                                        </div>
+                                        <div class="plan-section">
+                                            <h4>Social Distractions</h4>
+                                            <ul>@foreach (string s in planDetail.DistractionContacts) { <li>@s</li> }</ul>
+                                        </div>
+                                        <div class="plan-section">
+                                            <h4>Support Contacts</h4>
+                                            <ul>@foreach (SupportContactDto sc in planDetail.SupportContacts) { <li>@sc.Name (@sc.Relationship) — @sc.PhoneNumber</li> }</ul>
+                                        </div>
+                                        <div class="plan-section">
+                                            <h4>Professional Contacts</h4>
+                                            <ul>@foreach (ProfContactDto pc in planDetail.ProfessionalContacts) { <li>@pc.Name (@pc.Role, @pc.Agency) — @pc.PhoneNumber</li> }</ul>
+                                        </div>
+                                        <div class="plan-section">
+                                            <h4>Crisis Lines</h4>
+                                            <ul>@foreach (string s in planDetail.CrisisLineNumbers) { <li>@s</li> }</ul>
+                                        </div>
+                                        <div class="plan-section">
+                                            <h4>Means Restriction</h4>
+                                            <ul>@foreach (string s in planDetail.MeansRemoved) { <li>@s</li> }</ul>
+                                            <p><em>@planDetail.EnvironmentSafetyNotes</em></p>
+                                        </div>
+                                        <div class="plan-section">
+                                            <h4>Reasons for Living</h4>
+                                            <ul>@foreach (string s in planDetail.ReasonsForLiving) { <li>@s</li> }</ul>
+                                        </div>
+                                    </div>
+                                </td>
+                            </tr>
+                        }
+                    }
+                </tbody>
+            </table>
+        }
+
+        <hr />
+        <h3>Create New Safety Plan</h3>
+        <div class="form-grid">
+            <label>Patient ID:<input @bind="newPlan.PatientId" /></label>
+            <label>Patient Name:<input @bind="newPlan.PatientName" /></label>
+            <label>Provider ID:<input @bind="newPlan.ProviderId" /></label>
+            <label>Provider Name:<input @bind="newPlan.ProviderName" /></label>
+        </div>
+        <button @onclick="CreatePlan">Create Plan</button>
+        @if (planSubmitMsg != null) { <span class="submit-msg">@planSubmitMsg</span> }
+    </div>
+}
+
+@if (activeTab == 2)
+{
+    <!-- Follow-Up Tracking Tab -->
+    <div class="tab-content">
+        <div class="toolbar">
+            <button @onclick="LoadRoster">Refresh</button>
+        </div>
+
+        <h3>Recent Follow-Up Contacts (High-Risk Patients)</h3>
+        @if (rosterLoading)
+        {
+            <p>Loading...</p>
+        }
+        else if (followUpRows != null)
+        {
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Patient</th>
+                        <th>Last Contact Date</th>
+                        <th>Risk Level</th>
+                        <th>Active Plans</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (PatientSummaryDto p in highRiskPatients)
+                    {
+                        <tr>
+                            <td>@p.PatientName<br /><small>@p.PatientId</small></td>
+                            <td>@(p.LastContactDate?.ToString("MM/dd/yyyy") ?? "Never")</td>
+                            <td><span class="badge risk-@p.CurrentRiskLevel.ToLower()">@p.CurrentRiskLevel</span></td>
+                            <td>@p.ActivePlanCount</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        }
+
+        <hr />
+        <h3>Add Follow-Up Contact</h3>
+        <div class="form-grid">
+            <label>Patient ID:<input @bind="followUpForm.PatientId" /></label>
+            <label>Contact Date:<input type="date" @bind="followUpForm.ContactDate" /></label>
+            <label>Contact Type:
+                <select @bind="followUpForm.ContactType">
+                    <option value="Phone">Phone</option>
+                    <option value="InPerson">In Person</option>
+                    <option value="SecureMessage">Secure Message</option>
+                    <option value="UnableToReach">Unable to Reach</option>
+                </select>
+            </label>
+            <label>Outcome:
+                <select @bind="followUpForm.Outcome">
+                    <option value="Contacted">Contacted</option>
+                    <option value="LeftMessage">Left Message</option>
+                    <option value="NoAnswer">No Answer</option>
+                    <option value="Refused">Refused</option>
+                    <option value="Hospitalized">Hospitalized</option>
+                </select>
+            </label>
+            <label>Provider Name:<input @bind="followUpForm.ProviderName" /></label>
+            <label>Notes:<textarea @bind="followUpForm.Notes"></textarea></label>
+        </div>
+        <button @onclick="AddFollowUp">Submit Follow-Up</button>
+        @if (followUpSubmitMsg != null) { <span class="submit-msg">@followUpSubmitMsg</span> }
+    </div>
+}
+
+<style>
+    .tabs { display: flex; gap: 4px; margin-bottom: 16px; }
+    .tab-active { background: #0078d4; color: white; border: none; padding: 8px 16px; border-radius: 4px 4px 0 0; cursor: pointer; }
+    .tab-inactive { background: #e0e0e0; border: none; padding: 8px 16px; border-radius: 4px 4px 0 0; cursor: pointer; }
+    .tab-content { border: 1px solid #ccc; padding: 16px; }
+    .toolbar { display: flex; gap: 12px; align-items: center; margin-bottom: 12px; flex-wrap: wrap; }
+    .data-table { width: 100%; border-collapse: collapse; margin-bottom: 16px; font-size: 0.9em; }
+    .data-table th, .data-table td { border: 1px solid #ddd; padding: 6px 10px; text-align: left; }
+    .data-table th { background: #f5f5f5; }
+    .detail-row td { background: #fafafa; }
+    .detail-panel { padding: 8px; }
+    .plan-detail { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; padding: 8px; }
+    .plan-section h4 { margin: 0 0 4px; color: #0078d4; font-size: 0.9em; }
+    .plan-section ul { margin: 0; padding-left: 18px; font-size: 0.85em; }
+    .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 12px; }
+    .form-grid label { display: flex; flex-direction: column; font-size: 0.85em; }
+    .form-grid input, .form-grid select, .form-grid textarea { margin-top: 2px; padding: 4px; }
+    .submit-msg { margin-left: 12px; color: green; }
+    .error-msg { color: red; margin-bottom: 12px; }
+    .badge { padding: 2px 8px; border-radius: 10px; font-size: 0.8em; font-weight: bold; }
+    .risk-notassessed { background: #e2e3e5; color: #41464b; }
+    .risk-low { background: #d1e7dd; color: #0f5132; }
+    .risk-moderate { background: #fff3cd; color: #856404; }
+    .risk-high { background: #f8d7da; color: #842029; }
+    .risk-imminent { background: #842029; color: white; }
+    .plan-draft { background: #e2e3e5; color: #41464b; }
+    .plan-active { background: #d1e7dd; color: #0f5132; }
+    .plan-updated { background: #cff4fc; color: #055160; }
+    .plan-archived { background: #f8d7da; color: #842029; }
+</style>
+
+@code {
+    int activeTab = 0;
+    string? error;
+
+    // ── Roster ───────────────────────────────────────────────────────────────
+    bool rosterLoading;
+    bool showHighRiskOnly = false;
+    List<PatientSummaryDto> allPatients = new();
+    List<PatientSummaryDto> highRiskPatients = new();
+    bool? followUpRows = true;
+    string? selectedPatientId;
+    PatientRiskDetailDto? patientRisk;
+    string? riskSubmitMsg;
+    RiskForm riskForm = new();
+
+    // ── Safety Plans ─────────────────────────────────────────────────────────
+    bool plansLoading;
+    string planPatientId = string.Empty;
+    List<PlanSummaryDto>? patientPlans;
+    string? selectedPlanId;
+    PlanDetailDto? planDetail;
+    string? planSubmitMsg;
+    NewPlanForm newPlan = new();
+
+    // ── Follow-Up ────────────────────────────────────────────────────────────
+    string? followUpSubmitMsg;
+    FollowUpForm followUpForm = new();
+
+    protected override async Task OnInitializedAsync() =>
+        await LoadRoster();
+
+    string TabClass(int tab) => tab == activeTab ? "tab-active" : "tab-inactive";
+
+    async Task SetTab(int tab)
+    {
+        activeTab = tab;
+        error = null;
+        if (tab == 0 || tab == 2) await LoadRoster();
+    }
+
+    IEnumerable<PatientSummaryDto> FilteredRoster =>
+        showHighRiskOnly ? allPatients.Where(p => p.IsHighRiskFlagged) : allPatients;
+
+    async Task LoadRoster()
+    {
+        rosterLoading = true;
+        error = null;
+        try
+        {
+            var spIdx = Grains.GetGrain<ISuicidePreventionIndexGrain>("SP-INDEX");
+            allPatients = (await spIdx.GetAllPatientsAsync()).Select(p => new PatientSummaryDto
+            {
+                PatientId = p.PatientId, PatientName = p.PatientName,
+                CurrentRiskLevel = p.CurrentRiskLevel.ToString(), IsHighRiskFlagged = p.IsHighRiskFlagged,
+                LastContactDate = p.LastContactDate, ActivePlanCount = p.ActivePlanCount
+            }).ToList();
+            highRiskPatients = allPatients.Where(p => p.IsHighRiskFlagged).ToList();
+        }
+        catch { error = "Failed to load patient roster."; }
+        finally { rosterLoading = false; }
+    }
+
+    async Task SelectPatient(string patientId)
+    {
+        if (selectedPatientId == patientId) { selectedPatientId = null; patientRisk = null; return; }
+        selectedPatientId = patientId;
+        patientRisk = null;
+        try
+        {
+            var riskGrain = Grains.GetGrain<IPatientRiskGrain>($"SP-RISK:{patientId}");
+            var rs = await riskGrain.GetRiskStateAsync();
+            patientRisk = new PatientRiskDetailDto
+            {
+                CurrentRiskLevel = rs.CurrentRiskLevel.ToString(), IsHighRiskFlagged = rs.IsHighRiskFlagged,
+                DesignationHistory = rs.DesignationHistory.Select(h => new RiskHistoryDto
+                {
+                    DesignatedDate = h.DesignatedDate, RiskLevel = h.RiskLevel.ToString(), ProviderName = h.ProviderName
+                }).ToList(),
+                FollowUpContacts = rs.FollowUpContacts.Select(f => new FollowUpContactDto
+                {
+                    ContactDate = f.ContactDate, ContactType = f.ContactType.ToString(),
+                    Outcome = f.Outcome.ToString(), ProviderName = f.ProviderName
+                }).ToList()
+            };
+        }
+        catch { error = "Failed to load patient risk detail."; }
+    }
+
+    async Task SetRiskLevel()
+    {
+        riskSubmitMsg = null;
+        error = null;
+        try
+        {
+            var rGrain = Grains.GetGrain<IPatientRiskGrain>($"SP-RISK:{riskForm.PatientId}");
+            await rGrain.SetRiskLevelAsync(Enum.Parse<RiskLevel>(riskForm.RiskLevel),
+                riskForm.PatientId, riskForm.PatientName, riskForm.ProviderId, riskForm.ProviderName);
+            if (riskForm.HighRiskFlag)
+            {
+                await rGrain.SetHighRiskFlagAsync(true);
+            }
+            var rState = await rGrain.GetRiskStateAsync();
+            var spIndex = Grains.GetGrain<ISuicidePreventionIndexGrain>("SP-INDEX");
+            await spIndex.UpsertPatientAsync(new PatientHighRiskSummary
+            {
+                PatientId = riskForm.PatientId, PatientName = riskForm.PatientName,
+                CurrentRiskLevel = rState.CurrentRiskLevel, IsHighRiskFlagged = rState.IsHighRiskFlagged,
+                LastContactDate = rState.FollowUpContacts.LastOrDefault()?.ContactDate,
+                ActivePlanCount = 0
+            });
+            riskSubmitMsg = "Risk level updated.";
+            riskForm = new();
+            await LoadRoster();
+        }
+        catch { riskSubmitMsg = "Error updating risk level."; }
+    }
+
+    async Task LoadPatientPlans()
+    {
+        plansLoading = true;
+        error = null;
+        patientPlans = null;
+        selectedPlanId = null;
+        planDetail = null;
+        try
+        {
+            var planIdx = Grains.GetGrain<ISafetyPlanIndexGrain>($"SP-PLAN-IDX:{planPatientId}");
+            patientPlans = (await planIdx.GetAllPlansAsync()).Select(p => new PlanSummaryDto
+            {
+                PlanId = p.PlanId, Status = p.Status.ToString(),
+                CreatedDate = p.CreatedDate, LastReviewedDate = p.LastReviewedDate
+            }).ToList();
+        }
+        catch { error = "Failed to load safety plans."; }
+        finally { plansLoading = false; }
+    }
+
+    async Task SelectPlan(string planId)
+    {
+        if (selectedPlanId == planId) { selectedPlanId = null; planDetail = null; return; }
+        selectedPlanId = planId;
+        planDetail = null;
+        try
+        {
+            var planGrain = Grains.GetGrain<ISafetyPlanGrain>($"SP-PLAN:{planId}");
+            var ps = await planGrain.GetPlanAsync();
+            planDetail = new PlanDetailDto
+            {
+                WarningSigns = ps.WarningSigns, InternalCopingStrategies = ps.InternalCopingStrategies,
+                DistractionContacts = ps.DistractionContacts,
+                SupportContacts = ps.SupportContacts.Select(sc => new SupportContactDto
+                    { Name = sc.Name, PhoneNumber = sc.PhoneNumber, Relationship = sc.Relationship }).ToList(),
+                ProfessionalContacts = ps.ProfessionalContacts.Select(pc => new ProfContactDto
+                    { Name = pc.Name, PhoneNumber = pc.PhoneNumber, Agency = pc.Agency, Role = pc.Role }).ToList(),
+                CrisisLineNumbers = ps.CrisisLineNumbers, MeansRemoved = ps.MeansRemoved,
+                EnvironmentSafetyNotes = ps.EnvironmentSafetyNotes, ReasonsForLiving = ps.ReasonsForLiving
+            };
+        }
+        catch { error = "Failed to load plan detail."; }
+    }
+
+    async Task CreatePlan()
+    {
+        planSubmitMsg = null;
+        error = null;
+        try
+        {
+            string planId2 = Guid.NewGuid().ToString();
+            var newPlanGrain = Grains.GetGrain<ISafetyPlanGrain>($"SP-PLAN:{planId2}");
+            await newPlanGrain.CreatePlanAsync(planId2, newPlan.PatientId, newPlan.PatientName, newPlan.ProviderId, newPlan.ProviderName);
+            var newPlanState = await newPlanGrain.GetPlanAsync();
+            var newPlanIdx = Grains.GetGrain<ISafetyPlanIndexGrain>($"SP-PLAN-IDX:{newPlan.PatientId}");
+            await newPlanIdx.UpsertPlanAsync(new SafetyPlanSummary
+            {
+                PlanId = planId2, PatientId = newPlanState.PatientId, PatientName = newPlanState.PatientName,
+                Status = newPlanState.Status,
+                CreatedDate = newPlanState.CreatedDate
+            });
+            planSubmitMsg = "Safety plan created.";
+            planPatientId = newPlan.PatientId;
+            newPlan = new();
+            await LoadPatientPlans();
+        }
+        catch { planSubmitMsg = "Error creating safety plan."; }
+    }
+
+    async Task AddFollowUp()
+    {
+        followUpSubmitMsg = null;
+        error = null;
+        try
+        {
+            var payload = new
+            {
+                ContactDate = followUpForm.ContactDate,
+                ContactType = followUpForm.ContactType,
+                Outcome = followUpForm.Outcome,
+                followUpForm.ProviderName,
+                followUpForm.Notes,
+            };
+            var fuGrain = Grains.GetGrain<IPatientRiskGrain>($"SP-RISK:{followUpForm.PatientId}");
+            await fuGrain.AddFollowUpContactAsync(new FollowUpContact
+            {
+                ContactDate = followUpForm.ContactDate,
+                ContactType = Enum.Parse<FollowUpContactType>(followUpForm.ContactType),
+                Outcome = Enum.Parse<FollowUpContactOutcome>(followUpForm.Outcome),
+                ProviderName = followUpForm.ProviderName,
+                Notes = followUpForm.Notes ?? string.Empty
+            });
+            followUpSubmitMsg = "Follow-up recorded.";
+            followUpForm = new();
+            await LoadRoster();
+        }
+        catch { followUpSubmitMsg = "Error recording follow-up."; }
+    }
+
+    // ── Local DTOs ────────────────────────────────────────────────────────────
+
+    class PatientSummaryDto
+    {
+        public string PatientId { get; set; } = string.Empty;
+        public string PatientName { get; set; } = string.Empty;
+        public string CurrentRiskLevel { get; set; } = string.Empty;
+        public bool IsHighRiskFlagged { get; set; }
+        public DateTime? LastContactDate { get; set; }
+        public int ActivePlanCount { get; set; }
+    }
+
+    class PatientRiskDetailDto
+    {
+        public string CurrentRiskLevel { get; set; } = string.Empty;
+        public bool IsHighRiskFlagged { get; set; }
+        public List<RiskHistoryDto> DesignationHistory { get; set; } = new();
+        public List<FollowUpContactDto> FollowUpContacts { get; set; } = new();
+    }
+
+    class RiskHistoryDto
+    {
+        public DateTime DesignatedDate { get; set; }
+        public string RiskLevel { get; set; } = string.Empty;
+        public string ProviderName { get; set; } = string.Empty;
+    }
+
+    class FollowUpContactDto
+    {
+        public DateTime ContactDate { get; set; }
+        public string ContactType { get; set; } = string.Empty;
+        public string Outcome { get; set; } = string.Empty;
+        public string ProviderName { get; set; } = string.Empty;
+    }
+
+    class PlanSummaryDto
+    {
+        public string PlanId { get; set; } = string.Empty;
+        public string Status { get; set; } = string.Empty;
+        public DateTime CreatedDate { get; set; }
+        public DateTime? LastReviewedDate { get; set; }
+    }
+
+    class PlanDetailDto
+    {
+        public List<string> WarningSigns { get; set; } = new();
+        public List<string> InternalCopingStrategies { get; set; } = new();
+        public List<string> DistractionContacts { get; set; } = new();
+        public List<SupportContactDto> SupportContacts { get; set; } = new();
+        public List<ProfContactDto> ProfessionalContacts { get; set; } = new();
+        public List<string> CrisisLineNumbers { get; set; } = new();
+        public List<string> MeansRemoved { get; set; } = new();
+        public string EnvironmentSafetyNotes { get; set; } = string.Empty;
+        public List<string> ReasonsForLiving { get; set; } = new();
+    }
+
+    class SupportContactDto
+    {
+        public string Name { get; set; } = string.Empty;
+        public string PhoneNumber { get; set; } = string.Empty;
+        public string Relationship { get; set; } = string.Empty;
+    }
+
+    class ProfContactDto
+    {
+        public string Name { get; set; } = string.Empty;
+        public string PhoneNumber { get; set; } = string.Empty;
+        public string Agency { get; set; } = string.Empty;
+        public string Role { get; set; } = string.Empty;
+    }
+
+    class RiskForm
+    {
+        public string PatientId { get; set; } = string.Empty;
+        public string PatientName { get; set; } = string.Empty;
+        public string RiskLevel { get; set; } = "NotAssessed";
+        public string ProviderId { get; set; } = string.Empty;
+        public string ProviderName { get; set; } = string.Empty;
+        public bool HighRiskFlag { get; set; }
+    }
+
+    class NewPlanForm
+    {
+        public string PatientId { get; set; } = string.Empty;
+        public string PatientName { get; set; } = string.Empty;
+        public string ProviderId { get; set; } = string.Empty;
+        public string ProviderName { get; set; } = string.Empty;
+    }
+
+    class FollowUpForm
+    {
+        public string PatientId { get; set; } = string.Empty;
+        public DateTime ContactDate { get; set; } = DateTime.Today;
+        public string ContactType { get; set; } = "Phone";
+        public string Outcome { get; set; } = "Contacted";
+        public string ProviderName { get; set; } = string.Empty;
+        public string? Notes { get; set; }
+    }
+}

@@ -1,0 +1,169 @@
+@page "/lab-tech"
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+@rendermode InteractiveServer
+@using NewVistas.BlazorWeb.Services
+@using NewVistas.Abstractions.GrainInterfaces
+@using NewVistas.Abstractions.GrainStates
+@inject OrleansGrainService Grains
+
+<PageTitle>Lab Technologist Worklist</PageTitle>
+<h3>Lab Technologist Workflows</h3>
+<p class="text-muted">Worklist, Accessioning, QC, Specimen Rejection, Delta Checks (LRACE.m, LRVER.m)</p>
+
+<div class="mb-3 d-flex gap-2">
+    <input class="form-control" style="max-width:200px" placeholder="Patient ID" @bind="patientId" @bind:event="oninput" />
+    <input class="form-control" style="max-width:160px" placeholder="Location ID" @bind="locationId" @bind:event="oninput" />
+    <button class="btn btn-primary" @onclick="LoadAll" disabled="@loading">Load</button>
+</div>
+@if (error != null) { <div class="alert alert-danger">@error</div> }
+
+<ul class="nav nav-tabs mb-3">
+    <li class="nav-item"><button class="nav-link @(tab == "worklist" ? "active" : "")" @onclick='() => tab = "worklist"'>Worklist</button></li>
+    <li class="nav-item"><button class="nav-link @(tab == "accession" ? "active" : "")" @onclick='() => tab = "accession"'>Accessioning</button></li>
+    <li class="nav-item"><button class="nav-link @(tab == "qc" ? "active" : "")" @onclick='() => tab = "qc"'>QC</button></li>
+    <li class="nav-item"><button class="nav-link @(tab == "reject" ? "active" : "")" @onclick='() => tab = "reject"'>Specimen Reject</button></li>
+</ul>
+
+@if (tab == "worklist" && worklist != null)
+{
+    <table class="table table-sm table-striped">
+        <thead><tr><th>Test</th><th>Patient</th><th>Category</th><th>Status</th><th>Specimen</th><th>Critical</th><th>Ordered</th></tr></thead>
+        <tbody>
+            @foreach (var i in worklist.Items)
+            {
+                <tr class="@(i.IsCritical ? "table-danger" : "")">
+                    <td>@i.TestName</td><td class="font-monospace small">@i.PatientId[..Math.Min(12, i.PatientId.Length)]</td>
+                    <td><span class="badge @WlBadge(i.WorklistCategory)">@i.WorklistCategory</span></td>
+                    <td>@i.Status</td><td>@(i.SpecimenType ?? "—")</td>
+                    <td>@(i.IsCritical ? "CRITICAL" : "")</td>
+                    <td>@i.OrderedDate.ToString("MM/dd HH:mm")</td>
+                </tr>
+            }
+        </tbody>
+    </table>
+    <p class="text-muted small">Refreshed: @worklist.LastRefreshedDate.ToString("HH:mm:ss")</p>
+}
+
+@if (tab == "accession" && accessions != null)
+{
+    <table class="table table-sm table-striped mb-3">
+        <thead><tr><th>Accession #</th><th>Specimen</th><th>Status</th><th>Tests</th><th>Collected</th><th>Rejected?</th></tr></thead>
+        <tbody>
+            @foreach (var a in accessions)
+            {
+                <tr class="@(a.IsRejected ? "table-danger" : "")">
+                    <td class="font-monospace">@a.AccessionNumber</td><td>@a.SpecimenType</td>
+                    <td><span class="badge @AccBadge(a.Status)">@a.Status</span></td>
+                    <td>@a.TestCount</td><td>@a.CollectionDateTime.ToString("MM/dd HH:mm")</td>
+                    <td>@(a.IsRejected ? "Yes" : "")</td>
+                </tr>
+            }
+        </tbody>
+    </table>
+    <div class="card">
+        <div class="card-header">Accession New Specimen</div>
+        <div class="card-body">
+            <div class="row g-2 mb-2">
+                <div class="col-md-3"><label class="form-label">Lab Test IDs (comma-sep)</label><input class="form-control" @bind="nTestIds" /></div>
+                <div class="col-md-2"><label class="form-label">Specimen</label><input class="form-control" @bind="nSpecType" placeholder="Blood" /></div>
+                <div class="col-md-2"><label class="form-label">Tube</label><input class="form-control" @bind="nTube" placeholder="LAVENDER" /></div>
+                <div class="col-md-2"><label class="form-label">Section</label><input class="form-control" @bind="nSection" placeholder="CHEM" /></div>
+                <div class="col-md-3"><label class="form-label">Tech ID</label><input class="form-control" @bind="nTechId" /></div>
+            </div>
+            <button class="btn btn-success btn-sm" @onclick="Accession">Accession</button>
+            @if (accResult != null) { <div class="alert alert-success mt-2 py-1">@accResult</div> }
+        </div>
+    </div>
+}
+
+@if (tab == "qc")
+{
+    <div class="card">
+        <div class="card-header">Record QC Run</div>
+        <div class="card-body">
+            <div class="row g-2 mb-2">
+                <div class="col-md-2"><label class="form-label">Instrument</label><input class="form-control" @bind="qInst" /></div>
+                <div class="col-md-2"><label class="form-label">LOINC</label><input class="form-control" @bind="qLoinc" /></div>
+                <div class="col-md-2"><label class="form-label">Level</label><input class="form-control" @bind="qLevel" placeholder="Level 1" /></div>
+                <div class="col-md-2"><label class="form-label">Measured</label><input type="number" step="0.01" class="form-control" @bind="qMeasured" /></div>
+                <div class="col-md-2"><label class="form-label">Mean</label><input type="number" step="0.01" class="form-control" @bind="qMean" /></div>
+                <div class="col-md-2"><label class="form-label">SD</label><input type="number" step="0.01" class="form-control" @bind="qSD" /></div>
+            </div>
+            <button class="btn btn-success btn-sm" @onclick="RunQc">Run QC</button>
+            @if (qcResult != null) { <div class="alert @(qcResult.Status == QcResultStatus.Pass ? "alert-success" : qcResult.Status == QcResultStatus.Warning ? "alert-warning" : "alert-danger") mt-2 py-1"><strong>@qcResult.Status</strong> — Z-score: @qcResult.ZScore @(qcResult.WestgardViolation != null ? $"(Westgard: {qcResult.WestgardViolation})" : "")</div> }
+        </div>
+    </div>
+}
+
+@if (tab == "reject")
+{
+    <div class="card">
+        <div class="card-header">Reject Specimen</div>
+        <div class="card-body">
+            <div class="row g-2 mb-2">
+                <div class="col-md-4"><label class="form-label">Accession #</label><input class="form-control" @bind="rAccNum" /></div>
+                <div class="col-md-4"><label class="form-label">Reason</label>
+                    <select class="form-select" @bind="rReason"><option value="@SpecimenRejectReason.Hemolyzed">Hemolyzed</option><option value="@SpecimenRejectReason.Clotted">Clotted</option><option value="@SpecimenRejectReason.QuantityNotSufficient">QNS</option><option value="@SpecimenRejectReason.WrongTube">Wrong Tube</option><option value="@SpecimenRejectReason.Unlabeled">Unlabeled</option><option value="@SpecimenRejectReason.MislabeledPatient">Mislabeled</option><option value="@SpecimenRejectReason.Contaminated">Contaminated</option><option value="@SpecimenRejectReason.Other">Other</option></select>
+                </div>
+                <div class="col-md-4"><label class="form-label">Notes</label><input class="form-control" @bind="rNotes" /></div>
+            </div>
+            <div class="form-check mb-2"><input class="form-check-input" type="checkbox" @bind="rRecollect" id="recollect" /><label class="form-check-label" for="recollect">Order Recollect</label></div>
+            <button class="btn btn-danger btn-sm" @onclick="Reject">Reject Specimen</button>
+        </div>
+    </div>
+}
+
+@code {
+    private string patientId = string.Empty, locationId = "LAB-MAIN", tab = "worklist";
+    private bool loading; private string? error;
+    private LabWorklistState? worklist;
+    private List<LabAccessionIndexEntry>? accessions;
+    private string nTestIds = string.Empty, nSpecType = "Blood", nTube = "LAVENDER", nSection = "CHEM", nTechId = string.Empty;
+    private string? accResult;
+    private string qInst = string.Empty, qLoinc = string.Empty, qLevel = "Level 1 Normal"; private decimal qMeasured, qMean, qSD;
+    private LabQcResult? qcResult;
+    private string rAccNum = string.Empty, rNotes = string.Empty; private SpecimenRejectReason rReason = SpecimenRejectReason.Hemolyzed; private bool rRecollect;
+
+    private async Task LoadAll()
+    {
+        if (string.IsNullOrWhiteSpace(patientId)) return;
+        loading = true; error = null;
+        try
+        {
+            worklist = await Grains.GetGrain<IPatientWorkflowGrain>(patientId.Trim()).RefreshLabWorklistAsync(locationId);
+            accessions = await Grains.GetGrain<IPatientWorkflowGrain>(patientId.Trim()).GetAccessionsAsync();
+        }
+        catch (Exception ex) { error = ex.Message; }
+        finally { loading = false; }
+    }
+
+    private async Task Accession()
+    {
+        if (string.IsNullOrWhiteSpace(nTestIds)) return; error = null; accResult = null;
+        try
+        {
+            List<string> ids = nTestIds.Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries).ToList();
+            string num = await Grains.GetGrain<IPatientWorkflowGrain>(patientId.Trim()).AccessionSpecimenAsync(ids, nSpecType, nTube, DateTime.UtcNow, nSection, nTechId, "Tech", null);
+            accResult = $"Accessioned: {num}";
+            accessions = await Grains.GetGrain<IPatientWorkflowGrain>(patientId.Trim()).GetAccessionsAsync();
+        }
+        catch (Exception ex) { error = ex.Message; }
+    }
+
+    private async Task RunQc()
+    {
+        error = null; qcResult = null;
+        try { qcResult = await Grains.GetGrain<IPatientWorkflowGrain>(patientId.Trim()).RecordLabQcRunAsync(qInst, qLoinc, "Test", qLevel, "LOT-001", qMeasured, qMean, qSD, nTechId, "Tech", null); }
+        catch (Exception ex) { error = ex.Message; }
+    }
+
+    private async Task Reject()
+    {
+        if (string.IsNullOrWhiteSpace(rAccNum)) return; error = null;
+        try { await Grains.GetGrain<IPatientWorkflowGrain>(patientId.Trim()).RejectSpecimenAsync(rAccNum, rReason, rNotes, nTechId, rRecollect); accessions = await Grains.GetGrain<IPatientWorkflowGrain>(patientId.Trim()).GetAccessionsAsync(); }
+        catch (Exception ex) { error = ex.Message; }
+    }
+
+    private string WlBadge(LabWorklistCategory c) => c switch { LabWorklistCategory.PendingCollection => "bg-warning text-dark", LabWorklistCategory.PendingResult => "bg-info", LabWorklistCategory.PendingVerification => "bg-primary", LabWorklistCategory.CriticalPending => "bg-danger", _ => "bg-secondary" };
+    private string AccBadge(SpecimenStatus s) => s switch { SpecimenStatus.Accessioned => "bg-info", SpecimenStatus.InProcess => "bg-primary", SpecimenStatus.Completed => "bg-success", SpecimenStatus.Rejected => "bg-danger", _ => "bg-secondary" };
+}

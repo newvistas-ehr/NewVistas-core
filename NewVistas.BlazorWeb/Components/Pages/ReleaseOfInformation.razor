@@ -1,0 +1,660 @@
+@page "/release-of-information"
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+@rendermode InteractiveServer
+@using NewVistas.BlazorWeb.Services
+@using NewVistas.Abstractions.GrainInterfaces
+@using NewVistas.Abstractions.GrainStates
+@inject OrleansGrainService Grains
+
+<h2>Release of Information (ROI)</h2>
+<p>VistA File #195 &mdash; Record requests, HIPAA disclosures, and accounting of disclosures.</p>
+
+@if (error != null)
+{
+    <div class="alert alert-danger">@error</div>
+}
+
+@if (overdueCount > 0)
+{
+    <div class="alert alert-warn">
+        @overdueCount @(overdueCount == 1 ? "request" : "requests") past the 30-day HIPAA response deadline.
+    </div>
+}
+
+<div class="tab-bar">
+    <button class="@(activeTab == "requests" ? "tab active" : "tab")" @onclick='() => SetTab("requests")'>Record Requests</button>
+    <button class="@(activeTab == "disclosures" ? "tab active" : "tab")" @onclick='() => SetTab("disclosures")'>HIPAA Disclosures</button>
+    <button class="@(activeTab == "accounting" ? "tab active" : "tab")" @onclick='() => SetTab("accounting")'>Accounting of Disclosures</button>
+    <button class="@(activeTab == "dashboard" ? "tab active" : "tab")" @onclick='() => SetTab("dashboard")'>Dashboard</button>
+</div>
+
+@if (activeTab == "requests")
+{
+    <div class="section">
+        <h3>Record Requests</h3>
+        <div class="filter-bar">
+            <label>Status:
+                <select @bind="statusFilter" @bind:after="FilterRequests">
+                    <option value="">All</option>
+                    <option value="Received">Received</option>
+                    <option value="Acknowledged">Acknowledged</option>
+                    <option value="InProcess">In Process</option>
+                    <option value="PendingAuthorization">Pending Authorization</option>
+                    <option value="Fulfilled">Fulfilled</option>
+                    <option value="Denied">Denied</option>
+                </select>
+            </label>
+            <button class="btn btn-primary" @onclick="ShowSubmitForm">+ New Request</button>
+        </div>
+
+        @if (loadingRequests)
+        {
+            <p>Loading...</p>
+        }
+        else if (filteredRequests.Count == 0)
+        {
+            <p>No requests found.</p>
+        }
+        else
+        {
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Patient</th>
+                        <th>Type</th>
+                        <th>Requester</th>
+                        <th>Requester Type</th>
+                        <th>Priority</th>
+                        <th>Status</th>
+                        <th>Received</th>
+                        <th>Due Date</th>
+                        <th>Assigned To</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var r in filteredRequests)
+                    {
+                        bool isOverdue = r.DueDate < DateTime.UtcNow &&
+                            r.Status is "Received" or "Acknowledged" or "InProcess" or "PendingAuthorization";
+                        <tr class="@(isOverdue ? "row-critical" : r.Priority == "Urgent" ? "row-warn" : "")">
+                            <td>@r.PatientName</td>
+                            <td>@r.RequestType</td>
+                            <td>@r.RequesterName</td>
+                            <td>@r.RequesterType</td>
+                            <td><span class="badge @GetPriorityBadge(r.Priority)">@r.Priority</span></td>
+                            <td>@r.Status</td>
+                            <td>@r.ReceivedDate.ToString("MM/dd/yyyy")</td>
+                            <td class="@(isOverdue ? "text-critical" : "")">
+                                @r.DueDate.ToString("MM/dd/yyyy")
+                                @if (isOverdue) { <span> !</span> }
+                            </td>
+                            <td>@(string.IsNullOrEmpty(r.AssignedStaffName) ? "Unassigned" : r.AssignedStaffName)</td>
+                            <td>
+                                @if (r.Status is "Received" or "Acknowledged" or "InProcess")
+                                {
+                                    <button class="btn btn-sm btn-success" @onclick="() => ShowFulfillForm(r.RequestId)">Fulfill</button>
+                                }
+                                @if (r.Status is "Received" or "Acknowledged" or "InProcess" or "PendingAuthorization")
+                                {
+                                    <button class="btn btn-sm btn-danger" @onclick="() => ShowDenyForm(r.RequestId)">Deny</button>
+                                }
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        }
+
+        @if (showSubmitForm)
+        {
+            <div class="form-panel">
+                <h4>Submit Record Request</h4>
+                <div class="form-grid">
+                    <label>Patient ID: <input @bind="newRequest.PatientId" /></label>
+                    <label>Patient Name: <input @bind="newRequest.PatientName" /></label>
+                    <label>Record Type:
+                        <select @bind="newRequest.RequestType">
+                            <option>MedicalRecords</option><option>BillingRecords</option><option>ImagingRecords</option>
+                            <option>LabRecords</option><option>MentalHealthRecords</option>
+                            <option>SubstanceAbuseRecords</option><option>HIVRecords</option>
+                            <option>WholeRecord</option><option>Other</option>
+                        </select>
+                    </label>
+                    <label>Requester Type:
+                        <select @bind="newRequest.RequesterType">
+                            <option>Patient</option><option>PatientRepresentative</option><option>Attorney</option>
+                            <option>InsuranceCompany</option><option>GovernmentAgency</option>
+                            <option>LawEnforcement</option><option>HealthcareProvider</option><option>Other</option>
+                        </select>
+                    </label>
+                    <label>Requester Name: <input @bind="newRequest.RequesterName" /></label>
+                    <label>Organization: <input @bind="newRequest.RequesterOrganization" /></label>
+                    <label>Phone: <input @bind="newRequest.RequesterPhone" /></label>
+                    <label>Fax: <input @bind="newRequest.RequesterFax" /></label>
+                    <label>Email: <input @bind="newRequest.RequesterEmail" /></label>
+                    <label>Priority:
+                        <select @bind="newRequest.Priority">
+                            <option>Routine</option><option>Expedited</option><option>Urgent</option>
+                        </select>
+                    </label>
+                    <label>Date Range Start: <input type="date" @bind="newRequest.DateRangeStart" /></label>
+                    <label>Date Range End: <input type="date" @bind="newRequest.DateRangeEnd" /></label>
+                </div>
+                <label>Purpose: <input style="width:100%" @bind="newRequest.PurposeOfRequest" /></label>
+                <label>Records Requested (one per line):<br />
+                    <textarea rows="3" style="width:100%" @bind="newRequest.RecordsRequestedText"></textarea>
+                </label>
+                <div class="form-actions">
+                    <button class="btn btn-primary" @onclick="SubmitRequest">Submit</button>
+                    <button class="btn" @onclick="() => showSubmitForm = false">Cancel</button>
+                </div>
+                @if (formError != null) { <div class="alert alert-danger">@formError</div> }
+            </div>
+        }
+
+        @if (showFulfillForm)
+        {
+            <div class="form-panel">
+                <h4>Fulfill Request</h4>
+                <div class="form-grid">
+                    <label>Method:
+                        <select @bind="fulfillMethod">
+                            <option>Mail</option><option>Fax</option><option>PickUp</option>
+                            <option>ElectronicTransfer</option><option>Portal</option><option>Email</option>
+                            <option>CD_DVD</option><option>Other</option>
+                        </select>
+                    </label>
+                    <label>Pages Released: <input type="number" @bind="fulfillPages" /></label>
+                    <label>Fee ($): <input type="number" step="0.01" @bind="fulfillFee" /></label>
+                    <label>Fulfilled By: <input @bind="fulfillBy" /></label>
+                    <label>Title: <input @bind="fulfillByTitle" /></label>
+                </div>
+                <label>Notes: <textarea rows="2" style="width:100%" @bind="fulfillNotes"></textarea></label>
+                <div class="form-actions">
+                    <button class="btn btn-success" @onclick="FulfillRequest">Fulfill &amp; Record Disclosure</button>
+                    <button class="btn" @onclick="() => showFulfillForm = false">Cancel</button>
+                </div>
+            </div>
+        }
+
+        @if (showDenyForm)
+        {
+            <div class="form-panel">
+                <h4>Deny Request</h4>
+                <label>Reason for Denial:<br /><textarea rows="3" style="width:100%" @bind="denyReason"></textarea></label>
+                <div class="form-actions">
+                    <button class="btn btn-danger" @onclick="DenyRequest">Deny Request</button>
+                    <button class="btn" @onclick="() => showDenyForm = false">Cancel</button>
+                </div>
+            </div>
+        }
+    </div>
+}
+
+@if (activeTab == "disclosures")
+{
+    <div class="section">
+        <h3>Record HIPAA Disclosure</h3>
+        <p class="text-muted">Record a disclosure of protected health information (PHI) not resulting from a record request.</p>
+
+        @if (showDisclosureForm)
+        {
+            <div class="form-panel">
+                <div class="form-grid">
+                    <label>Patient ID: <input @bind="newDisclosure.PatientId" /></label>
+                    <label>Patient Name: <input @bind="newDisclosure.PatientName" /></label>
+                    <label>Disclosure Type:
+                        <select @bind="newDisclosure.DisclosureType">
+                            <option>Treatment</option><option>Payment</option><option>HealthcareOperations</option>
+                            <option>PublicHealth</option><option>HealthOversight</option><option>LawEnforcement</option>
+                            <option>JudicialProceeding</option><option>CoronersOffice</option>
+                            <option>WorkersCompensation</option><option>ResearchWithWaiver</option>
+                            <option>NationalSecurity</option><option>Correctional</option>
+                            <option>PatientAuthorization</option><option>Other</option>
+                        </select>
+                    </label>
+                    <label>Recipient Name: <input @bind="newDisclosure.RecipientName" /></label>
+                    <label>Recipient Organization: <input @bind="newDisclosure.RecipientOrganization" /></label>
+                    <label>Number of Pages: <input type="number" @bind="newDisclosure.NumberOfPages" /></label>
+                    <label>Authorization Received: <input type="checkbox" @bind="newDisclosure.AuthorizationReceived" /></label>
+                    <label>Disclosed By: <input @bind="newDisclosure.DisclosedBy" /></label>
+                    <label>Title: <input @bind="newDisclosure.DisclosedByTitle" /></label>
+                    <label>Date Range of Information: <input @bind="newDisclosure.DateRangeOfInformation" /></label>
+                </div>
+                <label>Purpose:<br /><input style="width:100%" @bind="newDisclosure.PurposeOfDisclosure" /></label>
+                <label>Information Disclosed:<br /><textarea rows="2" style="width:100%" @bind="newDisclosure.InformationDisclosed"></textarea></label>
+                <div class="form-actions">
+                    <button class="btn btn-primary" @onclick="RecordDisclosure">Record Disclosure</button>
+                    <button class="btn" @onclick="() => showDisclosureForm = false">Cancel</button>
+                </div>
+                @if (formError != null) { <div class="alert alert-danger">@formError</div> }
+            </div>
+        }
+        else
+        {
+            <button class="btn btn-primary" @onclick="() => { showDisclosureForm = true; formError = null; }">+ Record New Disclosure</button>
+        }
+    </div>
+}
+
+@if (activeTab == "accounting")
+{
+    <div class="section">
+        <h3>Accounting of Disclosures</h3>
+        <p class="text-muted">
+            Per 45 CFR 164.528, patients may request an accounting of certain disclosures made in the past 6 years.
+            TPO disclosures (Treatment, Payment, Healthcare Operations) are excluded.
+        </p>
+
+        <div class="filter-bar">
+            <label>Patient ID: <input @bind="accountingPatientId" /></label>
+            <button class="btn btn-primary" @onclick="LoadAccounting">Get Accounting</button>
+        </div>
+
+        @if (loadingAccounting)
+        {
+            <p>Loading...</p>
+        }
+        else if (accountingEntries != null)
+        {
+            @if (accountingEntries.Count == 0)
+            {
+                <p>No accountable disclosures found for this patient in the past 6 years.</p>
+            }
+            else
+            {
+                <p><strong>@accountingEntries.Count</strong> accountable @(accountingEntries.Count == 1 ? "disclosure" : "disclosures") in the past 6 years:</p>
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>Date</th>
+                            <th>Type</th>
+                            <th>Recipient</th>
+                            <th>Purpose</th>
+                            <th>Linked Request</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var d in accountingEntries)
+                        {
+                            <tr>
+                                <td>@d.DisclosureDate.ToString("MM/dd/yyyy")</td>
+                                <td>@d.DisclosureType</td>
+                                <td>@d.RecipientName</td>
+                                <td>@d.PurposeOfDisclosure</td>
+                                <td>@(string.IsNullOrEmpty(d.LinkedRequestId) ? "—" : "Yes")</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            }
+        }
+    </div>
+}
+
+@if (activeTab == "dashboard")
+{
+    <div class="section">
+        <h3>ROI Dashboard</h3>
+        @if (loadingDashboard)
+        {
+            <p>Loading...</p>
+        }
+        else
+        {
+            <div class="stat-grid">
+                <div class="stat-box">
+                    <div class="stat-value">@dashboard.TotalRequests</div>
+                    <div class="stat-label">Total Requests</div>
+                </div>
+                <div class="stat-box @(dashboard.OpenRequests > 0 ? "warn" : "")">
+                    <div class="stat-value">@dashboard.OpenRequests</div>
+                    <div class="stat-label">Open Requests</div>
+                </div>
+                <div class="stat-box @(dashboard.OverdueRequests > 0 ? "critical" : "")">
+                    <div class="stat-value">@dashboard.OverdueRequests</div>
+                    <div class="stat-label">Overdue (30-day)</div>
+                </div>
+                <div class="stat-box @(dashboard.PendingAuthorization > 0 ? "warn" : "")">
+                    <div class="stat-value">@dashboard.PendingAuthorization</div>
+                    <div class="stat-label">Pending Auth</div>
+                </div>
+                <div class="stat-box">
+                    <div class="stat-value">@dashboard.FulfilledRequests</div>
+                    <div class="stat-label">Fulfilled</div>
+                </div>
+                <div class="stat-box">
+                    <div class="stat-value">@dashboard.DeniedRequests</div>
+                    <div class="stat-label">Denied</div>
+                </div>
+                <div class="stat-box @(dashboard.UrgentOpen > 0 ? "critical" : "")">
+                    <div class="stat-value">@dashboard.UrgentOpen</div>
+                    <div class="stat-label">Urgent Open</div>
+                </div>
+            </div>
+        }
+    </div>
+}
+
+@code {
+    string activeTab = "requests";
+    string? error;
+    string? formError;
+    bool loadingRequests = true;
+    bool loadingDashboard = true;
+    bool loadingAccounting = false;
+
+    List<RequestDto> requests = new();
+    List<RequestDto> filteredRequests = new();
+    List<AccountingDto>? accountingEntries;
+    DashboardDto dashboard = new();
+
+    string statusFilter = "";
+    int overdueCount = 0;
+
+    bool showSubmitForm = false;
+    bool showFulfillForm = false;
+    bool showDenyForm = false;
+    bool showDisclosureForm = false;
+
+    string selectedRequestId = string.Empty;
+    string fulfillMethod = "Mail";
+    int fulfillPages = 0;
+    decimal fulfillFee = 0;
+    string fulfillNotes = string.Empty;
+    string fulfillBy = string.Empty;
+    string fulfillByTitle = string.Empty;
+    string denyReason = string.Empty;
+    string accountingPatientId = string.Empty;
+
+    NewRequestModel newRequest = new();
+    NewDisclosureModel newDisclosure = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        await Task.WhenAll(LoadRequests(), LoadDashboard());
+    }
+
+    async Task SetTab(string tab)
+    {
+        activeTab = tab;
+        if (tab == "dashboard") await LoadDashboard();
+    }
+
+    async Task LoadRequests()
+    {
+        try
+        {
+            loadingRequests = true;
+            var roiIdx = Grains.GetGrain<IROIRequestIndexGrain>("ROI-REQUEST-IDX");
+            requests = (await roiIdx.GetAllRequestsAsync()).Select(r => new RequestDto(
+                r.RequestId, r.PatientId, r.PatientName,
+                r.ReceivedDate, r.RequestType.ToString(), r.RequesterType.ToString(),
+                r.RequesterName, r.Status.ToString(), r.DueDate,
+                r.AssignedStaffName ?? "", r.Priority.ToString())).ToList();
+            overdueCount = requests.Count(r =>
+                r.DueDate < DateTime.UtcNow &&
+                r.Status is "Received" or "Acknowledged" or "InProcess" or "PendingAuthorization");
+            FilterRequests();
+        }
+        catch { error = "Failed to load requests."; }
+        finally { loadingRequests = false; }
+    }
+
+    async Task LoadDashboard()
+    {
+        try
+        {
+            loadingDashboard = true;
+            var dashRoiIdx = Grains.GetGrain<IROIRequestIndexGrain>("ROI-REQUEST-IDX");
+            var allReqs = await dashRoiIdx.GetAllRequestsAsync();
+            dashboard = new DashboardDto
+            {
+                TotalRequests = allReqs.Count,
+                OpenRequests = allReqs.Count(r => r.Status != ROIRequestStatus.Fulfilled && r.Status != ROIRequestStatus.Denied),
+                OverdueRequests = allReqs.Count(r => r.DueDate < DateTime.UtcNow && r.Status != ROIRequestStatus.Fulfilled && r.Status != ROIRequestStatus.Denied),
+                PendingAuthorization = allReqs.Count(r => r.Status == ROIRequestStatus.PendingAuthorization),
+                FulfilledRequests = allReqs.Count(r => r.Status == ROIRequestStatus.Fulfilled),
+                DeniedRequests = allReqs.Count(r => r.Status == ROIRequestStatus.Denied),
+                UrgentOpen = allReqs.Count(r => r.Priority == ROIRequestPriority.Urgent && r.Status != ROIRequestStatus.Fulfilled && r.Status != ROIRequestStatus.Denied)
+            };
+        }
+        catch { error = "Failed to load dashboard."; }
+        finally { loadingDashboard = false; }
+    }
+
+    void FilterRequests()
+    {
+        filteredRequests = string.IsNullOrEmpty(statusFilter)
+            ? requests.ToList()
+            : requests.Where(r => r.Status == statusFilter).ToList();
+    }
+
+    void ShowSubmitForm()
+    {
+        newRequest = new() { RequestType = "MedicalRecords", RequesterType = "Patient", Priority = "Routine" };
+        formError = null;
+        showSubmitForm = true;
+    }
+
+    async Task SubmitRequest()
+    {
+        if (string.IsNullOrWhiteSpace(newRequest.PatientId) || string.IsNullOrWhiteSpace(newRequest.RequesterName))
+        {
+            formError = "Patient ID and requester name are required.";
+            return;
+        }
+        List<string> records = newRequest.RecordsRequestedText
+            .Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .ToList();
+        var payload = new
+        {
+            newRequest.PatientId, newRequest.PatientName, PatientDOB = (DateTime?)null,
+            newRequest.RequestType, newRequest.RequesterType, newRequest.RequesterName,
+            RequesterOrganization = newRequest.RequesterOrganization, RequesterAddress = string.Empty,
+            newRequest.RequesterPhone, newRequest.RequesterFax, newRequest.RequesterEmail,
+            PurposeOfRequest = newRequest.PurposeOfRequest, RecordsRequested = records,
+            DateRangeStart = newRequest.DateRangeStart, DateRangeEnd = newRequest.DateRangeEnd,
+            newRequest.Priority, CreatedBy = "ROI Staff"
+        };
+        string requestId = $"ROI-REQUEST:{Guid.NewGuid()}";
+        var roiGrain = Grains.GetGrain<IROIRequestGrain>(requestId);
+        await roiGrain.SubmitRequestAsync(
+            newRequest.PatientId, newRequest.PatientName, null,
+            Enum.Parse<ROIRequestType>(newRequest.RequestType),
+            Enum.Parse<RequesterType>(newRequest.RequesterType),
+            newRequest.RequesterName, newRequest.RequesterOrganization, string.Empty,
+            newRequest.RequesterPhone, newRequest.RequesterFax, newRequest.RequesterEmail,
+            newRequest.PurposeOfRequest, records, newRequest.DateRangeStart, newRequest.DateRangeEnd,
+            Enum.Parse<ROIRequestPriority>(newRequest.Priority), "ROI Staff");
+        var roiState = await roiGrain.GetRequestAsync();
+        var roiIndex = Grains.GetGrain<IROIRequestIndexGrain>("ROI-REQUEST-IDX");
+        await roiIndex.UpsertRequestAsync(new ROIRequestIndexEntry
+        {
+            RequestId = requestId, PatientId = roiState.PatientId, PatientName = roiState.PatientName,
+            ReceivedDate = roiState.ReceivedDate, RequestType = roiState.RequestType,
+            RequesterType = roiState.RequesterType, RequesterName = roiState.RequesterName,
+            Status = roiState.Status, DueDate = roiState.DueDate, Priority = roiState.Priority
+        });
+        showSubmitForm = false; await LoadRequests(); await LoadDashboard();
+    }
+
+    void ShowFulfillForm(string requestId)
+    {
+        selectedRequestId = requestId;
+        fulfillMethod = "Mail"; fulfillPages = 0; fulfillFee = 0;
+        fulfillNotes = string.Empty; fulfillBy = string.Empty; fulfillByTitle = string.Empty;
+        showFulfillForm = true;
+    }
+
+    async Task FulfillRequest()
+    {
+        var fulfillGrain = Grains.GetGrain<IROIRequestGrain>(selectedRequestId);
+        await fulfillGrain.FulfillRequestAsync(Enum.Parse<FulfillmentMethod>(fulfillMethod), fulfillNotes, fulfillPages, fulfillFee);
+        showFulfillForm = false; await LoadRequests(); await LoadDashboard();
+    }
+
+    void ShowDenyForm(string requestId)
+    {
+        selectedRequestId = requestId;
+        denyReason = string.Empty;
+        showDenyForm = true;
+    }
+
+    async Task DenyRequest()
+    {
+        var denyGrain = Grains.GetGrain<IROIRequestGrain>(selectedRequestId);
+        await denyGrain.DenyRequestAsync(denyReason);
+        showDenyForm = false; await LoadRequests(); await LoadDashboard();
+    }
+
+    async Task RecordDisclosure()
+    {
+        if (string.IsNullOrWhiteSpace(newDisclosure.PatientId) || string.IsNullOrWhiteSpace(newDisclosure.RecipientName))
+        {
+            formError = "Patient ID and recipient name are required.";
+            return;
+        }
+        string disclosureId = $"ROI-DISCLOSURE:{Guid.NewGuid()}";
+        var discGrain = Grains.GetGrain<IHIPAADisclosureGrain>(disclosureId);
+        await discGrain.RecordDisclosureAsync(
+            newDisclosure.PatientId, newDisclosure.PatientName,
+            Enum.Parse<HIPAADisclosureType>(newDisclosure.DisclosureType),
+            newDisclosure.RecipientName, newDisclosure.RecipientOrganization, string.Empty,
+            newDisclosure.PurposeOfDisclosure, newDisclosure.InformationDisclosed,
+            newDisclosure.DateRangeOfInformation, newDisclosure.NumberOfPages,
+            newDisclosure.AuthorizationReceived, string.Empty,
+            newDisclosure.DisclosedBy, newDisclosure.DisclosedByTitle);
+        var discState = await discGrain.GetDisclosureAsync();
+        var discIdx = Grains.GetGrain<IHIPAADisclosureIndexGrain>($"ROI-DISC-IDX:{newDisclosure.PatientId}");
+        await discIdx.UpsertDisclosureAsync(new HIPAADisclosureIndexEntry
+        {
+            DisclosureId = disclosureId, PatientId = discState.PatientId, PatientName = discState.PatientName,
+            DisclosureDate = discState.DisclosureDate, DisclosureType = discState.DisclosureType,
+            RecipientName = discState.RecipientName, PurposeOfDisclosure = discState.PurposeOfDisclosure,
+            IsSubjectToAccounting = discState.IsSubjectToAccounting
+        });
+        showDisclosureForm = false; newDisclosure = new();
+    }
+
+    async Task LoadAccounting()
+    {
+        if (string.IsNullOrWhiteSpace(accountingPatientId)) return;
+        loadingAccounting = true;
+        try
+        {
+            var acctIdx = Grains.GetGrain<IHIPAADisclosureIndexGrain>($"ROI-DISC-IDX:{accountingPatientId.Trim()}");
+            accountingEntries = (await acctIdx.GetDisclosuresSubjectToAccountingAsync()).Select(d => new AccountingDto(
+                d.DisclosureId, d.PatientId, d.PatientName,
+                d.DisclosureDate, d.DisclosureType.ToString(), d.RecipientName,
+                d.PurposeOfDisclosure, d.IsSubjectToAccounting, d.LinkedRequestId ?? "")).ToList();
+        }
+        catch { error = "Failed to load accounting."; }
+        finally { loadingAccounting = false; }
+    }
+
+    static string GetPriorityBadge(string priority) => priority switch
+    {
+        "Urgent"    => "badge-critical",
+        "Expedited" => "badge-warn",
+        _           => "badge-info"
+    };
+
+    // ── DTOs ──────────────────────────────────────────────────────────────────
+
+    record RequestDto(
+        string RequestId, string PatientId, string PatientName,
+        DateTime ReceivedDate, string RequestType, string RequesterType,
+        string RequesterName, string Status, DateTime DueDate,
+        string AssignedStaffName, string Priority);
+
+    record AccountingDto(
+        string DisclosureId, string PatientId, string PatientName,
+        DateTime DisclosureDate, string DisclosureType, string RecipientName,
+        string PurposeOfDisclosure, bool IsSubjectToAccounting, string LinkedRequestId);
+
+    class DashboardDto
+    {
+        public int TotalRequests { get; set; }
+        public int OpenRequests { get; set; }
+        public int OverdueRequests { get; set; }
+        public int PendingAuthorization { get; set; }
+        public int FulfilledRequests { get; set; }
+        public int DeniedRequests { get; set; }
+        public int UrgentOpen { get; set; }
+    }
+
+    class NewRequestModel
+    {
+        public string PatientId { get; set; } = string.Empty;
+        public string PatientName { get; set; } = string.Empty;
+        public string RequestType { get; set; } = "MedicalRecords";
+        public string RequesterType { get; set; } = "Patient";
+        public string RequesterName { get; set; } = string.Empty;
+        public string RequesterOrganization { get; set; } = string.Empty;
+        public string RequesterPhone { get; set; } = string.Empty;
+        public string RequesterFax { get; set; } = string.Empty;
+        public string RequesterEmail { get; set; } = string.Empty;
+        public string PurposeOfRequest { get; set; } = string.Empty;
+        public string RecordsRequestedText { get; set; } = string.Empty;
+        public DateTime? DateRangeStart { get; set; }
+        public DateTime? DateRangeEnd { get; set; }
+        public string Priority { get; set; } = "Routine";
+    }
+
+    class NewDisclosureModel
+    {
+        public string PatientId { get; set; } = string.Empty;
+        public string PatientName { get; set; } = string.Empty;
+        public string DisclosureType { get; set; } = "Treatment";
+        public string RecipientName { get; set; } = string.Empty;
+        public string RecipientOrganization { get; set; } = string.Empty;
+        public string PurposeOfDisclosure { get; set; } = string.Empty;
+        public string InformationDisclosed { get; set; } = string.Empty;
+        public string DateRangeOfInformation { get; set; } = string.Empty;
+        public int NumberOfPages { get; set; }
+        public bool AuthorizationReceived { get; set; }
+        public string DisclosedBy { get; set; } = string.Empty;
+        public string DisclosedByTitle { get; set; } = string.Empty;
+    }
+}
+
+<style>
+    .tab-bar { display: flex; gap: 4px; margin-bottom: 16px; border-bottom: 2px solid #dee2e6; }
+    .tab { padding: 8px 16px; border: none; background: #f8f9fa; cursor: pointer; border-radius: 4px 4px 0 0; }
+    .tab.active { background: #0d6efd; color: white; }
+    .section { background: white; border: 1px solid #dee2e6; border-radius: 4px; padding: 16px; margin-bottom: 16px; }
+    .filter-bar { display: flex; gap: 12px; align-items: center; margin-bottom: 12px; flex-wrap: wrap; }
+    .data-table { width: 100%; border-collapse: collapse; font-size: 0.9em; }
+    .data-table th { background: #f8f9fa; padding: 8px; text-align: left; border-bottom: 2px solid #dee2e6; }
+    .data-table td { padding: 6px 8px; border-bottom: 1px solid #f0f0f0; }
+    .data-table tr:hover td { background: #f8f9fa; }
+    .row-critical td { background: #fff5f5 !important; }
+    .row-warn td { background: #fffbf0 !important; }
+    .text-critical { color: #dc3545; font-weight: bold; }
+    .alert { padding: 10px 14px; border-radius: 4px; margin-bottom: 12px; }
+    .alert-danger { background: #f8d7da; border: 1px solid #f5c2c7; color: #842029; }
+    .alert-warn { background: #fff3cd; border: 1px solid #ffc107; color: #664d03; }
+    .btn { padding: 6px 14px; border: 1px solid #dee2e6; border-radius: 4px; cursor: pointer; background: #f8f9fa; }
+    .btn-primary { background: #0d6efd; color: white; border-color: #0d6efd; }
+    .btn-success { background: #198754; color: white; border-color: #198754; }
+    .btn-danger { background: #dc3545; color: white; border-color: #dc3545; }
+    .btn-sm { padding: 3px 8px; font-size: 0.85em; margin-right: 4px; }
+    .badge { padding: 2px 8px; border-radius: 12px; font-size: 0.8em; }
+    .badge-critical { background: #dc3545; color: white; }
+    .badge-warn { background: #ffc107; color: #212529; }
+    .badge-info { background: #e2e8f0; color: #374151; }
+    .form-panel { background: #f8f9fa; border: 1px solid #dee2e6; border-radius: 4px; padding: 16px; margin-top: 16px; }
+    .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 12px; }
+    .form-grid label { display: flex; flex-direction: column; gap: 4px; font-size: 0.9em; }
+    .form-grid input, .form-grid select { padding: 4px 8px; border: 1px solid #ced4da; border-radius: 4px; }
+    .form-actions { display: flex; gap: 8px; margin-top: 12px; }
+    .stat-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 12px; }
+    .stat-box { background: #f8f9fa; border: 1px solid #dee2e6; border-radius: 6px; padding: 16px; text-align: center; }
+    .stat-box.warn { border-color: #ffc107; background: #fffbf0; }
+    .stat-box.critical { border-color: #dc3545; background: #fff5f5; }
+    .stat-value { font-size: 2em; font-weight: bold; color: #1a1a2e; }
+    .stat-label { font-size: 0.8em; color: #6c757d; margin-top: 4px; }
+    .text-muted { color: #6c757d; font-size: 0.9em; }
+</style>

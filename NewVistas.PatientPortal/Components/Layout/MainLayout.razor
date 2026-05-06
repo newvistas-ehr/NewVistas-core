@@ -1,0 +1,102 @@
+@inherits LayoutComponentBase
+@using Microsoft.AspNetCore.Components.Authorization
+@using NewVistas.PatientPortal.Services
+@inject AuthenticationStateProvider AuthStateProvider
+@inject NavigationManager Navigation
+
+<div class="portal-container">
+    <header class="portal-header">
+        <div class="header-brand">
+            <span class="header-title">MyHealth Portal</span>
+            <span class="header-subtitle">NewVistas Patient Portal</span>
+        </div>
+        <AuthorizeView>
+            <Authorized>
+                <div class="header-user">
+                    <span class="user-name">@context.User.Identity?.Name</span>
+                    <button class="btn-logout" @onclick="Logout">Sign Out</button>
+                </div>
+            </Authorized>
+        </AuthorizeView>
+    </header>
+
+    <div class="portal-body">
+        <nav class="portal-sidebar">
+            <NavLink class="nav-item" href="/" Match="NavLinkMatch.All">
+                <span class="nav-label">Dashboard</span>
+            </NavLink>
+
+            <div class="nav-divider"></div>
+            <div class="nav-section-title">My Health</div>
+
+            <NavLink class="nav-item" href="/my-demographics">
+                <span class="nav-label">My Demographics</span>
+            </NavLink>
+            <NavLink class="nav-item" href="/my-medications">
+                <span class="nav-label">Medications</span>
+            </NavLink>
+            <NavLink class="nav-item" href="/my-allergies">
+                <span class="nav-label">Allergies</span>
+            </NavLink>
+            <NavLink class="nav-item" href="/my-problems">
+                <span class="nav-label">Health Conditions</span>
+            </NavLink>
+            <NavLink class="nav-item" href="/my-vitals">
+                <span class="nav-label">Vitals</span>
+            </NavLink>
+            <NavLink class="nav-item" href="/my-immunizations">
+                <span class="nav-label">Immunizations</span>
+            </NavLink>
+
+            <div class="nav-divider"></div>
+            <div class="nav-section-title">Portal</div>
+
+            <NavLink class="nav-item" href="/my-submissions">
+                <span class="nav-label">Health Submissions</span>
+            </NavLink>
+            <NavLink class="nav-item" href="/my-messages">
+                <span class="nav-label">Secure Messages</span>
+            </NavLink>
+        </nav>
+
+        <main class="portal-content">
+            @Body
+        </main>
+    </div>
+</div>
+
+<div id="blazor-error-ui" data-nosnippet>
+    An unhandled error has occurred.
+    <a href="." class="reload">Reload</a>
+    <span class="dismiss">X</span>
+</div>
+
+@code {
+    private void Logout()
+    {
+        ((PatientAuthStateProvider)AuthStateProvider).Logout();
+        Navigation.NavigateTo("/login", forceLoad: false);
+    }
+}
+
+<style>
+    .portal-container { display: flex; flex-direction: column; min-height: 100vh; }
+    .portal-header { display: flex; justify-content: space-between; align-items: center; padding: .5rem 1.5rem; background: #1a6b3c; color: #fff; }
+    .header-brand { display: flex; align-items: baseline; gap: .75rem; }
+    .header-title { font-size: 1.3rem; font-weight: 700; }
+    .header-subtitle { font-size: .85rem; opacity: .8; }
+    .header-user { display: flex; align-items: center; gap: .75rem; }
+    .user-name { font-size: .9rem; }
+    .btn-logout { background: rgba(255,255,255,.15); color: #fff; border: 1px solid rgba(255,255,255,.3); border-radius: 4px; padding: .25rem .75rem; cursor: pointer; font-size: .85rem; }
+    .btn-logout:hover { background: rgba(255,255,255,.25); }
+
+    .portal-body { display: flex; flex: 1; }
+    .portal-sidebar { width: 220px; background: #f1f8f4; border-right: 1px solid #d4e8db; padding: .5rem 0; overflow-y: auto; }
+    .nav-item { display: block; padding: .5rem 1rem; color: #333; text-decoration: none; font-size: .9rem; border-left: 3px solid transparent; }
+    .nav-item:hover { background: #e0f0e6; }
+    .nav-item.active { background: #d0ebd8; border-left-color: #1a6b3c; font-weight: 600; color: #1a6b3c; }
+    .nav-divider { height: 1px; background: #d4e8db; margin: .5rem 0; }
+    .nav-section-title { padding: .25rem 1rem; font-size: .75rem; text-transform: uppercase; color: #6b8f78; font-weight: 600; letter-spacing: .5px; }
+
+    .portal-content { flex: 1; padding: 1.5rem; overflow-y: auto; background: #fff; }
+</style>

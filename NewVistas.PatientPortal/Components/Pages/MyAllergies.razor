@@ -1,0 +1,62 @@
+@page "/my-allergies"
+@rendermode InteractiveServer
+@inject HttpClient Http
+
+<PageTitle>My Allergies</PageTitle>
+<h1>My Allergies</h1>
+
+@if (error != null) { <div class="alert alert-error">@error</div> }
+@if (loading) { <p>Loading...</p> }
+else if (items.Count == 0) { <p class="empty-state">No allergies on record.</p> }
+else
+{
+    <table class="health-table">
+        <thead><tr><th>Allergen</th><th>Reaction</th><th>Severity</th><th>Type</th></tr></thead>
+        <tbody>
+            @foreach (AllergyDto a in items)
+            {
+                <tr>
+                    <td>@(a.AllergenName ?? "—")</td>
+                    <td>@(a.Reaction ?? "—")</td>
+                    <td><span class="badge severity-@(a.Severity?.ToLowerInvariant() ?? "unknown")">@(a.Severity ?? "—")</span></td>
+                    <td>@(a.AllergyType ?? "—")</td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+
+@code {
+    bool loading = true;
+    string? error;
+    List<AllergyDto> items = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        try { items = await Http.GetFromJsonAsync<List<AllergyDto>>("api/my/health/allergies") ?? new(); }
+        catch (Exception ex) { error = $"Error: {ex.Message}"; }
+        finally { loading = false; }
+    }
+
+    private class AllergyDto
+    {
+        public string? AllergenName { get; set; }
+        public string? Reaction { get; set; }
+        public string? Severity { get; set; }
+        public string? AllergyType { get; set; }
+    }
+}
+
+<style>
+    .health-table { width: 100%; border-collapse: collapse; font-size: .9rem; }
+    .health-table th { background: #f1f8f4; text-align: left; padding: .5rem .6rem; border-bottom: 2px solid #d4e8db; }
+    .health-table td { padding: .4rem .6rem; border-bottom: 1px solid #eee; }
+    .health-table tr:hover td { background: #f5faf7; }
+    .badge { display: inline-block; padding: .15rem .5rem; border-radius: 3px; font-size: .78rem; font-weight: 600; }
+    .severity-mild { background: #d4edda; color: #155724; }
+    .severity-moderate { background: #fff3cd; color: #856404; }
+    .severity-severe { background: #f8d7da; color: #721c24; }
+    .severity-unknown { background: #e9ecef; color: #495057; }
+    .empty-state { color: #888; font-style: italic; }
+    .alert-error { background: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; padding: .5rem .75rem; border-radius: 4px; margin-bottom: .5rem; }
+</style>

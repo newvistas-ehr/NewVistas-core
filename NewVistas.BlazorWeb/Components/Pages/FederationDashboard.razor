@@ -1,0 +1,282 @@
+@page "/admin/federation"
+@attribute [Microsoft.AspNetCore.Authorization.Authorize(Roles = "Administrator")]
+@rendermode InteractiveServer
+@implements IAsyncDisposable
+
+@using NewVistas.Abstractions.GrainInterfaces
+@using NewVistas.Abstractions.GrainStates
+@using NewVistas.BlazorWeb.Services
+@inject OrleansGrainService Grains
+
+<PageTitle>Federation security</PageTitle>
+
+<h1>🔐 Federation security</h1>
+
+<p class="dashboard-intro">
+    Read-only view of cert revocations, provisioning tokens, and outbox health
+    for this cluster. Refreshes every 30 seconds; click a panel's refresh button
+    to update sooner.
+</p>
+
+@if (loadError != null)
+{
+    <div class="alert alert-error">@loadError</div>
+}
+
+<!-- ── Outbox health ───────────────────────────────────────────────────── -->
+<section class="dashboard-panel">
+    <header>
+        <h2>Outbox health</h2>
+        <button class="btn btn-secondary" @onclick="RefreshOutboxStats" disabled="@loadingOutbox">
+            @if (loadingOutbox) { <span>Refreshing…</span> } else { <span>Refresh</span> }
+        </button>
+    </header>
+    @if (outboxStats is null)
+    {
+        <div class="muted">Loading…</div>
+    }
+    else if (!outboxStats.Available)
+    {
+        <div class="muted">No federation outbox configured on this deployment.</div>
+    }
+    else
+    {
+        <table class="stats-table">
+            <tr><td class="label">Pending</td>           <td>@outboxStats.Pending</td></tr>
+            <tr><td class="label">Sent</td>              <td>@outboxStats.Sent</td></tr>
+            <tr><td class="label">Oldest pending</td>    <td>@FormatTimestamp(outboxStats.OldestPendingUtc)</td></tr>
+            <tr><td class="label">Max attempts on a pending row</td><td>@outboxStats.MaxAttemptsOnPending</td></tr>
+            <tr><td class="label">Last sent</td>         <td>@FormatTimestamp(outboxStats.LastSentUtc)</td></tr>
+        </table>
+    }
+</section>
+
+<!-- ── Provisioning tokens ─────────────────────────────────────────────── -->
+<section class="dashboard-panel">
+    <header>
+        <h2>Provisioning tokens</h2>
+        <button class="btn btn-secondary" @onclick="RefreshTokens" disabled="@loadingTokens">
+            @if (loadingTokens) { <span>Refreshing…</span> } else { <span>Refresh</span> }
+        </button>
+    </header>
+    @if (tokens is null)
+    {
+        <div class="muted">Loading…</div>
+    }
+    else if (!hubCaEnabled)
+    {
+        <div class="muted">Hub-CA not configured on this deployment.</div>
+    }
+    else if (tokens.Count == 0)
+    {
+        <div class="muted">No tokens issued yet.</div>
+    }
+    else
+    {
+        <table class="data-table">
+            <thead>
+                <tr><th>Issued</th><th>Cluster</th><th>Token (prefix)</th><th>Expires</th><th>Status</th></tr>
+            </thead>
+            <tbody>
+                @foreach (var t in tokens)
+                {
+                    var status = ClassifyToken(t);
+                    <tr class="status-@status">
+                        <td>@FormatTimestamp(t.IssuedUtc)</td>
+                        <td>@t.ClusterId</td>
+                        <td><code>@TruncateToken(t.Token)</code></td>
+                        <td>@FormatTimestamp(t.ExpiresUtc)</td>
+                        <td>@status</td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    }
+</section>
+
+<!-- ── Revocations ─────────────────────────────────────────────────────── -->
+<section class="dashboard-panel">
+    <header>
+        <h2>Revoked certs</h2>
+        <button class="btn btn-secondary" @onclick="RefreshRevocations" disabled="@loadingRevocations">
+            @if (loadingRevocations) { <span>Refreshing…</span> } else { <span>Refresh</span> }
+        </button>
+    </header>
+    @if (revocations is null)
+    {
+        <div class="muted">Loading…</div>
+    }
+    else if (!hubCaEnabled)
+    {
+        <div class="muted">Hub-CA not configured on this deployment.</div>
+    }
+    else if (revocations.Count == 0)
+    {
+        <div class="muted">No revocations recorded.</div>
+    }
+    else
+    {
+        <table class="data-table">
+            <thead>
+                <tr><th>Revoked</th><th>Cluster</th><th>Thumbprint</th><th>Reason</th><th>By</th></tr>
+            </thead>
+            <tbody>
+                @foreach (var r in revocations)
+                {
+                    <tr>
+                        <td>@FormatTimestamp(r.RevokedUtc)</td>
+                        <td>@r.ClusterId</td>
+                        <td title="@r.Thumbprint"><code>@TruncateThumbprint(r.Thumbprint)</code></td>
+                        <td>@r.Reason</td>
+                        <td>@r.RevokedByUserId</td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    }
+</section>
+
+<style>
+    .dashboard-intro {
+        color: #666;
+        margin-bottom: 1.5rem;
+    }
+    .dashboard-panel {
+        background: #fff;
+        border: 1px solid #ddd;
+        border-radius: 6px;
+        padding: 1rem 1.25rem;
+        margin-bottom: 1.25rem;
+    }
+    .dashboard-panel header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 0.75rem;
+    }
+    .dashboard-panel h2 {
+        margin: 0;
+        font-size: 1.1rem;
+    }
+    .stats-table { width: 100%; }
+    .stats-table .label { font-weight: 600; width: 40%; padding-right: 1rem; }
+    .data-table { width: 100%; border-collapse: collapse; }
+    .data-table th, .data-table td {
+        padding: 0.5rem 0.75rem;
+        text-align: left;
+        border-bottom: 1px solid #eee;
+    }
+    .data-table th { background: #f7f7f7; font-weight: 600; }
+    .data-table tr.status-expired { color: #aaa; }
+    .data-table tr.status-consumed td:last-child { color: #2a7; }
+    .data-table tr.status-pending td:last-child  { color: #b80; font-weight: 600; }
+    .muted { color: #888; font-style: italic; }
+    code { font-family: 'Consolas', 'Monaco', monospace; }
+</style>
+
+@code {
+    private OutboxStats? outboxStats;
+    private List<ProvisioningTokenSummary>? tokens;
+    private List<RevocationRecord>? revocations;
+    private bool hubCaEnabled = true;     // optimistic; flipped on first error
+    private bool loadingOutbox;
+    private bool loadingTokens;
+    private bool loadingRevocations;
+    private string? loadError;
+
+    private System.Timers.Timer? refreshTimer;
+    private const double RefreshIntervalMs = 30_000;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await Task.WhenAll(RefreshOutboxStats(), RefreshTokens(), RefreshRevocations());
+
+        refreshTimer = new System.Timers.Timer(RefreshIntervalMs);
+        refreshTimer.Elapsed += async (_, _) => await InvokeAsync(async () =>
+        {
+            await Task.WhenAll(RefreshOutboxStats(), RefreshTokens(), RefreshRevocations());
+            StateHasChanged();
+        });
+        refreshTimer.Start();
+    }
+
+    private async Task RefreshOutboxStats()
+    {
+        loadingOutbox = true;
+        try
+        {
+            IFederationStatsGrain stats = Grains.GetGrain<IFederationStatsGrain>(IFederationStatsGrain.GlobalKey);
+            outboxStats = await stats.GetOutboxStatsAsync();
+        }
+        catch (Exception ex)
+        {
+            loadError = $"Outbox stats failed: {ex.Message}";
+        }
+        finally
+        {
+            loadingOutbox = false;
+        }
+    }
+
+    private async Task RefreshTokens()
+    {
+        loadingTokens = true;
+        try
+        {
+            IProvisioningTokenIndexGrain index = Grains.GetGrain<IProvisioningTokenIndexGrain>(IProvisioningTokenIndexGrain.GlobalKey);
+            IReadOnlyList<ProvisioningTokenSummary> all = await index.GetAllAsync();
+            tokens = all.ToList();
+            hubCaEnabled = true;
+        }
+        catch (Exception ex)
+        {
+            loadError = $"Tokens failed: {ex.Message}";
+        }
+        finally
+        {
+            loadingTokens = false;
+        }
+    }
+
+    private string ClassifyToken(ProvisioningTokenSummary t)
+    {
+        if (t.ConsumedUtc is not null) return "consumed";
+        if (DateTime.UtcNow >= t.ExpiresUtc) return "expired";
+        return "pending";
+    }
+
+    private async Task RefreshRevocations()
+    {
+        loadingRevocations = true;
+        try
+        {
+            IRevocationRegistryGrain registry = Grains.GetGrain<IRevocationRegistryGrain>(IRevocationRegistryGrain.GlobalKey);
+            IReadOnlyList<RevocationRecord> all = await registry.GetAllAsync();
+            revocations = all.OrderByDescending(r => r.RevokedUtc).ToList();
+        }
+        catch (Exception ex)
+        {
+            loadError = $"Revocations failed: {ex.Message}";
+        }
+        finally
+        {
+            loadingRevocations = false;
+        }
+    }
+
+    private string FormatTimestamp(DateTime? utc) =>
+        utc is null ? "—" : utc.Value.ToLocalTime().ToString("yyyy-MM-dd HH:mm");
+
+    private string TruncateToken(string token) =>
+        string.IsNullOrEmpty(token) || token.Length <= 8 ? token : token[..8] + "…";
+
+    private string TruncateThumbprint(string tp) =>
+        string.IsNullOrEmpty(tp) || tp.Length <= 12 ? tp : tp[..12] + "…";
+
+    public ValueTask DisposeAsync()
+    {
+        refreshTimer?.Stop();
+        refreshTimer?.Dispose();
+        return ValueTask.CompletedTask;
+    }
+}

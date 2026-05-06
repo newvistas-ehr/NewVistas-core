@@ -1,0 +1,635 @@
+@page "/drugfile"
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+@rendermode InteractiveServer
+@using NewVistas.BlazorWeb.Services
+@using NewVistas.Abstractions.GrainInterfaces
+@using NewVistas.Abstractions.GrainStates
+@inject OrleansGrainService Grains
+
+<PageTitle>Drug File — Pharmacy Data Management</PageTitle>
+
+<h1>Pharmacy Data Management — Drug File</h1>
+
+<div class="df-toolbar">
+    <div class="search-group">
+        <input type="text" @bind="searchText" @bind:event="oninput"
+               @onkeydown="HandleKeyDown"
+               placeholder="Search drug name or synonym..." class="search-input" />
+        <select @bind="selectedType" class="type-select">
+            <option value="">All types</option>
+            <option value="1">Outpatient</option>
+            <option value="2">Unit Dose</option>
+            <option value="3">Both</option>
+            <option value="4">IV</option>
+            <option value="5">All</option>
+        </select>
+        <button @onclick="Search" disabled="@searching" class="btn btn-primary">
+            @if (searching) { <span>Searching...</span> } else { <span>Search</span> }
+        </button>
+    </div>
+
+    <div class="tab-group">
+        <button class="btn @(activeTab == "drugs" ? "btn-tab-active" : "btn-tab")"
+                @onclick='() => SetTab("drugs")'>Drugs</button>
+        <button class="btn @(activeTab == "orderableitems" ? "btn-tab-active" : "btn-tab")"
+                @onclick='() => SetTab("orderableitems")'>Orderable Items</button>
+        <button class="btn @(activeTab == "routes" ? "btn-tab-active" : "btn-tab")"
+                @onclick='() => SetTab("routes")'>Routes</button>
+        <button class="btn @(activeTab == "doseunits" ? "btn-tab-active" : "btn-tab")"
+                @onclick='() => SetTab("doseunits")'>Dose Units</button>
+    </div>
+
+    <div class="action-group">
+        <button @onclick="LoadDemoData" disabled="@loadingDemo" class="btn btn-secondary">
+            @if (loadingDemo) { <span>Loading...</span> } else { <span>Load Demo Data</span> }
+        </button>
+        <button @onclick="CheckStatus" class="btn btn-outline">Status</button>
+    </div>
+</div>
+
+@if (!indexLoaded && !loadingDemo)
+{
+    <div class="load-banner">
+        <div class="load-banner-text">
+            <strong>Drug file data has not been loaded yet.</strong>
+            <span>Click Load Demo Data to populate sample facility drugs and orderable items.</span>
+        </div>
+        <button @onclick="LoadDemoData" class="btn btn-load">Load Demo Drug File Data</button>
+    </div>
+}
+
+@if (statusMessage != null)
+{
+    <div class="alert @statusClass">@statusMessage</div>
+}
+
+@if (error != null)
+{
+    <div class="alert alert-error">@error</div>
+}
+
+@* ─── DRUGS TAB ─────────────────────────────────────────────────────────────── *@
+
+@if (activeTab == "drugs")
+{
+    @if (drugResults.Count > 0)
+    {
+        <table class="df-table">
+            <thead>
+                <tr>
+                    <th>Local Name</th>
+                    <th>VA Generic</th>
+                    <th>Drug Class</th>
+                    <th>Type</th>
+                    <th>Formulary</th>
+                    <th>Status</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var drug in drugResults)
+                {
+                    <tr class="@(selectedDrugIen == drug.Ien ? "row-selected" : "")"
+                        @onclick="() => SelectDrug(drug.Ien)">
+                        <td>@drug.LocalName</td>
+                        <td>@drug.VaGenericName</td>
+                        <td>@drug.PrimaryDrugClassCode</td>
+                        <td>@drug.PharmacyType</td>
+                        <td>@(drug.IsNationalFormulary ? "Yes" : "")</td>
+                        <td>@(drug.IsActive ? "Active" : "Inactive")</td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    }
+    else if (!searching && searchText?.Length > 1)
+    {
+        <p class="no-results">No drugs found matching "@searchText".</p>
+    }
+
+    @if (selectedDrug != null)
+    {
+        <div class="detail-panel">
+            <h3>@selectedDrug.Drug.LocalName</h3>
+            <div class="detail-grid">
+                <div><label>IEN:</label> @selectedDrug.Drug.Ien</div>
+                <div><label>VA Product:</label> @selectedDrug.Drug.VaProductName</div>
+                <div><label>VA Generic:</label> @selectedDrug.Drug.VaGenericName</div>
+                <div><label>Drug Class:</label> @selectedDrug.Drug.PrimaryDrugClassName (@selectedDrug.Drug.PrimaryDrugClassCode)</div>
+                <div><label>Pharmacy Type:</label> @selectedDrug.Drug.PharmacyType</div>
+                <div><label>Status:</label> @(selectedDrug.Drug.IsActive ? "Active" : "Inactive")</div>
+                <div><label>National Formulary:</label> @(selectedDrug.Drug.IsNationalFormulary ? "Yes" : "No")</div>
+                <div><label>Dispense Unit:</label> @(selectedDrug.Drug.DispenseUnit ?? "—")</div>
+                <div><label>Max Days Supply:</label> @(selectedDrug.Drug.MaxDaysSupply?.ToString() ?? "—")</div>
+                <div><label>CMOP Dispense:</label> @selectedDrug.Drug.CmopDispense</div>
+                @if (!string.IsNullOrEmpty(selectedDrug.Drug.ControlledSubstanceSchedule))
+                {
+                    <div><label>CS Schedule:</label> Schedule @selectedDrug.Drug.ControlledSubstanceSchedule</div>
+                }
+                @if (!string.IsNullOrEmpty(selectedDrug.Drug.Message))
+                {
+                    <div class="detail-full"><label>Message:</label> @selectedDrug.Drug.Message</div>
+                }
+            </div>
+
+            @if (selectedDrug.Drug.PossibleDosages.Count > 0)
+            {
+                <h4>Possible Dosages</h4>
+                <ul class="dosage-list">
+                    @foreach (var dosage in selectedDrug.Drug.PossibleDosages)
+                    {
+                        <li>@dosage.Dose @dosage.Unit @(dosage.IsDefault ? "(default)" : "")</li>
+                    }
+                </ul>
+            }
+
+            @if (selectedDrug.Drug.Ingredients.Count > 0)
+            {
+                <h4>Ingredients</h4>
+                <ul class="ingredient-list">
+                    @foreach (var ing in selectedDrug.Drug.Ingredients)
+                    {
+                        <li>@ing.Name @ing.Strength @ing.StrengthUnit</li>
+                    }
+                </ul>
+            }
+        </div>
+    }
+}
+
+@* ─── ORDERABLE ITEMS TAB ──────────────────────────────────────────────────── *@
+
+@if (activeTab == "orderableitems")
+{
+    @if (oiResults.Count > 0)
+    {
+        <table class="df-table">
+            <thead>
+                <tr>
+                    <th>Name</th>
+                    <th>VA Generic</th>
+                    <th>Drug Class</th>
+                    <th>Type</th>
+                    <th>Formulary</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var oi in oiResults)
+                {
+                    <tr class="@(selectedOiIen == oi.Ien ? "row-selected" : "")"
+                        @onclick="() => SelectOrderableItem(oi.Ien)">
+                        <td>@oi.Name</td>
+                        <td>@oi.VaGenericName</td>
+                        <td>@oi.PrimaryDrugClassCode</td>
+                        <td>@oi.PharmacyType</td>
+                        <td>@(oi.IsNationalFormulary ? "Yes" : "")</td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    }
+    else if (!searching && searchText?.Length > 1)
+    {
+        <p class="no-results">No orderable items found matching "@searchText".</p>
+    }
+
+    @if (selectedOi != null)
+    {
+        <div class="detail-panel">
+            <h3>@selectedOi.Item.Name</h3>
+            <div class="detail-grid">
+                <div><label>IEN:</label> @selectedOi.Item.Ien</div>
+                <div><label>VA Generic:</label> @selectedOi.Item.VaGenericName</div>
+                <div><label>Dosage Form:</label> @(selectedOi.Item.DosageFormName.Length > 0 ? selectedOi.Item.DosageFormName : "—")</div>
+                <div><label>Drug Class:</label> @selectedOi.Item.PrimaryDrugClassCode</div>
+                <div><label>Pharmacy Type:</label> @selectedOi.Item.PharmacyType</div>
+                <div><label>National Formulary:</label> @(selectedOi.Item.IsNationalFormulary ? "Yes" : "No")</div>
+                @if (selectedOi.Item.OutpatientDefaultDaysSupply.HasValue)
+                {
+                    <div><label>Default Days Supply:</label> @selectedOi.Item.OutpatientDefaultDaysSupply</div>
+                }
+            </div>
+
+            @if (selectedOi.Item.AvailableDosages.Count > 0)
+            {
+                <h4>Available Dosages</h4>
+                <ul class="dosage-list">
+                    @foreach (var dosage in selectedOi.Item.AvailableDosages)
+                    {
+                        <li>@dosage.Dose @dosage.Unit @(dosage.Route != null ? $"({dosage.Route})" : "") @(dosage.IsDefault ? "(default)" : "")</li>
+                    }
+                </ul>
+            }
+
+            @if (selectedOi.Item.LinkedDrugIens.Count > 0)
+            {
+                <h4>Linked Drugs</h4>
+                <ul class="linked-list">
+                    @foreach (var drugIen in selectedOi.Item.LinkedDrugIens)
+                    {
+                        <li>IEN: @drugIen</li>
+                    }
+                </ul>
+            }
+        </div>
+    }
+}
+
+@* ─── ROUTES TAB ──────────────────────────────────────────────────────────── *@
+
+@if (activeTab == "routes")
+{
+    @if (routes.Count > 0)
+    {
+        <div class="reference-grid">
+            @foreach (var route in routes)
+            {
+                <div class="reference-card">
+                    <div class="ref-name">@route.Name</div>
+                    @if (route.Abbreviation != null && route.Abbreviation != route.Name)
+                    {
+                        <div class="ref-abbr">@route.Abbreviation</div>
+                    }
+                    <div class="ref-vuid">VUID: @route.Vuid</div>
+                </div>
+            }
+        </div>
+    }
+    else if (!loadingRoutes)
+    {
+        <button @onclick="LoadRoutes" class="btn btn-secondary">Load Routes</button>
+    }
+    else
+    {
+        <p>Loading routes...</p>
+    }
+}
+
+@* ─── DOSE UNITS TAB ──────────────────────────────────────────────────────── *@
+
+@if (activeTab == "doseunits")
+{
+    @if (doseUnits.Count > 0)
+    {
+        <table class="df-table">
+            <thead>
+                <tr>
+                    <th>Name</th>
+                    <th>Abbreviation</th>
+                    <th>Type</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var unit in doseUnits)
+                {
+                    <tr>
+                        <td>@unit.Name</td>
+                        <td>@unit.Abbreviation</td>
+                        <td>@(unit.IsCounting ? "Discrete" : "Continuous")</td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    }
+    else if (!loadingDoseUnits)
+    {
+        <button @onclick="LoadDoseUnits" class="btn btn-secondary">Load Dose Units</button>
+    }
+    else
+    {
+        <p>Loading dose units...</p>
+    }
+}
+
+<style>
+    .df-toolbar { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-bottom: 16px; }
+    .search-group { display: flex; gap: 8px; align-items: center; flex: 1; }
+    .tab-group { display: flex; gap: 4px; }
+    .action-group { display: flex; gap: 8px; }
+    .search-input { flex: 1; min-width: 250px; padding: 6px 10px; border: 1px solid #ccc; border-radius: 4px; }
+    .type-select { padding: 6px; border: 1px solid #ccc; border-radius: 4px; }
+    .btn { padding: 6px 14px; border-radius: 4px; cursor: pointer; border: 1px solid #ccc; background: #fff; }
+    .btn-primary { background: #0066cc; color: #fff; border-color: #0055aa; }
+    .btn-primary:hover { background: #0055aa; }
+    .btn-secondary { background: #6c757d; color: #fff; border-color: #5a6268; }
+    .btn-secondary:hover:not(:disabled) { background: #5a6268; }
+    .btn-outline { background: transparent; border-color: #0066cc; color: #0066cc; }
+    .btn-outline:hover { background: #e8f0fe; }
+    .btn-tab { background: #f8f9fa; }
+    .btn-tab-active { background: #0066cc; color: #fff; border-color: #0055aa; }
+    .btn-load { background: #28a745; color: #fff; border-color: #218838; padding: 8px 18px; }
+    .btn:disabled { opacity: 0.6; cursor: not-allowed; }
+    .load-banner { background: #fff3cd; border: 1px solid #ffc107; border-radius: 6px; padding: 14px 18px; margin-bottom: 16px; display: flex; align-items: center; gap: 16px; }
+    .load-banner-text { display: flex; flex-direction: column; gap: 4px; }
+    .alert { padding: 10px 16px; border-radius: 4px; margin-bottom: 12px; }
+    .alert-success { background: #d4edda; border: 1px solid #c3e6cb; color: #155724; }
+    .alert-info { background: #d1ecf1; border: 1px solid #bee5eb; color: #0c5460; }
+    .alert-error { background: #f8d7da; border: 1px solid #f5c6cb; color: #721c24; }
+    .df-table { width: 100%; border-collapse: collapse; margin-top: 8px; font-size: 0.92em; }
+    .df-table th { background: #f2f2f2; padding: 8px 10px; text-align: left; border-bottom: 2px solid #dee2e6; }
+    .df-table td { padding: 7px 10px; border-bottom: 1px solid #e9ecef; }
+    .df-table tbody tr:hover { background: #f5f7fa; cursor: pointer; }
+    .row-selected td { background: #cce5ff !important; }
+    .detail-panel { margin-top: 16px; padding: 16px; border: 1px solid #dee2e6; border-radius: 6px; background: #fafafa; }
+    .detail-panel h3 { margin: 0 0 12px; font-size: 1.1em; color: #0066cc; }
+    .detail-panel h4 { margin: 12px 0 6px; font-size: 0.95em; color: #333; }
+    .detail-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 6px 16px; font-size: 0.9em; }
+    .detail-grid label { font-weight: 600; color: #555; margin-right: 4px; }
+    .detail-full { grid-column: 1 / -1; }
+    .dosage-list, .ingredient-list, .linked-list { margin: 0; padding-left: 20px; font-size: 0.9em; }
+    .dosage-list li, .ingredient-list li, .linked-list li { padding: 2px 0; }
+    .no-results { color: #888; margin-top: 16px; }
+    .reference-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 10px; margin-top: 8px; }
+    .reference-card { padding: 10px; border: 1px solid #dee2e6; border-radius: 4px; background: #fff; }
+    .ref-name { font-weight: 600; font-size: 0.9em; }
+    .ref-abbr { color: #555; font-size: 0.82em; }
+    .ref-vuid { color: #999; font-size: 0.78em; margin-top: 4px; }
+</style>
+
+@code {
+    // ─── State ───────────────────────────────────────────────────────────────
+    private string activeTab = "drugs";
+    private string searchText = string.Empty;
+    private string? selectedType;
+    private bool searching;
+    private bool loadingDemo;
+    private bool loadingRoutes;
+    private bool loadingDoseUnits;
+    private bool indexLoaded;
+    private string? error;
+    private string? statusMessage;
+    private string statusClass = "alert-info";
+
+    private List<DrugSummaryResult> drugResults = new();
+    private List<OiSummaryResult> oiResults = new();
+    private List<MedicationRouteResult> routes = new();
+    private List<DoseUnitResult> doseUnits = new();
+
+    private string? selectedDrugIen;
+    private DrugDetailResult? selectedDrug;
+    private string? selectedOiIen;
+    private OiDetailResult? selectedOi;
+
+    private IDrugIndexGrain GetDrugIndex() =>
+        Grains.GetGrain<IDrugIndexGrain>("DRUG-INDEX");
+
+    private IOrderableItemIndexGrain GetOiIndex() =>
+        Grains.GetGrain<IOrderableItemIndexGrain>("OI-INDEX");
+
+    private IMedicationRouteIndexGrain GetRouteIndex() =>
+        Grains.GetGrain<IMedicationRouteIndexGrain>("MED-ROUTE-INDEX");
+
+    private IDoseUnitIndexGrain GetDoseUnitIndex() =>
+        Grains.GetGrain<IDoseUnitIndexGrain>("DOSE-UNIT-INDEX");
+
+    // ─── Lifecycle ───────────────────────────────────────────────────────────
+
+    protected override async Task OnInitializedAsync()
+    {
+        await CheckStatus();
+    }
+
+    // ─── Tab management ──────────────────────────────────────────────────────
+
+    private async Task SetTab(string tab)
+    {
+        activeTab = tab;
+        searchText = string.Empty;
+        drugResults.Clear();
+        oiResults.Clear();
+        selectedDrugIen = null;
+        selectedDrug = null;
+        selectedOiIen = null;
+        selectedOi = null;
+
+        if (tab == "routes" && routes.Count == 0)
+            await LoadRoutes();
+        else if (tab == "doseunits" && doseUnits.Count == 0)
+            await LoadDoseUnits();
+    }
+
+    // ─── Search ──────────────────────────────────────────────────────────────
+
+    private async Task HandleKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter")
+            await Search();
+    }
+
+    private async Task Search()
+    {
+        if (string.IsNullOrWhiteSpace(searchText) || searchText.Length < 2)
+            return;
+
+        searching = true;
+        error = null;
+
+        try
+        {
+            PharmacyType? pharmaType = !string.IsNullOrEmpty(selectedType) && int.TryParse(selectedType, out int t)
+                ? (PharmacyType)t : null;
+
+            if (activeTab == "drugs")
+            {
+                List<DrugIndexEntry> entries = await GetDrugIndex().SearchAsync(searchText.Trim(), pharmaType, true, 50);
+                drugResults = entries.Select(e => new DrugSummaryResult(
+                    e.Ien, e.LocalName, e.VaGenericName, e.PrimaryDrugClassCode,
+                    e.PharmacyType.ToString(), e.IsActive, e.IsNationalFormulary)).ToList();
+                selectedDrugIen = null;
+                selectedDrug = null;
+            }
+            else if (activeTab == "orderableitems")
+            {
+                List<OrderableItemIndexEntry> entries = await GetOiIndex().SearchAsync(searchText.Trim(), pharmaType, true, 50);
+                oiResults = entries.Select(e => new OiSummaryResult(
+                    e.Ien, e.Name, e.VaGenericName, e.PrimaryDrugClassCode,
+                    e.PharmacyType.ToString(), e.IsActive, e.IsNationalFormulary)).ToList();
+                selectedOiIen = null;
+                selectedOi = null;
+            }
+        }
+        catch (Exception ex)
+        {
+            error = $"Search failed: {ex.Message}";
+        }
+        finally
+        {
+            searching = false;
+        }
+    }
+
+    // ─── Detail selection ─────────────────────────────────────────────────────
+
+    private async Task SelectDrug(string ien)
+    {
+        if (selectedDrugIen == ien)
+        {
+            selectedDrugIen = null;
+            selectedDrug = null;
+            return;
+        }
+
+        selectedDrugIen = ien;
+        try
+        {
+            var grain = Grains.GetGrain<IDrugGrain>(ien);
+            DrugState state = await grain.GetDrugAsync();
+            selectedDrug = new DrugDetailResult(new DrugStateResult(
+                state.Ien, state.LocalName, state.VaProductName, state.VaGenericName,
+                state.PrimaryDrugClassCode, state.PrimaryDrugClassName, state.PharmacyType.ToString(),
+                state.IsActive, state.InactivationDate, state.MaxDaysSupply,
+                state.Message, state.LocalMessage, state.CmopDispense,
+                state.ControlledSubstanceSchedule, state.NdcCode, state.DispenseUnit,
+                state.IsNationalFormulary, state.IsLocalNonFormulary,
+                state.PossibleDosages.Select(d => new PossibleDosageResult(d.Dose, d.Unit, d.IsDefault)).ToList(),
+                state.Ingredients.Select(i => new IngredientResult(i.IngredientIen, i.Name, i.Strength, i.StrengthUnit)).ToList()));
+        }
+        catch (Exception ex)
+        {
+            error = $"Failed to load drug detail: {ex.Message}";
+        }
+    }
+
+    private async Task SelectOrderableItem(string ien)
+    {
+        if (selectedOiIen == ien)
+        {
+            selectedOiIen = null;
+            selectedOi = null;
+            return;
+        }
+
+        selectedOiIen = ien;
+        try
+        {
+            var grain = Grains.GetGrain<IPharmacyOrderableItemGrain>(ien);
+            OrderableItemState state = await grain.GetItemAsync();
+            selectedOi = new OiDetailResult(new OrderableItemResult(
+                state.Ien, state.Name, state.PharmacyType.ToString(), state.VaGenericName,
+                state.DosageFormName, state.PrimaryDrugClassCode,
+                state.IsActive, state.InactivationDate, state.IsNationalFormulary,
+                state.OutpatientDefaultDaysSupply, state.OutpatientDefaultQuantity,
+                state.AvailableDosages.Select(d => new OrderableDosageResult(d.Dose, d.Unit, d.Route, d.IsDefault)).ToList(),
+                state.LinkedDrugIens));
+        }
+        catch (Exception ex)
+        {
+            error = $"Failed to load orderable item detail: {ex.Message}";
+        }
+    }
+
+    // ─── Reference data ──────────────────────────────────────────────────────
+
+    private async Task LoadRoutes()
+    {
+        loadingRoutes = true;
+        try
+        {
+            List<MedicationRoute> entries = await GetRouteIndex().GetAllRoutesAsync();
+            routes = entries.Select(e => new MedicationRouteResult(e.Ien, e.Name, e.Abbreviation, e.Vuid, e.IsActive)).ToList();
+        }
+        catch (Exception ex)
+        {
+            error = $"Failed to load routes: {ex.Message}";
+        }
+        finally
+        {
+            loadingRoutes = false;
+        }
+    }
+
+    private async Task LoadDoseUnits()
+    {
+        loadingDoseUnits = true;
+        try
+        {
+            List<DoseUnit> entries = await GetDoseUnitIndex().GetAllUnitsAsync();
+            doseUnits = entries.Select(e => new DoseUnitResult(e.Ien, e.Name, e.Abbreviation, e.IsCounting)).ToList();
+        }
+        catch (Exception ex)
+        {
+            error = $"Failed to load dose units: {ex.Message}";
+        }
+        finally
+        {
+            loadingDoseUnits = false;
+        }
+    }
+
+    // ─── Status & demo load ───────────────────────────────────────────────────
+
+    private async Task CheckStatus()
+    {
+        try
+        {
+            DrugIndexStatus drugStatus = await GetDrugIndex().GetStatusAsync();
+            OrderableItemIndexStatus oiStatus = await GetOiIndex().GetStatusAsync();
+            bool routesLoaded = await GetRouteIndex().IsLoadedAsync();
+            bool doseUnitsLoaded = await GetDoseUnitIndex().IsLoadedAsync();
+
+            indexLoaded = drugStatus.IsLoaded;
+            statusMessage = $"Drug index: {(drugStatus.IsLoaded ? $"{drugStatus.TotalDrugs} drugs loaded" : "not loaded")} | " +
+                            $"OI index: {(oiStatus.IsLoaded ? $"{oiStatus.TotalItems} items" : "not loaded")} | " +
+                            $"Routes: {(routesLoaded ? "ready" : "not loaded")} | " +
+                            $"Dose units: {(doseUnitsLoaded ? "ready" : "not loaded")}";
+            statusClass = "alert-info";
+        }
+        catch
+        {
+            // Suppress status errors during initialization
+        }
+    }
+
+    private async Task LoadDemoData()
+    {
+        loadingDemo = true;
+        error = null;
+        statusMessage = "Demo data loading requires the API server.";
+        statusClass = "alert-info";
+        loadingDemo = false;
+    }
+
+    // ─── Response DTOs (mirroring API models) ─────────────────────────────────
+
+    private record DrugSummaryResult(
+        string Ien, string LocalName, string VaGenericName,
+        string PrimaryDrugClassCode, string PharmacyType,
+        bool IsActive, bool IsNationalFormulary);
+
+    private record DrugDetailResult(DrugStateResult Drug);
+
+    private record DrugStateResult(
+        string Ien, string LocalName, string VaProductName, string VaGenericName,
+        string PrimaryDrugClassCode, string PrimaryDrugClassName, string PharmacyType,
+        bool IsActive, DateTime? InactivationDate, int? MaxDaysSupply,
+        string? Message, string? LocalMessage, int CmopDispense,
+        string? ControlledSubstanceSchedule, string? NdcCode, string? DispenseUnit,
+        bool IsNationalFormulary, bool IsLocalNonFormulary,
+        List<PossibleDosageResult> PossibleDosages, List<IngredientResult> Ingredients);
+
+    private record PossibleDosageResult(string Dose, string Unit, bool IsDefault);
+    private record IngredientResult(string IngredientIen, string Name, string Strength, string StrengthUnit);
+
+    private record OiSummaryResult(
+        string Ien, string Name, string VaGenericName,
+        string PrimaryDrugClassCode, string PharmacyType,
+        bool IsActive, bool IsNationalFormulary);
+
+    private record OiDetailResult(OrderableItemResult Item);
+
+    private record OrderableItemResult(
+        string Ien, string Name, string PharmacyType, string VaGenericName,
+        string DosageFormName, string PrimaryDrugClassCode,
+        bool IsActive, DateTime? InactivationDate, bool IsNationalFormulary,
+        int? OutpatientDefaultDaysSupply, decimal? OutpatientDefaultQuantity,
+        List<OrderableDosageResult> AvailableDosages, List<string> LinkedDrugIens);
+
+    private record OrderableDosageResult(string Dose, string Unit, string? Route, bool IsDefault);
+
+    private record MedicationRouteResult(string Ien, string Name, string? Abbreviation, string Vuid, bool IsActive);
+    private record DoseUnitResult(string Ien, string Name, string Abbreviation, bool IsCounting);
+
+    private record DrugFileStatusResult(
+        bool DrugIndexLoaded, int TotalDrugs, DateTime? DrugIndexLastLoaded,
+        bool OiIndexLoaded, int TotalOrderableItems, DateTime? OiIndexLastLoaded,
+        bool RoutesLoaded, bool DoseUnitsLoaded);
+}

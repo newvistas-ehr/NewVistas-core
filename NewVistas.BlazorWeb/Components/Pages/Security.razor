@@ -1,0 +1,356 @@
+@page "/security"
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+@rendermode InteractiveServer
+@using NewVistas.BlazorWeb.Services
+@using NewVistas.Abstractions.GrainInterfaces
+@using NewVistas.Abstractions.GrainStates
+@inject OrleansGrainService Grains
+
+<PageTitle>Security</PageTitle>
+<h1>Patient Access Control</h1>
+
+<div class="lookup-bar">
+    <input type="text" @bind="patientId" @bind:event="oninput" @onkeydown="HandleKeyDown" placeholder="Patient ID" class="lookup-input" />
+    <button @onclick="Load" disabled="@(string.IsNullOrWhiteSpace(patientId) || loading)" class="btn btn-primary">
+        @if (loading) { <span>Loading...</span> } else { <span>Load</span> }
+    </button>
+</div>
+
+@if (error != null) { <div class="alert alert-error">@error</div> }
+@if (success != null) { <div class="alert alert-success">@success</div> }
+
+@if (accessState != null)
+{
+    <div class="tab-bar">
+        <button class="tab @(activeTab == "sensitivity" ? "tab-active" : "")" @onclick='() => activeTab = "sensitivity"'>Patient Sensitivity</button>
+        <button class="tab @(activeTab == "log" ? "tab-active" : "")" @onclick='() => activeTab = "log"'>Access Log</button>
+        <button class="tab @(activeTab == "providers" ? "tab-active" : "")" @onclick='() => activeTab = "providers"'>Authorized Providers</button>
+    </div>
+}
+
+@* ── Tab 1: Patient Sensitivity ── *@
+@if (activeTab == "sensitivity" && accessState != null)
+{
+    <div class="section-card">
+        <h3>Sensitivity Status</h3>
+        <div class="status-row">
+            <span class="label">Sensitive Record:</span>
+            <span class="badge @(accessState.IsSensitive ? "badge-sensitive" : "badge-normal")">
+                @(accessState.IsSensitive ? "YES - SENSITIVE" : "NOT SENSITIVE")
+            </span>
+        </div>
+        @if (accessState.IsSensitive)
+        {
+            <div class="status-row">
+                <span class="label">Level:</span>
+                <span>@accessState.SensitivityLevel</span>
+            </div>
+            <div class="status-row">
+                <span class="label">Categories:</span>
+                <span>@(accessState.SensitivityCategories.Count > 0 ? string.Join(", ", accessState.SensitivityCategories) : "None")</span>
+            </div>
+        }
+
+        <h4>Update Sensitivity</h4>
+        <div class="form-grid">
+            <div class="form-row">
+                <label>Sensitive</label>
+                <select value="@editSensitiveValue" @onchange="OnSensitiveChanged">
+                    <option value="false">No</option>
+                    <option value="true">Yes</option>
+                </select>
+            </div>
+            <div class="form-row">
+                <label>Level</label>
+                <select @bind="editLevel">
+                    <option value="STANDARD">STANDARD</option>
+                    <option value="ELEVATED">ELEVATED</option>
+                    <option value="HIGH">HIGH</option>
+                </select>
+            </div>
+            <div class="form-row">
+                <label>Categories (comma-separated)</label>
+                <input type="text" @bind="editCategories" placeholder="HIV, SUBSTANCE_ABUSE, BEHAVIORAL, EMPLOYEE" />
+            </div>
+        </div>
+        <div class="form-actions">
+            <button @onclick="UpdateSensitivity" disabled="@saving" class="btn btn-primary">
+                @(saving ? "Saving..." : "Update Sensitivity")
+            </button>
+        </div>
+    </div>
+}
+
+@* ── Tab 2: Access Log ── *@
+@if (activeTab == "log" && accessState != null)
+{
+    <div class="section-card">
+        <h3>Access Audit Trail</h3>
+        @if (accessLog == null || accessLog.Count == 0)
+        {
+            <div class="empty-state">No access events recorded.</div>
+        }
+        else
+        {
+            <div class="results-header">@accessLog.Count event(s)</div>
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Date/Time</th>
+                        <th>User</th>
+                        <th>Reason</th>
+                        <th>BTG</th>
+                        <th>Justification</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var entry in accessLog)
+                    {
+                        <tr class="@(entry.WasBreakTheGlass ? "btg-row" : "")">
+                            <td class="date-cell">@entry.AccessDateTime.ToString("MM/dd/yyyy HH:mm:ss")</td>
+                            <td>@entry.UserName (@entry.UserId)</td>
+                            <td>@entry.AccessReason</td>
+                            <td>@(entry.WasBreakTheGlass ? "YES" : "---")</td>
+                            <td>@(entry.JustificationText ?? "---")</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        }
+
+        <h4>Record Break-the-Glass Access</h4>
+        <div class="form-grid">
+            <div class="form-row"><label>User ID</label><input type="text" @bind="btgUserId" placeholder="User ID" /></div>
+            <div class="form-row"><label>User Name</label><input type="text" @bind="btgUserName" placeholder="User Name" /></div>
+            <div class="form-row full"><label>Justification</label><textarea @bind="btgJustification" rows="2" placeholder="Reason for accessing this sensitive record"></textarea></div>
+        </div>
+        <div class="form-actions">
+            <button @onclick="RecordBtg" disabled="@saving" class="btn btn-warning">
+                @(saving ? "Recording..." : "Record BTG Access")
+            </button>
+        </div>
+    </div>
+}
+
+@* ── Tab 3: Authorized Providers ── *@
+@if (activeTab == "providers" && accessState != null)
+{
+    <div class="section-card">
+        <h3>Authorized Providers (Treating Team)</h3>
+        @if (accessState.AuthorizedProviderIds.Count == 0)
+        {
+            <div class="empty-state">No authorized providers configured.</div>
+        }
+        else
+        {
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Provider ID</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var pid in accessState.AuthorizedProviderIds)
+                    {
+                        <tr>
+                            <td>@pid</td>
+                            <td><button @onclick="() => RemoveProvider(pid)" class="btn btn-danger btn-sm">Remove</button></td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        }
+
+        <h4>Add Authorized Provider</h4>
+        <div class="form-row" style="max-width:400px;">
+            <label>Provider ID</label>
+            <input type="text" @bind="newProviderId" placeholder="Provider ID" />
+        </div>
+        <div class="form-actions">
+            <button @onclick="AddProvider" disabled="@(string.IsNullOrWhiteSpace(newProviderId) || saving)" class="btn btn-primary">
+                @(saving ? "Adding..." : "Add Provider")
+            </button>
+        </div>
+    </div>
+}
+
+@code {
+    [SupplyParameterFromQuery] public string? patientId { get; set; }
+
+    private PatientAccessControlState? accessState;
+    private List<PatientAccessLog>? accessLog;
+    private bool loading, saving;
+    private string? error, success;
+    private string activeTab = "sensitivity";
+
+    // Sensitivity form
+    private bool editSensitive;
+    private string editSensitiveValue => editSensitive ? "true" : "false";
+    private string editLevel = "STANDARD";
+    private string editCategories = "";
+
+    private void OnSensitiveChanged(ChangeEventArgs e)
+    {
+        editSensitive = e.Value?.ToString() == "true";
+    }
+
+    // BTG form
+    private string btgUserId = "";
+    private string btgUserName = "";
+    private string btgJustification = "";
+
+    // Provider form
+    private string newProviderId = "";
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (!string.IsNullOrWhiteSpace(patientId)) await Load();
+    }
+
+    private async Task HandleKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter") await Load();
+    }
+
+    private async Task Load()
+    {
+        if (string.IsNullOrWhiteSpace(patientId)) return;
+        loading = true; error = null; success = null;
+        try
+        {
+            var grain = Grains.GetGrain<IPatientAccessControlGrain>($"PAC:{patientId.Trim()}");
+            accessState = await grain.GetAccessControlAsync();
+            accessLog = await grain.GetAccessLogAsync();
+
+            if (accessState != null)
+            {
+                editSensitive = accessState.IsSensitive;
+                editLevel = string.IsNullOrEmpty(accessState.SensitivityLevel) ? "STANDARD" : accessState.SensitivityLevel;
+                editCategories = string.Join(", ", accessState.SensitivityCategories);
+            }
+        }
+        catch (Exception ex) { error = $"Error loading data: {ex.Message}"; }
+        finally { loading = false; }
+    }
+
+    private async Task UpdateSensitivity()
+    {
+        saving = true; error = null; success = null;
+        try
+        {
+            var categories = editCategories.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).ToList();
+            var grain = Grains.GetGrain<IPatientAccessControlGrain>($"PAC:{patientId!.Trim()}");
+            await grain.SetSensitivityAsync(editSensitive, editLevel, categories);
+            success = "Sensitivity updated.";
+            await Load();
+        }
+        catch (Exception ex) { error = $"Error: {ex.Message}"; }
+        finally { saving = false; }
+    }
+
+    private async Task RecordBtg()
+    {
+        if (string.IsNullOrWhiteSpace(btgUserId) || string.IsNullOrWhiteSpace(btgJustification))
+        {
+            error = "User ID and justification are required for BTG access.";
+            return;
+        }
+        saving = true; error = null; success = null;
+        try
+        {
+            var grain = Grains.GetGrain<IPatientAccessControlGrain>($"PAC:{patientId!.Trim()}");
+            await grain.RecordAccessAsync(btgUserId, btgUserName, "Break-the-Glass", true, btgJustification);
+            success = "Break-the-glass access recorded.";
+            btgUserId = ""; btgUserName = ""; btgJustification = "";
+            await Load();
+        }
+        catch (Exception ex) { error = $"Error: {ex.Message}"; }
+        finally { saving = false; }
+    }
+
+    private async Task AddProvider()
+    {
+        if (string.IsNullOrWhiteSpace(newProviderId)) return;
+        saving = true; error = null; success = null;
+        try
+        {
+            var grain = Grains.GetGrain<IPatientAccessControlGrain>($"PAC:{patientId!.Trim()}");
+            await grain.AddAuthorizedProviderAsync(newProviderId.Trim());
+            success = $"Provider {newProviderId} added.";
+            newProviderId = "";
+            await Load();
+        }
+        catch (Exception ex) { error = $"Error: {ex.Message}"; }
+        finally { saving = false; }
+    }
+
+    private async Task RemoveProvider(string providerId)
+    {
+        saving = true; error = null; success = null;
+        try
+        {
+            var grain = Grains.GetGrain<IPatientAccessControlGrain>($"PAC:{patientId!.Trim()}");
+            await grain.RemoveAuthorizedProviderAsync(providerId);
+            success = $"Provider {providerId} removed.";
+            await Load();
+        }
+        catch (Exception ex) { error = $"Error: {ex.Message}"; }
+        finally { saving = false; }
+    }
+}
+
+<style>
+    .lookup-bar { display: flex; gap: 0.5rem; margin-bottom: 1.5rem; align-items: center; }
+    .lookup-input { width: 280px; padding: 0.5rem 0.75rem; border: 1px solid #ccc; border-radius: 4px; font-size: 0.9rem; }
+    .btn { padding: 0.5rem 1.25rem; border: none; border-radius: 4px; cursor: pointer; font-size: 0.85rem; }
+    .btn-primary { background: #003f72; color: white; }
+    .btn-primary:hover { background: #002a4e; }
+    .btn-primary:disabled { background: #999; cursor: not-allowed; }
+    .btn-secondary { background: #16a34a; color: white; }
+    .btn-outline { background: white; border: 1px solid #ccc; color: #333; }
+    .btn-outline:hover { background: #f4f6f9; }
+    .btn-warning { background: #d97706; color: white; }
+    .btn-warning:hover { background: #b45309; }
+    .btn-danger { background: #dc2626; color: white; }
+    .btn-danger:hover { background: #b91c1c; }
+    .btn-sm { padding: 0.25rem 0.75rem; font-size: 0.75rem; }
+
+    .alert { padding: 0.75rem 1rem; border-radius: 4px; margin-bottom: 1rem; font-size: 0.85rem; }
+    .alert-error { background: #fde8e8; color: #b91c1c; border: 1px solid #f5c6c6; }
+    .alert-success { background: #dcfce7; color: #166534; border: 1px solid #bbf7d0; }
+
+    .tab-bar { display: flex; gap: 0; margin-bottom: 1.5rem; border-bottom: 2px solid #d4d9e0; }
+    .tab { padding: 0.6rem 1.25rem; background: none; border: none; cursor: pointer; font-size: 0.85rem; color: #666; border-bottom: 2px solid transparent; margin-bottom: -2px; }
+    .tab-active { color: #003f72; font-weight: 600; border-bottom-color: #003f72; }
+    .tab:hover { color: #003f72; }
+
+    .section-card { border: 1px solid #d4d9e0; border-radius: 6px; padding: 1.25rem; margin-bottom: 1.5rem; background: #f9fafb; }
+    .section-card h3 { margin: 0 0 1rem; color: #003f72; }
+    .section-card h4 { margin: 1.5rem 0 0.75rem; color: #003f72; font-size: 0.9rem; border-top: 1px solid #e5e7eb; padding-top: 1rem; }
+
+    .status-row { display: flex; gap: 0.75rem; align-items: center; margin-bottom: 0.5rem; font-size: 0.85rem; }
+    .status-row .label { font-weight: 600; color: #555; min-width: 140px; }
+
+    .badge { padding: 2px 10px; border-radius: 3px; font-size: 0.75rem; font-weight: 600; }
+    .badge-sensitive { background: #fde8e8; color: #b91c1c; border: 1px solid #f5c6c6; }
+    .badge-normal { background: #dcfce7; color: #166534; border: 1px solid #bbf7d0; }
+
+    .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; max-width: 700px; }
+    .form-row { display: flex; flex-direction: column; gap: 0.25rem; }
+    .form-row.full { grid-column: 1 / -1; }
+    .form-row label { font-size: 0.8rem; font-weight: 600; color: #555; }
+    .form-row input, .form-row select { padding: 0.4rem 0.6rem; border: 1px solid #ccc; border-radius: 4px; font-size: 0.85rem; }
+    .form-row textarea { padding: 0.5rem 0.6rem; border: 1px solid #ccc; border-radius: 4px; font-size: 0.85rem; resize: vertical; }
+    .form-actions { display: flex; gap: 0.5rem; margin-top: 0.75rem; }
+
+    .empty-state { color: #999; font-style: italic; padding: 1rem 0; }
+    .results-header { font-size: 0.8rem; color: #666; margin-bottom: 0.5rem; }
+
+    .data-table { width: 100%; border-collapse: collapse; font-size: 0.85rem; border: 1px solid #d4d9e0; }
+    .data-table thead { background: #f4f6f9; }
+    .data-table th { text-align: left; padding: 0.5rem; font-weight: 600; color: #003f72; border-bottom: 2px solid #d4d9e0; font-size: 0.75rem; text-transform: uppercase; }
+    .data-table td { padding: 0.4rem 0.5rem; border-bottom: 1px solid #f0f0f0; }
+    .date-cell { color: #888; font-size: 0.8rem; white-space: nowrap; }
+    .btg-row { background: #fef3c7; }
+</style>

@@ -1,0 +1,89 @@
+@page "/registration-enhanced"
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+@rendermode InteractiveServer
+@using NewVistas.BlazorWeb.Services
+@using NewVistas.Abstractions.GrainInterfaces
+@using NewVistas.Abstractions.GrainStates
+@inject OrleansGrainService Grains
+
+<PageTitle>Registration Enhanced</PageTitle>
+<h3>Registration — Beds, Advance Directives, Identity, Insurance</h3>
+
+<div class="mb-3 d-flex gap-2">
+    <input class="form-control" style="max-width:200px" placeholder="Patient ID" @bind="patientId" @bind:event="oninput" />
+    <input class="form-control" style="max-width:160px" placeholder="Facility" @bind="facilityId" @bind:event="oninput" />
+    <button class="btn btn-primary" @onclick="LoadAll" disabled="@loading">Load</button>
+</div>
+@if (error != null) { <div class="alert alert-danger">@error</div> }
+
+<ul class="nav nav-tabs mb-3">
+    <li class="nav-item"><button class="nav-link @(tab == "beds" ? "active" : "")" @onclick='() => tab = "beds"'>Bed Availability</button></li>
+    <li class="nav-item"><button class="nav-link @(tab == "dir" ? "active" : "")" @onclick='() => tab = "dir"'>Advance Directives</button></li>
+    <li class="nav-item"><button class="nav-link @(tab == "id" ? "active" : "")" @onclick='() => tab = "id"'>Identity</button></li>
+    <li class="nav-item"><button class="nav-link @(tab == "ins" ? "active" : "")" @onclick='() => tab = "ins"'>Insurance</button></li>
+</ul>
+
+@if (tab == "beds")
+{
+    <p class="text-muted">Bed availability for facility: @facilityId</p>
+    @if (beds != null)
+    {
+        <table class="table table-sm table-striped">
+            <thead><tr><th>Bed</th><th>Ward</th><th>Room</th><th>Type</th><th>Status</th><th>Patient</th></tr></thead>
+            <tbody>@foreach (var b in beds) { <tr class="@(b.Status == "AVAILABLE" ? "table-success" : "")"><td>@b.BedId</td><td>@b.WardName</td><td>@b.RoomNumber @b.BedPosition</td><td>@b.BedType</td><td><span class="badge @(b.Status == "AVAILABLE" ? "bg-success" : b.Status == "OCCUPIED" ? "bg-primary" : "bg-warning text-dark")">@b.Status</span></td><td>@(b.PatientName ?? "—")</td></tr> }</tbody>
+        </table>
+    }
+}
+
+@if (tab == "dir" && advDir != null)
+{
+    <div class="card mb-3"><div class="card-header">Code Status: <span class="badge @(advDir.CodeStatus == CodeStatus.FullCode ? "bg-success" : "bg-warning text-dark")">@advDir.CodeStatus</span></div>
+    <div class="card-body">
+        <p><strong>Proxy:</strong> @(advDir.HealthcareProxyName ?? "None") @(advDir.HealthcareProxyPhone ?? "")</p>
+        <p><strong>Documents:</strong> @advDir.Documents.Count on file</p>
+        @foreach (var d in advDir.Documents) { <span class="badge bg-info me-1">@d.DirectiveType (@d.DocumentDate.ToString("MM/dd/yyyy"))</span> }
+        <div class="mt-3 d-flex gap-2">
+            <select class="form-select" style="max-width:200px" @bind="nCode"><option value="@CodeStatus.FullCode">Full Code</option><option value="@CodeStatus.DNR">DNR</option><option value="@CodeStatus.DNI">DNI</option><option value="@CodeStatus.DNR_DNI">DNR/DNI</option><option value="@CodeStatus.ComfortCareOnly">Comfort Care</option></select>
+            <button class="btn btn-sm btn-outline-primary" @onclick="UpdateCode">Update</button>
+            <button class="btn btn-sm btn-outline-success" @onclick="AddLivingWill">+ Living Will</button>
+            <button class="btn btn-sm btn-outline-success" @onclick="AddDnr">+ DNR</button>
+        </div>
+    </div></div>
+}
+
+@if (tab == "id" && identity != null)
+{
+    <div class="card mb-3"><div class="card-header">Identity: <span class="badge @(identity.IsVerified ? "bg-success" : "bg-danger")">@(identity.IsVerified ? "Verified" : "Not Verified")</span> Photo: @(identity.HasPhotoOnFile ? "On File" : "None")</div>
+    <div class="card-body">
+        @if (identity.VerificationHistory.Count > 0) { <table class="table table-sm"><thead><tr><th>Date</th><th>Doc</th><th>#</th><th>Result</th><th>By</th></tr></thead><tbody>@foreach (var v in identity.VerificationHistory) { <tr><td>@v.VerificationDateTime.ToString("MM/dd HH:mm")</td><td>@v.DocumentType</td><td>@(v.DocumentNumber ?? "—")</td><td><span class="badge @(v.Result == IdentityVerificationResult.Verified ? "bg-success" : "bg-warning text-dark")">@v.Result</span></td><td>@v.VerifiedByUserName</td></tr> }</tbody></table> }
+        <div class="d-flex gap-2 mt-2">
+            <select class="form-select" style="max-width:180px" @bind="vType"><option value="@IdentityDocumentType.VaIdCard">VA ID</option><option value="@IdentityDocumentType.DriversLicense">Driver's License</option><option value="@IdentityDocumentType.MilitaryId">Military ID</option><option value="@IdentityDocumentType.Passport">Passport</option></select>
+            <input class="form-control" style="max-width:150px" placeholder="Doc #" @bind="vNum" />
+            <button class="btn btn-sm btn-success" @onclick="VerifyId">Verify</button>
+        </div>
+    </div></div>
+}
+
+@if (tab == "ins" && policies != null)
+{
+    @if (policies.Count > 0) { <table class="table table-sm"><thead><tr><th>Plan</th><th>Subscriber</th><th>Primary</th><th>Active</th></tr></thead><tbody>@foreach (var p in policies) { <tr><td>@p.GroupPlanName</td><td>@p.SubscriberId</td><td>@(p.IsPrimary ? "Yes" : "")</td><td><span class="badge @(p.IsActive ? "bg-success" : "bg-secondary")">@(p.IsActive ? "Active" : "Inactive")</span></td></tr> }</tbody></table> }
+    else { <p class="text-muted">No insurance policies on file.</p> }
+}
+
+@code {
+    private string patientId = string.Empty, facilityId = "FACILITY-1", tab = "beds";
+    private bool loading; private string? error;
+    private List<BedSummaryEntry>? beds;
+    private AdvanceDirectiveState? advDir;
+    private IdentityVerificationState? identity;
+    private List<PersonalPolicyIndexEntry>? policies;
+    private CodeStatus nCode = CodeStatus.FullCode;
+    private IdentityDocumentType vType = IdentityDocumentType.VaIdCard;
+    private string vNum = string.Empty;
+
+    private async Task LoadAll() { loading = true; error = null; try { beds = await Grains.GetGrain<IBedBoardGrain>($"BED-BOARD:{facilityId}").GetAllBedsAsync(); if (!string.IsNullOrWhiteSpace(patientId)) { var wf = Grains.GetGrain<IPatientWorkflowGrain>(patientId.Trim()); advDir = await wf.GetAdvanceDirectivesAsync(); identity = await wf.GetIdentityVerificationAsync(); policies = await wf.GetInsuranceAtRegistrationAsync(); } } catch (Exception ex) { error = ex.Message; } finally { loading = false; } }
+    private async Task UpdateCode() { try { await Grains.GetGrain<IPatientWorkflowGrain>(patientId.Trim()).UpdateCodeStatusAsync(nCode, "REG"); advDir = await Grains.GetGrain<IPatientWorkflowGrain>(patientId.Trim()).GetAdvanceDirectivesAsync(); } catch (Exception ex) { error = ex.Message; } }
+    private async Task AddLivingWill() { try { await Grains.GetGrain<IPatientWorkflowGrain>(patientId.Trim()).AddAdvanceDirectiveDocumentAsync(AdvanceDirectiveType.LivingWill, DateTime.UtcNow, "Patient provided", null, null); advDir = await Grains.GetGrain<IPatientWorkflowGrain>(patientId.Trim()).GetAdvanceDirectivesAsync(); } catch (Exception ex) { error = ex.Message; } }
+    private async Task AddDnr() { try { await Grains.GetGrain<IPatientWorkflowGrain>(patientId.Trim()).AddAdvanceDirectiveDocumentAsync(AdvanceDirectiveType.DoNotResuscitate, DateTime.UtcNow, "Physician order", null, null); advDir = await Grains.GetGrain<IPatientWorkflowGrain>(patientId.Trim()).GetAdvanceDirectivesAsync(); } catch (Exception ex) { error = ex.Message; } }
+    private async Task VerifyId() { try { await Grains.GetGrain<IPatientWorkflowGrain>(patientId.Trim()).RecordIdentityVerificationAsync(vType, vNum, null, null, IdentityVerificationResult.Verified, false, null, null, "REG", "Clerk", null); identity = await Grains.GetGrain<IPatientWorkflowGrain>(patientId.Trim()).GetIdentityVerificationAsync(); } catch (Exception ex) { error = ex.Message; } }
+}

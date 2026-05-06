@@ -1,0 +1,28 @@
+<UserControl x:Class="NewVistas.Wpf_UI.Views.VoluntaryServiceView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <ScrollViewer VerticalScrollBarVisibility="Auto">
+        <StackPanel Margin="24">
+            <TextBlock Style="{StaticResource PageTitle}" Text="Voluntary Service"/>
+            <TextBlock Style="{StaticResource ErrorText}" Text="{Binding Error}"
+                       Visibility="{Binding Error, Converter={StaticResource NullToVisibility}}"/>
+            <StackPanel Orientation="Horizontal" Margin="0,0,0,12" VerticalAlignment="Center">
+                <TextBlock Style="{StaticResource FieldLabel}" Text="Search:" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                <TextBox Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}" Width="200" Margin="0,0,8,0"/>
+                <Button Content="Load Volunteers" Style="{StaticResource PrimaryButton}"
+                        Command="{Binding LoadCommand}" Margin="0,0,8,0"/>
+                <ProgressBar IsIndeterminate="True" Width="120" Height="20"
+                             Visibility="{Binding IsLoading, Converter={StaticResource BoolToVisibility}}"/>
+            </StackPanel>
+            <DataGrid ItemsSource="{Binding Volunteers}" SelectedItem="{Binding SelectedVolunteer}" AutoGenerateColumns="False">
+                <DataGrid.Columns>
+                    <DataGridTextColumn Header="Name" Binding="{Binding VolunteerName}" Width="*"/>
+                    <DataGridTextColumn Header="Status" Binding="{Binding Status}" Width="110"/>
+                    <DataGridTextColumn Header="Primary Service" Binding="{Binding PrimaryServiceType}" Width="160"/>
+                    <DataGridTextColumn Header="Total Hours" Binding="{Binding TotalHours}" Width="100"/>
+                    <DataGridTextColumn Header="Since" Binding="{Binding StartDate, StringFormat=d}" Width="110"/>
+                </DataGrid.Columns>
+            </DataGrid>
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>

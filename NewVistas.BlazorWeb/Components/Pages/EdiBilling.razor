@@ -1,0 +1,789 @@
+@page "/edi-billing"
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+@rendermode InteractiveServer
+@using NewVistas.BlazorWeb.Services
+@using NewVistas.Abstractions.GrainInterfaces
+@using NewVistas.Abstractions.GrainStates
+@inject OrleansGrainService Grains
+
+<div class="page-header">
+    <h1>EDI / Electronic Billing</h1>
+    <p class="page-subtitle">X12 837 Claims · Transmission Batches · 835 Remittances</p>
+</div>
+
+@if (error != null)
+{
+    <div class="alert alert-danger">@error</div>
+}
+@if (success != null)
+{
+    <div class="alert alert-success">@success</div>
+}
+
+<div class="tab-bar">
+    <button class="tab-btn @(activeTab == "claims" ? "active" : "")" @onclick='() => SetTab("claims")'>Claims</button>
+    <button class="tab-btn @(activeTab == "transmissions" ? "active" : "")" @onclick='() => SetTab("transmissions")'>Transmissions</button>
+    <button class="tab-btn @(activeTab == "eras" ? "active" : "")" @onclick='() => SetTab("eras")'>Remittances (ERAs)</button>
+</div>
+
+@* ─── Tab 1: Claims ─────────────────────────────────────────────────────────── *@
+@if (activeTab == "claims")
+{
+    <div class="section-card">
+        <h2>Patient Claims</h2>
+        <div class="input-row">
+            <input class="form-input" placeholder="Patient ID" @bind="patientId" />
+            <button class="btn btn-primary" @onclick="LoadPatientClaims" disabled="@(loading || string.IsNullOrWhiteSpace(patientId))">Load</button>
+        </div>
+
+        @if (loading)
+        {
+            <p class="loading-text">Loading...</p>
+        }
+        else if (patientClaims != null && patientClaims.Count == 0)
+        {
+            <p class="empty-text">No EDI claims on file for this patient.</p>
+        }
+        else if (patientClaims != null)
+        {
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Claim ID</th>
+                        <th>Payer</th>
+                        <th>Type</th>
+                        <th>Status</th>
+                        <th>Billed</th>
+                        <th>Paid</th>
+                        <th>Service Date</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var c in patientClaims)
+                    {
+                        <tr>
+                            <td class="mono">@c.ClaimId</td>
+                            <td>@c.PayerName</td>
+                            <td><span class="badge badge-info">@c.ClaimType</span></td>
+                            <td><span class="@ClaimStatusBadge(c.Status)">@c.Status</span></td>
+                            <td>@c.TotalBilledAmount.ToString("C")</td>
+                            <td>@(c.PaidAmount.HasValue ? c.PaidAmount.Value.ToString("C") : "—")</td>
+                            <td>@c.ServiceFromDate.ToString("MM/dd/yyyy")</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        }
+    </div>
+
+    <div class="section-card">
+        <h2>Prepare New Claim</h2>
+        <div class="form-grid">
+            <div class="form-group">
+                <label>Patient ID *</label>
+                <input class="form-input" @bind="newClaim.PatientId" />
+            </div>
+            <div class="form-group">
+                <label>Billing Action ID</label>
+                <input class="form-input" placeholder="IB-ACTION:..." @bind="newClaim.BillingActionId" />
+            </div>
+            <div class="form-group">
+                <label>AR Account ID</label>
+                <input class="form-input" placeholder="AR-ACCOUNT:..." @bind="newClaim.ARAccountId" />
+            </div>
+            <div class="form-group">
+                <label>Insurance Plan ID</label>
+                <input class="form-input" @bind="newClaim.InsurancePlanId" />
+            </div>
+            <div class="form-group">
+                <label>Payer ID *</label>
+                <input class="form-input" @bind="newClaim.PayerId" />
+            </div>
+            <div class="form-group">
+                <label>Payer Name *</label>
+                <input class="form-input" @bind="newClaim.PayerName" />
+            </div>
+            <div class="form-group">
+                <label>Claim Type *</label>
+                <select class="form-input" @bind="newClaim.ClaimType">
+                    <option value="Professional837P">Professional (837P)</option>
+                    <option value="Institutional837I">Institutional (837I)</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Total Billed Amount *</label>
+                <input class="form-input" type="number" step="0.01" @bind="newClaim.TotalBilledAmount" />
+            </div>
+            <div class="form-group">
+                <label>Service From Date *</label>
+                <input class="form-input" type="date" @bind="newClaim.ServiceFromDate" />
+            </div>
+            <div class="form-group">
+                <label>Service To Date</label>
+                <input class="form-input" type="date" @bind="newClaim.ServiceToDate" />
+            </div>
+            <div class="form-group form-group-full">
+                <label>Diagnosis Codes (comma-separated)</label>
+                <input class="form-input" placeholder="Z00.00, J06.9" @bind="newClaim.DiagnosisCodesRaw" />
+            </div>
+            <div class="form-group form-group-full">
+                <label>Notes</label>
+                <textarea class="form-input" rows="2" @bind="newClaim.Notes"></textarea>
+            </div>
+        </div>
+        <div class="form-actions">
+            <button class="btn btn-primary" @onclick="PrepareClaim" disabled="@submitting">
+                @(submitting ? "Preparing..." : "Prepare Claim")
+            </button>
+        </div>
+    </div>
+}
+
+@* ─── Tab 2: Transmissions ──────────────────────────────────────────────────── *@
+@if (activeTab == "transmissions")
+{
+    <div class="section-card">
+        <div class="section-header-row">
+            <h2>Open Transmissions</h2>
+            <button class="btn btn-secondary btn-sm" @onclick="LoadTransmissions">Refresh</button>
+        </div>
+
+        @if (openTransmissions == null || openTransmissions.Count == 0)
+        {
+            <p class="empty-text">No open transmission batches.</p>
+        }
+        else
+        {
+            @foreach (var tx in openTransmissions)
+            {
+                <div class="tx-card @(selectedTxId == tx.TransmissionId ? "tx-card-selected" : "")">
+                    <div class="tx-header" @onclick="() => SelectTransmission(tx.TransmissionId)">
+                        <div>
+                            <strong>@tx.BatchNumber</strong>
+                            <span class="text-muted"> — @tx.PayerName</span>
+                        </div>
+                        <div>
+                            <span class="badge badge-warning">@tx.Status</span>
+                            <span class="text-muted ms-2">@tx.TotalClaims claims · @tx.TotalBilledAmount.ToString("C")</span>
+                        </div>
+                    </div>
+
+                    @if (selectedTxId == tx.TransmissionId)
+                    {
+                        <div class="tx-actions">
+                            <div class="action-panel">
+                                <strong>Add Claim</strong>
+                                <div class="input-row">
+                                    <input class="form-input" placeholder="Claim ID" @bind="addClaimReq.ClaimId" />
+                                    <input class="form-input" placeholder="Patient ID" @bind="addClaimReq.PatientId" />
+                                    <input class="form-input" type="number" step="0.01" placeholder="Billed Amount" @bind="addClaimReq.TotalBilledAmount" />
+                                    <select class="form-input" @bind="addClaimReq.ClaimType">
+                                        <option value="Professional837P">Professional</option>
+                                        <option value="Institutional837I">Institutional</option>
+                                    </select>
+                                    <button class="btn btn-primary btn-sm" @onclick="() => AddClaimToTx(tx.TransmissionId)">Add</button>
+                                </div>
+                            </div>
+                            <div class="action-panel">
+                                <button class="btn btn-success btn-sm" @onclick="() => SendTx(tx.TransmissionId)">Send Batch</button>
+                            </div>
+                            <div class="action-panel">
+                                <strong>Record Acknowledgment</strong>
+                                <div class="input-row">
+                                    <input class="form-input" placeholder="Ack Code (e.g. A)" @bind="ackReq.AcknowledgmentCode" />
+                                    <input class="form-input" type="number" placeholder="Accepted" @bind="ackReq.AcceptedCount" />
+                                    <input class="form-input" type="number" placeholder="Rejected" @bind="ackReq.RejectedCount" />
+                                    <input class="form-input" type="date" @bind="ackReq.AcknowledgedDate" />
+                                    <button class="btn btn-primary btn-sm" @onclick="() => AcknowledgeTx(tx.TransmissionId)">Submit</button>
+                                </div>
+                            </div>
+                        </div>
+                    }
+                </div>
+            }
+        }
+    </div>
+
+    <div class="section-card">
+        <h2>All Transmissions</h2>
+        @if (allTransmissions == null || allTransmissions.Count == 0)
+        {
+            <p class="empty-text">No transmission batches found.</p>
+        }
+        else
+        {
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Batch #</th>
+                        <th>Payer</th>
+                        <th>Status</th>
+                        <th>Claims</th>
+                        <th>Total Billed</th>
+                        <th>Sent</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var tx in allTransmissions)
+                    {
+                        <tr>
+                            <td class="mono">@tx.BatchNumber</td>
+                            <td>@tx.PayerName</td>
+                            <td><span class="@TxStatusBadge(tx.Status)">@tx.Status</span></td>
+                            <td>@tx.TotalClaims</td>
+                            <td>@tx.TotalBilledAmount.ToString("C")</td>
+                            <td>@(tx.SentDate.HasValue ? tx.SentDate.Value.ToString("MM/dd/yyyy") : "—")</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        }
+    </div>
+
+    <div class="section-card">
+        <h2>Open New Transmission Batch</h2>
+        <div class="form-grid">
+            <div class="form-group">
+                <label>Payer ID *</label>
+                <input class="form-input" @bind="newTx.PayerId" />
+            </div>
+            <div class="form-group">
+                <label>Payer Name *</label>
+                <input class="form-input" @bind="newTx.PayerName" />
+            </div>
+            <div class="form-group form-group-full">
+                <label>Notes</label>
+                <textarea class="form-input" rows="2" @bind="newTx.Notes"></textarea>
+            </div>
+        </div>
+        <div class="form-actions">
+            <button class="btn btn-primary" @onclick="OpenTransmission" disabled="@submitting">
+                @(submitting ? "Opening..." : "Open Batch")
+            </button>
+        </div>
+    </div>
+}
+
+@* ─── Tab 3: Remittances (ERAs) ─────────────────────────────────────────────── *@
+@if (activeTab == "eras")
+{
+    <div class="section-card">
+        <div class="section-header-row">
+            <h2>ERAs (Electronic Remittance Advices)</h2>
+            <button class="btn btn-secondary btn-sm" @onclick="LoadEras">Refresh</button>
+        </div>
+
+        @if (allEras == null || allEras.Count == 0)
+        {
+            <p class="empty-text">No ERAs recorded.</p>
+        }
+        else
+        {
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>ERA ID</th>
+                        <th>Payer</th>
+                        <th>Payment Date</th>
+                        <th>Total Payment</th>
+                        <th>Claims</th>
+                        <th>Check #</th>
+                        <th>Status</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var era in allEras)
+                    {
+                        <tr>
+                            <td class="mono">@era.EraId</td>
+                            <td>@era.PayerName</td>
+                            <td>@era.PaymentDate.ToString("MM/dd/yyyy")</td>
+                            <td>@era.TotalPaymentAmount.ToString("C")</td>
+                            <td>@era.ClaimCount</td>
+                            <td>@(era.CheckNumber ?? "—")</td>
+                            <td><span class="@EraStatusBadge(era.Status)">@era.Status</span></td>
+                            <td>
+                                @if (era.Status == "Received")
+                                {
+                                    <button class="btn btn-success btn-sm" @onclick="() => ProcessEra(era.EraId)">Process</button>
+                                }
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        }
+    </div>
+
+    <div class="section-card">
+        <h2>Record Incoming ERA</h2>
+        <div class="form-grid">
+            <div class="form-group">
+                <label>Payer ID *</label>
+                <input class="form-input" @bind="newEra.PayerId" />
+            </div>
+            <div class="form-group">
+                <label>Payer Name *</label>
+                <input class="form-input" @bind="newEra.PayerName" />
+            </div>
+            <div class="form-group">
+                <label>Check / EFT Number</label>
+                <input class="form-input" @bind="newEra.CheckNumber" />
+            </div>
+            <div class="form-group">
+                <label>Payment Method</label>
+                <select class="form-input" @bind="newEra.PaymentMethod">
+                    <option value="">—</option>
+                    <option value="ACH">ACH</option>
+                    <option value="Check">Check</option>
+                    <option value="EFT">EFT</option>
+                    <option value="Virtual Card">Virtual Card</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Payment Date *</label>
+                <input class="form-input" type="date" @bind="newEra.PaymentDate" />
+            </div>
+            <div class="form-group">
+                <label>Total Payment Amount *</label>
+                <input class="form-input" type="number" step="0.01" @bind="newEra.TotalPaymentAmount" />
+            </div>
+            <div class="form-group">
+                <label>Transaction Set ID</label>
+                <input class="form-input" @bind="newEra.TransactionSetId" />
+            </div>
+            <div class="form-group form-group-full">
+                <label>Notes</label>
+                <textarea class="form-input" rows="2" @bind="newEra.Notes"></textarea>
+            </div>
+        </div>
+
+        <div class="subsection">
+            <div class="subsection-header">
+                <strong>Claim Payments</strong>
+                <button class="btn btn-secondary btn-sm" @onclick="AddEraClaimRow">+ Add Claim</button>
+            </div>
+            @foreach (var (cp, i) in newEra.ClaimPayments.Select((cp, i) => (cp, i)))
+            {
+                <div class="claim-payment-row">
+                    <input class="form-input" placeholder="Claim ID" @bind="cp.ClaimId" />
+                    <input class="form-input" placeholder="Patient ID" @bind="cp.PatientId" />
+                    <input class="form-input" placeholder="AR Account ID" @bind="cp.ARAccountId" />
+                    <input class="form-input" type="number" step="0.01" placeholder="Paid Amount" @bind="cp.PaidAmount" />
+                    <input class="form-input" type="number" step="0.01" placeholder="Allowed" @bind="cp.AllowedAmount" />
+                    <input class="form-input" placeholder="Denial Code" @bind="cp.DenialReasonCode" />
+                    <button class="btn btn-danger btn-sm" @onclick="() => RemoveEraClaimRow(i)">✕</button>
+                </div>
+            }
+        </div>
+
+        <div class="form-actions">
+            <button class="btn btn-primary" @onclick="RecordEra" disabled="@submitting">
+                @(submitting ? "Recording..." : "Record ERA")
+            </button>
+        </div>
+    </div>
+}
+
+<style>
+    .page-header { margin-bottom: 1.5rem; }
+    .page-header h1 { font-size: 1.75rem; font-weight: 700; margin: 0; }
+    .page-subtitle { color: #6c757d; margin: 0.25rem 0 0; }
+    .tab-bar { display: flex; gap: 0.5rem; margin-bottom: 1.5rem; border-bottom: 2px solid #dee2e6; padding-bottom: 0; }
+    .tab-btn { padding: 0.5rem 1.25rem; border: none; background: transparent; cursor: pointer; font-size: 0.95rem; color: #495057; border-bottom: 3px solid transparent; margin-bottom: -2px; }
+    .tab-btn.active { color: #0d6efd; border-bottom-color: #0d6efd; font-weight: 600; }
+    .section-card { background: white; border: 1px solid #dee2e6; border-radius: 8px; padding: 1.25rem; margin-bottom: 1.5rem; }
+    .section-card h2 { font-size: 1.1rem; font-weight: 600; margin: 0 0 1rem; }
+    .section-header-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; }
+    .section-header-row h2 { margin: 0; }
+    .input-row { display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap; }
+    .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+    .form-group { display: flex; flex-direction: column; gap: 0.25rem; }
+    .form-group-full { grid-column: 1 / -1; }
+    .form-group label { font-size: 0.85rem; font-weight: 500; color: #495057; }
+    .form-input { padding: 0.4rem 0.75rem; border: 1px solid #ced4da; border-radius: 4px; font-size: 0.9rem; }
+    .form-actions { margin-top: 1rem; }
+    .data-table { width: 100%; border-collapse: collapse; font-size: 0.875rem; }
+    .data-table th { background: #f8f9fa; padding: 0.5rem 0.75rem; text-align: left; font-weight: 600; border-bottom: 2px solid #dee2e6; }
+    .data-table td { padding: 0.5rem 0.75rem; border-bottom: 1px solid #dee2e6; }
+    .data-table tr:hover td { background: #f8f9fa; }
+    .mono { font-family: monospace; font-size: 0.8rem; }
+    .badge { padding: 0.2rem 0.5rem; border-radius: 12px; font-size: 0.75rem; font-weight: 600; }
+    .badge-info { background: #cff4fc; color: #055160; }
+    .badge-success { background: #d1e7dd; color: #0a3622; }
+    .badge-warning { background: #fff3cd; color: #664d03; }
+    .badge-danger { background: #f8d7da; color: #58151c; }
+    .badge-secondary { background: #e2e3e5; color: #41464b; }
+    .btn { padding: 0.4rem 0.9rem; border: none; border-radius: 4px; cursor: pointer; font-size: 0.875rem; font-weight: 500; }
+    .btn-primary { background: #0d6efd; color: white; }
+    .btn-primary:hover { background: #0b5ed7; }
+    .btn-primary:disabled { background: #6ea8fe; cursor: not-allowed; }
+    .btn-secondary { background: #6c757d; color: white; }
+    .btn-success { background: #198754; color: white; }
+    .btn-danger { background: #dc3545; color: white; }
+    .btn-sm { padding: 0.25rem 0.6rem; font-size: 0.8rem; }
+    .alert { padding: 0.75rem 1rem; border-radius: 6px; margin-bottom: 1rem; }
+    .alert-danger { background: #f8d7da; color: #58151c; border: 1px solid #f5c2c7; }
+    .alert-success { background: #d1e7dd; color: #0a3622; border: 1px solid #badbcc; }
+    .loading-text, .empty-text { color: #6c757d; font-style: italic; padding: 0.5rem 0; }
+    .text-muted { color: #6c757d; }
+    .ms-2 { margin-left: 0.5rem; }
+    .tx-card { border: 1px solid #dee2e6; border-radius: 6px; margin-bottom: 0.75rem; overflow: hidden; }
+    .tx-card-selected { border-color: #0d6efd; }
+    .tx-header { padding: 0.75rem 1rem; cursor: pointer; display: flex; justify-content: space-between; align-items: center; }
+    .tx-header:hover { background: #f8f9fa; }
+    .tx-actions { padding: 0.75rem 1rem; border-top: 1px solid #dee2e6; background: #f8f9fa; display: flex; flex-direction: column; gap: 0.75rem; }
+    .action-panel { display: flex; flex-direction: column; gap: 0.4rem; }
+    .subsection { margin-top: 1rem; }
+    .subsection-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem; }
+    .claim-payment-row { display: flex; gap: 0.4rem; align-items: center; margin-bottom: 0.4rem; flex-wrap: wrap; }
+</style>
+
+@code {
+    string activeTab = "claims";
+    string? error;
+    string? success;
+    bool loading;
+    bool submitting;
+
+    // Claims tab
+    string patientId = string.Empty;
+    List<EdiClaimIndexDto>? patientClaims;
+    PrepareClaimForm newClaim = new();
+
+    // Transmissions tab
+    List<EdiTransmissionIndexDto>? openTransmissions;
+    List<EdiTransmissionIndexDto>? allTransmissions;
+    string? selectedTxId;
+    OpenTransmissionForm newTx = new();
+    AddClaimForm addClaimReq = new();
+    AckForm ackReq = new();
+
+    // ERAs tab
+    List<EraIndexDto>? allEras;
+    RecordEraForm newEra = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadTransmissions();
+        await LoadEras();
+    }
+
+    void SetTab(string tab)
+    {
+        activeTab = tab;
+        error = null;
+        success = null;
+    }
+
+    string ClaimStatusBadge(string status) => status switch
+    {
+        "Paid" => "badge badge-success",
+        "Draft" => "badge badge-secondary",
+        "Denied" => "badge badge-danger",
+        "Rejected" => "badge badge-danger",
+        "PartiallyPaid" => "badge badge-warning",
+        _ => "badge badge-info",
+    };
+
+    string TxStatusBadge(string status) => status switch
+    {
+        "Accepted" => "badge badge-success",
+        "Open" => "badge badge-warning",
+        "Rejected" => "badge badge-danger",
+        "PartiallyAccepted" => "badge badge-warning",
+        _ => "badge badge-info",
+    };
+
+    string EraStatusBadge(string status) => status switch
+    {
+        "Posted" => "badge badge-success",
+        "Received" => "badge badge-warning",
+        "Error" => "badge badge-danger",
+        _ => "badge badge-secondary",
+    };
+
+    // ─── Claims ──────────────────────────────────────────────────────────────────
+
+    async Task LoadPatientClaims()
+    {
+        loading = true;
+        error = null;
+        try
+        {
+            var claimIdx = Grains.GetGrain<IEdiClaimIndexGrain>($"EDI-CLAIM-IDX:{patientId.Trim()}");
+            List<EdiClaimIndexEntry> entries = await claimIdx.GetAllAsync();
+            patientClaims = entries.Select(e => new EdiClaimIndexDto(
+                e.ClaimId, e.PatientId, e.PayerName, e.ClaimType,
+                e.Status, e.TotalBilledAmount, e.PaidAmount, e.ServiceFromDate)).ToList();
+        }
+        catch (Exception ex)
+        {
+            error = $"Error loading claims: {ex.Message}";
+        }
+        finally { loading = false; }
+    }
+
+    async Task PrepareClaim()
+    {
+        if (string.IsNullOrWhiteSpace(newClaim.PatientId) || string.IsNullOrWhiteSpace(newClaim.PayerId) || string.IsNullOrWhiteSpace(newClaim.PayerName))
+        {
+            error = "Patient ID, Payer ID, and Payer Name are required.";
+            return;
+        }
+        submitting = true;
+        error = null;
+        success = null;
+        try
+        {
+            var diagnosisCodes = string.IsNullOrWhiteSpace(newClaim.DiagnosisCodesRaw)
+                ? new List<string>()
+                : newClaim.DiagnosisCodesRaw.Split(',').Select(d => d.Trim()).Where(d => d.Length > 0).ToList();
+
+            string claimId = Guid.NewGuid().ToString();
+            var claimGrain = Grains.GetGrain<IEdiClaimGrain>($"EDI-CLAIM:{claimId}");
+            EdiClaimType claimType = Enum.TryParse<EdiClaimType>(newClaim.ClaimType, out var ct) ? ct : EdiClaimType.Professional837P;
+            await claimGrain.PrepareAsync(newClaim.PatientId, newClaim.BillingActionId, newClaim.ARAccountId,
+                newClaim.InsurancePlanId, newClaim.PolicyId, newClaim.PayerId, newClaim.PayerName,
+                claimType, newClaim.TotalBilledAmount, diagnosisCodes, new List<EdiServiceLine>(),
+                newClaim.ServiceFromDate, newClaim.ServiceToDate, newClaim.Notes);
+            success = "Claim prepared successfully.";
+            newClaim = new();
+            if (!string.IsNullOrWhiteSpace(patientId))
+                await LoadPatientClaims();
+        }
+        catch (Exception ex) { error = $"Error: {ex.Message}"; }
+        finally { submitting = false; }
+    }
+
+    // ─── Transmissions ───────────────────────────────────────────────────────────
+
+    async Task LoadTransmissions()
+    {
+        try
+        {
+            var txIdx = Grains.GetGrain<IEdiTransmissionIndexGrain>("EDI-TX-IDX");
+            List<EdiTransmissionIndexEntry> entries = await txIdx.GetAllAsync();
+            allTransmissions = entries.Select(e => new EdiTransmissionIndexDto(
+                e.TransmissionId, e.BatchNumber, e.PayerName,
+                e.Status, e.TotalClaims, e.TotalBilledAmount, e.SentDate)).ToList();
+            openTransmissions = allTransmissions?.Where(t => t.Status == "Open").ToList();
+        }
+        catch (Exception ex) { error = $"Error loading transmissions: {ex.Message}"; }
+    }
+
+    void SelectTransmission(string txId)
+        => selectedTxId = selectedTxId == txId ? null : txId;
+
+    async Task AddClaimToTx(string txId)
+    {
+        if (string.IsNullOrWhiteSpace(addClaimReq.ClaimId)) return;
+        submitting = true;
+        error = null;
+        try
+        {
+            string grainKey = txId.StartsWith("EDI-TX:") ? txId : $"EDI-TX:{txId}";
+            var txGrain = Grains.GetGrain<IEdiTransmissionGrain>(grainKey);
+            await txGrain.AddClaimAsync(addClaimReq.ClaimId, addClaimReq.PatientId, addClaimReq.TotalBilledAmount, addClaimReq.ClaimType);
+            success = "Claim added to transmission."; addClaimReq = new(); await LoadTransmissions();
+        }
+        catch (Exception ex) { error = ex.Message; }
+        finally { submitting = false; }
+    }
+
+    async Task SendTx(string txId)
+    {
+        submitting = true;
+        error = null;
+        try
+        {
+            string grainKey = txId.StartsWith("EDI-TX:") ? txId : $"EDI-TX:{txId}";
+            var txGrain = Grains.GetGrain<IEdiTransmissionGrain>(grainKey);
+            await txGrain.SendAsync(DateTime.UtcNow);
+            success = "Transmission sent."; await LoadTransmissions(); selectedTxId = null;
+        }
+        catch (Exception ex) { error = ex.Message; }
+        finally { submitting = false; }
+    }
+
+    async Task AcknowledgeTx(string txId)
+    {
+        submitting = true;
+        error = null;
+        try
+        {
+            string grainKey = txId.StartsWith("EDI-TX:") ? txId : $"EDI-TX:{txId}";
+            var txGrain = Grains.GetGrain<IEdiTransmissionGrain>(grainKey);
+            await txGrain.RecordAcknowledgmentAsync(ackReq.AcknowledgmentCode, ackReq.AcceptedCount, ackReq.RejectedCount, ackReq.AcknowledgedDate);
+            success = "Acknowledgment recorded."; ackReq = new(); await LoadTransmissions();
+        }
+        catch (Exception ex) { error = ex.Message; }
+        finally { submitting = false; }
+    }
+
+    async Task OpenTransmission()
+    {
+        if (string.IsNullOrWhiteSpace(newTx.PayerId) || string.IsNullOrWhiteSpace(newTx.PayerName))
+        {
+            error = "Payer ID and Payer Name are required.";
+            return;
+        }
+        submitting = true;
+        error = null;
+        try
+        {
+            string txId = Guid.NewGuid().ToString();
+            string batchNumber = $"TX-{DateTime.UtcNow:yyyyMMdd}-{txId[..8].ToUpperInvariant()}";
+            var txGrain = Grains.GetGrain<IEdiTransmissionGrain>($"EDI-TX:{txId}");
+            await txGrain.OpenAsync(batchNumber, newTx.PayerId, newTx.PayerName, newTx.Notes);
+            success = "Transmission batch opened."; newTx = new(); await LoadTransmissions();
+        }
+        catch (Exception ex) { error = ex.Message; }
+        finally { submitting = false; }
+    }
+
+    // ─── ERAs ────────────────────────────────────────────────────────────────────
+
+    async Task LoadEras()
+    {
+        try
+        {
+            var eraIdx = Grains.GetGrain<IEraIndexGrain>("ERA-IDX");
+            List<EraIndexEntry> entries = await eraIdx.GetAllAsync();
+            allEras = entries.Select(e => new EraIndexDto(
+                e.EraId, e.PayerName, e.PaymentDate,
+                e.TotalPaymentAmount, e.Status, e.ClaimCount, e.CheckNumber)).ToList();
+        }
+        catch (Exception ex) { error = $"Error loading ERAs: {ex.Message}"; }
+    }
+
+    void AddEraClaimRow() => newEra.ClaimPayments.Add(new EraClaimRow());
+
+    void RemoveEraClaimRow(int index) => newEra.ClaimPayments.RemoveAt(index);
+
+    async Task RecordEra()
+    {
+        if (string.IsNullOrWhiteSpace(newEra.PayerId) || string.IsNullOrWhiteSpace(newEra.PayerName))
+        {
+            error = "Payer ID and Payer Name are required.";
+            return;
+        }
+        submitting = true;
+        error = null;
+        try
+        {
+            var claimPayments = newEra.ClaimPayments.Select(cp => new EraClaimPayment
+            {
+                ClaimId = cp.ClaimId,
+                PatientId = cp.PatientId,
+                ARAccountId = string.IsNullOrWhiteSpace(cp.ARAccountId) ? null : cp.ARAccountId,
+                PaidAmount = cp.PaidAmount,
+                AllowedAmount = cp.AllowedAmount == 0 ? null : cp.AllowedAmount,
+                DenialReasonCode = string.IsNullOrWhiteSpace(cp.DenialReasonCode) ? null : cp.DenialReasonCode,
+            }).ToList();
+
+            string eraId = Guid.NewGuid().ToString();
+            var eraGrain = Grains.GetGrain<IEraGrain>($"ERA:{eraId}");
+            await eraGrain.RecordAsync(newEra.PayerId, newEra.PayerName,
+                string.IsNullOrWhiteSpace(newEra.CheckNumber) ? null : newEra.CheckNumber,
+                string.IsNullOrWhiteSpace(newEra.PaymentMethod) ? null : newEra.PaymentMethod,
+                newEra.PaymentDate, newEra.TotalPaymentAmount,
+                string.IsNullOrWhiteSpace(newEra.TransactionSetId) ? null : newEra.TransactionSetId,
+                claimPayments,
+                string.IsNullOrWhiteSpace(newEra.Notes) ? null : newEra.Notes);
+            success = "ERA recorded successfully."; newEra = new(); await LoadEras();
+        }
+        catch (Exception ex) { error = ex.Message; }
+        finally { submitting = false; }
+    }
+
+    async Task ProcessEra(string eraId)
+    {
+        submitting = true;
+        error = null;
+        try
+        {
+            string grainKey = eraId.StartsWith("ERA:") ? eraId : $"ERA:{eraId}";
+            var eraGrain = Grains.GetGrain<IEraGrain>(grainKey);
+            await eraGrain.ProcessAsync();
+            success = $"ERA {eraId} processed."; await LoadEras();
+        }
+        catch (Exception ex) { error = ex.Message; }
+        finally { submitting = false; }
+    }
+
+    // ─── Local DTOs ──────────────────────────────────────────────────────────────
+
+    record EdiClaimIndexDto(string ClaimId, string PatientId, string PayerName, string ClaimType,
+        string Status, decimal TotalBilledAmount, decimal? PaidAmount, DateTime ServiceFromDate);
+
+    record EdiTransmissionIndexDto(string TransmissionId, string BatchNumber, string PayerName,
+        string Status, int TotalClaims, decimal TotalBilledAmount, DateTime? SentDate);
+
+    record EraIndexDto(string EraId, string PayerName, DateTime PaymentDate,
+        decimal TotalPaymentAmount, string Status, int ClaimCount, string? CheckNumber);
+
+    class PrepareClaimForm
+    {
+        public string PatientId { get; set; } = string.Empty;
+        public string? BillingActionId { get; set; }
+        public string? ARAccountId { get; set; }
+        public string? InsurancePlanId { get; set; }
+        public string? PolicyId { get; set; }
+        public string PayerId { get; set; } = string.Empty;
+        public string PayerName { get; set; } = string.Empty;
+        public string ClaimType { get; set; } = "Professional837P";
+        public decimal TotalBilledAmount { get; set; }
+        public DateTime ServiceFromDate { get; set; } = DateTime.Today;
+        public DateTime? ServiceToDate { get; set; }
+        public string? DiagnosisCodesRaw { get; set; }
+        public string? Notes { get; set; }
+    }
+
+    class OpenTransmissionForm
+    {
+        public string PayerId { get; set; } = string.Empty;
+        public string PayerName { get; set; } = string.Empty;
+        public string? Notes { get; set; }
+    }
+
+    class AddClaimForm
+    {
+        public string ClaimId { get; set; } = string.Empty;
+        public string PatientId { get; set; } = string.Empty;
+        public decimal TotalBilledAmount { get; set; }
+        public string ClaimType { get; set; } = "Professional837P";
+    }
+
+    class AckForm
+    {
+        public string AcknowledgmentCode { get; set; } = string.Empty;
+        public int AcceptedCount { get; set; }
+        public int RejectedCount { get; set; }
+        public DateTime AcknowledgedDate { get; set; } = DateTime.Today;
+    }
+
+    class RecordEraForm
+    {
+        public string PayerId { get; set; } = string.Empty;
+        public string PayerName { get; set; } = string.Empty;
+        public string? CheckNumber { get; set; }
+        public string? PaymentMethod { get; set; }
+        public DateTime PaymentDate { get; set; } = DateTime.Today;
+        public decimal TotalPaymentAmount { get; set; }
+        public string? TransactionSetId { get; set; }
+        public string? Notes { get; set; }
+        public List<EraClaimRow> ClaimPayments { get; set; } = new();
+    }
+
+    class EraClaimRow
+    {
+        public string ClaimId { get; set; } = string.Empty;
+        public string PatientId { get; set; } = string.Empty;
+        public string? ARAccountId { get; set; }
+        public decimal PaidAmount { get; set; }
+        public decimal AllowedAmount { get; set; }
+        public string? DenialReasonCode { get; set; }
+    }
+}

@@ -1,0 +1,494 @@
+@page "/pce"
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+@rendermode InteractiveServer
+@using NewVistas.BlazorWeb.Services
+@using NewVistas.Abstractions.GrainInterfaces
+@using NewVistas.Abstractions.GrainStates
+@inject OrleansGrainService Grains
+
+<PageTitle>PCE — Patient Care Encounters</PageTitle>
+
+<h2>Patient Care Encounter (PCE)</h2>
+<p class="subtitle">VistA File #9000010 — encounter visits, diagnoses (V POV), and procedures (V CPT)</p>
+
+<div class="tabs">
+    <button class="@TabClass("visits")" @onclick='() => SetTab("visits")'>Encounter List</button>
+    <button class="@TabClass("detail")" @onclick='() => SetTab("detail")' disabled="@(selectedVisitId == null)">Encounter Detail</button>
+    <button class="@TabClass("new")" @onclick='() => SetTab("new")'>New Encounter</button>
+</div>
+
+@if (!string.IsNullOrEmpty(error))
+{
+    <div class="error">@error</div>
+}
+
+@* ── Encounter List Tab ─────────────────────────────────────────────────────── *@
+@if (activeTab == "visits")
+{
+    <div class="toolbar">
+        <input @bind="patientId" placeholder="Patient ID" class="input-id" />
+        <button @onclick="LoadVisits" disabled="@loading">Load Encounters</button>
+        <button @onclick="LoadDemo" disabled="@loading" class="btn-demo">Load Demo</button>
+    </div>
+
+    @if (loading) { <p>Loading…</p> }
+
+    @if (visits is not null)
+    {
+        <h3>Encounters — @patientId</h3>
+
+        @if (visits.Count == 0)
+        {
+            <p class="empty-msg">No encounters recorded.</p>
+        }
+        else
+        {
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Date/Time</th>
+                        <th>Category</th>
+                        <th>Location</th>
+                        <th>Provider</th>
+                        <th>Dx</th>
+                        <th>CPT</th>
+                        <th>Status</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (VisitSummary v in visits)
+                    {
+                        <tr class="@(selectedVisitId == v.VisitId ? "selected-row" : "")">
+                            <td>@v.VisitDateTime.ToString("MM/dd/yy HH:mm")</td>
+                            <td><span class="badge @CategoryBadge(v.ServiceCategory)">@ServiceCategoryLabel(v.ServiceCategory)</span></td>
+                            <td>@(v.LocationName ?? "—")</td>
+                            <td>@(v.PrimaryProviderName ?? "—")</td>
+                            <td>@v.DiagnosisCount</td>
+                            <td>@v.ProcedureCount</td>
+                            <td><span class="badge @StatusBadge(v.Status)">@v.Status</span></td>
+                            <td>
+                                <button class="btn-sm" @onclick="() => SelectVisit(v.VisitId)">View</button>
+                                @if (v.Status == "OPEN")
+                                {
+                                    <button class="btn-sm btn-checkout" @onclick="() => CheckOut(v.VisitId)" disabled="@loading">Check Out</button>
+                                    <button class="btn-sm btn-cancel" @onclick="() => CancelVisit(v.VisitId)" disabled="@loading">Cancel</button>
+                                }
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        }
+    }
+}
+
+@* ── Encounter Detail Tab ───────────────────────────────────────────────────── *@
+@if (activeTab == "detail" && detail is not null)
+{
+    <div class="detail-header">
+        <div class="detail-meta">
+            <span><b>Visit:</b> @detail.VisitDateTime.ToString("MM/dd/yyyy HH:mm")</span>
+            <span><b>Category:</b> @ServiceCategoryLabel(detail.ServiceCategory)</span>
+            <span><b>Location:</b> @(detail.LocationName ?? "—")</span>
+            <span><b>Provider:</b> @(detail.PrimaryProviderName ?? "—")</span>
+            @if (detail.CheckOutDateTime.HasValue)
+            {
+                <span><b>Checked Out:</b> @detail.CheckOutDateTime.Value.ToString("HH:mm")</span>
+            }
+            <span class="badge @StatusBadge(detail.Status)">@detail.Status</span>
+        </div>
+        @if (!string.IsNullOrEmpty(detail.Comments))
+        {
+            <p class="comments">@detail.Comments</p>
+        }
+    </div>
+
+    <h4>Diagnoses (V POV — #9000010.07)</h4>
+    @if (detail.Diagnoses.Count == 0)
+    {
+        <p class="empty-msg">No diagnoses recorded.</p>
+    }
+    else
+    {
+        <table class="data-table">
+            <thead><tr><th>ICD-10</th><th>Description</th><th>Type</th><th>Provider</th><th>Recorded</th></tr></thead>
+            <tbody>
+                @foreach (DiagnosisRow dx in detail.Diagnoses)
+                {
+                    <tr>
+                        <td><code>@dx.Icd10Code</code></td>
+                        <td>@dx.Description</td>
+                        <td>@(dx.IsPrimary ? "PRIMARY" : "Secondary")</td>
+                        <td>@(dx.ProviderName ?? "—")</td>
+                        <td>@dx.RecordedDateTime.ToString("MM/dd HH:mm")</td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    }
+
+    @if (detail.Status == "OPEN")
+    {
+        <div class="add-panel">
+            <h5>Add Diagnosis</h5>
+            <div class="form-row">
+                <input @bind="newDxCode" placeholder="ICD-10 code (e.g. I10)" class="input-sm" />
+                <input @bind="newDxDesc" placeholder="Description" class="input-wide" />
+                <label><input type="checkbox" @bind="newDxIsPrimary" /> Primary</label>
+                <button @onclick="AddDiagnosis" disabled="@loading">Add</button>
+            </div>
+        </div>
+    }
+
+    <h4>Procedures (V CPT — #9000010.18)</h4>
+    @if (detail.Procedures.Count == 0)
+    {
+        <p class="empty-msg">No procedures recorded.</p>
+    }
+    else
+    {
+        <table class="data-table">
+            <thead><tr><th>CPT</th><th>Description</th><th>Qty</th><th>Modifiers</th><th>Provider</th></tr></thead>
+            <tbody>
+                @foreach (ProcedureRow proc in detail.Procedures)
+                {
+                    <tr>
+                        <td><code>@proc.CptCode</code></td>
+                        <td>@proc.Description</td>
+                        <td>@proc.Quantity</td>
+                        <td>@(proc.Modifiers ?? "—")</td>
+                        <td>@(proc.ProviderName ?? "—")</td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    }
+
+    @if (detail.Status == "OPEN")
+    {
+        <div class="add-panel">
+            <h5>Add Procedure</h5>
+            <div class="form-row">
+                <input @bind="newCptCode" placeholder="CPT code (e.g. 99213)" class="input-sm" />
+                <input @bind="newCptDesc" placeholder="Description" class="input-wide" />
+                <input @bind="newCptQty" type="number" min="1" class="input-qty" />
+                <input @bind="newCptMods" placeholder="Modifiers" class="input-sm" />
+                <button @onclick="AddProcedure" disabled="@loading">Add</button>
+            </div>
+        </div>
+    }
+}
+
+@* ── New Encounter Tab ──────────────────────────────────────────────────────── *@
+@if (activeTab == "new")
+{
+    <div class="form-card">
+        <h3>Create Encounter</h3>
+        <div class="form-grid">
+            <label>Patient ID</label>
+            <input @bind="patientId" placeholder="Patient ID" />
+
+            <label>Visit Date/Time</label>
+            <input @bind="newVisitDateTime" type="datetime-local" />
+
+            <label>Service Category</label>
+            <select @bind="newServiceCategory">
+                <option value="A">A — Ambulatory</option>
+                <option value="T">T — Telecommunications / Telehealth</option>
+                <option value="H">H — Inpatient</option>
+                <option value="C">C — Chart Review</option>
+                <option value="E">E — Event (Historical)</option>
+                <option value="O">O — Occasion of Service</option>
+                <option value="R">R — Nursing Home</option>
+            </select>
+
+            <label>Visit Type</label>
+            <select @bind="newVisitType">
+                <option value="">— select —</option>
+                <option value="NEW">New</option>
+                <option value="ESTABLISHED">Established</option>
+            </select>
+
+            <label>Location ID</label>
+            <input @bind="newLocationId" placeholder="e.g. LOC-PCARE" />
+
+            <label>Location Name</label>
+            <input @bind="newLocationName" placeholder="e.g. Primary Care Clinic" />
+
+            <label>Stop Code</label>
+            <input @bind="newStopCode" placeholder="DSS Stop Code (e.g. 323)" />
+
+            <label>Primary Provider ID</label>
+            <input @bind="newProviderId" placeholder="Provider DUZ" />
+
+            <label>Primary Provider Name</label>
+            <input @bind="newProviderName" placeholder="Provider name" />
+
+            <label>Comments</label>
+            <input @bind="newComments" placeholder="Free-text comments" />
+        </div>
+        <div class="form-actions">
+            <button @onclick="CreateVisit" disabled="@loading" class="btn-primary">Create Encounter</button>
+        </div>
+        @if (!string.IsNullOrEmpty(createSuccess))
+        {
+            <div class="success">Encounter created. Visit ID: <code>@createSuccess</code></div>
+        }
+    </div>
+}
+
+<style>
+    .subtitle { color: #666; margin-top: -0.5rem; margin-bottom: 1rem; font-size: 0.9rem; }
+    .tabs { display: flex; gap: 0.25rem; margin-bottom: 1rem; }
+    .tabs button { padding: 0.4rem 1rem; border: 1px solid #ccc; background: #f5f5f5; cursor: pointer; border-radius: 4px 4px 0 0; }
+    .tabs button.active { background: white; border-bottom-color: white; font-weight: bold; }
+    .tabs button:disabled { opacity: 0.5; cursor: not-allowed; }
+    .toolbar { display: flex; gap: 0.5rem; align-items: center; margin-bottom: 1rem; }
+    .input-id { width: 220px; padding: 0.3rem 0.5rem; }
+    .error { color: darkred; background: #fff0f0; border: 1px solid #fcc; padding: 0.5rem; margin-bottom: 1rem; border-radius: 4px; }
+    .success { color: darkgreen; background: #f0fff0; border: 1px solid #cfc; padding: 0.5rem; margin-top: 0.5rem; border-radius: 4px; }
+    .data-table { width: 100%; border-collapse: collapse; font-size: 0.88rem; }
+    .data-table th { background: #2c5282; color: white; padding: 0.4rem 0.6rem; text-align: left; }
+    .data-table td { padding: 0.35rem 0.6rem; border-bottom: 1px solid #e2e8f0; }
+    .data-table tr:hover td { background: #ebf8ff; }
+    .selected-row td { background: #bee3f8 !important; }
+    .badge { display: inline-block; padding: 0.15rem 0.45rem; border-radius: 3px; font-size: 0.78rem; font-weight: bold; }
+    .badge-open { background: #c6f6d5; color: #22543d; }
+    .badge-out { background: #bee3f8; color: #2c5282; }
+    .badge-cancelled { background: #fed7d7; color: #742a2a; }
+    .badge-amb { background: #c6f6d5; color: #22543d; }
+    .badge-tele { background: #e9d8fd; color: #44337a; }
+    .badge-inp { background: #feebc8; color: #7b341e; }
+    .badge-other { background: #e2e8f0; color: #4a5568; }
+    .btn-sm { padding: 0.2rem 0.5rem; font-size: 0.8rem; cursor: pointer; border: 1px solid #cbd5e0; border-radius: 3px; margin-right: 2px; }
+    .btn-checkout { background: #ebf8ff; }
+    .btn-cancel { background: #fff5f5; }
+    .btn-demo { background: #e9d8fd; border-color: #b794f4; }
+    .btn-primary { background: #2c5282; color: white; border: none; padding: 0.5rem 1.5rem; border-radius: 4px; cursor: pointer; }
+    .empty-msg { color: #718096; font-style: italic; }
+    .detail-header { background: #f7fafc; border: 1px solid #e2e8f0; border-radius: 4px; padding: 1rem; margin-bottom: 1rem; }
+    .detail-meta { display: flex; flex-wrap: wrap; gap: 1rem; }
+    .comments { margin-top: 0.5rem; color: #4a5568; font-style: italic; }
+    .add-panel { background: #f7fafc; border: 1px dashed #90cdf4; border-radius: 4px; padding: 0.75rem; margin: 0.75rem 0; }
+    .add-panel h5 { margin: 0 0 0.5rem; color: #2c5282; }
+    .form-row { display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap; }
+    .input-sm { width: 140px; padding: 0.3rem; }
+    .input-wide { flex: 1; min-width: 200px; padding: 0.3rem; }
+    .input-qty { width: 60px; padding: 0.3rem; }
+    .form-card { max-width: 600px; background: #f7fafc; border: 1px solid #e2e8f0; border-radius: 4px; padding: 1.5rem; }
+    .form-grid { display: grid; grid-template-columns: 160px 1fr; gap: 0.5rem; align-items: center; margin-bottom: 1rem; }
+    .form-grid label { font-weight: 500; color: #4a5568; }
+    .form-grid input, .form-grid select { padding: 0.3rem 0.5rem; border: 1px solid #cbd5e0; border-radius: 3px; }
+    .form-actions { margin-top: 0.5rem; }
+    code { background: #edf2f7; padding: 0.1rem 0.3rem; border-radius: 3px; font-size: 0.85rem; }
+</style>
+
+@code {
+    string activeTab = "visits";
+    string patientId = string.Empty;
+    bool loading;
+    string? error;
+
+    // Encounter list
+    List<VisitSummary>? visits;
+    string? selectedVisitId;
+    VisitDetail? detail;
+
+    // New encounter form
+    DateTime newVisitDateTime = DateTime.Now;
+    string newServiceCategory = "A";
+    string? newVisitType = "ESTABLISHED";
+    string? newLocationId;
+    string? newLocationName;
+    string? newStopCode;
+    string? newProviderId;
+    string? newProviderName;
+    string? newComments;
+    string? createSuccess;
+
+    // Add diagnosis
+    string newDxCode = string.Empty;
+    string newDxDesc = string.Empty;
+    bool newDxIsPrimary;
+
+    // Add procedure
+    string newCptCode = string.Empty;
+    string newCptDesc = string.Empty;
+    int newCptQty = 1;
+    string? newCptMods;
+
+    string TabClass(string tab) => activeTab == tab ? "active" : string.Empty;
+
+    void SetTab(string tab) { activeTab = tab; error = null; }
+
+    string StatusBadge(string status) => status switch
+    {
+        "OPEN" => "badge-open",
+        "CHECKED OUT" => "badge-out",
+        "CANCELLED" => "badge-cancelled",
+        _ => "badge-other"
+    };
+
+    string CategoryBadge(string cat) => cat switch
+    {
+        "A" => "badge-amb",
+        "T" => "badge-tele",
+        "H" => "badge-inp",
+        _ => "badge-other"
+    };
+
+    string ServiceCategoryLabel(string cat) => cat switch
+    {
+        "A" => "Ambulatory",
+        "T" => "Telehealth",
+        "H" => "Inpatient",
+        "C" => "Chart Review",
+        "E" => "Historical",
+        "O" => "Occasion of Svc",
+        "R" => "Nursing Home",
+        _ => cat
+    };
+
+    IPatientWorkflowGrain GetWorkflow() => Grains.GetGrain<IPatientWorkflowGrain>(patientId.Trim());
+
+    async Task LoadVisits()
+    {
+        if (string.IsNullOrWhiteSpace(patientId)) { error = "Patient ID required."; return; }
+        error = null; loading = true; visits = null; selectedVisitId = null; detail = null;
+        try
+        {
+            var entries = await GetWorkflow().GetEncounterListAsync(100);
+            visits = entries.Select(e => new VisitSummary(
+                e.VisitId, e.VisitDateTime, e.ServiceCategory,
+                e.LocationName, e.PrimaryProviderName, e.Status,
+                e.DiagnosisCount, e.ProcedureCount)).ToList();
+        }
+        catch (Exception ex) { error = $"Error: {ex.Message}"; }
+        finally { loading = false; }
+    }
+
+    async Task SelectVisit(string visitId)
+    {
+        selectedVisitId = visitId;
+        error = null; loading = true;
+        try
+        {
+            var state = await GetWorkflow().GetEncounterAsync(visitId);
+            detail = new VisitDetail(
+                state.VisitId, state.PatientId, state.VisitDateTime,
+                state.ServiceCategory, state.LocationId, state.LocationName,
+                state.VisitType, state.StopCode, state.PrimaryProviderName,
+                state.CheckOutDateTime, state.Status, state.CancellationReason,
+                state.Comments,
+                state.Diagnoses.Select(d => new DiagnosisRow(
+                    d.Icd10Code, d.Description, d.IsPrimary, d.ProviderName, d.RecordedDateTime)).ToList(),
+                state.Procedures.Select(p => new ProcedureRow(
+                    p.CptCode, p.Description, p.Quantity, p.Modifiers, p.ProviderName, p.RecordedDateTime)).ToList());
+            activeTab = "detail";
+        }
+        catch (Exception ex) { error = $"Error: {ex.Message}"; }
+        finally { loading = false; }
+    }
+
+    async Task CheckOut(string visitId)
+    {
+        error = null; loading = true;
+        try
+        {
+            await GetWorkflow().CheckOutEncounterAsync(visitId, DateTime.UtcNow);
+            await LoadVisits();
+        }
+        catch (Exception ex) { error = $"Error: {ex.Message}"; }
+        finally { loading = false; }
+    }
+
+    async Task CancelVisit(string visitId)
+    {
+        error = null; loading = true;
+        try
+        {
+            await GetWorkflow().CancelEncounterAsync(visitId, "Cancelled by user");
+            await LoadVisits();
+        }
+        catch (Exception ex) { error = $"Error: {ex.Message}"; }
+        finally { loading = false; }
+    }
+
+    async Task AddDiagnosis()
+    {
+        if (string.IsNullOrWhiteSpace(newDxCode) || selectedVisitId == null) return;
+        error = null; loading = true;
+        try
+        {
+            await GetWorkflow().AddEncounterDiagnosisAsync(
+                selectedVisitId, newDxCode.Trim(), newDxDesc.Trim(), newDxIsPrimary, null, null);
+            newDxCode = string.Empty; newDxDesc = string.Empty; newDxIsPrimary = false;
+            await SelectVisit(selectedVisitId);
+        }
+        catch (Exception ex) { error = $"Error: {ex.Message}"; }
+        finally { loading = false; }
+    }
+
+    async Task AddProcedure()
+    {
+        if (string.IsNullOrWhiteSpace(newCptCode) || selectedVisitId == null) return;
+        error = null; loading = true;
+        try
+        {
+            await GetWorkflow().AddEncounterProcedureAsync(
+                selectedVisitId, newCptCode.Trim(), newCptDesc.Trim(), newCptQty,
+                string.IsNullOrWhiteSpace(newCptMods) ? null : newCptMods, null, null);
+            newCptCode = string.Empty; newCptDesc = string.Empty; newCptQty = 1; newCptMods = null;
+            await SelectVisit(selectedVisitId);
+        }
+        catch (Exception ex) { error = $"Error: {ex.Message}"; }
+        finally { loading = false; }
+    }
+
+    async Task CreateVisit()
+    {
+        if (string.IsNullOrWhiteSpace(patientId)) { error = "Patient ID required."; return; }
+        error = null; createSuccess = null; loading = true;
+        try
+        {
+            createSuccess = await GetWorkflow().CreateEncounterAsync(
+                newVisitDateTime.ToUniversalTime(), newServiceCategory,
+                string.IsNullOrWhiteSpace(newLocationId) ? null : newLocationId,
+                string.IsNullOrWhiteSpace(newLocationName) ? null : newLocationName,
+                string.IsNullOrWhiteSpace(newVisitType) ? null : newVisitType,
+                string.IsNullOrWhiteSpace(newStopCode) ? null : newStopCode,
+                string.IsNullOrWhiteSpace(newProviderId) ? null : newProviderId,
+                string.IsNullOrWhiteSpace(newProviderName) ? null : newProviderName,
+                null,
+                string.IsNullOrWhiteSpace(newComments) ? null : newComments);
+        }
+        catch (Exception ex) { error = $"Error: {ex.Message}"; }
+        finally { loading = false; }
+    }
+
+    async Task LoadDemo()
+    {
+        if (string.IsNullOrWhiteSpace(patientId)) patientId = "PATIENT-DEMO-001";
+        // Demo load requires HTTP as it's a system-level endpoint, not a grain method
+        // For now, just load visits directly
+        await LoadVisits();
+    }
+
+    record VisitSummary(string VisitId, DateTime VisitDateTime, string ServiceCategory,
+        string? LocationName, string? PrimaryProviderName, string Status,
+        int DiagnosisCount, int ProcedureCount);
+
+    record DiagnosisRow(string Icd10Code, string Description, bool IsPrimary,
+        string? ProviderName, DateTime RecordedDateTime);
+
+    record ProcedureRow(string CptCode, string Description, int Quantity,
+        string? Modifiers, string? ProviderName, DateTime RecordedDateTime);
+
+    record VisitDetail(string VisitId, string PatientId, DateTime VisitDateTime,
+        string ServiceCategory, string? LocationId, string? LocationName,
+        string? VisitType, string? StopCode, string? PrimaryProviderName,
+        DateTime? CheckOutDateTime, string Status, string? CancellationReason,
+        string? Comments, List<DiagnosisRow> Diagnoses, List<ProcedureRow> Procedures);
+
+}

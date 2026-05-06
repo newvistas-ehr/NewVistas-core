@@ -1,0 +1,263 @@
+﻿@page "/beneficiary-travel"
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+@rendermode InteractiveServer
+@using NewVistas.BlazorWeb.Services
+@using NewVistas.Abstractions.GrainInterfaces
+@using NewVistas.Abstractions.GrainStates
+@inject OrleansGrainService Grains
+
+<PageTitle>Beneficiary Travel</PageTitle>
+
+<h1>Beneficiary Travel Pay</h1>
+
+@if (error != null) { <div class="alert alert-error">@error</div> }
+@if (successMsg != null) { <div class="alert alert-success">@successMsg</div> }
+
+<div class="patient-selector">
+    <label>Patient ID:</label>
+    <input type="text" @bind="patientId" style="width:200px" />
+    <button class="btn btn-primary" @onclick="LoadClaims">Load</button>
+    <button class="btn btn-demo" @onclick="LoadDemo">Load Demo</button>
+</div>
+
+<div class="tab-bar">
+    <button class="@TabClass(0)" @onclick="async () => { activeTab = 0; await LoadClaims(); }">Claims</button>
+    <button class="@TabClass(1)" @onclick="() => activeTab = 1">File Claim</button>
+</div>
+
+@* ─── Tab 0: Claims List ─────────────────────────────────────────────── *@
+@if (activeTab == 0)
+{
+    <div class="board-actions">
+        <button class="btn btn-primary" @onclick="LoadClaims" disabled="@loading">Refresh</button>
+    </div>
+
+    @if (claims != null)
+    {
+        @if (claims.Count == 0)
+        {
+            <div class="empty-state">No travel claims on file.</div>
+        }
+        else
+        {
+            <table class="data-table">
+                <thead>
+                    <tr><th>Date</th><th>Type</th><th>Destination</th><th>Miles</th><th>Amount</th><th>Status</th><th>Actions</th></tr>
+                </thead>
+                <tbody>
+                    @foreach (var c in claims)
+                    {
+                        <tr>
+                            <td>@c.TravelDate.ToString("MM/dd/yyyy")</td>
+                            <td>@c.ClaimType</td>
+                            <td>@(c.DestinationFacility ?? "—")</td>
+                            <td>@c.TotalMileage</td>
+                            <td class="amount">$@c.NetAmount.ToString("F2")</td>
+                            <td><span class="badge badge-@c.Status.ToLower().Replace("_","")">@c.Status</span></td>
+                            <td class="actions">
+                                @if (c.Status == "PENDING")
+                                {
+                                    <button class="btn-sm" @onclick="() => ApproveClaim(c.ClaimId)">Approve</button>
+                                    <button class="btn-sm btn-dc" @onclick="() => DenyClaim(c.ClaimId)">Deny</button>
+                                }
+                                @if (c.Status == "APPROVED")
+                                {
+                                    <button class="btn-sm" @onclick="() => PayClaim(c.ClaimId)">Pay</button>
+                                }
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        }
+    }
+}
+
+@* ─── Tab 1: File Claim ──────────────────────────────────────────────── *@
+@if (activeTab == 1)
+{
+    <div class="form-card">
+        <h3>File Travel Pay Claim</h3>
+        <div class="form-row"><label>Patient Name</label><input type="text" @bind="newName" /></div>
+        <div class="form-row"><label>Travel Date</label><input type="date" @bind="newDate" /></div>
+        <div class="form-row"><label>One-Way Mileage</label><input type="number" step="0.1" @bind="newMileage" /></div>
+        <div class="form-row">
+            <label>Round Trip</label>
+            <select @bind="newRoundTrip">
+                <option value="true">Yes</option>
+                <option value="false">No</option>
+            </select>
+        </div>
+        <div class="form-row">
+            <label>Transport Mode</label>
+            <select @bind="newTransport">
+                <option value="POV">Privately Owned Vehicle</option>
+                <option value="BUS">Bus</option>
+                <option value="TAXI">Taxi</option>
+                <option value="AIRLINE">Airline</option>
+                <option value="SPECIAL_VAN">Special Van</option>
+            </select>
+        </div>
+        <div class="form-row"><label>Origin Address</label><input type="text" @bind="newOrigin" /></div>
+        <div class="form-row"><label>Destination Facility</label><input type="text" @bind="newDest" /></div>
+        <div class="form-row">
+            <label>Eligibility</label>
+            <select @bind="newElig">
+                <option value="SC">Service Connected</option>
+                <option value="NSC">Non-Service Connected</option>
+                <option value="AO">Agent Orange</option>
+                <option value="POW">Former POW</option>
+            </select>
+        </div>
+        <div class="form-row">
+            <label>Deductible Exempt</label>
+            <select @bind="newExempt">
+                <option value="false">No</option>
+                <option value="true">Yes</option>
+            </select>
+        </div>
+        <button class="btn btn-primary" @onclick="FileClaim"
+                disabled="@(string.IsNullOrWhiteSpace(newName) || newMileage <= 0)">
+            File Claim
+        </button>
+    </div>
+}
+
+@code {
+    private string patientId = "PATIENT-001";
+    private List<ClaimEntryDto>? claims;
+    private bool loading;
+    private string? error, successMsg;
+    private int activeTab;
+
+    private string newName = "", newOrigin = "", newDest = "VA MEDICAL CENTER", newTransport = "POV", newElig = "SC";
+    private DateTime newDate = DateTime.Today;
+    private decimal newMileage = 25.0m;
+    private string newRoundTrip = "true", newExempt = "false";
+
+    protected override async Task OnInitializedAsync() => await LoadClaims();
+
+    private async Task LoadClaims()
+    {
+        activeTab = 0; loading = true; error = null;
+        try
+        {
+            var indexGrain = Grains.GetGrain<IBeneficiaryTravelIndexGrain>($"DGBT-INDEX:{patientId}");
+            List<BeneficiaryTravelClaimEntry> entries = await indexGrain.GetClaimsAsync();
+            claims = entries.Select(e => new ClaimEntryDto
+            {
+                ClaimId = e.ClaimId,
+                TravelDate = e.TravelDate,
+                ClaimType = e.ClaimType,
+                NetAmount = e.NetAmount,
+                Status = e.Status,
+                DestinationFacility = e.DestinationFacility,
+                TotalMileage = e.TotalMileage,
+            }).ToList();
+        }
+        catch (Exception ex) { error = ex.Message; }
+        finally { loading = false; }
+    }
+
+    private async Task FileClaim()
+    {
+        error = null; successMsg = null;
+        try
+        {
+            string claimId = Guid.NewGuid().ToString();
+            var claimGrain = Grains.GetGrain<IBeneficiaryTravelClaimGrain>($"DGBT:{claimId}");
+            await claimGrain.CreateClaimAsync(patientId, newName, newDate, "MILEAGE", newMileage,
+                bool.Parse(newRoundTrip), newTransport, newOrigin, newDest, null, newElig, bool.Parse(newExempt));
+            successMsg = "Claim filed.";
+            activeTab = 0;
+            await LoadClaims();
+        }
+        catch (Exception ex) { error = ex.Message; }
+    }
+
+    private async Task ApproveClaim(string claimId)
+    {
+        try
+        {
+            string grainKey = claimId.StartsWith("DGBT:") ? claimId : $"DGBT:{claimId}";
+            var claimGrain = Grains.GetGrain<IBeneficiaryTravelClaimGrain>(grainKey);
+            await claimGrain.ApproveAsync("CLERK-001");
+            successMsg = "Claim approved.";
+            await LoadClaims();
+        }
+        catch (Exception ex) { error = ex.Message; }
+    }
+
+    private async Task DenyClaim(string claimId)
+    {
+        try
+        {
+            string grainKey = claimId.StartsWith("DGBT:") ? claimId : $"DGBT:{claimId}";
+            var claimGrain = Grains.GetGrain<IBeneficiaryTravelClaimGrain>(grainKey);
+            await claimGrain.DenyAsync("Ineligible", "CLERK-001");
+            await LoadClaims();
+        }
+        catch (Exception ex) { error = ex.Message; }
+    }
+
+    private async Task PayClaim(string claimId)
+    {
+        try
+        {
+            string grainKey = claimId.StartsWith("DGBT:") ? claimId : $"DGBT:{claimId}";
+            var claimGrain = Grains.GetGrain<IBeneficiaryTravelClaimGrain>(grainKey);
+            await claimGrain.RecordPaymentAsync("EFT", DateTime.UtcNow);
+            successMsg = "Payment recorded.";
+            await LoadClaims();
+        }
+        catch (Exception ex) { error = ex.Message; }
+    }
+
+    private async Task LoadDemo()
+    {
+        // Demo data loading not available via direct grain calls - would require seeding
+        successMsg = "Demo load requires API endpoint. Use direct grain calls to create test data.";
+        await Task.CompletedTask;
+    }
+
+    private string TabClass(int tab) => activeTab == tab ? "tab active" : "tab";
+
+    private class ClaimEntryDto { public string ClaimId { get; set; } = ""; public DateTime TravelDate { get; set; } public string ClaimType { get; set; } = ""; public decimal NetAmount { get; set; } public string Status { get; set; } = ""; public string? DestinationFacility { get; set; } public decimal TotalMileage { get; set; } }
+}
+
+<style>
+    .patient-selector { display: flex; align-items: center; gap: 0.5rem; margin-bottom: 1rem; }
+    .patient-selector label { font-weight: 600; font-size: 0.85rem; }
+    .patient-selector input { padding: 0.35rem 0.6rem; border: 1px solid #d1d5db; border-radius: 4px; font-size: 0.85rem; }
+    .tab-bar { display: flex; gap: 0; margin-bottom: 1.5rem; border-bottom: 2px solid #d4d9e0; }
+    .tab { padding: 0.6rem 1.25rem; border: none; background: transparent; cursor: pointer; font-size: 0.85rem; color: #666; border-bottom: 2px solid transparent; margin-bottom: -2px; }
+    .tab.active { color: #003f72; font-weight: 600; border-bottom: 2px solid #003f72; }
+    .btn { padding: 0.5rem 1.25rem; border: none; border-radius: 4px; cursor: pointer; font-size: 0.85rem; }
+    .btn-primary { background: #003f72; color: white; }
+    .btn-demo { background: #059669; color: white; }
+    .btn-sm { padding: 0.2rem 0.5rem; font-size: 0.75rem; border: 1px solid #ccc; border-radius: 3px; cursor: pointer; background: white; }
+    .btn-dc { border-color: #dc2626; color: #dc2626; }
+    .board-actions { display: flex; gap: 0.5rem; margin-bottom: 1rem; }
+    .alert { padding: 0.75rem 1rem; border-radius: 4px; margin-bottom: 1rem; }
+    .alert-error { background: #fde8e8; color: #b91c1c; border: 1px solid #f5c6c6; }
+    .alert-success { background: #d1fae5; color: #065f46; border: 1px solid #a7f3d0; }
+    .empty-state { color: #999; font-style: italic; padding: 2rem 0; }
+    .data-table { width: 100%; border-collapse: collapse; font-size: 0.85rem; border: 1px solid #d4d9e0; }
+    .data-table thead { background: #1e3a5f; color: white; }
+    .data-table th { text-align: left; padding: 0.5rem; font-weight: 600; font-size: 0.75rem; text-transform: uppercase; }
+    .data-table td { padding: 0.4rem 0.5rem; border-bottom: 1px solid #e5e7eb; }
+    .data-table tr:hover { background: #f0f4f8; }
+    .amount { font-weight: 600; color: #065f46; }
+    .actions { white-space: nowrap; display: flex; gap: 0.25rem; }
+    .badge { padding: 0.15rem 0.5rem; border-radius: 10px; font-size: 0.7rem; font-weight: 600; }
+    .badge-pending { background: #fef3c7; color: #92400e; }
+    .badge-approved { background: #e0f2fe; color: #0369a1; }
+    .badge-paid { background: #d1fae5; color: #065f46; }
+    .badge-denied { background: #fde8e8; color: #b91c1c; }
+    .badge-onhold { background: #f3f4f6; color: #374151; }
+    .badge-cancelled { background: #f3f4f6; color: #6b7280; }
+    .form-card { background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 6px; padding: 1.25rem; max-width: 500px; }
+    .form-row { margin-bottom: 0.75rem; }
+    .form-row label { display: block; font-size: 0.8rem; font-weight: 600; color: #374151; margin-bottom: 0.25rem; }
+    .form-row input, .form-row select { width: 100%; padding: 0.4rem 0.6rem; border: 1px solid #d1d5db; border-radius: 4px; font-size: 0.85rem; }
+</style>

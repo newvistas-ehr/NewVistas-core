@@ -1,0 +1,55 @@
+﻿@page "/"
+@rendermode InteractiveServer
+
+<PageTitle>NewVistas — Home</PageTitle>
+
+<h1>NewVistas Clinical Information System</h1>
+
+<p>Welcome to NewVistas — a modern clinical information system built on Microsoft Orleans virtual actor technology, inspired by the VA's VistA EHR.</p>
+
+<div class="home-grid">
+    <div class="home-card">
+        <h3>🔍 Patient Lookup</h3>
+        <p>Search for patients by ID and view their clinical information.</p>
+        <a href="/patient-lookup">Open Patient Lookup</a>
+    </div>
+    <div class="home-card">
+        <h3>📋 Cover Sheet</h3>
+        <p>CPRS-style cover sheet view — problems, meds, allergies, labs, vitals, appointments, and orders at a glance.</p>
+        <a href="/cover-sheet">Open Cover Sheet</a>
+    </div>
+    <div class="home-card">
+        <h3>🔬 Labs</h3>
+        <p>Lab results with time-partitioned batch architecture for efficient access to current and historical results.</p>
+        <a href="/labs">Open Labs</a>
+    </div>
+    <div class="home-card">
+        <h3>📖 ICD-10 Codes</h3>
+        <p>Search and browse ICD-10-CM diagnosis codes. Load codes from the CMS order file.</p>
+        <a href="/icd10">Open ICD-10 Browser</a>
+    </div>
+</div>
+
+<style>
+    .home-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+        gap: 1rem;
+        margin-top: 1.5rem;
+    }
+    .home-card {
+        border: 1px solid #d4d9e0;
+        border-radius: 6px;
+        padding: 1.25rem;
+        background: #f9fafb;
+    }
+    .home-card h3 { margin-bottom: 0.5rem; }
+    .home-card p { margin: 0 0 0.75rem; color: #555; font-size: 0.85rem; }
+    .home-card a {
+        color: #003f72;
+        text-decoration: none;
+        font-weight: 600;
+        font-size: 0.85rem;
+    }
+    .home-card a:hover { text-decoration: underline; }
+</style>

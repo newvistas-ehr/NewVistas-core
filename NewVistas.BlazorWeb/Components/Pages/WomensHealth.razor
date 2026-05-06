@@ -1,0 +1,485 @@
+@page "/womens-health"
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+@rendermode InteractiveServer
+@using NewVistas.BlazorWeb.Services
+@using NewVistas.Abstractions.GrainInterfaces
+@using NewVistas.Abstractions.GrainStates
+@inject OrleansGrainService Grains
+
+<PageTitle>Women's Health</PageTitle>
+<h1>Women's Health</h1>
+<p class="subtitle">VistA File #790 — Mammography, Pap, Contraception, Pregnancy &amp; More</p>
+
+<div class="lookup-bar">
+    <input type="text" @bind="patientId" @bind:event="oninput" @onkeydown="HandleKeyDown"
+           placeholder="Patient ID" class="lookup-input" />
+    <button @onclick="Load" disabled="@(string.IsNullOrWhiteSpace(patientId) || loading)" class="btn btn-primary">
+        @(loading ? "Loading..." : "Load")
+    </button>
+    <button @onclick="ShowAddForm" disabled="@(string.IsNullOrWhiteSpace(patientId))" class="btn btn-secondary">
+        + Add Notification
+    </button>
+</div>
+
+@if (error != null)   { <div class="alert alert-error">@error</div> }
+@if (success != null) { <div class="alert alert-success">@success</div> }
+
+@if (showForm)
+{
+    <div class="entry-form">
+        <h3>New Women's Health Notification</h3>
+        <div class="form-grid">
+            <div class="form-row">
+                <label>Notification Type *</label>
+                <select @bind="f_type" @bind:after="OnTypeChanged">
+                    <option value="0">Mammography</option>
+                    <option value="1">Pap Smear</option>
+                    <option value="2">Contraception</option>
+                    <option value="3">Pregnancy</option>
+                    <option value="4">Breast Health</option>
+                    <option value="5">Menopause / HRT</option>
+                    <option value="6">Follow-Up</option>
+                    <option value="7">Other</option>
+                </select>
+            </div>
+            <div class="form-row">
+                <label>Procedure Date *</label>
+                <input type="datetime-local" @bind="f_procDate" />
+            </div>
+            <div class="form-row">
+                <label>Provider</label>
+                <input type="text" @bind="f_provider" placeholder="Provider name" />
+            </div>
+            <div class="form-row">
+                <label>Location</label>
+                <input type="text" @bind="f_location" placeholder="Clinic / location" />
+            </div>
+
+            @* Mammography / Breast fields *@
+            @if (f_type == "0" || f_type == "4")
+            {
+                <div class="form-row">
+                    <label>Mammography Result</label>
+                    <select @bind="f_mammoResult">
+                        <option value="">— Select —</option>
+                        <option value="0">Unknown</option>
+                        <option value="1">Incomplete (BI-RADS 0)</option>
+                        <option value="2">Normal (BI-RADS 1)</option>
+                        <option value="3">Benign Finding (BI-RADS 2)</option>
+                        <option value="4">Probably Benign (BI-RADS 3)</option>
+                        <option value="5">Suspicious (BI-RADS 4)</option>
+                        <option value="6">Highly Suspicious (BI-RADS 5)</option>
+                        <option value="7">Known Malignancy (BI-RADS 6)</option>
+                    </select>
+                </div>
+                <div class="form-row">
+                    <label>BI-RADS Score (0–6)</label>
+                    <input type="number" @bind="f_birads" min="0" max="6" />
+                </div>
+            }
+
+            @* Pap smear fields *@
+            @if (f_type == "1")
+            {
+                <div class="form-row">
+                    <label>Pap Smear Result</label>
+                    <select @bind="f_papResult">
+                        <option value="">— Select —</option>
+                        <option value="0">Unknown</option>
+                        <option value="1">Satisfactory</option>
+                        <option value="2">Unsatisfactory</option>
+                        <option value="3">Normal</option>
+                        <option value="4">ASCUS</option>
+                        <option value="5">ASC-H</option>
+                        <option value="6">LSIL</option>
+                        <option value="7">HSIL</option>
+                        <option value="8">Adenocarcinoma In Situ</option>
+                        <option value="9">Malignant</option>
+                    </select>
+                </div>
+            }
+
+            @* Contraception fields *@
+            @if (f_type == "2")
+            {
+                <div class="form-row">
+                    <label>Contraceptive Method</label>
+                    <select @bind="f_contraMethod">
+                        <option value="">— Select —</option>
+                        <option>Oral Contraceptives</option>
+                        <option>IUD</option>
+                        <option>Implant</option>
+                        <option>Injection</option>
+                        <option>Patch</option>
+                        <option>Barrier</option>
+                        <option>Natural Family Planning</option>
+                        <option>Sterilization</option>
+                        <option>None</option>
+                    </select>
+                </div>
+            }
+
+            @* Pregnancy fields *@
+            @if (f_type == "3")
+            {
+                <div class="form-row">
+                    <label>Gestational Age (weeks)</label>
+                    <input type="number" @bind="f_gestAge" min="0" max="45" />
+                </div>
+                <div class="form-row">
+                    <label>Estimated Due Date</label>
+                    <input type="date" @bind="f_edd" />
+                </div>
+                <div class="form-row">
+                    <label>Pregnancy Outcome</label>
+                    <select @bind="f_pregnancyOutcome">
+                        <option value="">— Select —</option>
+                        <option>ONGOING</option>
+                        <option>LIVE BIRTH</option>
+                        <option>MISCARRIAGE</option>
+                        <option>STILLBIRTH</option>
+                        <option>TERMINATION</option>
+                    </select>
+                </div>
+            }
+
+            <div class="form-row">
+                <label>Follow-Up Required?</label>
+                <select @bind="f_followUp">
+                    <option value="false">No</option>
+                    <option value="true">Yes</option>
+                </select>
+            </div>
+            @if (f_followUp == "true")
+            {
+                <div class="form-row">
+                    <label>Next Due Date</label>
+                    <input type="date" @bind="f_nextDue" />
+                </div>
+            }
+            <div class="form-row">
+                <label>Patient Refused?</label>
+                <select @bind="f_isRefusal">
+                    <option value="false">No</option>
+                    <option value="true">Yes</option>
+                </select>
+            </div>
+            <div class="form-row full">
+                <label>Notes</label>
+                <textarea @bind="f_notes" rows="2"></textarea>
+            </div>
+        </div>
+        <div class="form-actions">
+            <button @onclick="Submit" disabled="@saving" class="btn btn-primary">@(saving ? "Saving..." : "Save")</button>
+            <button @onclick="() => showForm = false" class="btn btn-outline">Cancel</button>
+        </div>
+    </div>
+}
+
+@if (allNotifications != null)
+{
+    <div class="tab-bar">
+        <button class="tab @(activeTab == "all" ? "tab-active" : "")"     @onclick='() => activeTab = "all"'>
+            All (@allNotifications.Count)
+        </button>
+        <button class="tab @(activeTab == "followup" ? "tab-active" : "")" @onclick='() => activeTab = "followup"'>
+            Follow-Up Required (@followUpItems.Count)
+        </button>
+    </div>
+
+    @if (activeTab == "all")
+    {
+        @if (allNotifications.Count == 0)
+        {
+            <div class="empty-state">No Women's Health notifications found.</div>
+        }
+        else
+        {
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Date</th>
+                        <th>Type</th>
+                        <th>Provider</th>
+                        <th>Status</th>
+                        <th>Follow-Up</th>
+                        <th>Next Due</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (WomensHealthIndexEntry n in allNotifications)
+                    {
+                        <tr class="@(n.FollowUpRequired ? "row-alert" : "")">
+                            <td class="date">@n.ProcedureDate.ToString("MM/dd/yyyy")</td>
+                            <td><span class="type-badge type-@((int)n.NotificationType)">@FormatType((int)n.NotificationType)</span></td>
+                            <td>@(n.ProviderName ?? "—")</td>
+                            <td><span class="badge @StatusClass((int)n.Status)">@FormatStatus((int)n.Status)</span></td>
+                            <td>@(n.FollowUpRequired ? "Yes" : "No")</td>
+                            <td>@(n.NextDueDate.HasValue ? n.NextDueDate.Value.ToString("MM/dd/yyyy") : "—")</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        }
+    }
+
+    @if (activeTab == "followup")
+    {
+        @if (followUpItems.Count == 0)
+        {
+            <div class="empty-state">No outstanding follow-ups.</div>
+        }
+        else
+        {
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Date</th>
+                        <th>Type</th>
+                        <th>Provider</th>
+                        <th>Next Due</th>
+                        <th>Status</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (WomensHealthIndexEntry n in followUpItems)
+                    {
+                        <tr class="row-alert">
+                            <td class="date">@n.ProcedureDate.ToString("MM/dd/yyyy")</td>
+                            <td><span class="type-badge type-@((int)n.NotificationType)">@FormatType((int)n.NotificationType)</span></td>
+                            <td>@(n.ProviderName ?? "—")</td>
+                            <td>@(n.NextDueDate.HasValue ? n.NextDueDate.Value.ToString("MM/dd/yyyy") : "—")</td>
+                            <td><span class="badge badge-yellow">@FormatStatus((int)n.Status)</span></td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        }
+    }
+}
+
+@code {
+    [SupplyParameterFromQuery] public string? patientId { get; set; }
+
+    private List<WomensHealthIndexEntry>? allNotifications;
+    private List<WomensHealthIndexEntry> followUpItems = new();
+    private bool loading, saving, showForm;
+    private string? error, success;
+    private string activeTab = "all";
+
+    // Form fields
+    private string f_type = "0";
+    private DateTime f_procDate = DateTime.Now;
+    private string f_provider = string.Empty;
+    private string f_location = string.Empty;
+    private string f_mammoResult = string.Empty;
+    private int? f_birads;
+    private string f_papResult = string.Empty;
+    private string f_contraMethod = string.Empty;
+    private int? f_gestAge;
+    private DateTime? f_edd;
+    private string f_pregnancyOutcome = string.Empty;
+    private string f_followUp = "false";
+    private DateTime? f_nextDue;
+    private string f_isRefusal = "false";
+    private string f_notes = string.Empty;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (!string.IsNullOrWhiteSpace(patientId))
+            await Load();
+    }
+
+    private async Task HandleKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter") await Load();
+    }
+
+    private void ShowAddForm()
+    {
+        showForm = true;
+        success = null;
+        f_type = "0";
+        f_procDate = DateTime.Now;
+        f_provider = string.Empty;
+        f_location = string.Empty;
+        f_mammoResult = string.Empty;
+        f_birads = null;
+        f_papResult = string.Empty;
+        f_contraMethod = string.Empty;
+        f_gestAge = null;
+        f_edd = null;
+        f_pregnancyOutcome = string.Empty;
+        f_followUp = "false";
+        f_nextDue = null;
+        f_isRefusal = "false";
+        f_notes = string.Empty;
+    }
+
+    private void OnTypeChanged()
+    {
+        f_mammoResult = string.Empty;
+        f_birads = null;
+        f_papResult = string.Empty;
+        f_contraMethod = string.Empty;
+        f_gestAge = null;
+        f_edd = null;
+        f_pregnancyOutcome = string.Empty;
+    }
+
+    private async Task Load()
+    {
+        if (string.IsNullOrWhiteSpace(patientId)) return;
+        loading = true;
+        error = null;
+        try
+        {
+            var workflow = Grains.GetGrain<IPatientWorkflowGrain>(patientId.Trim());
+            allNotifications = await workflow.GetWomensHealthNotificationsAsync();
+            followUpItems = allNotifications.Where(n => n.FollowUpRequired).ToList();
+        }
+        catch (Exception ex)
+        {
+            error = ex.Message;
+        }
+        finally
+        {
+            loading = false;
+        }
+    }
+
+    private async Task Submit()
+    {
+        saving = true;
+        error = null;
+        try
+        {
+            int notifType = int.Parse(f_type);
+            int? mammoResult = string.IsNullOrEmpty(f_mammoResult) ? null : int.Parse(f_mammoResult);
+            int? papResult   = string.IsNullOrEmpty(f_papResult)   ? null : int.Parse(f_papResult);
+            bool followUp    = f_followUp == "true";
+            bool isRefusal   = f_isRefusal == "true";
+
+            var workflow = Grains.GetGrain<IPatientWorkflowGrain>(patientId!.Trim());
+            await workflow.CreateWomensHealthNotificationAsync(
+                (WomensHealthNotificationType)notifType,
+                f_procDate,
+                null,
+                NullIfEmpty(f_provider),
+                null,
+                NullIfEmpty(f_location),
+                mammoResult.HasValue ? (MammographyResult)mammoResult.Value : null,
+                f_birads,
+                papResult.HasValue ? (PapSmearResult)papResult.Value : null,
+                NullIfEmpty(f_contraMethod),
+                f_gestAge,
+                f_edd,
+                NullIfEmpty(f_pregnancyOutcome),
+                followUp,
+                followUp ? f_nextDue : null,
+                isRefusal,
+                NullIfEmpty(f_notes));
+
+            showForm = false;
+            success = "Notification saved.";
+            await Load();
+        }
+        catch (Exception ex)
+        {
+            error = $"Error: {ex.Message}";
+        }
+        finally
+        {
+            saving = false;
+        }
+    }
+
+    private static string? NullIfEmpty(string s) => string.IsNullOrWhiteSpace(s) ? null : s;
+
+    private static string FormatType(int t) => t switch
+    {
+        0 => "Mammography",
+        1 => "Pap Smear",
+        2 => "Contraception",
+        3 => "Pregnancy",
+        4 => "Breast Health",
+        5 => "Menopause/HRT",
+        6 => "Follow-Up",
+        _ => "Other"
+    };
+
+    private static string FormatStatus(int s) => s switch
+    {
+        0 => "Active",
+        1 => "Completed",
+        2 => "Cancelled",
+        3 => "Follow-Up Required",
+        _ => "Unknown"
+    };
+
+    private static string StatusClass(int s) => s switch
+    {
+        1 => "badge-green",
+        2 => "badge-grey",
+        3 => "badge-yellow",
+        _ => "badge-blue"
+    };
+
+}
+
+<style>
+    h1 { color: #003f72; margin-bottom: .1rem; }
+    .subtitle { color: #666; font-size: .85rem; margin-bottom: 1.25rem; }
+
+    .lookup-bar { display: flex; gap: .5rem; margin-bottom: 1.5rem; align-items: center; flex-wrap: wrap; }
+    .lookup-input { width: 280px; padding: .5rem .75rem; border: 1px solid #ccc; border-radius: 4px; font-size: .9rem; }
+
+    .btn { padding: .5rem 1.25rem; border: none; border-radius: 4px; cursor: pointer; font-size: .85rem; font-weight: 500; }
+    .btn-primary  { background: #003f72; color: white; }
+    .btn-primary:disabled { background: #999; cursor: default; }
+    .btn-secondary { background: #16a34a; color: white; }
+    .btn-secondary:disabled { background: #999; cursor: default; }
+    .btn-outline  { background: white; border: 1px solid #ccc; color: #333; }
+
+    .alert { padding: .75rem 1rem; border-radius: 4px; margin-bottom: 1rem; font-size: .85rem; }
+    .alert-error   { background: #fde8e8; color: #b91c1c; border: 1px solid #f5c6c6; }
+    .alert-success { background: #dcfce7; color: #166534; border: 1px solid #bbf7d0; }
+
+    .entry-form { border: 1px solid #d4d9e0; border-radius: 6px; padding: 1.25rem; margin-bottom: 1.5rem; background: #f9fafb; }
+    .entry-form h3 { margin-bottom: 1rem; color: #003f72; font-size: 1rem; }
+    .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: .75rem; }
+    .form-row { display: flex; flex-direction: column; gap: .25rem; }
+    .form-row.full { grid-column: 1 / -1; }
+    .form-row label { font-size: .8rem; font-weight: 600; color: #555; }
+    .form-row input, .form-row select, .form-row textarea { padding: .4rem .6rem; border: 1px solid #ccc; border-radius: 4px; font-size: .85rem; }
+    .form-actions { display: flex; gap: .5rem; margin-top: .75rem; }
+
+    .tab-bar { display: flex; gap: 0; margin-bottom: 1rem; border-bottom: 2px solid #d4d9e0; }
+    .tab { background: none; border: none; border-bottom: 2px solid transparent; margin-bottom: -2px; padding: .5rem 1rem; cursor: pointer; font-size: .85rem; color: #666; }
+    .tab-active { border-bottom-color: #003f72; color: #003f72; font-weight: 600; }
+
+    .empty-state { color: #999; font-style: italic; padding: 2rem 0; }
+
+    .data-table { width: 100%; border-collapse: collapse; font-size: .85rem; border: 1px solid #d4d9e0; }
+    .data-table thead { background: #f4f6f9; }
+    .data-table th { text-align: left; padding: .5rem; font-weight: 600; color: #003f72; border-bottom: 2px solid #d4d9e0; font-size: .75rem; text-transform: uppercase; }
+    .data-table td { padding: .4rem .5rem; border-bottom: 1px solid #f0f0f0; }
+    .row-alert { background: #fffbeb; }
+    .date { color: #888; font-size: .8rem; white-space: nowrap; }
+
+    .badge { padding: 2px 8px; border-radius: 3px; font-size: .7rem; font-weight: 600; }
+    .badge-green  { background: #dcfce7; color: #166534; }
+    .badge-yellow { background: #fef9c3; color: #713f12; }
+    .badge-blue   { background: #dbeafe; color: #1e40af; }
+    .badge-grey   { background: #f3f4f6; color: #6b7280; }
+
+    .type-badge { padding: 2px 7px; border-radius: 3px; font-size: .72rem; font-weight: 600; }
+    .type-badge.type-0 { background: #fce7f3; color: #9d174d; }
+    .type-badge.type-1 { background: #fce7f3; color: #9d174d; }
+    .type-badge.type-2 { background: #e0e7ff; color: #3730a3; }
+    .type-badge.type-3 { background: #d1fae5; color: #065f46; }
+    .type-badge.type-4 { background: #fce7f3; color: #9d174d; }
+    .type-badge.type-5 { background: #f3e8ff; color: #6b21a8; }
+    .type-badge.type-6 { background: #fef3c7; color: #92400e; }
+    .type-badge.type-7 { background: #f3f4f6; color: #374151; }
+</style>

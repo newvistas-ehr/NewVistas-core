@@ -1,0 +1,806 @@
+@page "/integrated-billing"
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+@rendermode InteractiveServer
+@using NewVistas.BlazorWeb.Services
+@using NewVistas.Abstractions.GrainInterfaces
+@using NewVistas.Abstractions.GrainStates
+@inject OrleansGrainService Grains
+
+<PageTitle>Integrated Billing</PageTitle>
+
+<div class="ib-header">
+    <h2>Integrated Billing</h2>
+    <div class="lookup-bar">
+        <input @bind="patientId" @bind:event="oninput" placeholder="Patient ID" class="form-control" />
+        <button class="btn btn-primary" @onclick="Load" disabled="@(loading || string.IsNullOrWhiteSpace(patientId))">Load</button>
+    </div>
+</div>
+
+@if (error != null)
+{
+    <div class="alert alert-danger">@error</div>
+}
+@if (success != null)
+{
+    <div class="alert alert-success">@success</div>
+}
+
+@if (loaded)
+{
+    <div class="ib-tabs">
+        <button class="tab-btn @(activeTab == "copay" ? "active" : "")" @onclick='() => activeTab = "copay"'>Copay Account</button>
+        <button class="tab-btn @(activeTab == "actions" ? "active" : "")" @onclick='() => activeTab = "actions"'>Billing Actions</button>
+        <button class="tab-btn @(activeTab == "insurance" ? "active" : "")" @onclick='() => activeTab = "insurance"'>Insurance</button>
+        <button class="tab-btn @(activeTab == "clock" ? "active" : "")" @onclick='() => activeTab = "clock"'>Billing Clock</button>
+    </div>
+
+    <!-- ── Copay Account Tab ────────────────────────────────────────── -->
+    @if (activeTab == "copay" && copayAccount != null)
+    {
+        <div class="tab-panel">
+            <div class="info-grid">
+                <div class="info-card">
+                    <div class="info-label">Copay Status</div>
+                    <div class="info-value @(copayAccount.IsExemptFromCopay ? "text-success" : "text-danger")">
+                        @(copayAccount.IsExemptFromCopay ? "EXEMPT" : "OBLIGATED")
+                    </div>
+                    @if (copayAccount.IsExemptFromCopay && copayAccount.ExemptionReasonCode != null)
+                    {
+                        <div class="info-sub">@copayAccount.ExemptionReasonCode</div>
+                    }
+                </div>
+                <div class="info-card">
+                    <div class="info-label">Priority Group</div>
+                    <div class="info-value">@(copayAccount.PriorityGroup ?? "—")</div>
+                </div>
+                <div class="info-card">
+                    <div class="info-label">YTD Copay Balance</div>
+                    <div class="info-value">@copayAccount.CurrentYearCopayBalance.ToString("C")</div>
+                    @if (copayAccount.AnnualCopayCapAmount.HasValue)
+                    {
+                        <div class="info-sub">Cap: @copayAccount.AnnualCopayCapAmount.Value.ToString("C")
+                            @if (copayAccount.CopayCapReachedDate.HasValue)
+                            {
+                                <span class="badge-success">CAP REACHED</span>
+                            }
+                        </div>
+                    }
+                </div>
+                <div class="info-card">
+                    <div class="info-label">Hardship Waiver</div>
+                    <div class="info-value @(copayAccount.IsHardshipGranted ? "text-success" : "")">
+                        @(copayAccount.IsHardshipGranted ? "GRANTED" : "None")
+                    </div>
+                    @if (copayAccount.HardshipGrantedDate.HasValue)
+                    {
+                        <div class="info-sub">Granted @copayAccount.HardshipGrantedDate.Value.ToString("d")</div>
+                    }
+                </div>
+                <div class="info-card">
+                    <div class="info-label">Catastrophically Disabled</div>
+                    <div class="info-value">@(copayAccount.CatastrophicallyDisabled ? "YES" : "No")</div>
+                </div>
+            </div>
+
+            <div class="section-actions">
+                <button class="btn btn-sm btn-outline-primary" @onclick="() => showExemptionForm = !showExemptionForm">
+                    Set Exemption
+                </button>
+            </div>
+
+            @if (showExemptionForm)
+            {
+                <div class="form-panel">
+                    <h5>Update Copay Exemption</h5>
+                    <div class="form-row">
+                        <label>Exempt?</label>
+                        <select @bind="f_exempt" class="form-control form-control-sm">
+                            <option value="true">Yes — Exempt</option>
+                            <option value="false">No — Obligated</option>
+                        </select>
+                    </div>
+                    @if (f_exempt == "true")
+                    {
+                        <div class="form-row">
+                            <label>Reason Code</label>
+                            <select @bind="f_exemptReason" class="form-control form-control-sm">
+                                <option value="">-- Select --</option>
+                                <option>SERVICE CONNECTED</option>
+                                <option>INCOME EXEMPT</option>
+                                <option>FORMER POW</option>
+                                <option>UNEMPLOYABLE VETERAN</option>
+                                <option>CATASTROPHICALLY DISABLED</option>
+                                <option>PURPLE HEART CONFIRMED</option>
+                                <option>AGENT ORANGE RELATED</option>
+                                <option>COPAY CAP REACHED</option>
+                            </select>
+                        </div>
+                        <div class="form-row">
+                            <label>Effective Date</label>
+                            <input type="date" @bind="f_exemptEffective" class="form-control form-control-sm" />
+                        </div>
+                        <div class="form-row">
+                            <label>Expiration Date (optional)</label>
+                            <input type="date" @bind="f_exemptExpires" class="form-control form-control-sm" />
+                        </div>
+                    }
+                    <div class="form-actions">
+                        <button class="btn btn-sm btn-primary" @onclick="SaveExemption" disabled="@saving">
+                            @(saving ? "Saving..." : "Save")
+                        </button>
+                        <button class="btn btn-sm btn-secondary" @onclick="() => showExemptionForm = false">Cancel</button>
+                    </div>
+                </div>
+            }
+
+            @if (copayAccount.YearToDateCopayTransactions.Count > 0)
+            {
+                <h5 class="mt-3">Recent Transactions</h5>
+                <table class="ib-table">
+                    <thead><tr><th>Service Date</th><th>Description</th><th>Amount</th><th>Exempt</th></tr></thead>
+                    <tbody>
+                        @foreach (var tx in copayAccount.YearToDateCopayTransactions.Take(20))
+                        {
+                            <tr>
+                                <td>@tx.ServiceDate.ToString("d")</td>
+                                <td>@tx.Description</td>
+                                <td>@tx.Amount.ToString("C")</td>
+                                <td>@(tx.IsExempt ? "Yes" : "")</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            }
+        </div>
+    }
+
+    <!-- ── Billing Actions Tab ──────────────────────────────────────── -->
+    @if (activeTab == "actions")
+    {
+        <div class="tab-panel">
+            <div class="section-actions">
+                <button class="btn btn-sm btn-success" @onclick="() => showActionForm = !showActionForm">
+                    + New Action
+                </button>
+            </div>
+
+            @if (showActionForm)
+            {
+                <div class="form-panel">
+                    <h5>Record Billing Action</h5>
+                    <div class="form-row">
+                        <label>Action Type Code</label>
+                        <input @bind="f_actionTypeCode" class="form-control form-control-sm" placeholder="e.g. DG OPT COPAY NEW" />
+                    </div>
+                    <div class="form-row">
+                        <label>Description</label>
+                        <input @bind="f_actionTypeDesc" class="form-control form-control-sm" />
+                    </div>
+                    <div class="form-row">
+                        <label>Category</label>
+                        <select @bind="f_actionCategory" class="form-control form-control-sm">
+                            <option value="2">Outpatient</option>
+                            <option value="0">Pharmacy</option>
+                            <option value="1">Inpatient</option>
+                            <option value="3">Long-Term Care</option>
+                            <option value="4">Administrative</option>
+                        </select>
+                    </div>
+                    <div class="form-row">
+                        <label>Charge Amount ($)</label>
+                        <input type="number" step="0.01" @bind="f_chargeAmount" class="form-control form-control-sm" />
+                    </div>
+                    <div class="form-row">
+                        <label>Service Date</label>
+                        <input type="date" @bind="f_serviceDate" class="form-control form-control-sm" />
+                    </div>
+                    <div class="form-row">
+                        <label>Entered By (User ID)</label>
+                        <input @bind="f_enteredByUserId" class="form-control form-control-sm" />
+                    </div>
+                    <div class="form-row">
+                        <label>Entered By (Name)</label>
+                        <input @bind="f_enteredByUserName" class="form-control form-control-sm" />
+                    </div>
+                    <div class="form-actions">
+                        <button class="btn btn-sm btn-primary" @onclick="SaveAction" disabled="@saving">
+                            @(saving ? "Saving..." : "Save Action")
+                        </button>
+                        <button class="btn btn-sm btn-secondary" @onclick="() => showActionForm = false">Cancel</button>
+                    </div>
+                </div>
+            }
+
+            @if (billingActions == null)
+            {
+                <p>Loading...</p>
+            }
+            else if (billingActions.Count == 0)
+            {
+                <p class="text-muted">No billing actions recorded.</p>
+            }
+            else
+            {
+                <table class="ib-table">
+                    <thead>
+                        <tr>
+                            <th>Service Date</th>
+                            <th>Action Type</th>
+                            <th>Charge</th>
+                            <th>Status</th>
+                            <th></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var action in billingActions)
+                        {
+                            <tr>
+                                <td>@action.ServiceDate.ToString("d")</td>
+                                <td>@action.ActionTypeDescription</td>
+                                <td>@(action.ChargeAmount?.ToString("C") ?? "—")</td>
+                                <td><span class="status-badge status-@action.Status.ToLower()">@action.Status</span></td>
+                                <td>
+                                    @if (action.Status != "Cancelled")
+                                    {
+                                        <button class="btn btn-xs btn-outline-danger"
+                                                @onclick="() => CancelAction(action.BillingActionId)">
+                                            Cancel
+                                        </button>
+                                    }
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            }
+        </div>
+    }
+
+    <!-- ── Insurance Tab ───────────────────────────────────────────── -->
+    @if (activeTab == "insurance")
+    {
+        <div class="tab-panel">
+            <div class="section-actions">
+                <button class="btn btn-sm btn-success" @onclick="() => showPolicyForm = !showPolicyForm">
+                    + Add Policy
+                </button>
+            </div>
+
+            @if (showPolicyForm)
+            {
+                <div class="form-panel">
+                    <h5>Add Insurance Policy</h5>
+                    <div class="form-row">
+                        <label>Plan Name</label>
+                        <input @bind="f_planName" class="form-control form-control-sm" placeholder="e.g. Medicare Part B" />
+                    </div>
+                    <div class="form-row">
+                        <label>Subscriber ID</label>
+                        <input @bind="f_subscriberId" class="form-control form-control-sm" />
+                    </div>
+                    <div class="form-row">
+                        <label>Subscriber Name</label>
+                        <input @bind="f_subscriberName" class="form-control form-control-sm" />
+                    </div>
+                    <div class="form-row">
+                        <label>Relationship to Subscriber</label>
+                        <select @bind="f_relationship" class="form-control form-control-sm">
+                            <option>SELF</option>
+                            <option>SPOUSE</option>
+                            <option>CHILD</option>
+                            <option>PARENT</option>
+                            <option>OTHER</option>
+                        </select>
+                    </div>
+                    <div class="form-row">
+                        <label>Coverage Type</label>
+                        <input @bind="f_coverageType" class="form-control form-control-sm" placeholder="INDIVIDUAL, FAMILY..." />
+                    </div>
+                    <div class="form-row">
+                        <label>Effective Date</label>
+                        <input type="date" @bind="f_policyEffective" class="form-control form-control-sm" />
+                    </div>
+                    <div class="form-row">
+                        <label>Expiration Date</label>
+                        <input type="date" @bind="f_policyExpires" class="form-control form-control-sm" />
+                    </div>
+                    <div class="form-row">
+                        <label>Primary?</label>
+                        <select @bind="f_isPrimary" class="form-control form-control-sm">
+                            <option value="true">Yes — Primary</option>
+                            <option value="false">No — Secondary</option>
+                        </select>
+                    </div>
+                    <div class="form-actions">
+                        <button class="btn btn-sm btn-primary" @onclick="SavePolicy" disabled="@saving">
+                            @(saving ? "Saving..." : "Save Policy")
+                        </button>
+                        <button class="btn btn-sm btn-secondary" @onclick="() => showPolicyForm = false">Cancel</button>
+                    </div>
+                </div>
+            }
+
+            @if (policies == null)
+            {
+                <p>Loading...</p>
+            }
+            else if (policies.Count == 0)
+            {
+                <p class="text-muted">No insurance policies on file.</p>
+            }
+            else
+            {
+                <table class="ib-table">
+                    <thead>
+                        <tr>
+                            <th>Plan Name</th>
+                            <th>Plan Type</th>
+                            <th>Subscriber ID</th>
+                            <th>Primary</th>
+                            <th>Status</th>
+                            <th>Effective</th>
+                            <th></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var pol in policies)
+                        {
+                            <tr>
+                                <td>@pol.GroupPlanName</td>
+                                <td>@(pol.PlanType ?? "—")</td>
+                                <td>@pol.SubscriberId</td>
+                                <td>@(pol.IsPrimary ? "PRIMARY" : "")</td>
+                                <td>
+                                    <span class="badge-@(pol.IsActive ? "success" : "secondary")">
+                                        @(pol.IsActive ? "Active" : "Inactive")
+                                    </span>
+                                </td>
+                                <td>@(pol.EffectiveDate?.ToString("d") ?? "—")</td>
+                                <td>
+                                    @if (pol.IsActive)
+                                    {
+                                        <button class="btn btn-xs btn-outline-secondary"
+                                                @onclick="() => DeactivatePolicy(pol.PolicyId)">
+                                            Deactivate
+                                        </button>
+                                    }
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            }
+        </div>
+    }
+
+    <!-- ── Billing Clock Tab ───────────────────────────────────────── -->
+    @if (activeTab == "clock" && billingClock != null)
+    {
+        <div class="tab-panel">
+            <div class="info-grid">
+                <div class="info-card">
+                    <div class="info-label">Clock Status</div>
+                    <div class="info-value @(billingClock.ClockStatus == "ACTIVE" ? "text-danger" : billingClock.ClockStatus == "NOT STARTED" ? "text-muted" : "text-warning")">
+                        @billingClock.ClockStatus
+                    </div>
+                </div>
+                <div class="info-card">
+                    <div class="info-label">Period</div>
+                    <div class="info-value">
+                        @(billingClock.ClockStartDate?.ToString("d") ?? "—") → @(billingClock.ClockExpirationDate?.ToString("d") ?? "Open")
+                    </div>
+                </div>
+                <div class="info-card">
+                    <div class="info-label">Billing Category</div>
+                    <div class="info-value">@(billingClock.BillingCategory ?? "—")</div>
+                </div>
+                <div class="info-card">
+                    <div class="info-label">Priority Group</div>
+                    <div class="info-value">@(billingClock.PriorityGroup ?? "—")</div>
+                </div>
+                @if (billingClock.LastResetDate.HasValue)
+                {
+                    <div class="info-card">
+                        <div class="info-label">Last Reset</div>
+                        <div class="info-value">@billingClock.LastResetDate.Value.ToString("d")</div>
+                        @if (billingClock.ResetReason != null)
+                        {
+                            <div class="info-sub">@billingClock.ResetReason</div>
+                        }
+                    </div>
+                }
+                @if (billingClock.SuspendedReason != null)
+                {
+                    <div class="info-card">
+                        <div class="info-label">Suspend Reason</div>
+                        <div class="info-value text-warning">@billingClock.SuspendedReason</div>
+                    </div>
+                }
+            </div>
+
+            <div class="section-actions">
+                <button class="btn btn-sm btn-outline-primary" @onclick="() => showClockForm = !showClockForm">
+                    Set Clock
+                </button>
+            </div>
+
+            @if (showClockForm)
+            {
+                <div class="form-panel">
+                    <h5>Update Billing Clock</h5>
+                    <div class="form-row">
+                        <label>Clock Status</label>
+                        <select @bind="f_clockStatus" class="form-control form-control-sm">
+                            <option>ACTIVE</option>
+                            <option>EXPIRED</option>
+                            <option>SUSPENDED</option>
+                            <option>NOT STARTED</option>
+                        </select>
+                    </div>
+                    <div class="form-row">
+                        <label>Start Date</label>
+                        <input type="date" @bind="f_clockStart" class="form-control form-control-sm" />
+                    </div>
+                    <div class="form-row">
+                        <label>Expiration Date</label>
+                        <input type="date" @bind="f_clockExpires" class="form-control form-control-sm" />
+                    </div>
+                    <div class="form-row">
+                        <label>Billing Category</label>
+                        <input @bind="f_clockCategory" class="form-control form-control-sm" placeholder="e.g. COPAY REQUIRED" />
+                    </div>
+                    <div class="form-row">
+                        <label>Priority Group</label>
+                        <select @bind="f_clockPriorityGroup" class="form-control form-control-sm">
+                            <option value="">—</option>
+                            <option>1</option><option>2</option><option>3</option><option>4</option>
+                            <option>5</option><option>6</option><option>7</option><option>8</option>
+                        </select>
+                    </div>
+                    <div class="form-actions">
+                        <button class="btn btn-sm btn-primary" @onclick="SaveClock" disabled="@saving">
+                            @(saving ? "Saving..." : "Save Clock")
+                        </button>
+                        <button class="btn btn-sm btn-secondary" @onclick="() => showClockForm = false">Cancel</button>
+                    </div>
+                </div>
+            }
+        </div>
+    }
+}
+
+@code {
+    [SupplyParameterFromQuery] public string? patientId { get; set; }
+
+    private bool loading, saving, loaded;
+    private string? error, success;
+    private string activeTab = "copay";
+
+    // Tab data
+    private IBillingPatientDto? copayAccount;
+    private List<IBillingActionIndexEntryDto>? billingActions;
+    private List<PersonalPolicyIndexEntryDto>? policies;
+    private MeansTestBillingClockDto? billingClock;
+
+    // Form toggles
+    private bool showExemptionForm, showActionForm, showPolicyForm, showClockForm;
+
+    // Exemption form fields
+    private string f_exempt = "false";
+    private string f_exemptReason = string.Empty;
+    private DateTime? f_exemptEffective;
+    private DateTime? f_exemptExpires;
+
+    // Action form fields
+    private string f_actionTypeCode = string.Empty;
+    private string f_actionTypeDesc = string.Empty;
+    private string f_actionCategory = "2";
+    private decimal? f_chargeAmount;
+    private DateTime f_serviceDate = DateTime.Today;
+    private string f_enteredByUserId = string.Empty;
+    private string f_enteredByUserName = string.Empty;
+
+    // Policy form fields
+    private string f_planName = string.Empty;
+    private string f_subscriberId = string.Empty;
+    private string f_subscriberName = string.Empty;
+    private string f_relationship = "SELF";
+    private string f_coverageType = string.Empty;
+    private DateTime? f_policyEffective;
+    private DateTime? f_policyExpires;
+    private string f_isPrimary = "false";
+
+    // Clock form fields
+    private string f_clockStatus = "ACTIVE";
+    private DateTime? f_clockStart;
+    private DateTime? f_clockExpires;
+    private string f_clockCategory = string.Empty;
+    private string f_clockPriorityGroup = string.Empty;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (!string.IsNullOrWhiteSpace(patientId))
+            await Load();
+    }
+
+    private async Task Load()
+    {
+        loading = true; error = null; success = null;
+        try
+        {
+            string pid = patientId!.Trim();
+            var patGrain = Grains.GetGrain<IIBillingPatientGrain>($"IB-PATIENT:{pid}");
+            await patGrain.EnsureInitializedAsync(pid);
+            IBillingPatientState ps = await patGrain.GetAsync();
+            copayAccount = new IBillingPatientDto
+            {
+                IsExemptFromCopay = ps.IsExemptFromCopay,
+                ExemptionReasonCode = ps.ExemptionReasonCode,
+                ExemptionEffectiveDate = ps.ExemptionEffectiveDate,
+                ExemptionExpirationDate = ps.ExemptionExpirationDate,
+                PriorityGroup = ps.PriorityGroup,
+                CurrentYearCopayBalance = ps.CurrentYearCopayBalance,
+                AnnualCopayCapAmount = ps.AnnualCopayCapAmount,
+                CopayCapReachedDate = ps.CopayCapReachedDate,
+                IsHardshipGranted = ps.IsHardshipGranted,
+                HardshipGrantedDate = ps.HardshipGrantedDate,
+                CatastrophicallyDisabled = ps.CatastrophicallyDisabled,
+                YearToDateCopayTransactions = ps.YearToDateCopayTransactions.Select(t => new CopayTxDto
+                {
+                    Description = t.Description,
+                    Amount = t.Amount,
+                    ServiceDate = t.ServiceDate,
+                    IsExempt = t.IsExempt,
+                }).ToList(),
+            };
+            var actIdx = Grains.GetGrain<IIBillingActionIndexGrain>($"IB-ACTION-IDX:{pid}");
+            var actEntries = await actIdx.GetAllAsync();
+            billingActions = actEntries.Select(a => new IBillingActionIndexEntryDto
+            {
+                BillingActionId = a.BillingActionId,
+                ActionTypeDescription = a.ActionTypeDescription,
+                ChargeAmount = a.ChargeAmount,
+                ServiceDate = a.ServiceDate,
+                Status = a.Status.ToString(),
+            }).ToList();
+            var polIdx = Grains.GetGrain<IPersonalPolicyIndexGrain>($"IB-POLICY-IDX:{pid}");
+            var polEntries = await polIdx.GetAllAsync();
+            policies = polEntries.Select(p => new PersonalPolicyIndexEntryDto
+            {
+                PolicyId = p.PolicyId,
+                GroupPlanName = p.GroupPlanName,
+                PlanType = p.PlanType,
+                SubscriberId = p.SubscriberId,
+                IsPrimary = p.IsPrimary,
+                IsActive = p.IsActive,
+                EffectiveDate = p.EffectiveDate,
+            }).ToList();
+            var clockGrain = Grains.GetGrain<IMeansTestBillingClockGrain>($"IB-CLOCK:{pid}");
+            MeansTestBillingClockState cs = await clockGrain.GetAsync();
+            billingClock = new MeansTestBillingClockDto
+            {
+                ClockStatus = cs.ClockStatus,
+                ClockStartDate = cs.ClockStartDate,
+                ClockExpirationDate = cs.ClockExpirationDate,
+                BillingCategory = cs.BillingCategory,
+                PriorityGroup = cs.PriorityGroup,
+                LastResetDate = cs.LastResetDate,
+                ResetReason = cs.ResetReason,
+                SuspendedReason = cs.SuspendedReason,
+            };
+            loaded = true;
+        }
+        catch (Exception ex)
+        {
+            error = ex.Message;
+        }
+        finally
+        {
+            loading = false;
+        }
+    }
+
+    private async Task SaveExemption()
+    {
+        saving = true; error = null; success = null;
+        try
+        {
+            bool isExempt = f_exempt == "true";
+            string pid = patientId!.Trim();
+            var patGrain = Grains.GetGrain<IIBillingPatientGrain>($"IB-PATIENT:{pid}");
+            await patGrain.SetCopayExemptionAsync(isExempt,
+                isExempt ? f_exemptReason : null, f_exemptEffective, f_exemptExpires);
+            success = "Copay exemption updated.";
+            showExemptionForm = false;
+            await Load();
+        }
+        catch (Exception ex) { error = ex.Message; }
+        finally { saving = false; }
+    }
+
+    private async Task SaveAction()
+    {
+        saving = true; error = null; success = null;
+        try
+        {
+            string pid = patientId!.Trim();
+            string actionId = Guid.NewGuid().ToString();
+            var actionGrain = Grains.GetGrain<IIBillingActionGrain>($"IB-ACTION:{actionId}");
+            IBActionCategory cat = (IBActionCategory)int.Parse(f_actionCategory);
+            await actionGrain.CreateAsync(pid, f_actionTypeCode, f_actionTypeDesc, cat,
+                f_chargeAmount, f_serviceDate, f_enteredByUserId, f_enteredByUserName,
+                null, null, null, null, null, null, null);
+            success = "Billing action recorded.";
+            showActionForm = false;
+            f_actionTypeCode = f_actionTypeDesc = f_enteredByUserId = f_enteredByUserName = string.Empty;
+            f_chargeAmount = null;
+            await Load();
+        }
+        catch (Exception ex) { error = ex.Message; }
+        finally { saving = false; }
+    }
+
+    private async Task CancelAction(string actionId)
+    {
+        saving = true; error = null; success = null;
+        try
+        {
+            string grainKey = actionId.StartsWith("IB-ACTION:") ? actionId : $"IB-ACTION:{actionId}";
+            var actionGrain = Grains.GetGrain<IIBillingActionGrain>(grainKey);
+            await actionGrain.CancelAsync("ENTERED IN ERROR", "ENTERED IN ERROR", "USER");
+            success = "Action cancelled.";
+            await Load();
+        }
+        catch (Exception ex) { error = ex.Message; }
+        finally { saving = false; }
+    }
+
+    private async Task SavePolicy()
+    {
+        saving = true; error = null; success = null;
+        try
+        {
+            string pid = patientId!.Trim();
+            string policyId = Guid.NewGuid().ToString();
+            var polGrain = Grains.GetGrain<IPersonalPolicyGrain>($"IB-POLICY:{policyId}");
+            await polGrain.CreateAsync(pid, null, f_planName, f_subscriberId, f_subscriberName,
+                f_relationship, f_policyEffective, f_policyExpires, f_coverageType,
+                f_isPrimary == "true", null, null, null);
+            success = "Insurance policy added.";
+            showPolicyForm = false;
+            f_planName = f_subscriberId = f_subscriberName = f_coverageType = string.Empty;
+            await Load();
+        }
+        catch (Exception ex) { error = ex.Message; }
+        finally { saving = false; }
+    }
+
+    private async Task DeactivatePolicy(string policyId)
+    {
+        saving = true; error = null;
+        try
+        {
+            string grainKey = policyId.StartsWith("IB-POLICY:") ? policyId : $"IB-POLICY:{policyId}";
+            var polGrain = Grains.GetGrain<IPersonalPolicyGrain>(grainKey);
+            await polGrain.DeactivateAsync();
+            success = "Policy deactivated.";
+            await Load();
+        }
+        catch (Exception ex) { error = ex.Message; }
+        finally { saving = false; }
+    }
+
+    private async Task SaveClock()
+    {
+        saving = true; error = null; success = null;
+        try
+        {
+            string pid = patientId!.Trim();
+            var clockGrain = Grains.GetGrain<IMeansTestBillingClockGrain>($"IB-CLOCK:{pid}");
+            await clockGrain.SetClockAsync(f_clockStatus, f_clockStart, f_clockExpires, null,
+                string.IsNullOrWhiteSpace(f_clockCategory) ? null : f_clockCategory,
+                string.IsNullOrWhiteSpace(f_clockPriorityGroup) ? null : f_clockPriorityGroup);
+            success = "Billing clock updated.";
+            showClockForm = false;
+            await Load();
+        }
+        catch (Exception ex) { error = ex.Message; }
+        finally { saving = false; }
+    }
+
+    // ─── Response DTOs ────────────────────────────────────────────────────────
+
+    private class IBillingPatientDto
+    {
+        public bool IsExemptFromCopay { get; set; }
+        public string? ExemptionReasonCode { get; set; }
+        public DateTime? ExemptionEffectiveDate { get; set; }
+        public DateTime? ExemptionExpirationDate { get; set; }
+        public string? PriorityGroup { get; set; }
+        public decimal CurrentYearCopayBalance { get; set; }
+        public decimal? AnnualCopayCapAmount { get; set; }
+        public DateTime? CopayCapReachedDate { get; set; }
+        public bool IsHardshipGranted { get; set; }
+        public DateTime? HardshipGrantedDate { get; set; }
+        public bool CatastrophicallyDisabled { get; set; }
+        public List<CopayTxDto> YearToDateCopayTransactions { get; set; } = new();
+    }
+
+    private class CopayTxDto
+    {
+        public string Description { get; set; } = string.Empty;
+        public decimal Amount { get; set; }
+        public DateTime ServiceDate { get; set; }
+        public bool IsExempt { get; set; }
+    }
+
+    private class IBillingActionIndexEntryDto
+    {
+        public string BillingActionId { get; set; } = string.Empty;
+        public string ActionTypeDescription { get; set; } = string.Empty;
+        public decimal? ChargeAmount { get; set; }
+        public DateTime ServiceDate { get; set; }
+        public string Status { get; set; } = string.Empty;
+    }
+
+    private class PersonalPolicyIndexEntryDto
+    {
+        public string PolicyId { get; set; } = string.Empty;
+        public string GroupPlanName { get; set; } = string.Empty;
+        public string? PlanType { get; set; }
+        public string SubscriberId { get; set; } = string.Empty;
+        public bool IsPrimary { get; set; }
+        public bool IsActive { get; set; }
+        public DateTime? EffectiveDate { get; set; }
+    }
+
+    private class MeansTestBillingClockDto
+    {
+        public string ClockStatus { get; set; } = string.Empty;
+        public DateTime? ClockStartDate { get; set; }
+        public DateTime? ClockExpirationDate { get; set; }
+        public string? BillingCategory { get; set; }
+        public string? PriorityGroup { get; set; }
+        public DateTime? LastResetDate { get; set; }
+        public string? ResetReason { get; set; }
+        public string? SuspendedReason { get; set; }
+    }
+}
+
+<style>
+    .ib-header { display: flex; align-items: center; gap: 1rem; margin-bottom: 1rem; flex-wrap: wrap; }
+    .lookup-bar { display: flex; gap: 0.5rem; align-items: center; }
+    .lookup-bar input { width: 220px; }
+    .ib-tabs { display: flex; gap: 4px; margin-bottom: 0; border-bottom: 2px solid #dee2e6; }
+    .tab-btn { padding: 8px 18px; border: 1px solid #dee2e6; border-bottom: none; border-radius: 4px 4px 0 0; background: #f8f9fa; cursor: pointer; font-size: 0.9rem; }
+    .tab-btn.active { background: white; border-bottom: 2px solid white; margin-bottom: -2px; font-weight: 600; color: #0d6efd; }
+    .tab-panel { border: 1px solid #dee2e6; border-top: none; padding: 1.2rem; background: white; }
+    .info-grid { display: flex; flex-wrap: wrap; gap: 1rem; margin-bottom: 1rem; }
+    .info-card { background: #f8f9fa; border: 1px solid #dee2e6; border-radius: 6px; padding: 12px 16px; min-width: 150px; }
+    .info-label { font-size: 0.75rem; text-transform: uppercase; color: #6c757d; margin-bottom: 4px; }
+    .info-value { font-size: 1rem; font-weight: 600; }
+    .info-sub { font-size: 0.8rem; color: #6c757d; margin-top: 2px; }
+    .section-actions { margin: 0.75rem 0; }
+    .form-panel { background: #f8f9fa; border: 1px solid #dee2e6; border-radius: 6px; padding: 1rem; margin: 0.75rem 0; max-width: 480px; }
+    .form-row { display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem; }
+    .form-row label { min-width: 160px; font-size: 0.85rem; font-weight: 500; }
+    .form-row input, .form-row select { flex: 1; }
+    .form-actions { display: flex; gap: 0.5rem; margin-top: 0.75rem; }
+    .ib-table { width: 100%; border-collapse: collapse; font-size: 0.88rem; margin-top: 0.75rem; }
+    .ib-table th { background: #f1f3f5; padding: 7px 10px; text-align: left; border-bottom: 2px solid #dee2e6; }
+    .ib-table td { padding: 6px 10px; border-bottom: 1px solid #f0f0f0; }
+    .ib-table tr:hover td { background: #f8f9fa; }
+    .status-badge { padding: 2px 8px; border-radius: 10px; font-size: 0.75rem; font-weight: 600; }
+    .status-incomplete { background: #fff3cd; color: #856404; }
+    .status-cancelled { background: #f8d7da; color: #721c24; }
+    .status-billed { background: #d1e7dd; color: #155724; }
+    .status-completependingar { background: #cff4fc; color: #055160; }
+    .text-success { color: #198754; }
+    .text-danger { color: #dc3545; }
+    .text-warning { color: #ffc107; }
+    .text-muted { color: #6c757d; }
+    .badge-success { background: #d1e7dd; color: #155724; padding: 2px 8px; border-radius: 10px; font-size: 0.75rem; }
+    .badge-secondary { background: #e2e3e5; color: #41464b; padding: 2px 8px; border-radius: 10px; font-size: 0.75rem; }
+    .btn-xs { padding: 2px 8px; font-size: 0.78rem; }
+    .mt-3 { margin-top: 1rem; }
+</style>

@@ -1,0 +1,115 @@
+@page "/rad-tech"
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+@rendermode InteractiveServer
+@using NewVistas.BlazorWeb.Services
+@using NewVistas.Abstractions.GrainInterfaces
+@using NewVistas.Abstractions.GrainStates
+@inject OrleansGrainService Grains
+
+<PageTitle>Radiology Technologist</PageTitle>
+<h3>Radiology Technologist Workflow</h3>
+<p class="text-muted">Exam Tracking, Protocols, Worklist, Image Library (RARTE.m)</p>
+
+<div class="mb-3 d-flex gap-2">
+    <input class="form-control" style="max-width:200px" placeholder="Patient ID" @bind="patientId" @bind:event="oninput" />
+    <input class="form-control" style="max-width:160px" placeholder="Location" @bind="locationId" @bind:event="oninput" />
+    <button class="btn btn-primary" @onclick="LoadAll" disabled="@loading">Load</button>
+</div>
+@if (error != null) { <div class="alert alert-danger">@error</div> }
+
+<ul class="nav nav-tabs mb-3">
+    <li class="nav-item"><button class="nav-link @(tab == "worklist" ? "active" : "")" @onclick='() => tab = "worklist"'>Worklist</button></li>
+    <li class="nav-item"><button class="nav-link @(tab == "exam" ? "active" : "")" @onclick='() => tab = "exam"'>Exam Detail</button></li>
+    <li class="nav-item"><button class="nav-link @(tab == "protocols" ? "active" : "")" @onclick="LoadProtocols">Protocols</button></li>
+</ul>
+
+@if (tab == "worklist" && worklist != null)
+{
+    <table class="table table-sm table-striped">
+        <thead><tr><th>Procedure</th><th>Type</th><th>Patient</th><th>Urgency</th><th>Status</th><th>Body Part</th><th>Protocol</th><th>Tech</th><th></th></tr></thead>
+        <tbody>
+            @foreach (var i in worklist.Items)
+            {
+                <tr class="@(i.Urgency == "STAT" ? "table-danger" : i.Urgency == "URGENT" ? "table-warning" : "")">
+                    <td>@i.ProcedureName</td>
+                    <td>@(i.ImagingType ?? "—")</td>
+                    <td class="font-monospace small">@i.PatientId[..Math.Min(12, i.PatientId.Length)]</td>
+                    <td><span class="badge @(i.Urgency == "STAT" ? "bg-danger" : i.Urgency == "URGENT" ? "bg-warning text-dark" : "bg-secondary")">@(i.Urgency ?? "ROUTINE")</span></td>
+                    <td><span class="badge @ExamBadge(i.ExamStatus)">@i.ExamStatus</span></td>
+                    <td>@(i.BodyPart ?? "—") @(i.Laterality ?? "")</td>
+                    <td>@(i.ProtocolName ?? "—")</td>
+                    <td>@(i.TechnicianName ?? "—")</td>
+                    <td><button class="btn btn-sm btn-outline-primary" @onclick="() => ViewExam(i.RadiologyId)">Track</button></td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+
+@if (tab == "exam" && exam != null)
+{
+    <div class="card mb-3">
+        <div class="card-header"><strong>Exam:</strong> @exam.RadiologyId <span class="badge @ExamBadge(exam.ExamStatus) ms-2">@exam.ExamStatus</span></div>
+        <div class="card-body">
+            <div class="row mb-3">
+                <div class="col-md-6">
+                    <dl class="row mb-0">
+                        <dt class="col-sm-5">Protocol</dt><dd class="col-sm-7">@(exam.ProtocolName ?? "Not assigned")</dd>
+                        <dt class="col-sm-5">Room</dt><dd class="col-sm-7">@(exam.Room ?? "—")</dd>
+                        <dt class="col-sm-5">Scheduled</dt><dd class="col-sm-7">@(exam.ScheduledDateTime?.ToString("MM/dd HH:mm") ?? "—")</dd>
+                        <dt class="col-sm-5">Prepped</dt><dd class="col-sm-7">@(exam.PatientPreppedDateTime?.ToString("HH:mm") ?? "—")</dd>
+                    </dl>
+                </div>
+                <div class="col-md-6">
+                    <dl class="row mb-0">
+                        <dt class="col-sm-5">Exam Start</dt><dd class="col-sm-7">@(exam.ExamStartDateTime?.ToString("HH:mm") ?? "—")</dd>
+                        <dt class="col-sm-5">Exam Complete</dt><dd class="col-sm-7">@(exam.ExamCompleteDateTime?.ToString("HH:mm") ?? "—")</dd>
+                        <dt class="col-sm-5">Images</dt><dd class="col-sm-7">@(exam.ImageCount?.ToString() ?? "—") (@exam.LinkedImageIds.Count linked)</dd>
+                        <dt class="col-sm-5">PACS Sent</dt><dd class="col-sm-7">@(exam.ImagesSentDateTime?.ToString("HH:mm") ?? "—")</dd>
+                    </dl>
+                </div>
+            </div>
+            <div class="d-flex gap-2 flex-wrap">
+                @if (exam.ExamStatus == RadExamStatus.Ordered || exam.ExamStatus == RadExamStatus.Scheduled)
+                { <button class="btn btn-sm btn-info" @onclick="() => Prep(exam.RadiologyId)">Mark Prepped</button> }
+                @if (exam.ExamStatus == RadExamStatus.PatientPrepped)
+                { <button class="btn btn-sm btn-primary" @onclick="() => Start(exam.RadiologyId)">Start Exam</button> }
+                @if (exam.ExamStatus == RadExamStatus.InProgress)
+                { <button class="btn btn-sm btn-success" @onclick="() => Complete(exam.RadiologyId)">Complete Exam</button> }
+                @if (exam.ExamStatus == RadExamStatus.ExamComplete)
+                { <button class="btn btn-sm btn-outline-primary" @onclick="() => SendPacs(exam.RadiologyId)">Send to PACS</button> }
+            </div>
+        </div>
+    </div>
+}
+
+@if (tab == "protocols" && protocols != null)
+{
+    <table class="table table-sm table-striped">
+        <thead><tr><th>Protocol</th><th>Imaging Type</th><th>Body Part</th><th>Active</th></tr></thead>
+        <tbody>
+            @foreach (var p in protocols)
+            {
+                <tr><td>@p.ProtocolName</td><td>@p.ImagingType</td><td>@(p.BodyPart ?? "—")</td><td><span class="badge @(p.IsActive ? "bg-success" : "bg-secondary")">@(p.IsActive ? "Active" : "Inactive")</span></td></tr>
+            }
+        </tbody>
+    </table>
+}
+
+@code {
+    private string patientId = string.Empty, locationId = "RAD-MAIN", tab = "worklist";
+    private bool loading; private string? error;
+    private RadWorklistState? worklist;
+    private RadExamTrackingState? exam;
+    private List<RadProtocolIndexEntry>? protocols;
+
+    private async Task LoadAll() { if (string.IsNullOrWhiteSpace(patientId)) return; loading = true; error = null; try { worklist = await Grains.GetGrain<IPatientWorkflowGrain>(patientId.Trim()).RefreshRadWorklistAsync(locationId); } catch (Exception ex) { error = ex.Message; } finally { loading = false; } }
+    private async Task ViewExam(string radId) { try { exam = await Grains.GetGrain<IPatientWorkflowGrain>(patientId.Trim()).GetRadExamTrackingAsync(radId); tab = "exam"; } catch (Exception ex) { error = ex.Message; } }
+    private async Task Prep(string radId) { try { await Grains.GetGrain<IPatientWorkflowGrain>(patientId.Trim()).MarkRadPatientPreppedAsync(radId, null); await ViewExam(radId); } catch (Exception ex) { error = ex.Message; } }
+    private async Task Start(string radId) { try { await Grains.GetGrain<IPatientWorkflowGrain>(patientId.Trim()).StartRadExamAsync(radId); await ViewExam(radId); } catch (Exception ex) { error = ex.Message; } }
+    private async Task Complete(string radId) { try { await Grains.GetGrain<IPatientWorkflowGrain>(patientId.Trim()).CompleteRadExamAsync(radId, 24, "Standard exam completed"); await ViewExam(radId); } catch (Exception ex) { error = ex.Message; } }
+    private async Task SendPacs(string radId) { try { await Grains.GetGrain<IPatientWorkflowGrain>(patientId.Trim()).SendRadImagesToPacsAsync(radId); await ViewExam(radId); } catch (Exception ex) { error = ex.Message; } }
+    private async Task LoadProtocols() { tab = "protocols"; try { protocols = await Grains.GetGrain<IRadProtocolIndexGrain>("RAD-PROTOCOL-INDEX").GetAllAsync(); } catch (Exception ex) { error = ex.Message; } }
+
+    private string ExamBadge(RadExamStatus s) => s switch { RadExamStatus.Ordered => "bg-secondary", RadExamStatus.Scheduled => "bg-info", RadExamStatus.PatientPrepped => "bg-warning text-dark", RadExamStatus.InProgress => "bg-primary", RadExamStatus.ExamComplete => "bg-success", RadExamStatus.ImagesSentToPacs => "bg-success", RadExamStatus.PendingRead => "bg-info", RadExamStatus.ReadComplete => "bg-success", RadExamStatus.Cancelled => "bg-danger", _ => "bg-secondary" };
+}

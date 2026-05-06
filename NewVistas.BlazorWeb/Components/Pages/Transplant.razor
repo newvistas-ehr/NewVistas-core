@@ -1,0 +1,747 @@
+@page "/transplant"
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+@rendermode InteractiveServer
+@using NewVistas.BlazorWeb.Services
+@using NewVistas.Abstractions.GrainInterfaces
+@using NewVistas.Abstractions.GrainStates
+@inject OrleansGrainService Grains
+
+<h2>Transplant Services</h2>
+<p class="subtitle">Organ waiting list, donor management, and matching — UNOS/OPTN registry</p>
+
+<div class="toolbar">
+    <button @onclick="LoadAll" class="btn-primary">Refresh</button>
+</div>
+
+@if (error != null)
+{
+    <div class="error-banner">@error</div>
+}
+
+<div class="tabs">
+    <button class="@TabClass(0)" @onclick="() => activeTab = 0">Waitlist</button>
+    <button class="@TabClass(1)" @onclick="() => activeTab = 1">Donors</button>
+    <button class="@TabClass(2)" @onclick="() => activeTab = 2">Register</button>
+</div>
+
+@* ── TAB 0: Waitlist ───────────────────────────────────────────────────────── *@
+@if (activeTab == 0)
+{
+    <div class="tab-content">
+        <div class="filter-row">
+            <label>Organ:</label>
+            <select @bind="waitlistOrganFilter" class="input-field">
+                <option value="">All Organs</option>
+                <option value="Kidney">Kidney</option>
+                <option value="Liver">Liver</option>
+                <option value="Heart">Heart</option>
+                <option value="Lung">Lung</option>
+                <option value="Pancreas">Pancreas</option>
+                <option value="KidneyPancreas">Kidney-Pancreas</option>
+                <option value="HeartLung">Heart-Lung</option>
+            </select>
+            <label>Status:</label>
+            <select @bind="waitlistStatusFilter" class="input-field">
+                <option value="active">Active (Listed)</option>
+                <option value="all">All Statuses</option>
+            </select>
+            <button @onclick="LoadWaitlist" class="btn-secondary">Filter</button>
+        </div>
+
+        @if (loadingWaitlist)
+        {
+            <p>Loading waitlist...</p>
+        }
+        else if (waitlistPatients.Count == 0)
+        {
+            <p class="empty-msg">No patients found on the waiting list.</p>
+        }
+        else
+        {
+            <table class="tx-table">
+                <thead>
+                    <tr>
+                        <th>Patient</th>
+                        <th>Organ</th>
+                        <th>Priority</th>
+                        <th>Status</th>
+                        <th>Listed Date</th>
+                        <th>Blood Type</th>
+                        <th>MELD/Score</th>
+                        <th>Diagnosis</th>
+                        <th>Action</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (WaitlistEntry p in waitlistPatients)
+                    {
+                        <tr class="@(p.Priority == "Status1A" || p.Priority == "Status1B" ? "row-urgent" : "")">
+                            <td>@p.PatientName</td>
+                            <td class="organ-badge">@p.OrganType</td>
+                            <td class="priority-badge priority-@p.Priority">@p.Priority</td>
+                            <td class="status-badge status-@p.Status">@p.Status</td>
+                            <td>@p.ListedDate.ToString("MM/dd/yyyy")</td>
+                            <td class="blood-type">@p.BloodType</td>
+                            <td></td>
+                            <td class="diag-cell">@p.PrimaryDiagnosis</td>
+                            <td><button @onclick="() => ViewPatient(p.PatientId)" class="btn-small">Detail</button></td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        }
+
+        @if (selectedPatient != null)
+        {
+            <div class="detail-panel">
+                <h4>@selectedPatient.PatientName — Transplant Record</h4>
+                <div class="detail-grid">
+                    <span>Organ:</span><span>@selectedPatient.OrganType</span>
+                    <span>Status:</span><span class="status-badge status-@selectedPatient.Status">@selectedPatient.Status</span>
+                    <span>Priority:</span><span class="priority-badge priority-@selectedPatient.Priority">@selectedPatient.Priority</span>
+                    <span>Blood Type:</span><span>@selectedPatient.BloodType</span>
+                    <span>HLA Typing:</span><span>@(selectedPatient.HlaTyping ?? "—")</span>
+                    <span>PRA %:</span><span>@(selectedPatient.PanelReactiveAntibodyPct?.ToString("F1") ?? "—")</span>
+                    <span>MELD Score:</span><span>@(selectedPatient.MeldScore?.ToString("F1") ?? "—")</span>
+                    <span>Diagnosis:</span><span>@selectedPatient.PrimaryDiagnosis</span>
+                    <span>UNOS ID:</span><span>@(selectedPatient.UnosId ?? "—")</span>
+                    <span>Listed:</span><span>@selectedPatient.ListedDate?.ToString("MM/dd/yyyy")</span>
+                    <span>Location:</span><span>@selectedPatient.LocationName</span>
+                    <span>Referring MD:</span><span>@(selectedPatient.ReferringProviderName ?? "—")</span>
+                    @if (selectedPatient.Status == "Transplanted")
+                    {
+                        <span>Transplant Date:</span><span>@selectedPatient.TransplantDate?.ToString("MM/dd/yyyy")</span>
+                        <span>Surgeon:</span><span>@(selectedPatient.TransplantSurgeonName ?? "—")</span>
+                    }
+                </div>
+                <button @onclick="() => selectedPatient = null" class="btn-secondary">Close</button>
+            </div>
+        }
+    </div>
+}
+
+@* ── TAB 1: Donors ─────────────────────────────────────────────────────────── *@
+@if (activeTab == 1)
+{
+    <div class="tab-content">
+        <div class="filter-row">
+            <label>Organ:</label>
+            <select @bind="donorOrganFilter" class="input-field">
+                <option value="">All Organs</option>
+                <option value="Kidney">Kidney</option>
+                <option value="Liver">Liver</option>
+                <option value="Heart">Heart</option>
+                <option value="Lung">Lung</option>
+                <option value="Pancreas">Pancreas</option>
+            </select>
+            <label>Show:</label>
+            <select @bind="donorStatusFilter" class="input-field">
+                <option value="available">Available Only</option>
+                <option value="all">All Donors</option>
+            </select>
+            <button @onclick="LoadDonors" class="btn-secondary">Filter</button>
+        </div>
+
+        @if (loadingDonors)
+        {
+            <p>Loading donors...</p>
+        }
+        else if (donors.Count == 0)
+        {
+            <p class="empty-msg">No donor organs found.</p>
+        }
+        else
+        {
+            <table class="tx-table">
+                <thead>
+                    <tr>
+                        <th>Organ</th>
+                        <th>Type</th>
+                        <th>Blood Type</th>
+                        <th>Status</th>
+                        <th>Age</th>
+                        <th>Recovery</th>
+                        <th>Expires</th>
+                        <th>Matched To</th>
+                        <th>Action</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (DonorSummary d in donors)
+                    {
+                        <tr class="@(d.Status == "Available" ? "row-available" : "")">
+                            <td class="organ-badge">@d.OrganType</td>
+                            <td>@d.DonorType</td>
+                            <td class="blood-type">@d.BloodType</td>
+                            <td class="donor-status-@d.Status">@d.Status</td>
+                            <td>@d.DonorAgeYears y</td>
+                            <td>@d.RecoveryDateTime.ToString("MM/dd HH:mm")</td>
+                            <td class="@(d.ExpirationDateTime.HasValue && d.ExpirationDateTime.Value < DateTime.Now.AddHours(4) ? "expiring-soon" : "")">
+                                @(d.ExpirationDateTime?.ToString("MM/dd HH:mm") ?? "—")
+                            </td>
+                            <td>@(d.MatchedPatientName ?? "—")</td>
+                            <td><button @onclick="() => ViewDonor(d.DonorId)" class="btn-small">Detail</button></td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        }
+
+        @if (selectedDonor != null)
+        {
+            <div class="detail-panel">
+                <h4>Donor Organ — @selectedDonor.OrganType</h4>
+                <div class="detail-grid">
+                    <span>Donor Type:</span><span>@selectedDonor.DonorType</span>
+                    <span>Blood Type:</span><span>@selectedDonor.BloodType</span>
+                    <span>Status:</span><span>@selectedDonor.Status</span>
+                    <span>HLA Typing:</span><span>@(selectedDonor.HlaTyping ?? "—")</span>
+                    <span>Cold Ischemia:</span><span>@(selectedDonor.ColdIschemiaTimeHours?.ToString("F1") ?? "—") hrs</span>
+                    <span>Cause of Death:</span><span>@(selectedDonor.CauseOfDeath ?? "—")</span>
+                    <span>Cross Clamp:</span><span>@(selectedDonor.CrossClampDateTime?.ToString("MM/dd/yyyy HH:mm") ?? "—")</span>
+                    <span>Recovery:</span><span>@selectedDonor.RecoveryDateTime.ToString("MM/dd/yyyy HH:mm")</span>
+                    <span>Expires:</span><span>@(selectedDonor.ExpirationDateTime?.ToString("MM/dd/yyyy HH:mm") ?? "—")</span>
+                    <span>Location:</span><span>@selectedDonor.LocationName</span>
+                    <span>Recovered By:</span><span>@selectedDonor.RecoveredByName</span>
+                    @if (!string.IsNullOrEmpty(selectedDonor.AllocatedToPatientName))
+                    {
+                        <span>Allocated To:</span><span>@selectedDonor.AllocatedToPatientName</span>
+                        <span>Allocated:</span><span>@selectedDonor.AllocationDateTime?.ToString("MM/dd/yyyy HH:mm")</span>
+                    }
+                    @if (!string.IsNullOrEmpty(selectedDonor.DiscardReason))
+                    {
+                        <span>Discard Reason:</span><span class="discard-reason">@selectedDonor.DiscardReason</span>
+                    }
+                </div>
+                <button @onclick="() => selectedDonor = null" class="btn-secondary">Close</button>
+            </div>
+        }
+    </div>
+}
+
+@* ── TAB 2: Register ───────────────────────────────────────────────────────── *@
+@if (activeTab == 2)
+{
+    <div class="tab-content">
+        <div class="record-tabs">
+            <button class="@SubTabClass(0)" @onclick="() => activeSubTab = 0">Register Patient</button>
+            <button class="@SubTabClass(1)" @onclick="() => activeSubTab = 1">Add Donor</button>
+        </div>
+
+        @* Sub-tab: Register Patient *@
+        @if (activeSubTab == 0)
+        {
+            <div class="form-section">
+                <h4>Register Patient for Transplant Waitlist</h4>
+                <div class="form-grid">
+                    <label>Patient ID:</label>
+                    <input @bind="regPatientId" class="input-field" />
+
+                    <label>Patient Name:</label>
+                    <input @bind="regPatientName" class="input-field" />
+
+                    <label>Date of Birth:</label>
+                    <input type="date" @bind="regDob" class="input-field" />
+
+                    <label>Organ Needed:</label>
+                    <select @bind="regOrganType" class="input-field">
+                        <option value="0">Kidney</option>
+                        <option value="1">Liver</option>
+                        <option value="2">Heart</option>
+                        <option value="3">Lung</option>
+                        <option value="4">Pancreas</option>
+                        <option value="5">Small Bowel</option>
+                        <option value="6">Kidney-Pancreas</option>
+                        <option value="7">Heart-Lung</option>
+                    </select>
+
+                    <label>Priority:</label>
+                    <select @bind="regPriority" class="input-field">
+                        <option value="0">Standard</option>
+                        <option value="1">Urgent</option>
+                        <option value="2">Status 1A</option>
+                        <option value="3">Status 1B</option>
+                    </select>
+
+                    <label>Blood Type:</label>
+                    <select @bind="regBloodType" class="input-field">
+                        <option value="0">O+</option>
+                        <option value="1">O-</option>
+                        <option value="2">A+</option>
+                        <option value="3">A-</option>
+                        <option value="4">B+</option>
+                        <option value="5">B-</option>
+                        <option value="6">AB+</option>
+                        <option value="7">AB-</option>
+                    </select>
+
+                    <label>Primary Diagnosis:</label>
+                    <input @bind="regDiagnosis" class="input-field" placeholder="e.g., End-stage renal disease" />
+
+                    <label>MELD Score:</label>
+                    <input type="number" step="0.1" @bind="regMeld" class="input-field" placeholder="Optional" />
+
+                    <label>UNOS ID:</label>
+                    <input @bind="regUnosId" class="input-field" placeholder="Optional" />
+
+                    <label>Location ID:</label>
+                    <input @bind="regLocationId" class="input-field" placeholder="e.g., TRANSPLANT-CTR-01" />
+
+                    <label>Location Name:</label>
+                    <input @bind="regLocationName" class="input-field" />
+
+                    <label>Referring Provider:</label>
+                    <input @bind="regReferringName" class="input-field" placeholder="Optional" />
+
+                    <label>Notes:</label>
+                    <textarea @bind="regNotes" class="input-field" rows="2"></textarea>
+                </div>
+                <button @onclick="RegisterPatient" class="btn-primary" disabled="@savingPatient">
+                    @(savingPatient ? "Saving..." : "Register Patient")
+                </button>
+                @if (patientSuccess != null)
+                {
+                    <span class="success-msg">@patientSuccess</span>
+                }
+            </div>
+        }
+
+        @* Sub-tab: Add Donor *@
+        @if (activeSubTab == 1)
+        {
+            <div class="form-section">
+                <h4>Add Donor Organ Record</h4>
+                <div class="form-grid">
+                    <label>Organ Type:</label>
+                    <select @bind="donorOrganType" class="input-field">
+                        <option value="0">Kidney</option>
+                        <option value="1">Liver</option>
+                        <option value="2">Heart</option>
+                        <option value="3">Lung</option>
+                        <option value="4">Pancreas</option>
+                    </select>
+
+                    <label>Donor Type:</label>
+                    <select @bind="donorDonorType" class="input-field">
+                        <option value="0">Deceased Donor</option>
+                        <option value="1">Living Donor</option>
+                        <option value="2">Split Liver</option>
+                    </select>
+
+                    <label>Donor Name/ID:</label>
+                    <input @bind="donorName" class="input-field" placeholder="De-identified for deceased" />
+
+                    <label>Date of Birth:</label>
+                    <input type="date" @bind="donorDob" class="input-field" />
+
+                    <label>Blood Type:</label>
+                    <select @bind="donorBloodType" class="input-field">
+                        <option value="0">O+</option>
+                        <option value="1">O-</option>
+                        <option value="2">A+</option>
+                        <option value="3">A-</option>
+                        <option value="4">B+</option>
+                        <option value="5">B-</option>
+                        <option value="6">AB+</option>
+                        <option value="7">AB-</option>
+                    </select>
+
+                    <label>Cause of Death:</label>
+                    <input @bind="donorCauseOfDeath" class="input-field" placeholder="Deceased donors only" />
+
+                    <label>Recovery Date/Time:</label>
+                    <input type="datetime-local" @bind="donorRecoveryDt" class="input-field" />
+
+                    <label>Expiration Date/Time:</label>
+                    <input type="datetime-local" @bind="donorExpirationDt" class="input-field" />
+
+                    <label>Cold Ischemia (hrs):</label>
+                    <input type="number" step="0.5" @bind="donorColdIschemia" class="input-field" />
+
+                    <label>Location ID:</label>
+                    <input @bind="donorLocationId" class="input-field" />
+
+                    <label>Location Name:</label>
+                    <input @bind="donorLocationName" class="input-field" />
+
+                    <label>Recovered By ID:</label>
+                    <input @bind="donorRecoveredById" class="input-field" />
+
+                    <label>Recovered By Name:</label>
+                    <input @bind="donorRecoveredByName" class="input-field" />
+
+                    <label>Notes:</label>
+                    <textarea @bind="donorNotes" class="input-field" rows="2"></textarea>
+                </div>
+                <button @onclick="AddDonor" class="btn-primary" disabled="@savingDonor">
+                    @(savingDonor ? "Saving..." : "Add Donor Organ")
+                </button>
+                @if (donorSuccess != null)
+                {
+                    <span class="success-msg">@donorSuccess</span>
+                }
+            </div>
+        }
+    </div>
+}
+
+<style>
+    .subtitle { color: #666; font-size: 0.9rem; margin-bottom: 1rem; }
+    .toolbar { margin-bottom: 1rem; }
+    .error-banner { background: #fde; border: 1px solid #f88; padding: 0.5rem 1rem; border-radius: 4px; margin-bottom: 1rem; color: #c00; }
+    .tabs { display: flex; gap: 0.25rem; border-bottom: 2px solid #dee2e6; margin-bottom: 1rem; }
+    .tab-btn { padding: 0.5rem 1.25rem; border: none; background: none; cursor: pointer; color: #555; border-bottom: 2px solid transparent; margin-bottom: -2px; }
+    .tab-btn.active { color: #0056b3; border-bottom-color: #0056b3; font-weight: 600; }
+    .tab-content { padding: 0.5rem 0; }
+    .record-tabs { display: flex; gap: 0.25rem; margin-bottom: 1rem; }
+    .sub-tab-btn { padding: 0.35rem 1rem; border: 1px solid #dee2e6; background: #f8f9fa; cursor: pointer; border-radius: 4px; }
+    .sub-tab-btn.active { background: #e7f0fd; border-color: #0056b3; color: #0056b3; font-weight: 600; }
+    .filter-row { display: flex; align-items: center; gap: 0.5rem; margin-bottom: 1rem; flex-wrap: wrap; }
+    .input-field { padding: 0.35rem 0.6rem; border: 1px solid #ced4da; border-radius: 4px; }
+    .btn-primary { background: #0056b3; color: white; border: none; padding: 0.4rem 1rem; border-radius: 4px; cursor: pointer; }
+    .btn-primary:hover { background: #004094; }
+    .btn-primary:disabled { background: #6c757d; cursor: not-allowed; }
+    .btn-secondary { background: #6c757d; color: white; border: none; padding: 0.35rem 0.8rem; border-radius: 4px; cursor: pointer; }
+    .btn-small { font-size: 0.8rem; padding: 0.2rem 0.5rem; background: #17a2b8; color: white; border: none; border-radius: 3px; cursor: pointer; }
+    .tx-table { width: 100%; border-collapse: collapse; font-size: 0.88rem; margin-top: 0.5rem; }
+    .tx-table th { background: #343a40; color: white; padding: 0.4rem 0.6rem; text-align: left; }
+    .tx-table td { padding: 0.35rem 0.6rem; border-bottom: 1px solid #dee2e6; }
+    .tx-table tr:hover td { background: #f8f9fa; }
+    .row-urgent td { background: #fff3cd !important; }
+    .row-available td { background: #f0fff4 !important; }
+    .organ-badge { font-weight: 600; color: #0056b3; }
+    .priority-badge { font-weight: 600; font-size: 0.82rem; }
+    .priority-Status1A, .priority-Status1B { color: #dc3545; }
+    .priority-Urgent { color: #fd7e14; }
+    .priority-Standard { color: #28a745; }
+    .status-badge { font-size: 0.82rem; }
+    .status-Listed { color: #28a745; font-weight: 600; }
+    .status-PendingEvaluation { color: #6c757d; }
+    .status-OnHold { color: #fd7e14; }
+    .status-Transplanted { color: #0056b3; }
+    .donor-status-Available { color: #28a745; font-weight: 600; }
+    .donor-status-Allocated { color: #fd7e14; font-weight: 600; }
+    .donor-status-Discarded, .donor-status-Expired { color: #dc3545; }
+    .blood-type { font-weight: 600; font-size: 0.85rem; }
+    .diag-cell { max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .expiring-soon { color: #dc3545; font-weight: bold; }
+    .empty-msg { color: #6c757d; font-style: italic; }
+    .detail-panel { background: #f0f4ff; border: 1px solid #c0d0f0; border-radius: 6px; padding: 1rem; margin-top: 1.5rem; }
+    .detail-grid { display: grid; grid-template-columns: 140px 1fr; gap: 0.35rem; margin-bottom: 1rem; font-size: 0.9rem; }
+    .detail-grid span:nth-child(odd) { font-weight: 600; color: #555; }
+    .discard-reason { color: #dc3545; }
+    .form-section { max-width: 680px; }
+    .form-grid { display: grid; grid-template-columns: 180px 1fr; gap: 0.5rem; align-items: center; margin-bottom: 1rem; }
+    .success-msg { color: #28a745; font-weight: 600; margin-left: 1rem; }
+</style>
+
+@code {
+    // ── State ──────────────────────────────────────────────────────────────────
+    private int activeTab = 0;
+    private int activeSubTab = 0;
+    private string? error;
+
+    // Waitlist
+    private bool loadingWaitlist;
+    private List<WaitlistEntry> waitlistPatients = new();
+    private string waitlistOrganFilter = string.Empty;
+    private string waitlistStatusFilter = "active";
+    private PatientDetail? selectedPatient;
+
+    // Donors
+    private bool loadingDonors;
+    private List<DonorSummary> donors = new();
+    private string donorOrganFilter = string.Empty;
+    private string donorStatusFilter = "available";
+    private DonorDetail? selectedDonor;
+
+    // Register patient form
+    private string regPatientId = string.Empty;
+    private string regPatientName = string.Empty;
+    private DateTime regDob = DateTime.Now.AddYears(-40);
+    private int regOrganType = 0;
+    private int regPriority = 0;
+    private int regBloodType = 0;
+    private string regDiagnosis = string.Empty;
+    private decimal? regMeld;
+    private string? regUnosId;
+    private string regLocationId = string.Empty;
+    private string regLocationName = string.Empty;
+    private string? regReferringName;
+    private string? regNotes;
+    private bool savingPatient;
+    private string? patientSuccess;
+
+    // Add donor form
+    private int donorOrganType = 0;
+    private int donorDonorType = 0;
+    private string donorName = string.Empty;
+    private DateTime? donorDob;
+    private int donorBloodType = 0;
+    private string? donorCauseOfDeath;
+    private DateTime donorRecoveryDt = DateTime.Now;
+    private DateTime? donorExpirationDt;
+    private decimal? donorColdIschemia;
+    private string donorLocationId = string.Empty;
+    private string donorLocationName = string.Empty;
+    private string donorRecoveredById = string.Empty;
+    private string donorRecoveredByName = string.Empty;
+    private string? donorNotes;
+    private bool savingDonor;
+    private string? donorSuccess;
+
+    // ── Helpers ────────────────────────────────────────────────────────────────
+    private string TabClass(int t) => t == activeTab ? "tab-btn active" : "tab-btn";
+    private string SubTabClass(int t) => t == activeSubTab ? "sub-tab-btn active" : "sub-tab-btn";
+
+    protected override async Task OnInitializedAsync() => await LoadAll();
+
+    private async Task LoadAll()
+    {
+        error = null;
+        await Task.WhenAll(LoadWaitlist(), LoadDonors());
+    }
+
+    // ── Waitlist ───────────────────────────────────────────────────────────────
+    private async Task LoadWaitlist()
+    {
+        loadingWaitlist = true;
+        try
+        {
+            var wlIdx = Grains.GetGrain<ITransplantWaitlistIndexGrain>("TX-WAITLIST-IDX");
+            List<TransplantWaitlistEntry> rawWl;
+            if (!string.IsNullOrEmpty(waitlistOrganFilter))
+                rawWl = await wlIdx.GetPatientsByOrganAsync(Enum.Parse<TransplantOrganType>(waitlistOrganFilter));
+            else if (waitlistStatusFilter == "active")
+                rawWl = await wlIdx.GetActiveWaitlistAsync();
+            else
+                rawWl = await wlIdx.GetAllPatientsAsync();
+            waitlistPatients = rawWl.Select(e => new WaitlistEntry
+            {
+                PatientId = e.PatientId, PatientName = e.PatientName,
+                OrganType = e.OrganType.ToString(), Priority = e.Priority.ToString(),
+                Status = e.Status.ToString(), ListedDate = e.ListedDate,
+                BloodType = e.BloodType.ToString(), PrimaryDiagnosis = e.PrimaryDiagnosis
+            }).ToList();
+        }
+        catch { error = "Failed to load waitlist."; }
+        finally { loadingWaitlist = false; }
+    }
+
+    private async Task ViewPatient(string patientId)
+    {
+        try
+        {
+            var txPGrain = Grains.GetGrain<ITransplantPatientGrain>($"TX-PATIENT:{patientId}");
+            var txPs = await txPGrain.GetPatientAsync();
+            selectedPatient = new PatientDetail
+            {
+                PatientId = txPs.PatientId, PatientName = txPs.PatientName,
+                OrganType = txPs.OrganType.ToString(), Priority = txPs.Priority.ToString(),
+                Status = txPs.Status.ToString(), BloodType = txPs.BloodType.ToString(),
+                HlaTyping = txPs.HlaTyping, PrimaryDiagnosis = txPs.PrimaryDiagnosis,
+                MeldScore = txPs.CalculatedMeldScore, Notes = txPs.Notes
+            };
+        }
+        catch { error = "Failed to load patient detail."; }
+    }
+
+    private async Task RegisterPatient()
+    {
+        if (string.IsNullOrWhiteSpace(regPatientId)) { error = "Enter a Patient ID."; return; }
+        savingPatient = true;
+        patientSuccess = null;
+        error = null;
+        try
+        {
+            string decodedTxId = regPatientId.Trim();
+            var txRegGrain = Grains.GetGrain<ITransplantPatientGrain>($"TX-PATIENT:{decodedTxId}");
+            await txRegGrain.RegisterPatientAsync(
+                decodedTxId, regPatientName, regDob,
+                (TransplantOrganType)regOrganType, (TransplantPriority)regPriority,
+                (BloodType)regBloodType, null, null,
+                regDiagnosis, null, null, null, regMeld,
+                regLocationId, regLocationName, null, regReferringName, regNotes);
+            var txRegState = await txRegGrain.GetPatientAsync();
+            var txWlIdx = Grains.GetGrain<ITransplantWaitlistIndexGrain>("TX-WAITLIST-IDX");
+            await txWlIdx.UpsertPatientAsync(new TransplantWaitlistEntry
+            {
+                PatientId = txRegState.PatientId, PatientName = txRegState.PatientName,
+                OrganType = txRegState.OrganType, Priority = txRegState.Priority,
+                Status = txRegState.Status, ListedDate = txRegState.ListedDate ?? DateTime.UtcNow,
+                BloodType = txRegState.BloodType, PrimaryDiagnosis = txRegState.PrimaryDiagnosis
+            });
+            patientSuccess = $"{regPatientName} registered on transplant waitlist.";
+            await LoadWaitlist();
+        }
+        catch { error = "An error occurred registering the patient."; }
+        finally { savingPatient = false; }
+    }
+
+    // ── Donors ─────────────────────────────────────────────────────────────────
+    private async Task LoadDonors()
+    {
+        loadingDonors = true;
+        try
+        {
+            var donIdx = Grains.GetGrain<ITransplantDonorIndexGrain>("TX-DONOR-IDX");
+            List<TransplantDonorSummaryEntry> rawDonors;
+            if (!string.IsNullOrEmpty(donorOrganFilter))
+                rawDonors = await donIdx.GetDonorsByOrganAsync(Enum.Parse<TransplantOrganType>(donorOrganFilter));
+            else if (donorStatusFilter == "available")
+                rawDonors = await donIdx.GetAvailableDonorsAsync();
+            else
+                rawDonors = await donIdx.GetAllDonorsAsync();
+            donors = rawDonors.Select(d => new DonorSummary
+            {
+                DonorId = d.DonorId,
+                OrganType = d.OrganType.ToString(), DonorType = d.DonorType.ToString(),
+                Status = d.Status.ToString(), BloodType = d.BloodType.ToString(),
+                RecoveryDateTime = d.RecoveryDateTime
+            }).ToList();
+        }
+        catch { error = "Failed to load donors."; }
+        finally { loadingDonors = false; }
+    }
+
+    private async Task ViewDonor(string donorId)
+    {
+        try
+        {
+            var donGrain = Grains.GetGrain<ITransplantDonorGrain>(donorId);
+            var donState = await donGrain.GetDonorAsync();
+            selectedDonor = new DonorDetail
+            {
+                DonorId = donorId, DonorName = donState.DonorName,
+                OrganType = donState.OrganType.ToString(), DonorType = donState.DonorType.ToString(),
+                Status = donState.Status.ToString(), BloodType = donState.BloodType.ToString(),
+                HlaTyping = donState.HlaTyping, CauseOfDeath = donState.CauseOfDeath,
+                RecoveryDateTime = donState.RecoveryDateTime, Notes = donState.Notes
+            };
+        }
+        catch { error = "Failed to load donor detail."; }
+    }
+
+    private async Task AddDonor()
+    {
+        savingDonor = true;
+        donorSuccess = null;
+        error = null;
+        try
+        {
+            var req = new
+            {
+                DonorType = donorDonorType,
+                OrganType = donorOrganType,
+                DonorName = donorName,
+                DateOfBirth = donorDob,
+                BloodType = donorBloodType,
+                WeightKg = (decimal?)null,
+                HeightCm = (decimal?)null,
+                CauseOfDeath = donorCauseOfDeath,
+                CrossClampDateTime = (DateTime?)null,
+                RecoveryDateTime = donorRecoveryDt,
+                ExpirationDateTime = donorExpirationDt,
+                HlaTyping = (string?)null,
+                ColdIschemiaTimeHours = donorColdIschemia,
+                LocationId = donorLocationId,
+                LocationName = donorLocationName,
+                RecoveredById = donorRecoveredById,
+                RecoveredByName = donorRecoveredByName,
+                Notes = donorNotes,
+            };
+            string newDonorId = $"TX-DONOR:{Guid.NewGuid()}";
+            var newDonGrain = Grains.GetGrain<ITransplantDonorGrain>(newDonorId);
+            await newDonGrain.CreateDonorAsync(
+                (DonorType)donorDonorType, (TransplantOrganType)donorOrganType,
+                donorName, donorDob, (BloodType)donorBloodType,
+                null, null, donorCauseOfDeath, null, donorRecoveryDt, donorExpirationDt,
+                null, donorColdIschemia, donorLocationId, donorLocationName,
+                donorRecoveredById, donorRecoveredByName, donorNotes);
+            var newDonState = await newDonGrain.GetDonorAsync();
+            var donIndex = Grains.GetGrain<ITransplantDonorIndexGrain>("TX-DONOR-IDX");
+            await donIndex.UpsertDonorAsync(new TransplantDonorSummaryEntry
+            {
+                DonorId = newDonorId,
+                OrganType = newDonState.OrganType, DonorType = newDonState.DonorType,
+                Status = newDonState.Status, BloodType = newDonState.BloodType,
+                RecoveryDateTime = newDonState.RecoveryDateTime
+            });
+            donorSuccess = "Donor organ record added.";
+            await LoadDonors();
+        }
+        catch { error = "An error occurred adding the donor."; }
+        finally { savingDonor = false; }
+    }
+
+    // ── Local DTOs ─────────────────────────────────────────────────────────────
+    private class WaitlistEntry
+    {
+        public string PatientId { get; set; } = string.Empty;
+        public string PatientName { get; set; } = string.Empty;
+        public string OrganType { get; set; } = string.Empty;
+        public string Status { get; set; } = string.Empty;
+        public string Priority { get; set; } = string.Empty;
+        public DateTime ListedDate { get; set; }
+        public string BloodType { get; set; } = string.Empty;
+        public string PrimaryDiagnosis { get; set; } = string.Empty;
+        public string? UnosId { get; set; }
+    }
+
+    private class PatientDetail
+    {
+        public string PatientId { get; set; } = string.Empty;
+        public string PatientName { get; set; } = string.Empty;
+        public string OrganType { get; set; } = string.Empty;
+        public string Status { get; set; } = string.Empty;
+        public string Priority { get; set; } = string.Empty;
+        public string BloodType { get; set; } = string.Empty;
+        public string? HlaTyping { get; set; }
+        public decimal? PanelReactiveAntibodyPct { get; set; }
+        public decimal? MeldScore { get; set; }
+        public string PrimaryDiagnosis { get; set; } = string.Empty;
+        public string? UnosId { get; set; }
+        public DateTime? ListedDate { get; set; }
+        public string LocationName { get; set; } = string.Empty;
+        public string? ReferringProviderName { get; set; }
+        public string? TransplantSurgeonName { get; set; }
+        public DateTime? TransplantDate { get; set; }
+        public string? Notes { get; set; }
+    }
+
+    private class DonorSummary
+    {
+        public string DonorId { get; set; } = string.Empty;
+        public string DonorName { get; set; } = string.Empty;
+        public string OrganType { get; set; } = string.Empty;
+        public string DonorType { get; set; } = string.Empty;
+        public string BloodType { get; set; } = string.Empty;
+        public string Status { get; set; } = string.Empty;
+        public int DonorAgeYears { get; set; }
+        public DateTime RecoveryDateTime { get; set; }
+        public DateTime? ExpirationDateTime { get; set; }
+        public string? MatchedPatientName { get; set; }
+    }
+
+    private class DonorDetail
+    {
+        public string DonorId { get; set; } = string.Empty;
+        public string DonorName { get; set; } = string.Empty;
+        public string OrganType { get; set; } = string.Empty;
+        public string DonorType { get; set; } = string.Empty;
+        public string BloodType { get; set; } = string.Empty;
+        public string Status { get; set; } = string.Empty;
+        public string? HlaTyping { get; set; }
+        public decimal? ColdIschemiaTimeHours { get; set; }
+        public string? CauseOfDeath { get; set; }
+        public DateTime? CrossClampDateTime { get; set; }
+        public DateTime RecoveryDateTime { get; set; }
+        public DateTime? ExpirationDateTime { get; set; }
+        public string LocationName { get; set; } = string.Empty;
+        public string RecoveredByName { get; set; } = string.Empty;
+        public string? AllocatedToPatientName { get; set; }
+        public DateTime? AllocationDateTime { get; set; }
+        public string? DiscardReason { get; set; }
+        public string? Notes { get; set; }
+    }
+}

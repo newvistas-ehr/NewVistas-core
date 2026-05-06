@@ -1,0 +1,305 @@
+@page "/site-parameters"
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+@rendermode InteractiveServer
+@using NewVistas.BlazorWeb.Services
+@using NewVistas.Abstractions.GrainInterfaces
+@using NewVistas.Abstractions.GrainStates
+@inject OrleansGrainService Grains
+
+<PageTitle>Site Parameters</PageTitle>
+
+<h1>Site Parameters</h1>
+<p class="subtitle">System-wide configuration settings</p>
+
+@if (error != null) { <div class="alert alert-error">@error</div> }
+@if (successMessage != null) { <div class="alert alert-success">@successMessage</div> }
+
+<div class="tabs">
+    <button class="tab @(activeTab == "display" ? "active" : "")"
+            @onclick='() => { activeTab = "display"; }'>
+        Display Settings
+    </button>
+    <button class="tab @(activeTab == "custom" ? "active" : "")"
+            @onclick='() => { activeTab = "custom"; _ = LoadAllParameters(); }'>
+        Custom Parameters
+    </button>
+</div>
+
+<!-- ── Display Settings Tab ────────────────────────────────────────────────── -->
+@if (activeTab == "display")
+{
+    <div class="section-card">
+        <div class="section-header">
+            <h2>Display Settings</h2>
+        </div>
+        <p class="description-text">Controls the number of entries displayed on the cover sheet and clinical pages.</p>
+
+        @if (loadingDisplaySettings)
+        {
+            <p class="loading-hint">Loading display settings...</p>
+        }
+        else
+        {
+            <div class="form-section">
+                <div class="form-grid">
+                    <div class="form-group">
+                        <label>Vitals Display Count</label>
+                        <input type="number" min="1" max="100" @bind="vitalsDisplayCount" class="form-control" />
+                    </div>
+                    <div class="form-group">
+                        <label>Orders Display Count</label>
+                        <input type="number" min="1" max="100" @bind="ordersDisplayCount" class="form-control" />
+                    </div>
+                    <div class="form-group">
+                        <label>Notes Display Count</label>
+                        <input type="number" min="1" max="100" @bind="notesDisplayCount" class="form-control" />
+                    </div>
+                </div>
+                <button class="btn btn-primary" @onclick="SaveDisplaySettings" disabled="@savingDisplayCount">
+                    @(savingDisplayCount ? "Saving..." : "Save")
+                </button>
+            </div>
+        }
+    </div>
+}
+
+<!-- ── Custom Parameters Tab ───────────────────────────────────────────────── -->
+@if (activeTab == "custom")
+{
+    <div class="section-card">
+        <div class="section-header">
+            <h2>Custom Parameters</h2>
+        </div>
+
+        <div class="form-section">
+            <h3>Add / Update Parameter</h3>
+            <div class="form-grid">
+                <div class="form-group">
+                    <label>Parameter Name *</label>
+                    <input type="text" @bind="newParamName" placeholder="e.g. DefaultClinic" class="form-control" />
+                </div>
+                <div class="form-group">
+                    <label>Value *</label>
+                    <input type="text" @bind="newParamValue" placeholder="Parameter value" class="form-control" />
+                </div>
+            </div>
+            <button class="btn btn-primary" @onclick="SetParameter" disabled="@settingParam">
+                @(settingParam ? "Saving..." : "Set Parameter")
+            </button>
+        </div>
+
+        @if (loadingParameters)
+        {
+            <p class="loading-hint">Loading parameters...</p>
+        }
+        else if (parameters == null || parameters.Count == 0)
+        {
+            <div class="empty-state">No custom parameters defined.</div>
+        }
+        else
+        {
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Name</th>
+                        <th>Value</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var kvp in parameters.OrderBy(p => p.Key))
+                    {
+                        <tr>
+                            <td><code>@kvp.Key</code></td>
+                            <td>@kvp.Value</td>
+                            <td>
+                                <button class="btn btn-xs btn-danger"
+                                        @onclick="() => DeleteParameter(kvp.Key)">
+                                    Delete
+                                </button>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        }
+    </div>
+}
+
+<style>
+    .subtitle { color: #6b7280; font-size: 0.9rem; margin-top: -0.5rem; margin-bottom: 1rem; }
+    .description-text { color: #6b7280; font-size: 0.875rem; margin-bottom: 1rem; }
+
+    .tabs { display: flex; gap: 0.25rem; margin-bottom: 1rem; border-bottom: 2px solid #e5e7eb; }
+    .tab { padding: 0.5rem 1.25rem; border: none; background: none; cursor: pointer; color: #6b7280; font-weight: 500; border-bottom: 3px solid transparent; margin-bottom: -2px; }
+    .tab.active { color: #2563eb; border-bottom-color: #2563eb; }
+
+    .section-card { background: white; border: 1px solid #e5e7eb; border-radius: 8px; padding: 1.5rem; margin-bottom: 1.5rem; }
+    .section-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; }
+    .section-header h2, .section-header h3 { margin: 0; }
+
+    .form-section { background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 6px; padding: 1rem; margin-bottom: 1rem; }
+    .form-section h3 { margin: 0 0 0.75rem; font-size: 0.95rem; }
+    .form-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 0.75rem; margin-bottom: 0.75rem; }
+    .form-group { display: flex; flex-direction: column; gap: 0.25rem; }
+    .form-group label { font-size: 0.8rem; font-weight: 600; color: #374151; }
+    .form-control { padding: 0.375rem 0.5rem; border: 1px solid #d1d5db; border-radius: 4px; font-size: 0.875rem; }
+
+    .data-table { width: 100%; border-collapse: collapse; font-size: 0.875rem; }
+    .data-table th { background: #f3f4f6; text-align: left; padding: 0.5rem 0.75rem; font-weight: 600; border-bottom: 1px solid #e5e7eb; }
+    .data-table td { padding: 0.5rem 0.75rem; border-bottom: 1px solid #f3f4f6; vertical-align: top; }
+
+    .empty-state { color: #9ca3af; text-align: center; padding: 2rem; }
+    .loading-hint { color: #6b7280; font-style: italic; }
+
+    .btn { padding: 0.375rem 0.75rem; border: none; border-radius: 4px; cursor: pointer; font-weight: 500; font-size: 0.875rem; }
+    .btn-primary { background: #2563eb; color: white; }
+    .btn-danger { background: #dc2626; color: white; }
+    .btn-xs { font-size: 0.75rem; padding: 0.15rem 0.4rem; margin-right: 0.25rem; }
+    .btn:disabled { opacity: 0.6; cursor: not-allowed; }
+
+    .alert { padding: 0.75rem 1rem; border-radius: 4px; margin-bottom: 1rem; }
+    .alert-error { background: #fee2e2; color: #991b1b; border: 1px solid #fecaca; }
+    .alert-success { background: #d1fae5; color: #065f46; border: 1px solid #a7f3d0; }
+
+    code { background: #f3f4f6; padding: 0.1rem 0.3rem; border-radius: 3px; font-size: 0.8rem; }
+</style>
+
+@code {
+    // Tab state
+    string activeTab = "display";
+
+    // Shared feedback
+    string? error;
+    string? successMessage;
+
+    // Display Settings
+    bool loadingDisplaySettings;
+    bool savingDisplayCount;
+    int vitalsDisplayCount = 5;
+    int ordersDisplayCount = 5;
+    int notesDisplayCount = 10;
+
+    // Custom Parameters
+    bool loadingParameters;
+    bool settingParam;
+    Dictionary<string, string>? parameters;
+    string newParamName = string.Empty;
+    string newParamValue = string.Empty;
+
+    private ISiteParametersGrain GetSiteGrain() => Grains.GetGrain<ISiteParametersGrain>("SITE:DEFAULT");
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadDisplaySettings();
+    }
+
+    // ── Display Settings Methods ──────────────────────────────────────────────
+
+    async Task LoadDisplaySettings()
+    {
+        loadingDisplaySettings = true;
+        error = null;
+        try
+        {
+            var grain = GetSiteGrain();
+            vitalsDisplayCount = await grain.GetVitalsDisplayCountAsync();
+            ordersDisplayCount = await grain.GetOrdersDisplayCountAsync();
+            notesDisplayCount = await grain.GetNotesDisplayCountAsync();
+        }
+        catch
+        {
+            error = "Failed to load display settings.";
+        }
+        finally { loadingDisplaySettings = false; }
+    }
+
+    async Task SaveDisplaySettings()
+    {
+        if (vitalsDisplayCount < 1 || ordersDisplayCount < 1 || notesDisplayCount < 1)
+        {
+            error = "Display counts must be at least 1.";
+            return;
+        }
+
+        savingDisplayCount = true;
+        error = null;
+        successMessage = null;
+        try
+        {
+            var grain = GetSiteGrain();
+            await grain.SetVitalsDisplayCountAsync(vitalsDisplayCount);
+            await grain.SetOrdersDisplayCountAsync(ordersDisplayCount);
+            await grain.SetNotesDisplayCountAsync(notesDisplayCount);
+            successMessage = "Display settings saved successfully.";
+        }
+        catch
+        {
+            error = "An error occurred while saving display settings.";
+        }
+        finally { savingDisplayCount = false; }
+    }
+
+    // ── Custom Parameters Methods ─────────────────────────────────────────────
+
+    async Task LoadAllParameters()
+    {
+        loadingParameters = true;
+        error = null;
+        try
+        {
+            var grain = GetSiteGrain();
+            var state = await grain.GetParametersAsync();
+            parameters = state.Parameters ?? new Dictionary<string, string>();
+        }
+        catch
+        {
+            error = "Failed to load site parameters.";
+        }
+        finally { loadingParameters = false; }
+    }
+
+    async Task SetParameter()
+    {
+        if (string.IsNullOrWhiteSpace(newParamName) || string.IsNullOrWhiteSpace(newParamValue))
+        {
+            error = "Both parameter name and value are required.";
+            return;
+        }
+
+        settingParam = true;
+        error = null;
+        successMessage = null;
+        try
+        {
+            var grain = GetSiteGrain();
+            await grain.SetParameterAsync(newParamName.Trim(), newParamValue.Trim());
+            successMessage = $"Parameter '{newParamName.Trim()}' set successfully.";
+            newParamName = string.Empty;
+            newParamValue = string.Empty;
+            await LoadAllParameters();
+        }
+        catch
+        {
+            error = "An error occurred while setting the parameter.";
+        }
+        finally { settingParam = false; }
+    }
+
+    async Task DeleteParameter(string paramName)
+    {
+        error = null;
+        successMessage = null;
+        try
+        {
+            var grain = GetSiteGrain();
+            await grain.SetParameterAsync(paramName, string.Empty);
+            successMessage = $"Parameter '{paramName}' deleted.";
+            await LoadAllParameters();
+        }
+        catch
+        {
+            error = "An error occurred while deleting the parameter.";
+        }
+    }
+}

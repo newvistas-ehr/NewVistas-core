@@ -1,0 +1,218 @@
+@page "/fhir"
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+@rendermode InteractiveServer
+@using NewVistas.BlazorWeb.Services
+@using NewVistas.Abstractions.GrainInterfaces
+@using NewVistas.Abstractions.GrainStates
+@inject OrleansGrainService Grains
+@inject HttpClient Http
+
+<PageTitle>FHIR Gateway — R4 Interoperability</PageTitle>
+
+<h2>FHIR R4 Gateway</h2>
+<p class="subtitle">HL7 FHIR R4 resource browser and capability statement viewer</p>
+
+<div class="tabs">
+    <button class="@TabClass("browser")" @onclick='() => SetTab("browser")'>FHIR Browser</button>
+    <button class="@TabClass("capability")" @onclick='() => SetTab("capability")'>Capability Statement</button>
+    <button class="@TabClass("about")" @onclick='() => SetTab("about")'>About</button>
+</div>
+
+@if (!string.IsNullOrEmpty(error))
+{
+    <div class="error">@error</div>
+}
+
+@* ── FHIR Browser Tab ─────────────────────────────────────────────────────── *@
+@if (activeTab == "browser")
+{
+    <div class="toolbar">
+        <input @bind="patientId" placeholder="Patient ID" class="input-id" />
+        <select @bind="selectedResource" class="input-select">
+            <option value="Patient">Patient</option>
+            <option value="Condition">Condition</option>
+            <option value="AllergyIntolerance">AllergyIntolerance</option>
+            <option value="Observation">Observation</option>
+            <option value="MedicationRequest">MedicationRequest</option>
+            <option value="DiagnosticReport">DiagnosticReport</option>
+            <option value="Encounter">Encounter</option>
+            <option value="Appointment">Appointment</option>
+        </select>
+        <button @onclick="QueryResource" disabled="@loading">Query</button>
+    </div>
+
+    @if (loading) { <p>Loading...</p> }
+
+    @if (queryResult is not null)
+    {
+        <h3>@selectedResource — @patientId</h3>
+        <div class="result-info">
+            <span class="badge badge-fhir">FHIR R4</span>
+            <span class="badge badge-resource">@selectedResource</span>
+        </div>
+        <pre class="json-block">@queryResult</pre>
+    }
+}
+
+@* ── Capability Statement Tab ─────────────────────────────────────────────── *@
+@if (activeTab == "capability")
+{
+    <div class="toolbar">
+        <button @onclick="LoadCapabilityStatement" disabled="@loading">Load Capability Statement</button>
+    </div>
+
+    @if (loading) { <p>Loading...</p> }
+
+    @if (capabilityStatement is not null)
+    {
+        <h3>Server Capability Statement</h3>
+        <div class="result-info">
+            <span class="badge badge-fhir">FHIR R4</span>
+            <span class="badge badge-meta">metadata</span>
+        </div>
+        <pre class="json-block">@capabilityStatement</pre>
+    }
+}
+
+@* ── About Tab ────────────────────────────────────────────────────────────── *@
+@if (activeTab == "about")
+{
+    <div class="about-card">
+        <h3>FHIR R4 Compliance</h3>
+        <p>This gateway exposes NewVistas clinical data as HL7 FHIR R4 resources, enabling interoperability
+           with external EHRs, health information exchanges, and third-party applications.</p>
+
+        <h4>Supported Resources</h4>
+        <table class="data-table">
+            <thead>
+                <tr><th>Resource</th><th>Operations</th><th>US Core Profile</th><th>VistA Source</th></tr>
+            </thead>
+            <tbody>
+                <tr><td>Patient</td><td>read, search</td><td>US Core Patient</td><td>File #2</td></tr>
+                <tr><td>Condition</td><td>search (by patient)</td><td>US Core Condition</td><td>File #9000011</td></tr>
+                <tr><td>AllergyIntolerance</td><td>search (by patient)</td><td>US Core AllergyIntolerance</td><td>File #120.8</td></tr>
+                <tr><td>Observation</td><td>search (by patient)</td><td>US Core Vital Signs / Lab Result</td><td>File #120.5, #63</td></tr>
+                <tr><td>MedicationRequest</td><td>search (by patient)</td><td>US Core MedicationRequest</td><td>File #52</td></tr>
+                <tr><td>DiagnosticReport</td><td>search (by patient)</td><td>US Core DiagnosticReport</td><td>File #63</td></tr>
+                <tr><td>Encounter</td><td>search (by patient)</td><td>US Core Encounter</td><td>File #9000010</td></tr>
+                <tr><td>Appointment</td><td>search (by patient)</td><td>—</td><td>File #44</td></tr>
+            </tbody>
+        </table>
+
+        <h4>Conformance</h4>
+        <ul>
+            <li>FHIR version: R4 (4.0.1)</li>
+            <li>Content type: <code>application/fhir+json</code></li>
+            <li>US Core Implementation Guide v6.1.0 profiles where applicable</li>
+            <li>Bundle search results with pagination support</li>
+            <li>CapabilityStatement available at <code>/api/fhir/metadata</code></li>
+        </ul>
+
+        <h4>VistA Heritage</h4>
+        <p>Resources are mapped from VistA FileMan data structures through Orleans grain state.
+           The FHIR gateway layer performs on-the-fly transformation from VistA-native formats
+           (DFN, IEN, FileMan dates) to FHIR-compliant resource representations.</p>
+    </div>
+}
+
+<style>
+    .subtitle { color: #666; margin-top: -0.5rem; margin-bottom: 1rem; font-size: 0.9rem; }
+    .tabs { display: flex; gap: 0.25rem; margin-bottom: 1rem; }
+    .tabs button { padding: 0.4rem 1rem; border: 1px solid #ccc; background: #f5f5f5; cursor: pointer; border-radius: 4px 4px 0 0; }
+    .tabs button.active { background: white; border-bottom-color: white; font-weight: bold; }
+    .tabs button:disabled { opacity: 0.5; cursor: not-allowed; }
+    .toolbar { display: flex; gap: 0.5rem; align-items: center; margin-bottom: 1rem; }
+    .input-id { width: 220px; padding: 0.3rem 0.5rem; }
+    .input-select { padding: 0.3rem 0.5rem; min-width: 180px; }
+    .error { color: darkred; background: #fff0f0; border: 1px solid #fcc; padding: 0.5rem; margin-bottom: 1rem; border-radius: 4px; }
+    .data-table { width: 100%; border-collapse: collapse; font-size: 0.88rem; margin-top: 0.5rem; }
+    .data-table th { background: #2c5282; color: white; padding: 0.4rem 0.6rem; text-align: left; }
+    .data-table td { padding: 0.35rem 0.6rem; border-bottom: 1px solid #e2e8f0; }
+    .data-table tr:hover td { background: #ebf8ff; }
+    .badge { display: inline-block; padding: 0.15rem 0.45rem; border-radius: 3px; font-size: 0.78rem; font-weight: bold; margin-right: 0.3rem; }
+    .badge-fhir { background: #e53e3e; color: white; }
+    .badge-resource { background: #2c5282; color: white; }
+    .badge-meta { background: #38a169; color: white; }
+    .result-info { margin-bottom: 0.5rem; }
+    .json-block { background: #1a202c; color: #68d391; padding: 1rem; border-radius: 4px; font-size: 0.82rem; max-height: 600px; overflow: auto; white-space: pre-wrap; word-break: break-word; border: 1px solid #4a5568; }
+    .about-card { max-width: 800px; background: #f7fafc; border: 1px solid #e2e8f0; border-radius: 4px; padding: 1.5rem; }
+    .about-card h4 { margin-top: 1.5rem; color: #2c5282; }
+    .about-card ul { line-height: 1.8; }
+    code { background: #edf2f7; padding: 0.1rem 0.3rem; border-radius: 3px; font-size: 0.85rem; }
+</style>
+
+@code {
+    string activeTab = "browser";
+    string patientId = string.Empty;
+    string selectedResource = "Patient";
+    bool loading;
+    string? error;
+
+    string? queryResult;
+    string? capabilityStatement;
+
+    string TabClass(string tab) => activeTab == tab ? "active" : string.Empty;
+
+    void SetTab(string tab) { activeTab = tab; error = null; }
+
+    async Task QueryResource()
+    {
+        if (string.IsNullOrWhiteSpace(patientId)) { error = "Patient ID required."; return; }
+        error = null; loading = true; queryResult = null;
+        try
+        {
+            string pid = Uri.EscapeDataString(patientId.Trim());
+            string url;
+            if (selectedResource == "Patient")
+            {
+                url = $"api/fhir/Patient/{pid}";
+            }
+            else
+            {
+                url = $"api/fhir/{Uri.EscapeDataString(selectedResource)}?patient={pid}";
+            }
+
+            HttpResponseMessage resp = await Http.GetAsync(url);
+            if (!resp.IsSuccessStatusCode)
+            {
+                error = $"Query failed: {resp.StatusCode}";
+                return;
+            }
+            string raw = await resp.Content.ReadAsStringAsync();
+            queryResult = FormatJson(raw);
+        }
+        catch (Exception ex) { error = ex.Message; }
+        finally { loading = false; }
+    }
+
+    async Task LoadCapabilityStatement()
+    {
+        error = null; loading = true; capabilityStatement = null;
+        try
+        {
+            HttpResponseMessage resp = await Http.GetAsync("api/fhir/metadata");
+            if (!resp.IsSuccessStatusCode)
+            {
+                error = $"Failed to load capability statement: {resp.StatusCode}";
+                return;
+            }
+            string raw = await resp.Content.ReadAsStringAsync();
+            capabilityStatement = FormatJson(raw);
+        }
+        catch (Exception ex) { error = ex.Message; }
+        finally { loading = false; }
+    }
+
+    string FormatJson(string raw)
+    {
+        try
+        {
+            var doc = System.Text.Json.JsonDocument.Parse(raw);
+            return System.Text.Json.JsonSerializer.Serialize(doc, new System.Text.Json.JsonSerializerOptions { WriteIndented = true });
+        }
+        catch
+        {
+            return raw;
+        }
+    }
+}

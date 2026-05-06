@@ -1,0 +1,204 @@
+@page "/beds"
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+@rendermode InteractiveServer
+@using NewVistas.BlazorWeb.Services
+@using NewVistas.Abstractions.GrainInterfaces
+@using NewVistas.Abstractions.GrainStates
+@inject OrleansGrainService Grains
+
+<PageTitle>Bed Management</PageTitle>
+
+<h1>Bed Management Board</h1>
+
+@if (error != null) { <div class="alert alert-error">@error</div> }
+@if (successMsg != null) { <div class="alert alert-success">@successMsg</div> }
+
+<div class="tab-bar">
+    <button class="@TabClass(0)" @onclick="async () => { activeTab = 0; await LoadBoard(); }">Bed Board</button>
+    <button class="@TabClass(1)" @onclick="() => LoadStats()">Statistics</button>
+</div>
+
+@* ─── Tab 0: Bed Board ───────────────────────────────────────────────── *@
+@if (activeTab == 0)
+{
+    <div class="board-actions">
+        <button class="btn btn-primary" @onclick="LoadBoard" disabled="@loading">Refresh</button>
+        <select @bind="wardFilter" @bind:after="FilterBeds">
+            <option value="">All Wards</option>
+            @if (allBeds != null)
+            {
+                @foreach (var w in allBeds.Select(b => b.WardName).Distinct())
+                {
+                    <option value="@w">@w</option>
+                }
+            }
+        </select>
+    </div>
+
+    @if (filteredBeds != null)
+    {
+        <div class="bed-grid">
+            @foreach (var bed in filteredBeds)
+            {
+                <div class="bed-card bed-@bed.Status.ToLower().Replace("_","")">
+                    <div class="bed-id">@bed.BedId</div>
+                    <div class="bed-type">@bed.BedType</div>
+                    <div class="bed-status"><span class="badge badge-@bed.Status.ToLower().Replace("_","")">@bed.Status</span></div>
+                    @if (bed.PatientName != null)
+                    {
+                        <div class="bed-patient">@bed.PatientName</div>
+                    }
+                    @if (bed.IsolationType != null)
+                    {
+                        <div class="bed-isolation">⚠ @bed.IsolationType</div>
+                    }
+                    <div class="bed-actions">
+                        @if (bed.Status == "CLEANING")
+                        {
+                            <button class="btn-sm" @onclick="() => SetAvailable(bed.BedId)">Ready</button>
+                        }
+                        @if (bed.Status == "OCCUPIED")
+                        {
+                            <button class="btn-sm btn-dc" @onclick="() => DischargeBed(bed.BedId)">DC</button>
+                        }
+                    </div>
+                </div>
+            }
+        </div>
+    }
+}
+
+@* ─── Tab 1: Statistics ──────────────────────────────────────────────── *@
+@if (activeTab == 1 && stats != null)
+{
+    <div class="stats-grid">
+        <div class="stat-card"><div class="stat-value">@stats.TotalBeds</div><div class="stat-label">Total Beds</div></div>
+        <div class="stat-card"><div class="stat-value">@stats.AvailableBeds</div><div class="stat-label">Available</div></div>
+        <div class="stat-card"><div class="stat-value">@stats.OccupiedBeds</div><div class="stat-label">Occupied</div></div>
+        <div class="stat-card"><div class="stat-value">@stats.OccupancyRate%</div><div class="stat-label">Occupancy Rate</div></div>
+    </div>
+}
+
+@code {
+    private List<BedEntryDto>? allBeds;
+    private List<BedEntryDto>? filteredBeds;
+    private StatsDto? stats;
+    private bool loading;
+    private string? error, successMsg;
+    private int activeTab;
+    private string wardFilter = "";
+
+    protected override async Task OnInitializedAsync() => await LoadBoard();
+
+    private async Task LoadBoard()
+    {
+        activeTab = 0; loading = true; error = null;
+        try
+        {
+            var boardGrain = Grains.GetGrain<IBedBoardGrain>("BED-BOARD:MAIN");
+            var entries = await boardGrain.GetAllBedsAsync();
+            allBeds = entries.Select(e => new BedEntryDto
+            {
+                BedId = e.BedId, WardId = e.WardId, WardName = e.WardName,
+                RoomNumber = e.RoomNumber, BedPosition = e.BedPosition,
+                Status = e.Status.ToString(), BedType = e.BedType,
+                PatientName = e.PatientName, IsolationType = e.IsolationType
+            }).ToList();
+            FilterBeds();
+        }
+        catch (Exception ex) { error = ex.Message; }
+        finally { loading = false; }
+    }
+
+    private void FilterBeds()
+    {
+        filteredBeds = string.IsNullOrEmpty(wardFilter)
+            ? allBeds
+            : allBeds?.Where(b => b.WardName == wardFilter).ToList();
+    }
+
+    private async Task LoadStats()
+    {
+        activeTab = 1; error = null;
+        try
+        {
+            var boardGrain = Grains.GetGrain<IBedBoardGrain>("BED-BOARD:MAIN");
+            int total = await boardGrain.GetTotalBedCountAsync();
+            int available = await boardGrain.GetAvailableBedCountAsync();
+            int occupied = await boardGrain.GetOccupiedBedCountAsync();
+            stats = new StatsDto
+            {
+                TotalBeds = total, AvailableBeds = available, OccupiedBeds = occupied,
+                OccupancyRate = total > 0 ? Math.Round(occupied * 100.0 / total, 1) : 0
+            };
+        }
+        catch (Exception ex) { error = ex.Message; }
+    }
+
+    private async Task SetAvailable(string bedId)
+    {
+        try
+        {
+            var bedGrain = Grains.GetGrain<IBedGrain>($"BED:MAIN:{bedId}");
+            await bedGrain.SetAvailableAsync();
+            await LoadBoard();
+        }
+        catch (Exception ex) { error = ex.Message; }
+    }
+
+    private async Task DischargeBed(string bedId)
+    {
+        try
+        {
+            var bedGrain = Grains.GetGrain<IBedGrain>($"BED:MAIN:{bedId}");
+            await bedGrain.DischargePatientAsync();
+            successMsg = "Patient discharged.";
+            await LoadBoard();
+        }
+        catch (Exception ex) { error = ex.Message; }
+    }
+
+    private string TabClass(int tab) => activeTab == tab ? "tab active" : "tab";
+
+    private class BedEntryDto { public string BedId { get; set; } = ""; public string WardId { get; set; } = ""; public string WardName { get; set; } = ""; public string RoomNumber { get; set; } = ""; public string BedPosition { get; set; } = ""; public string Status { get; set; } = ""; public string BedType { get; set; } = ""; public string? PatientName { get; set; } public string? IsolationType { get; set; } }
+    private class StatsDto { public int TotalBeds { get; set; } public int AvailableBeds { get; set; } public int OccupiedBeds { get; set; } public double OccupancyRate { get; set; } }
+}
+
+<style>
+    .tab-bar { display: flex; gap: 0; margin-bottom: 1.5rem; border-bottom: 2px solid #d4d9e0; }
+    .tab { padding: 0.6rem 1.25rem; border: none; background: transparent; cursor: pointer; font-size: 0.85rem; color: #666; border-bottom: 2px solid transparent; margin-bottom: -2px; }
+    .tab.active { color: #003f72; font-weight: 600; border-bottom: 2px solid #003f72; }
+    .btn { padding: 0.5rem 1.25rem; border: none; border-radius: 4px; cursor: pointer; font-size: 0.85rem; }
+    .btn-primary { background: #003f72; color: white; }
+    .btn-sm { padding: 0.2rem 0.5rem; font-size: 0.75rem; border: 1px solid #ccc; border-radius: 3px; cursor: pointer; background: white; }
+    .btn-dc { border-color: #dc2626; color: #dc2626; }
+    .board-actions { display: flex; gap: 0.5rem; margin-bottom: 1rem; align-items: center; }
+    .board-actions select { padding: 0.35rem 0.6rem; border: 1px solid #d1d5db; border-radius: 4px; font-size: 0.85rem; }
+    .alert { padding: 0.75rem 1rem; border-radius: 4px; margin-bottom: 1rem; }
+    .alert-error { background: #fde8e8; color: #b91c1c; border: 1px solid #f5c6c6; }
+    .alert-success { background: #d1fae5; color: #065f46; border: 1px solid #a7f3d0; }
+    .bed-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 0.5rem; }
+    .bed-card { border: 1px solid #d4d9e0; border-radius: 6px; padding: 0.6rem; font-size: 0.8rem; text-align: center; }
+    .bed-available { background: #d1fae5; border-color: #a7f3d0; }
+    .bed-occupied { background: #fde8e8; border-color: #f5c6c6; }
+    .bed-reserved { background: #fef3c7; border-color: #fde68a; }
+    .bed-cleaning { background: #e0f2fe; border-color: #bae6fd; }
+    .bed-blocked { background: #f3f4f6; border-color: #d1d5db; }
+    .bed-outofservice { background: #f3f4f6; border-color: #9ca3af; }
+    .bed-id { font-weight: 700; color: #003f72; font-size: 0.75rem; }
+    .bed-type { font-size: 0.65rem; color: #6b7280; }
+    .bed-patient { font-size: 0.7rem; font-weight: 600; color: #1f2937; margin-top: 0.25rem; }
+    .bed-isolation { font-size: 0.65rem; color: #dc2626; font-weight: 600; }
+    .bed-actions { margin-top: 0.25rem; }
+    .badge { padding: 0.1rem 0.4rem; border-radius: 8px; font-size: 0.6rem; font-weight: 600; }
+    .badge-available { background: #059669; color: white; }
+    .badge-occupied { background: #dc2626; color: white; }
+    .badge-reserved { background: #d97706; color: white; }
+    .badge-cleaning { background: #0369a1; color: white; }
+    .badge-blocked { background: #6b7280; color: white; }
+    .badge-outofservice { background: #374151; color: white; }
+    .stats-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 1rem; }
+    .stat-card { background: #f0f4f8; border: 1px solid #d4d9e0; border-radius: 8px; padding: 1.25rem; text-align: center; }
+    .stat-value { font-size: 2rem; font-weight: 700; color: #003f72; }
+    .stat-label { font-size: 0.8rem; color: #6b7280; margin-top: 0.25rem; }
+</style>

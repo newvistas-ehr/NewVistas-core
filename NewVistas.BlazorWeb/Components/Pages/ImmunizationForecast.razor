@@ -1,0 +1,241 @@
+@* Copyright 2026 James Smyth. All rights reserved. *@
+@page "/immunization-forecast"
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+@rendermode InteractiveServer
+@using NewVistas.BlazorWeb.Services
+@using NewVistas.Abstractions.GrainInterfaces
+@using NewVistas.Abstractions.GrainStates
+@inject OrleansGrainService Grains
+
+<PageTitle>Immunization Forecast</PageTitle>
+
+<h1>Immunization Forecast</h1>
+
+@if (loading)
+{
+    <div class="empty-state">Loading feature status...</div>
+}
+else if (featureChecked && !featureEnabled)
+{
+    <div class="alert alert-warning">
+        The <strong>IMMUNIZATION_FORECAST</strong> feature is not enabled for this site.
+        Please enable it in <a href="/site-parameters">Site Parameters</a> before generating forecasts.
+    </div>
+}
+
+@if (error != null) { <div class="alert alert-error">@error</div> }
+
+@if (!loading)
+{
+    <div class="form-section">
+        <div class="form-row">
+            <label>Patient ID</label>
+            <input type="text" class="form-input" @bind="patientId" @bind:event="oninput"
+                   placeholder="Enter patient ID" />
+        </div>
+        <div class="form-actions">
+            <button @onclick="GenerateForecast"
+                    disabled="@(string.IsNullOrWhiteSpace(patientId) || generating)"
+                    class="btn btn-primary">
+                @if (generating) { <span>Generating...</span> } else { <span>Generate Forecast</span> }
+            </button>
+        </div>
+    </div>
+
+    @if (forecastResult != null && forecastResult.Success)
+    {
+        <div class="summary-banner">
+            <div class="summary-item summary-due">
+                <span class="summary-count">@forecastResult.TotalDue</span>
+                <span class="summary-label">DUE</span>
+            </div>
+            <div class="summary-item summary-overdue">
+                <span class="summary-count">@forecastResult.TotalOverdue</span>
+                <span class="summary-label">OVERDUE</span>
+            </div>
+            <div class="summary-item summary-complete">
+                <span class="summary-count">@forecastResult.TotalComplete</span>
+                <span class="summary-label">COMPLETE</span>
+            </div>
+            <div class="summary-date">
+                Forecast generated: @forecastResult.ForecastDate.ToString("MM/dd/yyyy HH:mm")
+            </div>
+        </div>
+
+        @if (forecastResult.Recommendations.Count > 0)
+        {
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Vaccine Group</th>
+                        <th>Status</th>
+                        <th>Doses</th>
+                        <th>Last Dose</th>
+                        <th>Recommended Date</th>
+                        <th>Earliest Date</th>
+                        <th>Reason</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var rec in forecastResult.Recommendations)
+                    {
+                        <tr>
+                            <td class="vaccine-group">@rec.VaccineGroup</td>
+                            <td><span class="status-badge" style="@GetStatusStyle(rec.Status)">@rec.Status</span></td>
+                            <td class="code">@rec.DosesReceived / @rec.DosesRequired</td>
+                            <td>@(rec.LastDoseDate?.ToString("MM/dd/yyyy") ?? "---")</td>
+                            <td>@(rec.RecommendedDate?.ToString("MM/dd/yyyy") ?? "---")</td>
+                            <td>@(rec.EarliestDate?.ToString("MM/dd/yyyy") ?? "---")</td>
+                            <td class="reason-cell">@(rec.StatusReason ?? "---")</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        }
+        else
+        {
+            <div class="empty-state">No immunization recommendations found for this patient.</div>
+        }
+    }
+    else if (forecastResult != null && !forecastResult.Success)
+    {
+        <div class="alert alert-error">@(forecastResult.ErrorMessage ?? "Forecast generation failed.")</div>
+    }
+}
+
+@code {
+    private string? patientId;
+    private bool loading = true;
+    private bool generating;
+    private bool featureEnabled;
+    private bool featureChecked;
+    private string? error;
+
+    private ForecastResultDto? forecastResult;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await CheckFeatureStatus();
+    }
+
+    private async Task CheckFeatureStatus()
+    {
+        loading = true; error = null;
+        try
+        {
+            var siteGrain = Grains.GetGrain<ISiteParametersGrain>("SITE:DEFAULT");
+            featureEnabled = await siteGrain.IsFeatureEnabledAsync("IMMUNIZATION_FORECAST");
+        }
+        catch (Exception ex) { error = $"Error checking feature status: {ex.Message}"; featureEnabled = false; }
+        finally { loading = false; featureChecked = true; }
+    }
+
+    private async Task GenerateForecast()
+    {
+        if (string.IsNullOrWhiteSpace(patientId)) return;
+        generating = true; error = null; forecastResult = null;
+        try
+        {
+            var grain = Grains.GetGrain<IImmunizationForecastGrain>($"IMM-FORECAST:{patientId.Trim()}");
+            var result = await grain.GenerateForecastAsync(DateTime.Today.AddYears(-40), new List<ImmunizationEntry>());
+            forecastResult = new ForecastResultDto
+            {
+                Success = result.Success,
+                ForecastDate = result.ForecastDate,
+                ErrorMessage = result.ErrorMessage,
+                TotalDue = result.TotalDue,
+                TotalOverdue = result.TotalOverdue,
+                TotalComplete = result.TotalComplete,
+                Recommendations = result.Recommendations?.Select(r => new RecommendationDto
+                {
+                    VaccineGroup = r.VaccineGroup, Status = r.Status,
+                    DosesReceived = r.DosesReceived, DosesRequired = r.DosesRequired,
+                    EarliestDate = r.EarliestDate, RecommendedDate = r.RecommendedDate,
+                    LastDoseDate = r.LastDoseDate, StatusReason = r.StatusReason
+                }).ToList() ?? new()
+            };
+        }
+        catch (Exception ex) { error = $"Error generating forecast: {ex.Message}"; }
+        finally { generating = false; }
+    }
+
+    private string GetStatusStyle(string status)
+    {
+        return status.ToUpperInvariant() switch
+        {
+            "DUE" => "background: #dbeafe; color: #1e40af; border: 1px solid #93c5fd;",
+            "OVERDUE" => "background: #fde8e8; color: #b91c1c; border: 1px solid #f5c6c6;",
+            "COMPLETE" => "background: #dcfce7; color: #166534; border: 1px solid #bbf7d0;",
+            "UPCOMING" => "background: #f3f4f6; color: #6b7280; border: 1px solid #d1d5db;",
+            "CONTRAINDICATED" => "background: #fff7ed; color: #c2410c; border: 1px solid #fed7aa;",
+            "NOT_RECOMMENDED" => "background: #f3f4f6; color: #6b7280; border: 1px solid #d1d5db;",
+            _ => "background: #f3f4f6; color: #6b7280; border: 1px solid #d1d5db;"
+        };
+    }
+
+    private class FeatureStatusResponse { public string Feature { get; set; } = ""; public bool Enabled { get; set; } }
+    private class ForecastResultDto
+    {
+        public bool Success { get; set; }
+        public List<RecommendationDto> Recommendations { get; set; } = new();
+        public DateTime ForecastDate { get; set; }
+        public string? ErrorMessage { get; set; }
+        public int TotalDue { get; set; }
+        public int TotalOverdue { get; set; }
+        public int TotalComplete { get; set; }
+    }
+    private class RecommendationDto
+    {
+        public string VaccineGroup { get; set; } = "";
+        public string Status { get; set; } = "";
+        public int DosesReceived { get; set; }
+        public int DosesRequired { get; set; }
+        public DateTime? EarliestDate { get; set; }
+        public DateTime? RecommendedDate { get; set; }
+        public DateTime? LastDoseDate { get; set; }
+        public string? StatusReason { get; set; }
+    }
+}
+
+<style>
+    .btn { padding: 0.5rem 1.25rem; border: none; border-radius: 4px; cursor: pointer; font-size: 0.85rem; }
+    .btn-primary { background: #003f72; color: white; }
+    .btn-primary:disabled { background: #999; cursor: not-allowed; }
+    .alert { padding: 0.75rem 1rem; border-radius: 4px; margin-bottom: 1rem; }
+    .alert-error { background: #fde8e8; color: #b91c1c; border: 1px solid #f5c6c6; }
+    .alert-success { background: #dcfce7; color: #166534; border: 1px solid #bbf7d0; }
+    .alert-warning { background: #fef3c7; color: #92400e; border: 1px solid #fde68a; }
+    .alert-warning a { color: #003f72; font-weight: 600; }
+    .empty-state { color: #999; font-style: italic; padding: 2rem 0; }
+
+    .form-section { max-width: 700px; }
+    .form-row { display: flex; align-items: center; gap: 1rem; margin-bottom: 0.75rem; }
+    .form-row label:first-child { width: 140px; font-size: 0.85rem; font-weight: 500; color: #333; flex-shrink: 0; }
+    .form-input { flex: 1; padding: 0.4rem 0.6rem; border: 1px solid #ccc; border-radius: 4px; font-size: 0.85rem; max-width: 350px; }
+    .form-actions { display: flex; gap: 0.75rem; margin-top: 1rem; margin-bottom: 1.5rem; }
+
+    .summary-banner { display: flex; align-items: center; gap: 1.5rem; padding: 1rem 1.25rem; background: #f4f6f9; border: 1px solid #d4d9e0; border-radius: 4px; margin-bottom: 1.5rem; }
+    .summary-item { display: flex; flex-direction: column; align-items: center; padding: 0.5rem 1rem; border-radius: 4px; min-width: 80px; }
+    .summary-due { background: #dbeafe; border: 1px solid #93c5fd; }
+    .summary-overdue { background: #fde8e8; border: 1px solid #f5c6c6; }
+    .summary-complete { background: #dcfce7; border: 1px solid #bbf7d0; }
+    .summary-count { font-size: 1.5rem; font-weight: 700; line-height: 1; }
+    .summary-due .summary-count { color: #1e40af; }
+    .summary-overdue .summary-count { color: #b91c1c; }
+    .summary-complete .summary-count { color: #166534; }
+    .summary-label { font-size: 0.7rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; margin-top: 0.25rem; }
+    .summary-due .summary-label { color: #1e40af; }
+    .summary-overdue .summary-label { color: #b91c1c; }
+    .summary-complete .summary-label { color: #166534; }
+    .summary-date { margin-left: auto; font-size: 0.8rem; color: #666; }
+
+    .data-table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+    .data-table th { text-align: left; padding: 0.5rem; font-weight: 600; color: #003f72; border-bottom: 2px solid #d4d9e0; font-size: 0.75rem; text-transform: uppercase; background: #f4f6f9; }
+    .data-table td { padding: 0.4rem 0.5rem; border-bottom: 1px solid #f0f0f0; }
+    .data-table tr:hover { background: #f9fafb; }
+    .code { font-family: monospace; color: #003f72; }
+    .vaccine-group { font-weight: 500; }
+    .reason-cell { font-size: 0.8rem; color: #555; max-width: 200px; }
+
+    .status-badge { display: inline-block; padding: 0.2rem 0.6rem; border-radius: 3px; font-size: 0.75rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.03em; }
+</style>

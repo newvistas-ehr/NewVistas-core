@@ -1,0 +1,55 @@
+<UserControl x:Class="NewVistas.Wpf_UI.Views.Icd10BrowserView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <Grid>
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="*"/>
+            <ColumnDefinition Width="320"/>
+        </Grid.ColumnDefinitions>
+
+        <StackPanel Margin="24,24,8,24">
+            <TextBlock Style="{StaticResource PageTitle}" Text="ICD-10 Browser"/>
+            <TextBlock Style="{StaticResource ErrorText}" Text="{Binding Error}"
+                       Visibility="{Binding Error, Converter={StaticResource NullToVisibility}}"/>
+
+            <StackPanel Orientation="Horizontal" Margin="0,0,0,12">
+                <TextBox Text="{Binding SearchTerm, UpdateSourceTrigger=PropertyChanged}" Width="300"
+                         Margin="0,0,8,0">
+                    <TextBox.InputBindings>
+                        <KeyBinding Key="Return" Command="{Binding SearchCommand}"/>
+                    </TextBox.InputBindings>
+                </TextBox>
+                <CheckBox Content="Billable Only" IsChecked="{Binding BillableOnly}"
+                          VerticalAlignment="Center" Margin="0,0,8,0"/>
+                <Button Content="Search" Style="{StaticResource PrimaryButton}"
+                        Command="{Binding SearchCommand}" Margin="0,0,8,0"/>
+                <ProgressBar IsIndeterminate="True" Width="100" Height="20"
+                             Visibility="{Binding IsLoading, Converter={StaticResource BoolToVisibility}}"/>
+            </StackPanel>
+
+            <DataGrid ItemsSource="{Binding Results}" SelectedItem="{Binding SelectedCode}" Height="500">
+                <DataGrid.Columns>
+                    <DataGridTextColumn Header="Code" Binding="{Binding Code}" Width="100"/>
+                    <DataGridTextColumn Header="Description" Binding="{Binding ShortDescription}" Width="*"/>
+                    <DataGridCheckBoxColumn Header="Billable" Binding="{Binding IsBillable}" Width="80"/>
+                    <DataGridTextColumn Header="Chapter" Binding="{Binding Chapter}" Width="120"/>
+                </DataGrid.Columns>
+            </DataGrid>
+        </StackPanel>
+
+        <!-- Selected code detail -->
+        <ScrollViewer Grid.Column="1" VerticalScrollBarVisibility="Auto" Margin="8,24,24,24">
+            <StackPanel Visibility="{Binding SelectedCode, Converter={StaticResource NullToVisibility}}">
+                <TextBlock Style="{StaticResource SectionHeader}" Text="{Binding SelectedCode.Code}" FontSize="20"/>
+                <TextBlock FontWeight="Bold" FontSize="14" Text="{Binding SelectedCode.ShortDescription}" TextWrapping="Wrap" Margin="0,0,0,8"/>
+                <TextBlock FontSize="12" Foreground="#555" Text="{Binding SelectedCode.LongDescription}" TextWrapping="Wrap" Margin="0,0,0,8"/>
+                <TextBlock Style="{StaticResource FieldLabel}" Text="Chapter"/>
+                <TextBlock Text="{Binding SelectedCode.Chapter}"/>
+                <TextBlock Style="{StaticResource FieldLabel}" Text="Order #"/>
+                <TextBlock Text="{Binding SelectedCode.OrderNumber}"/>
+                <TextBlock Style="{StaticResource FieldLabel}" Text="Billable"/>
+                <TextBlock Text="{Binding SelectedCode.IsBillable}"/>
+            </StackPanel>
+        </ScrollViewer>
+    </Grid>
+</UserControl>

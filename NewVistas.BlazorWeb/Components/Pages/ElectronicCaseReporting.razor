@@ -1,0 +1,388 @@
+@* Copyright 2026 James Smyth. All rights reserved. *@
+@page "/ecr"
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+@rendermode InteractiveServer
+@using NewVistas.BlazorWeb.Services
+@using NewVistas.Abstractions.GrainInterfaces
+@using NewVistas.Abstractions.GrainStates
+@inject OrleansGrainService Grains
+
+<PageTitle>Electronic Case Reporting</PageTitle>
+<h1>Electronic Case Reporting (eCR)</h1>
+
+@if (error != null) { <div class="alert alert-error">@error</div> }
+@if (success != null) { <div class="alert alert-success">@success</div> }
+
+<div class="tab-bar">
+    <button class="tab-btn @(activeTab == 0 ? "active" : "")" @onclick="() => activeTab = 0">Cases</button>
+    <button class="tab-btn @(activeTab == 1 ? "active" : "")" @onclick="() => activeTab = 1">Triggers</button>
+    <button class="tab-btn @(activeTab == 2 ? "active" : "")" @onclick="() => activeTab = 2">Screen Patient</button>
+</div>
+
+@* ── Cases Tab ── *@
+@if (activeTab == 0)
+{
+    <div class="form-actions">
+        <button @onclick="LoadAllCases" disabled="@loadingCases" class="btn btn-primary">
+            @if (loadingCases) { <span>Loading...</span> } else { <span>Load All Cases</span> }
+        </button>
+    </div>
+
+    <div class="form-section">
+        <div class="form-row">
+            <label>Filter by Status</label>
+            <select class="form-input" @bind="caseStatusFilter">
+                <option value="">-- All --</option>
+                <option value="generated">Generated</option>
+                <option value="submitted">Submitted</option>
+                <option value="reportable">Reportable</option>
+                <option value="not_reportable">Not Reportable</option>
+            </select>
+            <button @onclick="LoadCasesByStatus" disabled="@(string.IsNullOrWhiteSpace(caseStatusFilter) || loadingCases)" class="btn btn-primary">Filter</button>
+        </div>
+        <div class="form-row">
+            <label>Filter by Patient</label>
+            <input type="text" class="form-input" @bind="casePatientFilter" @bind:event="oninput" placeholder="Patient ID" />
+            <button @onclick="LoadCasesByPatient" disabled="@(string.IsNullOrWhiteSpace(casePatientFilter) || loadingCases)" class="btn btn-primary">Filter</button>
+        </div>
+    </div>
+
+    @if (cases != null && cases.Count > 0)
+    {
+        <table class="data-table">
+            <thead><tr><th>Case ID</th><th>Patient</th><th>Condition</th><th>Status</th><th>Determination</th><th>Triggered</th><th></th></tr></thead>
+            <tbody>
+                @foreach (var c in cases)
+                {
+                    <tr>
+                        <td class="code case-id">@c.CaseId</td>
+                        <td>@c.PatientName<br /><span class="id-small">@c.PatientId</span></td>
+                        <td>@c.ConditionName</td>
+                        <td><span class="status-badge status-@c.Status.ToLower().Replace("_","")">@c.Status</span></td>
+                        <td>@(c.ReportabilityDetermination ?? "---")</td>
+                        <td>@c.TriggeredDate.ToString("MM/dd/yyyy HH:mm")</td>
+                        <td>
+                            @if (c.Status == "generated")
+                            {
+                                <button class="btn btn-link" @onclick="() => SubmitCase(c.CaseId)">Submit</button>
+                            }
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    }
+    else if (cases != null) { <div class="empty-state">No case reports found.</div> }
+}
+
+@* ── Triggers Tab ── *@
+@if (activeTab == 1)
+{
+    <div class="form-actions">
+        <button @onclick="LoadAllTriggers" disabled="@loadingTriggers" class="btn btn-primary">
+            @if (loadingTriggers) { <span>Loading...</span> } else { <span>Load All Triggers</span> }
+        </button>
+        <button @onclick="LoadActiveTriggers" disabled="@loadingTriggers" class="btn btn-secondary">Active Only</button>
+    </div>
+
+    @if (triggers != null && triggers.Count > 0)
+    {
+        <table class="data-table">
+            <thead><tr><th>Trigger ID</th><th>Condition</th><th>Category</th><th>Codes</th><th>Timeframe</th><th>Active</th></tr></thead>
+            <tbody>
+                @foreach (var t in triggers)
+                {
+                    <tr>
+                        <td class="code">@t.TriggerId</td>
+                        <td>@t.ConditionName</td>
+                        <td>@t.Category</td>
+                        <td>@t.TriggerCodeCount</td>
+                        <td>@t.ReportingTimeframe</td>
+                        <td>@(t.IsActive ? "Yes" : "No")</td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    }
+    else if (triggers != null) { <div class="empty-state">No reportable condition triggers found.</div> }
+
+    <div class="form-section" style="margin-top: 2rem;">
+        <h3>Trigger Detail Lookup</h3>
+        <div class="form-row">
+            <label>Trigger ID</label>
+            <input type="text" class="form-input" @bind="triggerLookupId" @bind:event="oninput" placeholder="ECR-TRIGGER:{id}" />
+            <button @onclick="LoadTriggerDetail" disabled="@(string.IsNullOrWhiteSpace(triggerLookupId) || loadingTriggerDetail)" class="btn btn-primary">
+                @if (loadingTriggerDetail) { <span>Loading...</span> } else { <span>Load Detail</span> }
+            </button>
+        </div>
+    </div>
+
+    @if (triggerDetail != null)
+    {
+        <div class="detail-card">
+            <h3>@triggerDetail.ConditionName</h3>
+            <div class="detail-grid">
+                <div><strong>Trigger ID:</strong> <span class="code">@triggerDetail.TriggerId</span></div>
+                <div><strong>Category:</strong> @triggerDetail.Category</div>
+                <div><strong>Active:</strong> @(triggerDetail.IsActive ? "Yes" : "No")</div>
+                <div><strong>Reporting Timeframe:</strong> @triggerDetail.ReportingTimeframe</div>
+                <div><strong>Trigger Codes:</strong> @triggerDetail.TriggerCodes.Count code(s)</div>
+                @if (triggerDetail.Jurisdictions.Count > 0)
+                {
+                    <div><strong>Jurisdictions:</strong> @string.Join(", ", triggerDetail.Jurisdictions)</div>
+                }
+            </div>
+            @if (triggerDetail.TriggerCodes.Count > 0)
+            {
+                <h4>Trigger Codes</h4>
+                <table class="data-table">
+                    <thead><tr><th>Code</th><th>System</th><th>Description</th></tr></thead>
+                    <tbody>
+                        @foreach (var tc in triggerDetail.TriggerCodes)
+                        {
+                            <tr>
+                                <td class="code">@tc.Code</td>
+                                <td>@tc.CodeSystem</td>
+                                <td>@tc.Description</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            }
+        </div>
+    }
+}
+
+@* ── Screen Patient Tab ── *@
+@if (activeTab == 2)
+{
+    <div class="form-section">
+        <h3>Screen Patient for Reportable Conditions</h3>
+        <p class="help-text">Evaluates the patient's problems and lab results against all active RCTC triggers.</p>
+        <div class="form-row">
+            <label>Patient ID</label>
+            <input type="text" class="form-input" @bind="screenPatientId" placeholder="Patient ID" />
+        </div>
+        <div class="form-actions">
+            <button @onclick="ScreenPatient" disabled="@(string.IsNullOrWhiteSpace(screenPatientId) || screening)" class="btn btn-primary">
+                @if (screening) { <span>Screening...</span> } else { <span>Screen Patient</span> }
+            </button>
+            <button @onclick="ScreenAndReport" disabled="@(string.IsNullOrWhiteSpace(screenPatientId) || screening)" class="btn btn-secondary">Screen and Auto-Report</button>
+        </div>
+    </div>
+
+    @if (screeningResults != null)
+    {
+        @if (screeningResults.Count == 0)
+        {
+            <div class="empty-state">No reportable conditions detected for this patient.</div>
+        }
+        else
+        {
+            <h3 style="color:#ddd;">Screening Matches (@screeningResults.Count)</h3>
+            @foreach (var m in screeningResults)
+            {
+                <div class="match-card">
+                    <div class="match-header">
+                        <strong>@m.ConditionName</strong>
+                    </div>
+                    <div class="match-body">
+                        <div><strong>Trigger:</strong> <span class="code">@m.TriggerId</span></div>
+                        <div><strong>Matched Code:</strong> @m.MatchedCode (@m.MatchedCodeSystem)</div>
+                        <div><strong>Description:</strong> @m.MatchedDescription</div>
+                        @if (m.Jurisdictions.Count > 0)
+                        {
+                            <div><strong>Jurisdictions:</strong> @string.Join(", ", m.Jurisdictions)</div>
+                        }
+                    </div>
+                </div>
+            }
+        }
+    }
+}
+
+@code {
+    private int activeTab;
+    private string? error, success;
+
+    // Cases
+    private bool loadingCases;
+    private List<EcrCaseSummary>? cases;
+    private string caseStatusFilter = string.Empty, casePatientFilter = string.Empty;
+
+    // Triggers
+    private bool loadingTriggers;
+    private List<EcrTriggerSummary>? triggers;
+    private string triggerLookupId = string.Empty;
+    private bool loadingTriggerDetail;
+    private EcrTriggerState? triggerDetail;
+
+    // Screening
+    private string screenPatientId = string.Empty;
+    private bool screening;
+    private List<EcrScreeningMatch>? screeningResults;
+
+    private IEcrCaseIndexGrain GetCaseIndex() => Grains.GetGrain<IEcrCaseIndexGrain>("ECR-CASE-INDEX");
+    private IEcrTriggerIndexGrain GetTriggerIndex() => Grains.GetGrain<IEcrTriggerIndexGrain>("ECR-TRIGGER-INDEX");
+
+    // Case methods
+    private async Task LoadAllCases()
+    {
+        loadingCases = true; error = null;
+        try { cases = await GetCaseIndex().GetAllCasesAsync(); }
+        catch (Exception ex) { error = ex.Message; }
+        finally { loadingCases = false; }
+    }
+
+    private async Task LoadCasesByStatus()
+    {
+        if (string.IsNullOrWhiteSpace(caseStatusFilter)) return;
+        loadingCases = true; error = null;
+        try { cases = await GetCaseIndex().GetCasesByStatusAsync(caseStatusFilter); }
+        catch (Exception ex) { error = ex.Message; }
+        finally { loadingCases = false; }
+    }
+
+    private async Task LoadCasesByPatient()
+    {
+        if (string.IsNullOrWhiteSpace(casePatientFilter)) return;
+        loadingCases = true; error = null;
+        try { cases = await GetCaseIndex().GetCasesByPatientAsync(casePatientFilter.Trim()); }
+        catch (Exception ex) { error = ex.Message; }
+        finally { loadingCases = false; }
+    }
+
+    private async Task SubmitCase(string caseId)
+    {
+        error = null; success = null;
+        try
+        {
+            var grain = Grains.GetGrain<IEcrCaseGrain>(caseId);
+            await grain.MarkSubmittedAsync();
+            await GetCaseIndex().UpdateCaseStatusAsync(caseId, "submitted", null);
+            success = $"Case {caseId} submitted to public health.";
+            await LoadAllCases();
+        }
+        catch (Exception ex) { error = ex.Message; }
+    }
+
+    // Trigger methods
+    private async Task LoadAllTriggers()
+    {
+        loadingTriggers = true; error = null;
+        try { triggers = await GetTriggerIndex().GetAllTriggersAsync(); }
+        catch (Exception ex) { error = ex.Message; }
+        finally { loadingTriggers = false; }
+    }
+
+    private async Task LoadActiveTriggers()
+    {
+        loadingTriggers = true; error = null;
+        try { triggers = await GetTriggerIndex().GetActiveTriggersAsync(); }
+        catch (Exception ex) { error = ex.Message; }
+        finally { loadingTriggers = false; }
+    }
+
+    private async Task LoadTriggerDetail()
+    {
+        if (string.IsNullOrWhiteSpace(triggerLookupId)) return;
+        loadingTriggerDetail = true; error = null;
+        try
+        {
+            var grain = Grains.GetGrain<IEcrTriggerGrain>($"ECR-TRIGGER:{triggerLookupId.Trim()}");
+            triggerDetail = await grain.GetTriggerAsync();
+        }
+        catch (Exception ex) { error = ex.Message; }
+        finally { loadingTriggerDetail = false; }
+    }
+
+    // Screening methods
+    private async Task ScreenPatient()
+    {
+        if (string.IsNullOrWhiteSpace(screenPatientId)) return;
+        screening = true; error = null; success = null;
+        try
+        {
+            var grain = Grains.GetGrain<IEcrScreeningGrain>($"ECR-SCREEN:{screenPatientId.Trim()}");
+            screeningResults = await grain.ScreenPatientAsync();
+            success = $"Screening complete: {screeningResults.Count} match(es) found.";
+        }
+        catch (Exception ex) { error = ex.Message; }
+        finally { screening = false; }
+    }
+
+    private async Task ScreenAndReport()
+    {
+        if (string.IsNullOrWhiteSpace(screenPatientId)) return;
+        screening = true; error = null; success = null;
+        try
+        {
+            string pid = screenPatientId.Trim();
+            var screenGrain = Grains.GetGrain<IEcrScreeningGrain>($"ECR-SCREEN:{pid}");
+            screeningResults = await screenGrain.ScreenPatientAsync();
+
+            IEcrCaseIndexGrain caseIndex = GetCaseIndex();
+            int created = 0;
+            foreach (EcrScreeningMatch match in screeningResults)
+            {
+                string caseId = $"ECR-CASE:{Guid.NewGuid():N}";
+                var caseGrain = Grains.GetGrain<IEcrCaseGrain>(caseId);
+                await caseGrain.CreateCaseAsync(pid, match.TriggerId, match.ConditionName,
+                    match.MatchedCode, match.MatchedCodeSystem, match.MatchedDescription,
+                    match.Jurisdictions, match.ClinicalEvidence, null, null);
+                await caseGrain.GenerateEicrAsync();
+
+                EcrCaseState caseState = await caseGrain.GetCaseAsync();
+                await caseIndex.AddCaseAsync(new EcrCaseSummary
+                {
+                    CaseId = caseId, PatientId = pid, PatientName = caseState.PatientName,
+                    ConditionName = match.ConditionName, Status = caseState.Status,
+                    TriggeredDate = caseState.TriggeredDate
+                });
+                created++;
+            }
+            success = $"Screening complete: {screeningResults.Count} match(es), {created} case report(s) created.";
+        }
+        catch (Exception ex) { error = ex.Message; }
+        finally { screening = false; }
+    }
+}
+
+<style>
+    h1 { color: #ddd; }
+    .btn { padding: 0.5rem 1.25rem; border: none; border-radius: 4px; cursor: pointer; font-size: 0.85rem; }
+    .btn-primary { background: #003f72; color: white; } .btn-primary:disabled { background: #555; cursor: not-allowed; }
+    .btn-secondary { background: #374151; color: #ddd; border: 1px solid #555; }
+    .btn-link { background: none; color: #60a5fa; text-decoration: underline; padding: 0; border: none; cursor: pointer; font-size: 0.85rem; }
+    .alert { padding: 0.75rem 1rem; border-radius: 4px; margin-bottom: 1rem; }
+    .alert-error { background: #451a1a; color: #fca5a5; border: 1px solid #7f1d1d; }
+    .alert-success { background: #14332a; color: #6ee7b7; border: 1px solid #065f46; }
+    .empty-state { color: #888; font-style: italic; padding: 2rem 0; }
+    .help-text { color: #999; font-size: 0.85rem; margin-bottom: 1rem; }
+    .tab-bar { display: flex; gap: 0; border-bottom: 2px solid #444; margin-bottom: 1.5rem; }
+    .tab-btn { padding: 0.6rem 1.25rem; border: none; background: transparent; cursor: pointer; font-size: 0.85rem; font-weight: 500; color: #999; border-bottom: 2px solid transparent; margin-bottom: -2px; }
+    .tab-btn.active { color: #60a5fa; border-bottom-color: #60a5fa; font-weight: 600; }
+    .form-section { max-width: 700px; } .form-section h3 { color: #ddd; }
+    .form-row { display: flex; align-items: center; gap: 1rem; margin-bottom: 0.75rem; }
+    .form-row label:first-child { width: 160px; font-size: 0.85rem; font-weight: 500; color: #ccc; flex-shrink: 0; }
+    .form-input { flex: 1; padding: 0.4rem 0.6rem; border: 1px solid #555; border-radius: 4px; font-size: 0.85rem; max-width: 350px; background: #2d2d2d; color: #ddd; }
+    select.form-input { appearance: auto; }
+    .form-actions { display: flex; gap: 0.75rem; margin-top: 1rem; margin-bottom: 1.5rem; }
+    .data-table { width: 100%; border-collapse: collapse; font-size: 0.85rem; color: #ddd; }
+    .data-table th { text-align: left; padding: 0.5rem; font-weight: 600; color: #60a5fa; border-bottom: 2px solid #444; font-size: 0.75rem; text-transform: uppercase; background: #252525; }
+    .data-table td { padding: 0.4rem 0.5rem; border-bottom: 1px solid #333; } .data-table tr:hover { background: #2a2a2a; }
+    .code { font-family: monospace; color: #60a5fa; }
+    .id-small { font-size: 0.75rem; color: #888; }
+    .case-id { font-size: 0.75rem; max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .status-badge { display: inline-block; padding: 0.2rem 0.6rem; border-radius: 3px; font-size: 0.75rem; font-weight: 600; text-transform: uppercase; }
+    .status-badge.status-generated { background: #1e3a5f; color: #93c5fd; } .status-badge.status-submitted { background: #422006; color: #fcd34d; }
+    .status-badge.status-reportable { background: #451a1a; color: #fca5a5; } .status-badge.status-notreportable { background: #14332a; color: #6ee7b7; }
+    .detail-card { background: #252525; border: 1px solid #444; border-radius: 6px; padding: 1.5rem; margin-bottom: 1rem; }
+    .detail-card h3 { color: #ddd; margin-top: 0; } .detail-card h4 { color: #ccc; margin-bottom: 0.5rem; }
+    .detail-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem 2rem; font-size: 0.85rem; color: #ccc; margin-bottom: 1rem; }
+    .detail-grid strong { color: #ddd; }
+    .match-card { background: #252525; border: 1px solid #444; border-radius: 6px; padding: 1rem; margin-bottom: 0.75rem; }
+    .match-header { color: #ddd; font-size: 1rem; margin-bottom: 0.5rem; }
+    .match-body { font-size: 0.85rem; color: #ccc; } .match-body div { margin-bottom: 0.25rem; }
+    .match-body strong { color: #ddd; }
+</style>

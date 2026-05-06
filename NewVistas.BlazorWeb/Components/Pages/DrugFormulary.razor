@@ -1,0 +1,746 @@
+@page "/drugformulary"
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+@rendermode InteractiveServer
+@using NewVistas.BlazorWeb.Services
+@using NewVistas.Abstractions.GrainInterfaces
+@using NewVistas.Abstractions.GrainStates
+@inject OrleansGrainService Grains
+
+<PageTitle>Drug Formulary / National Drug File</PageTitle>
+
+<h1>💊 Drug Formulary — National Drug File (NDF)</h1>
+
+<div class="ndf-toolbar">
+    <div class="search-group">
+        <input type="text" @bind="searchText" @bind:event="oninput"
+               @onkeydown="HandleKeyDown"
+               placeholder="Search by drug name, generic name, or NDC code..." class="search-input" />
+        <label class="checkbox-label">
+            <input type="checkbox" @bind="formularyOnly" /> Formulary only
+        </label>
+        <select @bind="selectedClassCode" class="class-select">
+            <option value="">All drug classes</option>
+            @foreach (var cls in drugClasses)
+            {
+                <option value="@cls.Code">@cls.Code — @cls.Name</option>
+            }
+        </select>
+        <button @onclick="Search" disabled="@searching" class="btn btn-primary">
+            @if (searching) { <span>Searching...</span> } else { <span>Search</span> }
+        </button>
+    </div>
+
+    <div class="action-group">
+        <button @onclick="LoadDemoData" disabled="@loadingDemo" class="btn btn-secondary">
+            @if (loadingDemo) { <span>Loading...</span> } else { <span>Load Demo Data</span> }
+        </button>
+        <button @onclick="CheckStatus" class="btn btn-outline">Status</button>
+    </div>
+</div>
+
+@if (!indexLoaded && !loadingDemo)
+{
+    <div class="load-banner">
+        <div class="load-banner-text">
+            <strong>⚠️ Drug Formulary data has not been loaded yet.</strong>
+            <span>Click the button below to load sample NDF data with representative VA drug products.</span>
+        </div>
+        <button @onclick="LoadDemoData" class="btn btn-load">
+            📥 Load Demo Drug Data
+        </button>
+    </div>
+}
+
+@if (statusMessage != null)
+{
+    <div class="alert @statusClass">@statusMessage</div>
+}
+
+@if (ndfStatus != null)
+{
+    <div class="status-bar">
+        <span>Products: @(ndfStatus.Products.IsLoaded ? $"✅ {ndfStatus.Products.TotalProducts:N0}" : "❌ Not loaded")</span>
+        <span>Formulary: @ndfStatus.Products.FormularyProducts:N0</span>
+        <span>Generics: @(ndfStatus.Generics.IsLoaded ? ndfStatus.Generics.TotalGenerics.ToString("N0") : "—")</span>
+        <span>Classes: @(ndfStatus.Classes.IsLoaded ? ndfStatus.Classes.TotalClasses.ToString("N0") : "—")</span>
+        @if (ndfStatus.Products.LastLoadedDate.HasValue)
+        {
+            <span>Last loaded: @ndfStatus.Products.LastLoadedDate.Value.ToString("g")</span>
+        }
+    </div>
+}
+
+<div class="main-layout">
+    <!-- Results Panel -->
+    <div class="results-panel">
+        @if (results != null)
+        {
+            <div class="results-header">
+                @if (results.Count == 0)
+                {
+                    <span class="no-results">No results found for "@lastSearchText"</span>
+                }
+                else
+                {
+                    <span>@results.Count result(s) for "@lastSearchText"</span>
+                }
+            </div>
+
+            @if (results.Count > 0)
+            {
+                <table class="ndf-table">
+                    <thead>
+                        <tr>
+                            <th class="col-name">VA Product Name</th>
+                            <th class="col-generic">Generic</th>
+                            <th class="col-class">Class</th>
+                            <th class="col-form">Form</th>
+                            <th class="col-strength">Strength</th>
+                            <th class="col-formulary">Formulary</th>
+                            <th class="col-action"></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var product in results)
+                        {
+                            <tr class="@(selectedProduct?.Ien == product.Ien ? "selected-row" : "")"
+                                @onclick="() => SelectProduct(product)">
+                                <td class="name-cell">
+                                    @product.Name
+                                    @if (!string.IsNullOrEmpty(product.ControlledSubstanceSchedule))
+                                    {
+                                        <span class="badge-cs">C-@product.ControlledSubstanceSchedule</span>
+                                    }
+                                </td>
+                                <td class="generic-cell">@product.VaGenericName</td>
+                                <td class="class-cell">
+                                    <span title="@product.PrimaryDrugClassName">@product.PrimaryDrugClassCode</span>
+                                </td>
+                                <td class="form-cell">@product.DosageFormName</td>
+                                <td class="strength-cell">@product.Strength @product.StrengthUnitName</td>
+                                <td class="formulary-cell">
+                                    @if (product.FormularyIndicator)
+                                    {
+                                        <span class="badge-formulary">Formulary</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="badge-nonformulary">Non-Form.</span>
+                                    }
+                                </td>
+                                <td>
+                                    <button @onclick:stopPropagation="true"
+                                            @onclick="() => LoadDetail(product.Ien)"
+                                            class="btn btn-xs">Detail</button>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            }
+        }
+    </div>
+
+    <!-- Detail Panel -->
+    @if (selectedProduct != null)
+    {
+        <div class="detail-panel">
+            <div class="detail-header">
+                <h3>@selectedProduct.Name</h3>
+                <button @onclick="() => selectedProduct = null" class="btn-close">✕</button>
+            </div>
+
+            <div class="detail-section">
+                <div class="detail-row">
+                    <span class="detail-label">VA Generic</span>
+                    <span class="detail-value">@selectedProduct.VaGenericName</span>
+                </div>
+                <div class="detail-row">
+                    <span class="detail-label">Dosage Form</span>
+                    <span class="detail-value">@selectedProduct.DosageFormName</span>
+                </div>
+                <div class="detail-row">
+                    <span class="detail-label">Strength</span>
+                    <span class="detail-value">@selectedProduct.Strength @selectedProduct.StrengthUnitName</span>
+                </div>
+                <div class="detail-row">
+                    <span class="detail-label">Drug Class</span>
+                    <span class="detail-value">@selectedProduct.PrimaryDrugClassCode — @selectedProduct.PrimaryDrugClassName</span>
+                </div>
+                <div class="detail-row">
+                    <span class="detail-label">Formulary</span>
+                    <span class="detail-value">
+                        @if (selectedProduct.FormularyIndicator)
+                        {
+                            <span class="badge-formulary">In VA National Formulary</span>
+                        }
+                        else
+                        {
+                            <span class="badge-nonformulary">Non-Formulary</span>
+                        }
+                    </span>
+                </div>
+                @if (!string.IsNullOrEmpty(selectedProduct.RxNormCode))
+                {
+                    <div class="detail-row">
+                        <span class="detail-label">RxNorm</span>
+                        <span class="detail-value mono">@selectedProduct.RxNormCode</span>
+                    </div>
+                }
+                @if (!string.IsNullOrEmpty(selectedProduct.ControlledSubstanceSchedule))
+                {
+                    <div class="detail-row">
+                        <span class="detail-label">CS Schedule</span>
+                        <span class="detail-value">Schedule @selectedProduct.ControlledSubstanceSchedule</span>
+                    </div>
+                }
+            </div>
+
+            @if (productDetail != null)
+            {
+                @if (!string.IsNullOrEmpty(productDetail.CopayTier))
+                {
+                    <div class="detail-section">
+                        <h4 class="section-title">Copay</h4>
+                        <div class="detail-row">
+                            <span class="detail-label">Tier</span>
+                            <span class="detail-value">@productDetail.CopayTier</span>
+                        </div>
+                    </div>
+                }
+
+                @if (productDetail.MaxSingleDose.HasValue || productDetail.MaxDailyDose.HasValue)
+                {
+                    <div class="detail-section">
+                        <h4 class="section-title">Dosing Limits</h4>
+                        @if (productDetail.MaxSingleDose.HasValue)
+                        {
+                            <div class="detail-row">
+                                <span class="detail-label">Max Single Dose</span>
+                                <span class="detail-value">@productDetail.MaxSingleDose @productDetail.DoseUnit</span>
+                            </div>
+                        }
+                        @if (productDetail.MinSingleDose.HasValue)
+                        {
+                            <div class="detail-row">
+                                <span class="detail-label">Min Single Dose</span>
+                                <span class="detail-value">@productDetail.MinSingleDose @productDetail.DoseUnit</span>
+                            </div>
+                        }
+                        @if (productDetail.MaxDailyDose.HasValue)
+                        {
+                            <div class="detail-row">
+                                <span class="detail-label">Max Daily Dose</span>
+                                <span class="detail-value">@productDetail.MaxDailyDose @productDetail.DoseUnit</span>
+                            </div>
+                        }
+                        @if (productDetail.MinDailyDose.HasValue)
+                        {
+                            <div class="detail-row">
+                                <span class="detail-label">Min Daily Dose</span>
+                                <span class="detail-value">@productDetail.MinDailyDose @productDetail.DoseUnit</span>
+                            </div>
+                        }
+                        @if (productDetail.MaxCumulativeDose.HasValue)
+                        {
+                            <div class="detail-row">
+                                <span class="detail-label">Max Cumulative Dose</span>
+                                <span class="detail-value">@productDetail.MaxCumulativeDose @productDetail.DoseUnit</span>
+                            </div>
+                        }
+                        @if (productDetail.IsDosageCheckExcluded)
+                        {
+                            <div class="detail-row">
+                                <span class="detail-label">Dosage Checks</span>
+                                <span class="detail-value warn">Excluded from automated checks</span>
+                            </div>
+                        }
+                    </div>
+                }
+
+                @if (productDetail.Ingredients.Count > 0)
+                {
+                    <div class="detail-section">
+                        <h4 class="section-title">Active Ingredients</h4>
+                        @foreach (var ing in productDetail.Ingredients)
+                        {
+                            <div class="ingredient-row">
+                                <span class="ing-name">@ing.Name</span>
+                                <span class="ing-strength">@ing.Strength @ing.StrengthUnit</span>
+                            </div>
+                        }
+                    </div>
+                }
+
+                @if (productDetail.NdcCodes.Count > 0)
+                {
+                    <div class="detail-section">
+                        <h4 class="section-title">NDC Codes (@productDetail.NdcCodes.Count)</h4>
+                        @foreach (var ndc in productDetail.NdcCodes.Take(10))
+                        {
+                            <div class="ndc-row">
+                                <span class="ndc-code mono">@ndc.Code</span>
+                                @if (!string.IsNullOrEmpty(ndc.TradeName))
+                                {
+                                    <span class="ndc-trade">@ndc.TradeName</span>
+                                }
+                                @if (!string.IsNullOrEmpty(ndc.Manufacturer))
+                                {
+                                    <span class="ndc-mfr">@ndc.Manufacturer</span>
+                                }
+                                @if (!ndc.IsActive)
+                                {
+                                    <span class="badge-inactive">Inactive</span>
+                                }
+                            </div>
+                        }
+                        @if (productDetail.NdcCodes.Count > 10)
+                        {
+                            <div class="ndc-more">+ @(productDetail.NdcCodes.Count - 10) more NDC codes</div>
+                        }
+                    </div>
+                }
+
+                <div class="detail-section">
+                    <div class="detail-row">
+                        <span class="detail-label">Status</span>
+                        <span class="detail-value">
+                            @if (productDetail.IsActive)
+                            {
+                                <span class="badge-active">Active</span>
+                            }
+                            else
+                            {
+                                <span class="badge-inactive">Inactive @(productDetail.InactivationDate.HasValue ? productDetail.InactivationDate.Value.ToString("d") : "")</span>
+                            }
+                        </span>
+                    </div>
+                    @if (productDetail.IsHazardousWaste)
+                    {
+                        <div class="detail-row">
+                            <span class="detail-label">Hazardous Waste</span>
+                            <span class="detail-value warn">⚠️ Requires hazardous waste disposal</span>
+                        </div>
+                    }
+                    @if (!string.IsNullOrEmpty(productDetail.Vuid))
+                    {
+                        <div class="detail-row">
+                            <span class="detail-label">VUID</span>
+                            <span class="detail-value mono">@productDetail.Vuid</span>
+                        </div>
+                    }
+                    <div class="detail-row">
+                        <span class="detail-label">IEN (File #50.68)</span>
+                        <span class="detail-value mono">@productDetail.Ien</span>
+                    </div>
+                </div>
+            }
+            else if (loadingDetail)
+            {
+                <div class="detail-loading">Loading full detail...</div>
+            }
+        </div>
+    }
+</div>
+
+@code {
+    private string searchText = string.Empty;
+    private string lastSearchText = string.Empty;
+    private bool formularyOnly;
+    private string selectedClassCode = string.Empty;
+    private bool searching;
+    private bool loadingDemo;
+    private bool loadingDetail;
+    private bool indexLoaded;
+
+    private List<ProductSummary>? results;
+    private ProductSummary? selectedProduct;
+    private ProductDetail? productDetail;
+    private List<DrugClass> drugClasses = new();
+    private NdfStatus? ndfStatus;
+    private string? statusMessage;
+    private string statusClass = "alert-info";
+
+    private IVaProductIndexGrain GetProductIndex() =>
+        Grains.GetGrain<IVaProductIndexGrain>("NDF-PRODUCT-INDEX");
+
+    private IDrugClassIndexGrain GetClassIndex() =>
+        Grains.GetGrain<IDrugClassIndexGrain>("NDF-CLASS-INDEX");
+
+    private IVaProductGrain GetProductGrain(string ien) =>
+        Grains.GetGrain<IVaProductGrain>(ien);
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            NdfProductIndexStatus prodStatus = await GetProductIndex().GetStatusAsync();
+            indexLoaded = prodStatus.IsLoaded && prodStatus.TotalProducts > 0;
+            ndfStatus = new NdfStatus
+            {
+                Products = new ProductStatus
+                {
+                    IsLoaded = prodStatus.IsLoaded, TotalProducts = prodStatus.TotalProducts,
+                    FormularyProducts = prodStatus.FormularyProducts, ActiveProducts = prodStatus.ActiveProducts,
+                    LastLoadedDate = prodStatus.LastLoadedDate
+                }
+            };
+
+            if (indexLoaded)
+            {
+                List<DrugClassEntry> classEntries = await GetClassIndex().GetAllClassesAsync();
+                drugClasses = classEntries.Select(c => new DrugClass
+                {
+                    Code = c.Code, Name = c.Name, ParentCode = c.ParentCode, IsActive = c.IsActive
+                }).ToList();
+            }
+        }
+        catch
+        {
+            // Grains may not be available yet
+        }
+    }
+
+    private async Task HandleKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter")
+            await Search();
+    }
+
+    private async Task Search()
+    {
+        if (string.IsNullOrWhiteSpace(searchText)) return;
+
+        searching = true;
+        statusMessage = null;
+        lastSearchText = searchText.Trim();
+        selectedProduct = null;
+        productDetail = null;
+
+        try
+        {
+            List<VaProductIndexEntry> entries = await GetProductIndex().SearchAsync(
+                lastSearchText, formularyOnly, string.IsNullOrEmpty(selectedClassCode) ? null : selectedClassCode,
+                true, 100);
+            results = entries.Select(e => new ProductSummary
+            {
+                Ien = e.Ien, Name = e.Name, VaGenericIen = e.VaGenericIen, VaGenericName = e.VaGenericName,
+                DosageFormName = e.DosageFormName, Strength = e.Strength, StrengthUnitName = e.StrengthUnitName,
+                PrimaryDrugClassCode = e.PrimaryDrugClassCode, PrimaryDrugClassName = e.PrimaryDrugClassName,
+                FormularyIndicator = e.FormularyIndicator, IsActive = e.IsActive,
+                RxNormCode = e.RxNormCode, ControlledSubstanceSchedule = e.ControlledSubstanceSchedule
+            }).ToList();
+        }
+        catch (Exception ex)
+        {
+            statusMessage = $"Search error: {ex.Message}";
+            statusClass = "alert-error";
+        }
+        finally
+        {
+            searching = false;
+        }
+    }
+
+    private void SelectProduct(ProductSummary product)
+    {
+        selectedProduct = product;
+        productDetail = null;
+    }
+
+    private async Task LoadDetail(string ien)
+    {
+        selectedProduct = results?.FirstOrDefault(r => r.Ien == ien);
+        productDetail = null;
+        loadingDetail = true;
+
+        try
+        {
+            VaProductState state = await GetProductGrain(ien).GetProductAsync();
+            productDetail = new ProductDetail
+            {
+                Ien = state.Ien, Name = state.Name, VaGenericName = state.VaGenericName,
+                DosageFormName = state.DosageFormName, Strength = state.Strength,
+                StrengthUnitName = state.StrengthUnitName, PrimaryDrugClassCode = state.PrimaryDrugClassCode,
+                PrimaryDrugClassName = state.PrimaryDrugClassName, FormularyIndicator = state.FormularyIndicator,
+                ControlledSubstanceSchedule = state.ControlledSubstanceSchedule,
+                CopayTier = state.CopayTier, MaxSingleDose = state.MaxSingleDose,
+                MinSingleDose = state.MinSingleDose, MaxDailyDose = state.MaxDailyDose,
+                MinDailyDose = state.MinDailyDose, MaxCumulativeDose = state.MaxCumulativeDose,
+                DoseUnit = state.DoseUnit, IsDosageCheckExcluded = state.IsDosageCheckExcluded,
+                IsHazardousWaste = state.IsHazardousWaste, RxNormCode = state.RxNormCode,
+                Vuid = state.Vuid, IsActive = state.IsActive, InactivationDate = state.InactivationDate,
+                Ingredients = state.Ingredients.Select(i => new Ingredient
+                {
+                    Name = i.Name, Strength = i.Strength, StrengthUnit = i.StrengthUnit
+                }).ToList(),
+                NdcCodes = state.NdcCodes.Select(n => new NdcCode
+                {
+                    Code = n.NdcCode, TradeName = n.TradeName, Manufacturer = n.Manufacturer,
+                    PackageSize = n.PackageSize, PackageType = n.PackageType, IsActive = n.IsActive
+                }).ToList()
+            };
+        }
+        catch (Exception ex)
+        {
+            statusMessage = $"Error loading detail: {ex.Message}";
+            statusClass = "alert-error";
+        }
+        finally
+        {
+            loadingDetail = false;
+        }
+    }
+
+    private async Task LoadDemoData()
+    {
+        loadingDemo = true;
+        statusMessage = "Demo data loading requires the API server.";
+        statusClass = "alert-info";
+        loadingDemo = false;
+    }
+
+    private async Task CheckStatus()
+    {
+        statusMessage = null;
+        try
+        {
+            NdfProductIndexStatus prodStatus = await GetProductIndex().GetStatusAsync();
+            ndfStatus = new NdfStatus
+            {
+                Products = new ProductStatus
+                {
+                    IsLoaded = prodStatus.IsLoaded, TotalProducts = prodStatus.TotalProducts,
+                    FormularyProducts = prodStatus.FormularyProducts, ActiveProducts = prodStatus.ActiveProducts,
+                    LastLoadedDate = prodStatus.LastLoadedDate
+                }
+            };
+        }
+        catch (Exception ex)
+        {
+            statusMessage = $"Status error: {ex.Message}";
+            statusClass = "alert-error";
+        }
+    }
+
+    // ─── Response DTOs ─────────────────────────────────────────────────────────
+
+    private class ProductSummary
+    {
+        public string Ien { get; set; } = string.Empty;
+        public string Name { get; set; } = string.Empty;
+        public string VaGenericIen { get; set; } = string.Empty;
+        public string VaGenericName { get; set; } = string.Empty;
+        public string DosageFormName { get; set; } = string.Empty;
+        public string Strength { get; set; } = string.Empty;
+        public string StrengthUnitName { get; set; } = string.Empty;
+        public string PrimaryDrugClassCode { get; set; } = string.Empty;
+        public string PrimaryDrugClassName { get; set; } = string.Empty;
+        public bool FormularyIndicator { get; set; }
+        public bool IsActive { get; set; }
+        public string? RxNormCode { get; set; }
+        public string? ControlledSubstanceSchedule { get; set; }
+        public List<string> NdcCodes { get; set; } = new();
+    }
+
+    private class ProductDetail
+    {
+        public string Ien { get; set; } = string.Empty;
+        public string Name { get; set; } = string.Empty;
+        public string VaGenericName { get; set; } = string.Empty;
+        public string DosageFormName { get; set; } = string.Empty;
+        public string Strength { get; set; } = string.Empty;
+        public string StrengthUnitName { get; set; } = string.Empty;
+        public string PrimaryDrugClassCode { get; set; } = string.Empty;
+        public string PrimaryDrugClassName { get; set; } = string.Empty;
+        public bool FormularyIndicator { get; set; }
+        public string? FormularyRestrictions { get; set; }
+        public string? ControlledSubstanceSchedule { get; set; }
+        public string? CopayTier { get; set; }
+        public decimal? MaxSingleDose { get; set; }
+        public decimal? MinSingleDose { get; set; }
+        public decimal? MaxDailyDose { get; set; }
+        public decimal? MinDailyDose { get; set; }
+        public decimal? MaxCumulativeDose { get; set; }
+        public string? DoseUnit { get; set; }
+        public bool IsDosageCheckExcluded { get; set; }
+        public bool IsHazardousWaste { get; set; }
+        public string? RxNormCode { get; set; }
+        public string? Vuid { get; set; }
+        public bool IsActive { get; set; }
+        public DateTime? InactivationDate { get; set; }
+        public List<Ingredient> Ingredients { get; set; } = new();
+        public List<NdcCode> NdcCodes { get; set; } = new();
+    }
+
+    private class Ingredient
+    {
+        public string Name { get; set; } = string.Empty;
+        public string Strength { get; set; } = string.Empty;
+        public string StrengthUnit { get; set; } = string.Empty;
+    }
+
+    private class NdcCode
+    {
+        public string Code { get; set; } = string.Empty;
+        public string? TradeName { get; set; }
+        public string? Manufacturer { get; set; }
+        public string? PackageSize { get; set; }
+        public string? PackageType { get; set; }
+        public bool IsActive { get; set; } = true;
+    }
+
+    private class DrugClass
+    {
+        public string Code { get; set; } = string.Empty;
+        public string Name { get; set; } = string.Empty;
+        public string? ParentCode { get; set; }
+        public bool IsActive { get; set; }
+    }
+
+    private class NdfStatus
+    {
+        public ProductStatus Products { get; set; } = new();
+        public GenericStatus Generics { get; set; } = new();
+        public ClassStatus Classes { get; set; } = new();
+    }
+
+    private class ProductStatus
+    {
+        public bool IsLoaded { get; set; }
+        public DateTime? LastLoadedDate { get; set; }
+        public int TotalProducts { get; set; }
+        public int FormularyProducts { get; set; }
+        public int ActiveProducts { get; set; }
+    }
+
+    private class GenericStatus
+    {
+        public bool IsLoaded { get; set; }
+        public int TotalGenerics { get; set; }
+        public int ActiveGenerics { get; set; }
+    }
+
+    private class ClassStatus
+    {
+        public bool IsLoaded { get; set; }
+        public int TotalClasses { get; set; }
+    }
+
+    private class DemoLoadResult
+    {
+        public string Message { get; set; } = string.Empty;
+        public int Products { get; set; }
+        public int Generics { get; set; }
+        public int Classes { get; set; }
+    }
+}
+
+<style>
+    .ndf-toolbar { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 0.75rem; margin-bottom: 1rem; }
+    .search-group { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; }
+    .action-group { display: flex; gap: 0.5rem; }
+    .search-input { width: 320px; padding: 0.5rem 0.75rem; border: 1px solid #ccc; border-radius: 4px; font-size: 0.9rem; }
+    .class-select { padding: 0.45rem 0.5rem; border: 1px solid #ccc; border-radius: 4px; font-size: 0.85rem; max-width: 200px; }
+    .checkbox-label { font-size: 0.85rem; display: flex; align-items: center; gap: 0.3rem; cursor: pointer; }
+
+    .btn { padding: 0.5rem 1rem; border: none; border-radius: 4px; cursor: pointer; font-size: 0.85rem; }
+    .btn-primary { background: #003f72; color: white; }
+    .btn-primary:hover { background: #002a4e; }
+    .btn-primary:disabled { background: #999; cursor: not-allowed; }
+    .btn-secondary { background: #16a34a; color: white; }
+    .btn-secondary:hover { background: #15803d; }
+    .btn-secondary:disabled { background: #999; cursor: not-allowed; }
+    .btn-outline { background: white; border: 1px solid #ccc; color: #333; }
+    .btn-outline:hover { background: #f4f6f9; }
+    .btn-xs { padding: 0.2rem 0.5rem; font-size: 0.75rem; background: #f0f4ff; border: 1px solid #c7d2fe; border-radius: 3px; cursor: pointer; color: #3730a3; }
+    .btn-xs:hover { background: #e0e7ff; }
+    .btn-close { background: none; border: none; font-size: 1.1rem; cursor: pointer; color: #888; padding: 0; line-height: 1; }
+    .btn-close:hover { color: #333; }
+
+    .load-banner {
+        background: #fffbeb; border: 2px solid #f59e0b; border-radius: 8px;
+        padding: 1.25rem 1.5rem; margin-bottom: 1rem;
+        display: flex; align-items: center; justify-content: space-between; gap: 1rem;
+    }
+    .load-banner-text { display: flex; flex-direction: column; gap: 0.25rem; }
+    .load-banner-text strong { font-size: 0.95rem; color: #92400e; }
+    .load-banner-text span { font-size: 0.8rem; color: #78350f; }
+    .btn-load { background: #f59e0b; color: white; font-weight: 700; font-size: 0.9rem; padding: 0.6rem 1.5rem; white-space: nowrap; }
+    .btn-load:hover { background: #d97706; }
+
+    .alert { padding: 0.75rem 1rem; border-radius: 4px; margin-bottom: 0.75rem; font-size: 0.85rem; }
+    .alert-error { background: #fde8e8; color: #b91c1c; border: 1px solid #f5c6c6; }
+    .alert-success { background: #dcfce7; color: #166534; border: 1px solid #bbf7d0; }
+    .alert-info { background: #dbeafe; color: #1e40af; border: 1px solid #bfdbfe; }
+
+    .status-bar {
+        display: flex; gap: 1.5rem; padding: 0.5rem 0.75rem;
+        background: #f4f6f9; border-radius: 4px; margin-bottom: 0.75rem;
+        font-size: 0.8rem; color: #555;
+    }
+
+    .results-header { font-size: 0.8rem; color: #666; margin-bottom: 0.5rem; }
+    .no-results { font-style: italic; }
+
+    .main-layout { display: flex; gap: 1rem; align-items: flex-start; }
+    .results-panel { flex: 1; min-width: 0; }
+    .detail-panel {
+        width: 340px; flex-shrink: 0;
+        background: #fff; border: 1px solid #d4d9e0; border-radius: 8px;
+        padding: 1rem; font-size: 0.82rem; position: sticky; top: 1rem;
+    }
+    .detail-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 0.75rem; gap: 0.5rem; }
+    .detail-header h3 { font-size: 0.9rem; font-weight: 700; color: #003f72; margin: 0; line-height: 1.3; }
+    .detail-section { border-top: 1px solid #f0f0f0; padding-top: 0.6rem; margin-top: 0.6rem; }
+    .section-title { font-size: 0.75rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: #003f72; margin: 0 0 0.4rem; }
+    .detail-row { display: flex; gap: 0.5rem; margin-bottom: 0.3rem; }
+    .detail-label { min-width: 110px; font-weight: 600; color: #555; font-size: 0.78rem; }
+    .detail-value { color: #222; }
+    .detail-value.warn { color: #b45309; }
+    .detail-loading { color: #888; font-style: italic; padding: 0.5rem 0; }
+
+    .ingredient-row { display: flex; justify-content: space-between; padding: 0.15rem 0; border-bottom: 1px solid #f5f5f5; }
+    .ing-name { color: #333; }
+    .ing-strength { color: #666; font-size: 0.8rem; }
+
+    .ndc-row { display: flex; gap: 0.5rem; align-items: center; padding: 0.15rem 0; font-size: 0.78rem; flex-wrap: wrap; }
+    .ndc-code { font-family: monospace; color: #003f72; font-weight: 600; }
+    .ndc-trade { color: #555; }
+    .ndc-mfr { color: #888; font-size: 0.73rem; }
+    .ndc-more { color: #888; font-style: italic; font-size: 0.75rem; padding-top: 0.25rem; }
+
+    .ndf-table {
+        width: 100%; border-collapse: collapse; font-size: 0.8rem;
+        border: 1px solid #d4d9e0; border-radius: 6px; overflow: hidden;
+    }
+    .ndf-table thead { background: #f4f6f9; }
+    .ndf-table th {
+        text-align: left; padding: 0.5rem 0.5rem; font-weight: 600;
+        color: #003f72; border-bottom: 2px solid #d4d9e0; font-size: 0.75rem;
+        text-transform: uppercase; letter-spacing: 0.5px;
+    }
+    .ndf-table td { padding: 0.4rem 0.5rem; border-bottom: 1px solid #f0f0f0; }
+    .ndf-table tr:hover { background: #f9fafb; cursor: pointer; }
+    .ndf-table .selected-row { background: #eff6ff; }
+
+    .col-name { width: auto; }
+    .col-generic { width: 120px; }
+    .col-class { width: 80px; }
+    .col-form { width: 90px; }
+    .col-strength { width: 90px; }
+    .col-formulary { width: 90px; }
+    .col-action { width: 60px; }
+
+    .name-cell { font-weight: 600; color: #222; }
+    .generic-cell { color: #555; }
+    .class-cell { font-family: monospace; font-size: 0.75rem; color: #003f72; }
+    .strength-cell { font-family: monospace; font-size: 0.78rem; }
+    .mono { font-family: monospace; }
+
+    .badge-formulary { background: #dcfce7; color: #166534; padding: 1px 6px; border-radius: 3px; font-size: 0.7rem; font-weight: 600; }
+    .badge-nonformulary { background: #fef3c7; color: #92400e; padding: 1px 6px; border-radius: 3px; font-size: 0.7rem; }
+    .badge-cs { background: #fee2e2; color: #991b1b; padding: 1px 5px; border-radius: 3px; font-size: 0.65rem; font-weight: 700; margin-left: 4px; }
+    .badge-active { background: #dcfce7; color: #166534; padding: 1px 6px; border-radius: 3px; font-size: 0.7rem; }
+    .badge-inactive { background: #f3f4f6; color: #6b7280; padding: 1px 6px; border-radius: 3px; font-size: 0.7rem; }
+</style>

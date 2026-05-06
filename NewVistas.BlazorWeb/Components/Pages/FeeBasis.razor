@@ -1,0 +1,1293 @@
+@page "/fee-basis"
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+@rendermode InteractiveServer
+@using NewVistas.BlazorWeb.Services
+@using NewVistas.Abstractions.GrainInterfaces
+@using NewVistas.Abstractions.GrainStates
+@inject OrleansGrainService Grains
+
+<PageTitle>Fee Basis</PageTitle>
+
+<div class="fb-container">
+    <div class="fb-header">
+        <h2>Fee Basis — Community Care</h2>
+        <div class="patient-lookup">
+            <input class="form-control" placeholder="Patient ID" @bind="patientId" />
+            <button class="btn btn-primary" @onclick="LoadPatient">Load</button>
+        </div>
+    </div>
+
+    @if (error != null)
+    {
+        <div class="alert alert-danger">@error</div>
+    }
+
+    @if (loaded)
+    {
+        @* Patient summary strip *@
+        <div class="patient-summary">
+            <div class="summary-card">
+                <span class="label">Total Authorized</span>
+                <span class="value">@feePatient?.TotalAuthorizedAmount.ToString("C")</span>
+            </div>
+            <div class="summary-card">
+                <span class="label">Total Paid</span>
+                <span class="value paid">@feePatient?.TotalPaidAmount.ToString("C")</span>
+            </div>
+            <div class="summary-card">
+                <span class="label">Active Authorizations</span>
+                <span class="value">@feePatient?.ActiveAuthorizationCount</span>
+            </div>
+            @if (feePatient?.IsEligibleForFeeBasis == true)
+            {
+                <span class="badge badge-success">ELIGIBLE</span>
+            }
+            else
+            {
+                <span class="badge badge-secondary">NOT ELIGIBLE</span>
+            }
+        </div>
+
+        @* Tabs *@
+        <div class="tab-bar">
+            <button class="tab-btn @(activeTab == "authorizations" ? "active" : "")"
+                    @onclick='() => activeTab = "authorizations"'>Authorizations</button>
+            <button class="tab-btn @(activeTab == "invoices" ? "active" : "")"
+                    @onclick='() => activeTab = "invoices"'>Invoices</button>
+            <button class="tab-btn @(activeTab == "vendors" ? "active" : "")"
+                    @onclick='() => activeTab = "vendors"'>Vendors</button>
+            <button class="tab-btn @(activeTab == "config" ? "active" : "")"
+                    @onclick='() => activeTab = "config"'>Configuration</button>
+            <button class="tab-btn @(activeTab == "batch" ? "active" : "")"
+                    @onclick='async () => { activeTab = "batch"; await LoadBatches(); }'>Batch Payments</button>
+        </div>
+
+        @* ── TAB: Authorizations ─────────────────────────────────────────────── *@
+        @if (activeTab == "authorizations")
+        {
+            <div class="tab-content">
+                <h4>Fee Basis Authorizations</h4>
+
+                @if (authorizations.Count == 0)
+                {
+                    <p class="text-muted">No authorizations on file.</p>
+                }
+                else
+                {
+                    <table class="fb-table">
+                        <thead>
+                            <tr>
+                                <th>Vendor</th>
+                                <th>Service Type</th>
+                                <th>Authorized</th>
+                                <th>Spent</th>
+                                <th>Remaining</th>
+                                <th>Status</th>
+                                <th>Expires</th>
+                                <th></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (AuthIndexEntry a in authorizations)
+                            {
+                                <tr>
+                                    <td>@a.VendorName</td>
+                                    <td>@a.ServiceType</td>
+                                    <td>@a.AuthorizedAmount.ToString("C")</td>
+                                    <td>@a.SpentAmount.ToString("C")</td>
+                                    <td>@((a.AuthorizedAmount - a.SpentAmount).ToString("C"))</td>
+                                    <td><span class="badge @BadgeClass(a.Status)">@a.Status</span></td>
+                                    <td>@a.AuthorizationDate.ToShortDateString()</td>
+                                    <td>
+                                        <button class="btn btn-sm btn-outline-secondary"
+                                                @onclick="() => ViewAuthorization(a.AuthorizationId)">
+                                            Detail
+                                        </button>
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                }
+
+                @* Auth detail panel *@
+                @if (selectedAuth != null)
+                {
+                    <div class="detail-panel">
+                        <h5>Authorization Detail — @selectedAuth.AuthorizationId</h5>
+                        <div class="detail-grid">
+                            <div><strong>Vendor:</strong> @selectedAuth.VendorName</div>
+                            <div><strong>Service:</strong> @selectedAuth.ServiceType</div>
+                            <div><strong>Authorized By:</strong> @selectedAuth.AuthorizedByUserName</div>
+                            <div><strong>Authorized:</strong> @selectedAuth.AuthorizedAmount.ToString("C")</div>
+                            <div><strong>Spent:</strong> @selectedAuth.SpentAmount.ToString("C")</div>
+                            <div><strong>Remaining:</strong> @selectedAuth.RemainingAmount.ToString("C")</div>
+                            <div><strong>Visits Used:</strong> @selectedAuth.VisitsUsed @(selectedAuth.MaxVisits.HasValue ? $"/ {selectedAuth.MaxVisits}" : "")</div>
+                            <div><strong>Description:</strong> @selectedAuth.ServiceDescription</div>
+                            <div><strong>Status:</strong> @selectedAuth.Status</div>
+                        </div>
+                        @if (selectedAuth.InvoiceIds?.Count > 0)
+                        {
+                            <div class="mt-2"><strong>Linked Invoices:</strong> @string.Join(", ", selectedAuth.InvoiceIds)</div>
+                        }
+                        <button class="btn btn-sm btn-outline-secondary mt-2" @onclick="() => selectedAuth = null">Close</button>
+                    </div>
+                }
+
+                @* Create Authorization form *@
+                <div class="form-section">
+                    <h5>Create Authorization</h5>
+                    <div class="form-row">
+                        <input class="form-control" placeholder="Vendor ID" @bind="newAuth.VendorId" />
+                        <input class="form-control" placeholder="Vendor Name" @bind="newAuth.VendorName" />
+                        <select class="form-control" @bind="newAuth.ServiceType">
+                            <option value="">-- Service Type --</option>
+                            @foreach (string st in serviceTypes)
+                            {
+                                <option value="@st">@st</option>
+                            }
+                        </select>
+                    </div>
+                    <div class="form-row">
+                        <label>Auth Date</label>
+                        <input type="date" class="form-control" @bind="newAuth.AuthorizationDate" />
+                        <label>Effective</label>
+                        <input type="date" class="form-control" @bind="newAuth.EffectiveDate" />
+                        <label>Expires</label>
+                        <input type="date" class="form-control" @bind="newAuth.ExpirationDate" />
+                    </div>
+                    <div class="form-row">
+                        <input type="number" class="form-control" placeholder="Authorized Amount" @bind="newAuth.AuthorizedAmount" />
+                        <input class="form-control" placeholder="Authorized By User ID" @bind="newAuth.AuthorizedByUserId" />
+                        <input class="form-control" placeholder="Authorized By Name" @bind="newAuth.AuthorizedByUserName" />
+                    </div>
+                    <div class="form-row">
+                        <input class="form-control" placeholder="Service Description" @bind="newAuth.ServiceDescription" />
+                        <input type="number" class="form-control" placeholder="Max Visits (optional)" @bind="newAuth.MaxVisits" />
+                        <input class="form-control" placeholder="Diagnosis Code (optional)" @bind="newAuth.DiagnosisCode" />
+                    </div>
+                    <div class="form-row">
+                        <input class="form-control" placeholder="Auth Number (optional)" @bind="newAuth.AuthorizationNumber" />
+                        <input class="form-control" placeholder="Notes (optional)" @bind="newAuth.Notes" />
+                    </div>
+                    @if (!string.IsNullOrEmpty(authFormError)) { <div class="alert alert-danger">@authFormError</div> }
+                    @if (!string.IsNullOrEmpty(authFormSuccess)) { <div class="alert alert-success">@authFormSuccess</div> }
+                    <button class="btn btn-success" @onclick="CreateAuthorization">Create Authorization</button>
+                </div>
+            </div>
+        }
+
+        @* ── TAB: Invoices ───────────────────────────────────────────────────── *@
+        @if (activeTab == "invoices")
+        {
+            <div class="tab-content">
+                <h4>Fee Basis Invoices</h4>
+
+                @if (invoices.Count == 0)
+                {
+                    <p class="text-muted">No invoices on file.</p>
+                }
+                else
+                {
+                    <table class="fb-table">
+                        <thead>
+                            <tr>
+                                <th>Vendor</th>
+                                <th>Service Type</th>
+                                <th>Billed</th>
+                                <th>Paid</th>
+                                <th>Status</th>
+                                <th>Service Date</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (InvoiceIndexEntry inv in invoices)
+                            {
+                                <tr>
+                                    <td>@inv.VendorName</td>
+                                    <td>@inv.ServiceType</td>
+                                    <td>@inv.BilledAmount.ToString("C")</td>
+                                    <td>@(inv.PaidAmount.HasValue ? inv.PaidAmount.Value.ToString("C") : "—")</td>
+                                    <td><span class="badge @BadgeClass(inv.Status)">@inv.Status</span></td>
+                                    <td>@inv.ServiceDate.ToShortDateString()</td>
+                                    <td>
+                                        @if (inv.Status == "Received" || inv.Status == "UnderReview")
+                                        {
+                                            <button class="btn btn-sm btn-success me-1"
+                                                    @onclick="() => OpenApproveInvoice(inv.InvoiceId)">Approve</button>
+                                            <button class="btn btn-sm btn-danger"
+                                                    @onclick="() => OpenRejectInvoice(inv.InvoiceId)">Reject</button>
+                                        }
+                                        @if (inv.Status == "Approved")
+                                        {
+                                            <button class="btn btn-sm btn-primary"
+                                                    @onclick="() => OpenPayInvoice(inv.InvoiceId)">Pay</button>
+                                        }
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                }
+
+                @* Approve panel *@
+                @if (!string.IsNullOrEmpty(approvingInvoiceId))
+                {
+                    <div class="action-panel">
+                        <h5>Approve Invoice</h5>
+                        <input type="number" class="form-control" placeholder="Approved Amount" @bind="approveAmount" />
+                        <input class="form-control" placeholder="Reviewer User ID" @bind="reviewerUserId" />
+                        <input class="form-control" placeholder="Reviewer Name" @bind="reviewerName" />
+                        @if (!string.IsNullOrEmpty(invoiceFormError)) { <div class="alert alert-danger">@invoiceFormError</div> }
+                        <button class="btn btn-success mt-2" @onclick="SubmitApproval">Submit Approval</button>
+                        <button class="btn btn-secondary mt-2 ms-2" @onclick="() => approvingInvoiceId = null">Cancel</button>
+                    </div>
+                }
+
+                @* Reject panel *@
+                @if (!string.IsNullOrEmpty(rejectingInvoiceId))
+                {
+                    <div class="action-panel">
+                        <h5>Reject Invoice</h5>
+                        <input class="form-control" placeholder="Rejection Reason" @bind="rejectReason" />
+                        <input class="form-control" placeholder="Reviewer User ID" @bind="reviewerUserId" />
+                        <input class="form-control" placeholder="Reviewer Name" @bind="reviewerName" />
+                        @if (!string.IsNullOrEmpty(invoiceFormError)) { <div class="alert alert-danger">@invoiceFormError</div> }
+                        <button class="btn btn-danger mt-2" @onclick="SubmitRejection">Submit Rejection</button>
+                        <button class="btn btn-secondary mt-2 ms-2" @onclick="() => rejectingInvoiceId = null">Cancel</button>
+                    </div>
+                }
+
+                @* Pay panel *@
+                @if (!string.IsNullOrEmpty(payingInvoiceId))
+                {
+                    <div class="action-panel">
+                        <h5>Pay Invoice</h5>
+                        <input type="number" class="form-control" placeholder="Paid Amount" @bind="payAmount" />
+                        <select class="form-control" @bind="paymentMethod">
+                            <option value="EFT">EFT</option>
+                            <option value="Check">Check</option>
+                        </select>
+                        <input class="form-control" placeholder="Check Number (optional)" @bind="checkNumber" />
+                        @if (!string.IsNullOrEmpty(invoiceFormError)) { <div class="alert alert-danger">@invoiceFormError</div> }
+                        <button class="btn btn-primary mt-2" @onclick="SubmitPayment">Submit Payment</button>
+                        <button class="btn btn-secondary mt-2 ms-2" @onclick="() => payingInvoiceId = null">Cancel</button>
+                    </div>
+                }
+
+                @* Submit invoice form *@
+                <div class="form-section">
+                    <h5>Submit Invoice</h5>
+                    <div class="form-row">
+                        <input class="form-control" placeholder="Authorization ID" @bind="newInvoice.AuthorizationId" />
+                        <input class="form-control" placeholder="Vendor ID" @bind="newInvoice.VendorId" />
+                        <input class="form-control" placeholder="Vendor Name" @bind="newInvoice.VendorName" />
+                    </div>
+                    <div class="form-row">
+                        <input class="form-control" placeholder="Invoice Number" @bind="newInvoice.InvoiceNumber" />
+                        <select class="form-control" @bind="newInvoice.ServiceType">
+                            <option value="">-- Service Type --</option>
+                            @foreach (string st in serviceTypes)
+                            {
+                                <option value="@st">@st</option>
+                            }
+                        </select>
+                        <input type="number" class="form-control" placeholder="Billed Amount" @bind="newInvoice.BilledAmount" />
+                    </div>
+                    <div class="form-row">
+                        <label>Service Date</label>
+                        <input type="date" class="form-control" @bind="newInvoice.ServiceDate" />
+                        <label>Service End (optional)</label>
+                        <input type="date" class="form-control" @bind="newInvoice.ServiceDateEnd" />
+                    </div>
+                    <div class="form-row">
+                        <input class="form-control" placeholder="Diagnosis Code (optional)" @bind="newInvoice.DiagnosisCode" />
+                        <input class="form-control" placeholder="Notes (optional)" @bind="newInvoice.Notes" />
+                    </div>
+                    @if (!string.IsNullOrEmpty(invoiceSubmitError)) { <div class="alert alert-danger">@invoiceSubmitError</div> }
+                    @if (!string.IsNullOrEmpty(invoiceSubmitSuccess)) { <div class="alert alert-success">@invoiceSubmitSuccess</div> }
+                    <button class="btn btn-success" @onclick="SubmitNewInvoice">Submit Invoice</button>
+                </div>
+            </div>
+        }
+
+        @* ── TAB: Vendors ────────────────────────────────────────────────────── *@
+        @if (activeTab == "vendors")
+        {
+            <div class="tab-content">
+                <h4>Community Care Vendors</h4>
+                <div class="mb-2">
+                    <label>
+                        <input type="checkbox" @bind="showActiveOnly" @oninput="LoadVendors" />
+                        Active vendors only
+                    </label>
+                </div>
+
+                @if (vendors.Count == 0)
+                {
+                    <p class="text-muted">No vendors on file.</p>
+                }
+                else
+                {
+                    <table class="fb-table">
+                        <thead>
+                            <tr>
+                                <th>Name</th>
+                                <th>Type</th>
+                                <th>Specialty</th>
+                                <th>NPI</th>
+                                <th>Phone</th>
+                                <th>Active</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (VendorIndexEntry v in vendors)
+                            {
+                                <tr>
+                                    <td>@v.VendorName</td>
+                                    <td><span class="badge badge-info">@v.VendorType</span></td>
+                                    <td>@(v.SpecialtyName ?? "—")</td>
+                                    <td>—</td>
+                                    <td>—</td>
+                                    <td>@(v.IsActive ? "Yes" : "No")</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                }
+
+                <div class="form-section">
+                    <h5>Add Vendor</h5>
+                    <div class="form-row">
+                        <input class="form-control" placeholder="Vendor Name" @bind="newVendor.VendorName" />
+                        <select class="form-control" @bind="newVendor.VendorType">
+                            <option value="Individual">Individual</option>
+                            <option value="Organization">Organization</option>
+                        </select>
+                    </div>
+                    <div class="form-row">
+                        <input class="form-control" placeholder="Specialty Code (optional)" @bind="newVendor.SpecialtyCode" />
+                        <input class="form-control" placeholder="Specialty Name (optional)" @bind="newVendor.SpecialtyName" />
+                        <input class="form-control" placeholder="NPI (optional)" @bind="newVendor.NPI" />
+                        <input class="form-control" placeholder="Tax ID (optional)" @bind="newVendor.TaxId" />
+                    </div>
+                    <div class="form-row">
+                        <input class="form-control" placeholder="Address (optional)" @bind="newVendor.Address" />
+                        <input class="form-control" placeholder="Phone (optional)" @bind="newVendor.Phone" />
+                    </div>
+                    <div class="form-row">
+                        <input class="form-control" placeholder="Contract Number (optional)" @bind="newVendor.ContractNumber" />
+                        <label>Contract Start</label>
+                        <input type="date" class="form-control" @bind="newVendor.ContractStartDate" />
+                        <label>Contract End</label>
+                        <input type="date" class="form-control" @bind="newVendor.ContractEndDate" />
+                    </div>
+                    <input class="form-control mb-2" placeholder="Notes (optional)" @bind="newVendor.Notes" />
+                    @if (!string.IsNullOrEmpty(vendorFormError)) { <div class="alert alert-danger">@vendorFormError</div> }
+                    @if (!string.IsNullOrEmpty(vendorFormSuccess)) { <div class="alert alert-success">@vendorFormSuccess</div> }
+                    <button class="btn btn-success" @onclick="CreateVendor">Add Vendor</button>
+                </div>
+            </div>
+        }
+
+        @* ── TAB: Configuration ──────────────────────────────────────────────── *@
+        @if (activeTab == "config")
+        {
+            <div class="tab-content">
+                <div class="config-columns">
+
+                    @* Site Parameters *@
+                    <div class="config-section">
+                        <h4>Fee Site Parameters</h4>
+                        @if (siteParams != null)
+                        {
+                            <div class="params-display">
+                                <div><strong>Site:</strong> @siteParams.SiteName</div>
+                                <div><strong>Enabled:</strong> @siteParams.IsFeeBasisEnabled</div>
+                                <div><strong>Fiscal Year:</strong> @siteParams.FiscalYear</div>
+                                <div><strong>Annual Budget:</strong> @(siteParams.AnnualBudget.HasValue ? siteParams.AnnualBudget.Value.ToString("C") : "—")</div>
+                                <div><strong>Max Auth Days:</strong> @siteParams.MaxAuthorizationDays</div>
+                                <div><strong>Pre-Auth Required:</strong> @siteParams.RequiresPreAuthorization</div>
+                                <div><strong>Auto-Approval Limit:</strong> @(siteParams.AutoApprovalLimit.HasValue ? siteParams.AutoApprovalLimit.Value.ToString("C") : "—")</div>
+                                <div><strong>Default Payment:</strong> @siteParams.DefaultPaymentMethod</div>
+                            </div>
+                        }
+                        <h5 class="mt-3">Update Site Parameters</h5>
+                        <div class="form-row">
+                            <input class="form-control" placeholder="Site Name" @bind="siteParamForm.SiteName" />
+                            <input type="number" class="form-control" placeholder="Fiscal Year" @bind="siteParamForm.FiscalYear" />
+                        </div>
+                        <div class="form-row">
+                            <label>Fee Basis Enabled</label>
+                            <input type="checkbox" @bind="siteParamForm.IsFeeBasisEnabled" />
+                            <label>Pre-Auth Required</label>
+                            <input type="checkbox" @bind="siteParamForm.RequiresPreAuthorization" />
+                        </div>
+                        <div class="form-row">
+                            <input type="number" class="form-control" placeholder="Annual Budget (optional)" @bind="siteParamForm.AnnualBudget" />
+                            <input type="number" class="form-control" placeholder="Max Auth Days" @bind="siteParamForm.MaxAuthorizationDays" />
+                            <input type="number" class="form-control" placeholder="Auto-Approval Limit (optional)" @bind="siteParamForm.AutoApprovalLimit" />
+                        </div>
+                        <div class="form-row">
+                            <select class="form-control" @bind="siteParamForm.DefaultPaymentMethod">
+                                <option value="EFT">EFT</option>
+                                <option value="Check">Check</option>
+                            </select>
+                            <input class="form-control" placeholder="Updated By User ID" @bind="siteParamForm.UpdatedByUserId" />
+                        </div>
+                        @if (!string.IsNullOrEmpty(siteParamError)) { <div class="alert alert-danger">@siteParamError</div> }
+                        @if (!string.IsNullOrEmpty(siteParamSuccess)) { <div class="alert alert-success">@siteParamSuccess</div> }
+                        <button class="btn btn-primary mt-2" @onclick="UpdateSiteParameters">Update</button>
+                    </div>
+
+                    @* Income Thresholds *@
+                    <div class="config-section">
+                        <h4>Income Thresholds (FY @thresholdYear)</h4>
+                        <div class="form-row mb-2">
+                            <input type="number" class="form-control" placeholder="Year" @bind="thresholdYear" />
+                            <button class="btn btn-outline-primary" @onclick="LoadThresholds">Load</button>
+                            <button class="btn btn-outline-secondary" @onclick="SeedThresholds">Seed Defaults</button>
+                        </div>
+                        @if (!string.IsNullOrEmpty(thresholdError)) { <div class="alert alert-danger">@thresholdError</div> }
+                        @if (!string.IsNullOrEmpty(thresholdSuccess)) { <div class="alert alert-success">@thresholdSuccess</div> }
+
+                        @if (thresholds.Count > 0)
+                        {
+                            <table class="fb-table">
+                                <thead>
+                                    <tr>
+                                        <th>Category</th>
+                                        @for (int h = 1; h <= 8; h++) { <th>@h</th> }
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @foreach (string cat in new[] { "GMT_LOW", "GMT_MED", "GMT_HIGH", "HEC_COPAY" })
+                                    {
+                                        <tr>
+                                            <td><strong>@cat</strong></td>
+                                            @for (int h = 1; h <= 8; h++)
+                                            {
+                                                ThresholdEntry? entry = thresholds.FirstOrDefault(e => e.Category == cat && e.HouseholdSize == h);
+                                                <td>@(entry != null ? entry.ThresholdAmount.ToString("C0") : "—")</td>
+                                            }
+                                        </tr>
+                                    }
+                                </tbody>
+                            </table>
+                        }
+                    </div>
+
+                </div>
+            </div>
+        }
+
+        @* ── TAB: Batch Payments ─────────────────────────────────────────────── *@
+        @if (activeTab == "batch")
+        {
+            <div class="tab-content">
+                <h4>Fee Basis Batch Payments</h4>
+
+                @* Unposted Batches *@
+                <h5>Unposted Batches</h5>
+                @if (unpostedBatches.Count == 0)
+                {
+                    <p class="text-muted">No unposted batches.</p>
+                }
+                else
+                {
+                    @foreach (BatchIndexEntry b in unpostedBatches)
+                    {
+                        <div class="detail-panel">
+                            <div class="detail-grid">
+                                <div><strong>Batch ID:</strong> @b.BatchId.Replace("FEE-BATCH:", "")</div>
+                                <div><strong>Vendor:</strong> @(b.VendorName ?? "—")</div>
+                                <div><strong>Date:</strong> @b.BatchDate.ToShortDateString()</div>
+                                <div><strong>Method:</strong> @b.PaymentMethod</div>
+                                <div><strong>Invoices:</strong> @b.InvoiceCount</div>
+                                <div><strong>Total:</strong> @b.TotalAmount.ToString("C")</div>
+                            </div>
+                            <div class="form-row mt-2">
+                                <button class="btn btn-sm btn-outline-primary"
+                                        @onclick="() => ToggleAddInvoicePanel(b.BatchId)">
+                                    @(addingInvoiceToBatchId == b.BatchId ? "Cancel Add" : "Add Invoice")
+                                </button>
+                                <button class="btn btn-sm btn-warning"
+                                        @onclick="() => TogglePostPanel(b.BatchId)">
+                                    @(postingBatchId == b.BatchId ? "Cancel Post" : "Post Batch")
+                                </button>
+                            </div>
+
+                            @* Add Invoice inline panel *@
+                            @if (addingInvoiceToBatchId == b.BatchId)
+                            {
+                                <div class="action-panel mt-2">
+                                    <h6>Add Invoice to Batch</h6>
+                                    <div class="form-row">
+                                        <input class="form-control" placeholder="Invoice ID" @bind="addInvoiceForm.InvoiceId" />
+                                        <input class="form-control" placeholder="Authorization ID" @bind="addInvoiceForm.AuthorizationId" />
+                                        <input class="form-control" placeholder="Patient ID" @bind="addInvoiceForm.PatientId" />
+                                    </div>
+                                    <div class="form-row">
+                                        <input class="form-control" placeholder="Patient Name" @bind="addInvoiceForm.PatientName" />
+                                        <input class="form-control" placeholder="Vendor ID" @bind="addInvoiceForm.VendorId" />
+                                        <input class="form-control" placeholder="Vendor Name" @bind="addInvoiceForm.VendorName" />
+                                    </div>
+                                    <div class="form-row">
+                                        <input type="number" class="form-control" placeholder="Paid Amount" @bind="addInvoiceForm.PaidAmount" />
+                                    </div>
+                                    @if (!string.IsNullOrEmpty(addInvoiceError)) { <div class="alert alert-danger mt-2">@addInvoiceError</div> }
+                                    <div class="form-row mt-2">
+                                        <button class="btn btn-primary" @onclick="SubmitAddInvoice">Add Invoice</button>
+                                    </div>
+                                </div>
+                            }
+
+                            @* Post Batch inline panel *@
+                            @if (postingBatchId == b.BatchId)
+                            {
+                                <div class="action-panel mt-2">
+                                    <h6>Post Batch — @b.InvoiceCount Invoice(s) — @b.TotalAmount.ToString("C")</h6>
+                                    <p class="text-muted">Posting marks every invoice as Paid and updates each authorization's spent balance.</p>
+                                    <div class="form-row">
+                                        <input class="form-control" placeholder="Posted By User ID" @bind="postBatchUserId" />
+                                        <input class="form-control" placeholder="Posted By User Name" @bind="postBatchUserName" />
+                                    </div>
+                                    @if (!string.IsNullOrEmpty(postBatchError)) { <div class="alert alert-danger mt-2">@postBatchError</div> }
+                                    <div class="form-row mt-2">
+                                        <button class="btn btn-warning" @onclick="SubmitPostBatch">Confirm Post</button>
+                                    </div>
+                                </div>
+                            }
+                        </div>
+                    }
+                }
+
+                @* All Batches *@
+                <h5 class="mt-3">All Batches</h5>
+                @if (allBatches.Count == 0)
+                {
+                    <p class="text-muted">No batches found.</p>
+                }
+                else
+                {
+                    <table class="fb-table">
+                        <thead>
+                            <tr>
+                                <th>Batch ID</th>
+                                <th>Vendor</th>
+                                <th>Date</th>
+                                <th>Method</th>
+                                <th>Invoices</th>
+                                <th>Total</th>
+                                <th>Status</th>
+                                <th>Posted Date</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (BatchIndexEntry b in allBatches)
+                            {
+                                <tr>
+                                    <td>@b.BatchId.Replace("FEE-BATCH:", "")</td>
+                                    <td>@(b.VendorName ?? "—")</td>
+                                    <td>@b.BatchDate.ToShortDateString()</td>
+                                    <td>@b.PaymentMethod</td>
+                                    <td>@b.InvoiceCount</td>
+                                    <td>@b.TotalAmount.ToString("C")</td>
+                                    <td><span class="badge @(b.IsPosted ? "badge-success" : "badge-warning")">@(b.IsPosted ? "Posted" : "Open")</span></td>
+                                    <td>@(b.PostedDate.HasValue ? b.PostedDate.Value.ToShortDateString() : "—")</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                }
+
+                @* Create Batch form *@
+                <div class="form-section mt-3">
+                    <h5>Create New Batch</h5>
+                    <div class="form-row">
+                        <input class="form-control" placeholder="Vendor ID (optional)" @bind="newBatch.VendorId" />
+                        <input class="form-control" placeholder="Vendor Name (optional)" @bind="newBatch.VendorName" />
+                    </div>
+                    <div class="form-row">
+                        <label>Batch Date:</label>
+                        <input type="date" class="form-control" @bind="newBatch.BatchDate" />
+                        <select class="form-control" @bind="newBatch.PaymentMethod">
+                            <option value="EFT">EFT</option>
+                            <option value="Check">Check</option>
+                            <option value="ACH">ACH</option>
+                        </select>
+                        <input class="form-control" placeholder="Check # (optional)" @bind="newBatch.CheckNumber" />
+                    </div>
+                    <div class="form-row">
+                        <input class="form-control" placeholder="Notes (optional)" @bind="newBatch.Notes" />
+                    </div>
+                    @if (!string.IsNullOrEmpty(batchFormError)) { <div class="alert alert-danger mt-2">@batchFormError</div> }
+                    @if (!string.IsNullOrEmpty(batchFormSuccess)) { <div class="alert alert-success mt-2">@batchFormSuccess</div> }
+                    <button class="btn btn-primary mt-2" @onclick="CreateBatch">Create Batch</button>
+                </div>
+            </div>
+        }
+    }
+</div>
+
+<style>
+    .fb-container { padding: 1rem; font-family: sans-serif; }
+    .fb-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; }
+    .patient-lookup { display: flex; gap: .5rem; }
+    .patient-summary { display: flex; gap: 1rem; align-items: center; margin-bottom: 1rem; flex-wrap: wrap; }
+    .summary-card { background: #f8f9fa; border: 1px solid #dee2e6; border-radius: 4px; padding: .5rem 1rem; text-align: center; }
+    .summary-card .label { display: block; font-size: .75rem; color: #6c757d; }
+    .summary-card .value { display: block; font-size: 1.25rem; font-weight: bold; }
+    .summary-card .value.paid { color: #198754; }
+    .tab-bar { display: flex; gap: .5rem; margin-bottom: 1rem; border-bottom: 2px solid #dee2e6; padding-bottom: .5rem; }
+    .tab-btn { background: none; border: 1px solid #dee2e6; border-radius: 4px 4px 0 0; padding: .4rem 1rem; cursor: pointer; }
+    .tab-btn.active { background: #0d6efd; color: #fff; border-color: #0d6efd; }
+    .tab-content { padding: 1rem; }
+    .fb-table { width: 100%; border-collapse: collapse; margin-bottom: 1rem; font-size: .875rem; }
+    .fb-table th, .fb-table td { border: 1px solid #dee2e6; padding: .4rem .6rem; text-align: left; }
+    .fb-table th { background: #e9ecef; }
+    .badge { display: inline-block; padding: .25em .5em; border-radius: 4px; font-size: .75rem; }
+    .badge-success { background: #198754; color: #fff; }
+    .badge-danger  { background: #dc3545; color: #fff; }
+    .badge-warning { background: #ffc107; color: #000; }
+    .badge-secondary { background: #6c757d; color: #fff; }
+    .badge-info    { background: #0dcaf0; color: #000; }
+    .badge-primary { background: #0d6efd; color: #fff; }
+    .detail-panel  { background: #f8f9fa; border: 1px solid #dee2e6; border-radius: 4px; padding: 1rem; margin-bottom: 1rem; }
+    .detail-grid   { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: .5rem; margin-bottom: .5rem; }
+    .form-section  { background: #f8f9fa; border: 1px solid #dee2e6; border-radius: 4px; padding: 1rem; margin-top: 1rem; }
+    .form-row      { display: flex; gap: .5rem; margin-bottom: .5rem; flex-wrap: wrap; align-items: center; }
+    .form-row label { white-space: nowrap; font-size: .875rem; }
+    .action-panel  { background: #fff3cd; border: 1px solid #ffc107; border-radius: 4px; padding: 1rem; margin-bottom: 1rem; }
+    .config-columns { display: flex; gap: 2rem; flex-wrap: wrap; }
+    .config-section { flex: 1; min-width: 320px; }
+    .params-display { background: #fff; border: 1px solid #dee2e6; border-radius: 4px; padding: .75rem; margin-bottom: .5rem; }
+    .params-display div { margin-bottom: .25rem; }
+    .me-1 { margin-right: .25rem; }
+    .ms-2 { margin-left: .5rem; }
+    .mt-2 { margin-top: .5rem; }
+    .mt-3 { margin-top: 1rem; }
+    .mb-2 { margin-bottom: .5rem; }
+    .text-muted { color: #6c757d; }
+</style>
+
+@code {
+    // ── state ─────────────────────────────────────────────────────────────────
+    string patientId = string.Empty;
+    string activeTab = "authorizations";
+    bool loaded;
+    string? error;
+
+    // Fee patient summary
+    FeePatientDto? feePatient;
+
+    // Authorizations
+    List<AuthIndexEntry> authorizations = new();
+    AuthDetailDto? selectedAuth;
+
+    // Invoices
+    List<InvoiceIndexEntry> invoices = new();
+    string? approvingInvoiceId;
+    string? rejectingInvoiceId;
+    string? payingInvoiceId;
+    decimal approveAmount;
+    decimal payAmount;
+    string rejectReason = string.Empty;
+    string reviewerUserId = string.Empty;
+    string reviewerName = string.Empty;
+    string paymentMethod = "EFT";
+    string checkNumber = string.Empty;
+    string? invoiceFormError;
+
+    // Vendors
+    List<VendorIndexEntry> vendors = new();
+    bool showActiveOnly;
+    string? vendorFormError;
+    string? vendorFormSuccess;
+
+    // Config
+    SiteParamsDto? siteParams;
+    List<ThresholdEntry> thresholds = new();
+    int thresholdYear = DateTime.Now.Year;
+    string? thresholdError;
+    string? thresholdSuccess;
+    string? siteParamError;
+    string? siteParamSuccess;
+
+    // Batch Payments
+    List<BatchIndexEntry> allBatches = new();
+    List<BatchIndexEntry> unpostedBatches = new();
+    string? addingInvoiceToBatchId;
+    string? postingBatchId;
+    string postBatchUserId = string.Empty;
+    string postBatchUserName = string.Empty;
+    string? batchFormError;
+    string? batchFormSuccess;
+    string? addInvoiceError;
+    string? postBatchError;
+    NewBatchForm newBatch = new();
+    AddInvoiceToBatchForm addInvoiceForm = new();
+
+    // Form feedback
+    string? authFormError;
+    string? authFormSuccess;
+    string? invoiceSubmitError;
+    string? invoiceSubmitSuccess;
+
+    // Form models
+    NewAuthForm newAuth = new();
+    NewInvoiceForm newInvoice = new();
+    NewVendorForm newVendor = new();
+    SiteParamForm siteParamForm = new();
+
+    static readonly string[] serviceTypes =
+        ["Outpatient", "Inpatient", "Dental", "Pharmacy", "Mental", "Optometry", "Other"];
+
+    // ── helpers ───────────────────────────────────────────────────────────────
+
+    static string BadgeClass(string status) => status switch
+    {
+        "Active"      => "badge-success",
+        "Pending"     => "badge-warning",
+        "Suspended"   => "badge-warning",
+        "Exhausted"   => "badge-secondary",
+        "Cancelled"   => "badge-danger",
+        "Expired"     => "badge-secondary",
+        "Paid"        => "badge-success",
+        "Approved"    => "badge-primary",
+        "Received"    => "badge-info",
+        "UnderReview" => "badge-warning",
+        "Rejected"    => "badge-danger",
+        "OnHold"      => "badge-warning",
+        _             => "badge-secondary",
+    };
+
+    // ── load ──────────────────────────────────────────────────────────────────
+
+    async Task LoadPatient()
+    {
+        error = null;
+        loaded = false;
+        if (string.IsNullOrWhiteSpace(patientId)) { error = "Enter a Patient ID."; return; }
+        try
+        {
+            string pid = patientId.Trim();
+            var fpGrain = Grains.GetGrain<IFeePatientGrain>($"FEE-PATIENT:{pid}");
+            await fpGrain.EnsureInitializedAsync(pid);
+            FeePatientState fps = await fpGrain.GetAsync();
+            feePatient = new FeePatientDto
+            {
+                TotalAuthorizedAmount = fps.TotalAuthorizedAmount,
+                TotalPaidAmount = fps.TotalPaidAmount,
+                ActiveAuthorizationCount = fps.ActiveAuthorizationCount,
+                IsEligibleForFeeBasis = fps.IsEligibleForFeeBasis,
+            };
+            var authIdx = Grains.GetGrain<IFeeAuthorizationIndexGrain>($"FEE-AUTH-IDX:{pid}");
+            List<FeeAuthorizationIndexEntry> authEntries = await authIdx.GetAllAsync();
+            authorizations = authEntries.Select(a => new AuthIndexEntry
+            {
+                AuthorizationId = a.AuthorizationId, VendorName = a.VendorName,
+                ServiceType = a.ServiceType, AuthorizedAmount = a.AuthorizedAmount,
+                SpentAmount = a.SpentAmount, Status = a.Status,
+                AuthorizationDate = a.AuthorizationDate,
+            }).ToList();
+            var invIdx = Grains.GetGrain<IFeeInvoiceIndexGrain>($"FEE-INVOICE-IDX:{pid}");
+            List<FeeInvoiceIndexEntry> invEntries = await invIdx.GetAllAsync();
+            invoices = invEntries.Select(i => new InvoiceIndexEntry
+            {
+                InvoiceId = i.InvoiceId, VendorName = i.VendorName,
+                ServiceType = i.ServiceType, BilledAmount = i.BilledAmount,
+                PaidAmount = i.PaidAmount, Status = i.Status,
+                ServiceDate = i.ServiceDate,
+            }).ToList();
+            await LoadVendors();
+            await LoadSiteParams();
+            loaded = true;
+        }
+        catch (Exception ex) { error = $"Error loading patient: {ex.Message}"; }
+    }
+
+    async Task LoadVendors()
+    {
+        try
+        {
+            var vendorIdx = Grains.GetGrain<IFeeVendorIndexGrain>("FEE-VENDOR-IDX");
+            List<FeeVendorIndexEntry> entries = showActiveOnly
+                ? await vendorIdx.GetActiveAsync()
+                : await vendorIdx.GetAllAsync();
+            vendors = entries.Select(v => new VendorIndexEntry
+            {
+                VendorId = v.VendorId, VendorName = v.VendorName,
+                VendorType = v.VendorType, SpecialtyName = v.SpecialtyName,
+                IsActive = v.IsActive,
+            }).ToList();
+        }
+        catch { vendors = new(); }
+    }
+
+    async Task LoadSiteParams()
+    {
+        try
+        {
+            var spGrain = Grains.GetGrain<IFeeSiteParametersGrain>("FEE-SITE-PARAMS");
+            FeeSiteParametersState sp = await spGrain.GetAsync();
+            siteParams = new SiteParamsDto
+            {
+                SiteName = sp.SiteName, IsFeeBasisEnabled = sp.IsFeeBasisEnabled,
+                FiscalYear = sp.FiscalYear, AnnualBudget = sp.AnnualBudget,
+                MaxAuthorizationDays = sp.MaxAuthorizationDays,
+                RequiresPreAuthorization = sp.RequiresPreAuthorization,
+                AutoApprovalLimit = sp.AutoApprovalLimit,
+                DefaultPaymentMethod = sp.DefaultPaymentMethod,
+            };
+        }
+        catch { siteParams = null; }
+    }
+
+    async Task LoadThresholds()
+    {
+        thresholdError = null;
+        // Income thresholds require a specialized grain not available here — keeping as placeholder
+        thresholds = new();
+        await Task.CompletedTask;
+    }
+
+    // ── authorization actions ─────────────────────────────────────────────────
+
+    async Task ViewAuthorization(string authId)
+    {
+        try
+        {
+            string grainKey = authId.StartsWith("FEE-AUTH:") ? authId : $"FEE-AUTH:{authId}";
+            var authGrain = Grains.GetGrain<IFeeAuthorizationGrain>(grainKey);
+            FeeAuthorizationState s = await authGrain.GetAsync();
+            selectedAuth = new AuthDetailDto
+            {
+                AuthorizationId = s.AuthorizationId, VendorName = s.VendorName,
+                ServiceType = s.ServiceType.ToString(), AuthorizedAmount = s.AuthorizedAmount,
+                SpentAmount = s.SpentAmount, RemainingAmount = s.RemainingAmount,
+                Status = s.Status.ToString(), AuthorizedByUserName = s.AuthorizedByUserName,
+                ServiceDescription = s.ServiceDescription, VisitsUsed = s.VisitsUsed,
+                MaxVisits = s.MaxVisits, InvoiceIds = s.InvoiceIds,
+            };
+        }
+        catch (Exception ex) { error = $"Error loading authorization: {ex.Message}"; }
+    }
+
+    async Task CreateAuthorization()
+    {
+        authFormError = null; authFormSuccess = null;
+        if (string.IsNullOrWhiteSpace(newAuth.VendorId) || string.IsNullOrWhiteSpace(newAuth.ServiceType))
+        {
+            authFormError = "Vendor ID and service type are required."; return;
+        }
+        try
+        {
+            string pid = patientId.Trim();
+            string authId = Guid.NewGuid().ToString();
+            var authGrain = Grains.GetGrain<IFeeAuthorizationGrain>($"FEE-AUTH:{authId}");
+            FeeServiceType svcType = Enum.TryParse<FeeServiceType>(newAuth.ServiceType, out var st) ? st : FeeServiceType.Other;
+            await authGrain.CreateAsync(pid, newAuth.VendorId, newAuth.VendorName, svcType,
+                newAuth.AuthorizationDate, newAuth.EffectiveDate, newAuth.ExpirationDate,
+                newAuth.AuthorizedAmount, newAuth.AuthorizedByUserId, newAuth.AuthorizedByUserName,
+                newAuth.ServiceDescription, newAuth.MaxVisits, newAuth.DiagnosisCode,
+                newAuth.AuthorizationNumber, newAuth.Notes);
+            authFormSuccess = "Authorization created.";
+            newAuth = new NewAuthForm();
+            await LoadPatient();
+        }
+        catch (Exception ex) { authFormError = ex.Message; }
+    }
+
+    // ── invoice actions ───────────────────────────────────────────────────────
+
+    void OpenApproveInvoice(string id)  { approvingInvoiceId = id; rejectingInvoiceId = null; payingInvoiceId = null; invoiceFormError = null; }
+    void OpenRejectInvoice(string id)   { rejectingInvoiceId = id; approvingInvoiceId = null; payingInvoiceId = null; invoiceFormError = null; }
+    void OpenPayInvoice(string id)      { payingInvoiceId = id; approvingInvoiceId = null; rejectingInvoiceId = null; invoiceFormError = null; }
+
+    async Task SubmitApproval()
+    {
+        invoiceFormError = null;
+        try
+        {
+            string grainKey = approvingInvoiceId!.StartsWith("FEE-INVOICE:") ? approvingInvoiceId : $"FEE-INVOICE:{approvingInvoiceId}";
+            var invGrain = Grains.GetGrain<IFeeInvoiceGrain>(grainKey);
+            await invGrain.ApproveAsync(approveAmount, reviewerUserId, reviewerName);
+            approvingInvoiceId = null;
+            await LoadPatient();
+        }
+        catch (Exception ex) { invoiceFormError = ex.Message; }
+    }
+
+    async Task SubmitRejection()
+    {
+        invoiceFormError = null;
+        try
+        {
+            string grainKey = rejectingInvoiceId!.StartsWith("FEE-INVOICE:") ? rejectingInvoiceId : $"FEE-INVOICE:{rejectingInvoiceId}";
+            var invGrain = Grains.GetGrain<IFeeInvoiceGrain>(grainKey);
+            await invGrain.RejectAsync(rejectReason, reviewerUserId, reviewerName);
+            rejectingInvoiceId = null;
+            await LoadPatient();
+        }
+        catch (Exception ex) { invoiceFormError = ex.Message; }
+    }
+
+    async Task SubmitPayment()
+    {
+        invoiceFormError = null;
+        try
+        {
+            string grainKey = payingInvoiceId!.StartsWith("FEE-INVOICE:") ? payingInvoiceId : $"FEE-INVOICE:{payingInvoiceId}";
+            var invGrain = Grains.GetGrain<IFeeInvoiceGrain>(grainKey);
+            await invGrain.PayAsync(payAmount, paymentMethod,
+                string.IsNullOrWhiteSpace(checkNumber) ? null : checkNumber, DateTime.UtcNow);
+            payingInvoiceId = null;
+            await LoadPatient();
+        }
+        catch (Exception ex) { invoiceFormError = ex.Message; }
+    }
+
+    async Task SubmitNewInvoice()
+    {
+        invoiceSubmitError = null; invoiceSubmitSuccess = null;
+        if (string.IsNullOrWhiteSpace(newInvoice.AuthorizationId) || string.IsNullOrWhiteSpace(newInvoice.InvoiceNumber))
+        {
+            invoiceSubmitError = "Authorization ID and invoice number are required."; return;
+        }
+        try
+        {
+            string invoiceId = Guid.NewGuid().ToString();
+            string authKey = newInvoice.AuthorizationId.StartsWith("FEE-AUTH:") ? newInvoice.AuthorizationId : $"FEE-AUTH:{newInvoice.AuthorizationId}";
+            var invGrain = Grains.GetGrain<IFeeInvoiceGrain>($"FEE-INVOICE:{invoiceId}");
+            await invGrain.SubmitAsync(authKey, patientId.Trim(),
+                newInvoice.VendorId, newInvoice.VendorName, newInvoice.InvoiceNumber,
+                newInvoice.ServiceDate, newInvoice.ServiceType, newInvoice.BilledAmount,
+                newInvoice.DiagnosisCode, new List<string>(), newInvoice.ServiceDateEnd, newInvoice.Notes);
+            invoiceSubmitSuccess = "Invoice submitted.";
+            newInvoice = new NewInvoiceForm();
+            await LoadPatient();
+        }
+        catch (Exception ex) { invoiceSubmitError = ex.Message; }
+    }
+
+    // ── vendor actions ────────────────────────────────────────────────────────
+
+    async Task CreateVendor()
+    {
+        vendorFormError = null; vendorFormSuccess = null;
+        if (string.IsNullOrWhiteSpace(newVendor.VendorName)) { vendorFormError = "Vendor name is required."; return; }
+        try
+        {
+            string vendorId = Guid.NewGuid().ToString();
+            var vendorGrain = Grains.GetGrain<IFeeVendorGrain>($"FEE-VENDOR:{vendorId}");
+            await vendorGrain.CreateAsync(newVendor.VendorName, newVendor.VendorType,
+                newVendor.SpecialtyCode, newVendor.SpecialtyName, newVendor.NPI, newVendor.TaxId,
+                newVendor.Address, newVendor.Phone, null,
+                newVendor.ContractNumber, newVendor.ContractStartDate, newVendor.ContractEndDate, newVendor.Notes);
+            vendorFormSuccess = "Vendor created.";
+            newVendor = new NewVendorForm();
+            await LoadVendors();
+        }
+        catch (Exception ex) { vendorFormError = ex.Message; }
+    }
+
+    // ── config actions ────────────────────────────────────────────────────────
+
+    async Task UpdateSiteParameters()
+    {
+        siteParamError = null; siteParamSuccess = null;
+        try
+        {
+            var spGrain = Grains.GetGrain<IFeeSiteParametersGrain>("FEE-SITE-PARAMS");
+            await spGrain.UpdateAsync(siteParamForm.SiteName, siteParamForm.IsFeeBasisEnabled,
+                siteParamForm.FiscalYear, siteParamForm.AnnualBudget, siteParamForm.MaxAuthorizationDays,
+                siteParamForm.RequiresPreAuthorization, siteParamForm.AutoApprovalLimit,
+                siteParamForm.DefaultPaymentMethod, siteParamForm.UpdatedByUserId);
+            siteParamSuccess = "Site parameters updated.";
+            await LoadSiteParams();
+        }
+        catch (Exception ex) { siteParamError = ex.Message; }
+    }
+
+    async Task SeedThresholds()
+    {
+        thresholdError = null; thresholdSuccess = null;
+        // Seeding requires specialized grain not available via direct calls
+        thresholdSuccess = "Threshold seeding is available via the API endpoint.";
+        await Task.CompletedTask;
+    }
+
+    // ── batch payment actions ─────────────────────────────────────────────────
+
+    async Task LoadBatches()
+    {
+        try
+        {
+            var batchIdx = Grains.GetGrain<IFeeBatchPaymentIndexGrain>("FEE-BATCH-IDX");
+            List<FeeBatchPaymentIndexEntry> allEntries = await batchIdx.GetAllAsync();
+            allBatches = allEntries.Select(MapBatchEntry).ToList();
+            List<FeeBatchPaymentIndexEntry> unpostedEntries = await batchIdx.GetUnpostedAsync();
+            unpostedBatches = unpostedEntries.Select(MapBatchEntry).ToList();
+        }
+        catch { allBatches = new(); unpostedBatches = new(); }
+    }
+
+    static BatchIndexEntry MapBatchEntry(FeeBatchPaymentIndexEntry b) => new()
+    {
+        BatchId = b.BatchId, VendorName = b.VendorName, BatchDate = b.BatchDate,
+        PaymentMethod = b.PaymentMethod, TotalAmount = b.TotalAmount,
+        IsPosted = b.IsPosted, InvoiceCount = b.InvoiceCount, PostedDate = b.PostedDate,
+    };
+
+    async Task CreateBatch()
+    {
+        batchFormError = null; batchFormSuccess = null;
+        try
+        {
+            string batchId = Guid.NewGuid().ToString();
+            var batchGrain = Grains.GetGrain<IFeeBatchPaymentGrain>($"FEE-BATCH:{batchId}");
+            await batchGrain.CreateAsync(
+                string.IsNullOrWhiteSpace(newBatch.VendorId) ? null : newBatch.VendorId,
+                string.IsNullOrWhiteSpace(newBatch.VendorName) ? null : newBatch.VendorName,
+                newBatch.BatchDate, newBatch.PaymentMethod,
+                string.IsNullOrWhiteSpace(newBatch.CheckNumber) ? null : newBatch.CheckNumber,
+                string.IsNullOrWhiteSpace(newBatch.Notes) ? null : newBatch.Notes);
+            batchFormSuccess = "Batch created.";
+            newBatch = new NewBatchForm();
+            await LoadBatches();
+        }
+        catch (Exception ex) { batchFormError = ex.Message; }
+    }
+
+    void ToggleAddInvoicePanel(string batchId)
+    {
+        addingInvoiceToBatchId = addingInvoiceToBatchId == batchId ? null : batchId;
+        postingBatchId = null;
+        addInvoiceError = null;
+        addInvoiceForm = new AddInvoiceToBatchForm();
+    }
+
+    void TogglePostPanel(string batchId)
+    {
+        postingBatchId = postingBatchId == batchId ? null : batchId;
+        addingInvoiceToBatchId = null;
+        postBatchError = null;
+    }
+
+    async Task SubmitAddInvoice()
+    {
+        addInvoiceError = null;
+        if (string.IsNullOrWhiteSpace(addInvoiceForm.InvoiceId) || string.IsNullOrWhiteSpace(addInvoiceForm.AuthorizationId))
+        {
+            addInvoiceError = "Invoice ID and Authorization ID are required."; return;
+        }
+        try
+        {
+            string batchKey = addingInvoiceToBatchId!.StartsWith("FEE-BATCH:") ? addingInvoiceToBatchId : $"FEE-BATCH:{addingInvoiceToBatchId}";
+            var batchGrain = Grains.GetGrain<IFeeBatchPaymentGrain>(batchKey);
+            await batchGrain.AddInvoiceAsync(
+                addInvoiceForm.InvoiceId, addInvoiceForm.AuthorizationId,
+                addInvoiceForm.PatientId, addInvoiceForm.PatientName,
+                addInvoiceForm.VendorId, addInvoiceForm.VendorName,
+                addInvoiceForm.PaidAmount);
+            addingInvoiceToBatchId = null;
+            addInvoiceForm = new AddInvoiceToBatchForm();
+            await LoadBatches();
+        }
+        catch (Exception ex) { addInvoiceError = ex.Message; }
+    }
+
+    async Task SubmitPostBatch()
+    {
+        postBatchError = null;
+        if (string.IsNullOrWhiteSpace(postBatchUserId)) { postBatchError = "Posted By User ID is required."; return; }
+        try
+        {
+            string batchKey = postingBatchId!.StartsWith("FEE-BATCH:") ? postingBatchId : $"FEE-BATCH:{postingBatchId}";
+            var batchGrain = Grains.GetGrain<IFeeBatchPaymentGrain>(batchKey);
+            await batchGrain.PostAsync(postBatchUserId, postBatchUserName);
+            postingBatchId   = null;
+            postBatchUserId   = string.Empty;
+            postBatchUserName = string.Empty;
+            await LoadBatches();
+        }
+        catch (Exception ex) { postBatchError = ex.Message; }
+    }
+
+    // ── DTOs ──────────────────────────────────────────────────────────────────
+
+    class FeePatientDto
+    {
+        public string PatientId { get; set; } = string.Empty;
+        public bool IsEligibleForFeeBasis { get; set; }
+        public decimal TotalAuthorizedAmount { get; set; }
+        public decimal TotalPaidAmount { get; set; }
+        public int ActiveAuthorizationCount { get; set; }
+    }
+
+    class AuthIndexEntry
+    {
+        public string AuthorizationId { get; set; } = string.Empty;
+        public string PatientId { get; set; } = string.Empty;
+        public string VendorName { get; set; } = string.Empty;
+        public string ServiceType { get; set; } = string.Empty;
+        public string Status { get; set; } = string.Empty;
+        public decimal AuthorizedAmount { get; set; }
+        public decimal SpentAmount { get; set; }
+        public DateTime AuthorizationDate { get; set; }
+    }
+
+    class AuthDetailDto
+    {
+        public string AuthorizationId { get; set; } = string.Empty;
+        public string VendorName { get; set; } = string.Empty;
+        public string ServiceType { get; set; } = string.Empty;
+        public string AuthorizedByUserName { get; set; } = string.Empty;
+        public decimal AuthorizedAmount { get; set; }
+        public decimal SpentAmount { get; set; }
+        public decimal RemainingAmount { get; set; }
+        public int? MaxVisits { get; set; }
+        public int VisitsUsed { get; set; }
+        public string ServiceDescription { get; set; } = string.Empty;
+        public string Status { get; set; } = string.Empty;
+        public List<string>? InvoiceIds { get; set; }
+    }
+
+    class InvoiceIndexEntry
+    {
+        public string InvoiceId { get; set; } = string.Empty;
+        public string AuthorizationId { get; set; } = string.Empty;
+        public string VendorName { get; set; } = string.Empty;
+        public string ServiceType { get; set; } = string.Empty;
+        public string Status { get; set; } = string.Empty;
+        public decimal BilledAmount { get; set; }
+        public decimal? PaidAmount { get; set; }
+        public DateTime ServiceDate { get; set; }
+    }
+
+    class VendorIndexEntry
+    {
+        public string VendorId { get; set; } = string.Empty;
+        public string VendorName { get; set; } = string.Empty;
+        public string VendorType { get; set; } = string.Empty;
+        public string? SpecialtyName { get; set; }
+        public bool IsActive { get; set; }
+    }
+
+    class SiteParamsDto
+    {
+        public string SiteName { get; set; } = string.Empty;
+        public bool IsFeeBasisEnabled { get; set; }
+        public int FiscalYear { get; set; }
+        public decimal? AnnualBudget { get; set; }
+        public int MaxAuthorizationDays { get; set; }
+        public bool RequiresPreAuthorization { get; set; }
+        public decimal? AutoApprovalLimit { get; set; }
+        public string DefaultPaymentMethod { get; set; } = string.Empty;
+    }
+
+    class ThresholdEntry
+    {
+        public string Category { get; set; } = string.Empty;
+        public int HouseholdSize { get; set; }
+        public decimal ThresholdAmount { get; set; }
+    }
+
+    // ── form models ───────────────────────────────────────────────────────────
+
+    class NewAuthForm
+    {
+        public string VendorId { get; set; } = string.Empty;
+        public string VendorName { get; set; } = string.Empty;
+        public string ServiceType { get; set; } = string.Empty;
+        public DateTime AuthorizationDate { get; set; } = DateTime.Today;
+        public DateTime EffectiveDate { get; set; } = DateTime.Today;
+        public DateTime? ExpirationDate { get; set; }
+        public decimal AuthorizedAmount { get; set; }
+        public string AuthorizedByUserId { get; set; } = string.Empty;
+        public string AuthorizedByUserName { get; set; } = string.Empty;
+        public string ServiceDescription { get; set; } = string.Empty;
+        public int? MaxVisits { get; set; }
+        public string? DiagnosisCode { get; set; }
+        public string? AuthorizationNumber { get; set; }
+        public string? Notes { get; set; }
+    }
+
+    class NewInvoiceForm
+    {
+        public string AuthorizationId { get; set; } = string.Empty;
+        public string VendorId { get; set; } = string.Empty;
+        public string VendorName { get; set; } = string.Empty;
+        public string InvoiceNumber { get; set; } = string.Empty;
+        public string ServiceType { get; set; } = string.Empty;
+        public decimal BilledAmount { get; set; }
+        public DateTime ServiceDate { get; set; } = DateTime.Today;
+        public DateTime? ServiceDateEnd { get; set; }
+        public string? DiagnosisCode { get; set; }
+        public string? Notes { get; set; }
+    }
+
+    class NewVendorForm
+    {
+        public string VendorName { get; set; } = string.Empty;
+        public string VendorType { get; set; } = "Organization";
+        public string? SpecialtyCode { get; set; }
+        public string? SpecialtyName { get; set; }
+        public string? NPI { get; set; }
+        public string? TaxId { get; set; }
+        public string? Address { get; set; }
+        public string? Phone { get; set; }
+        public string? ContractNumber { get; set; }
+        public DateTime? ContractStartDate { get; set; }
+        public DateTime? ContractEndDate { get; set; }
+        public string? Notes { get; set; }
+    }
+
+    class SiteParamForm
+    {
+        public string SiteName { get; set; } = string.Empty;
+        public bool IsFeeBasisEnabled { get; set; } = true;
+        public int FiscalYear { get; set; } = DateTime.Now.Year;
+        public decimal? AnnualBudget { get; set; }
+        public int MaxAuthorizationDays { get; set; } = 365;
+        public bool RequiresPreAuthorization { get; set; } = true;
+        public decimal? AutoApprovalLimit { get; set; }
+        public string DefaultPaymentMethod { get; set; } = "EFT";
+        public string UpdatedByUserId { get; set; } = string.Empty;
+    }
+
+    class BatchIndexEntry
+    {
+        public string BatchId { get; set; } = string.Empty;
+        public string? VendorName { get; set; }
+        public DateTime BatchDate { get; set; }
+        public string PaymentMethod { get; set; } = string.Empty;
+        public decimal TotalAmount { get; set; }
+        public int InvoiceCount { get; set; }
+        public bool IsPosted { get; set; }
+        public DateTime? PostedDate { get; set; }
+    }
+
+    class NewBatchForm
+    {
+        public string? VendorId { get; set; }
+        public string? VendorName { get; set; }
+        public DateTime BatchDate { get; set; } = DateTime.Today;
+        public string PaymentMethod { get; set; } = "EFT";
+        public string? CheckNumber { get; set; }
+        public string? Notes { get; set; }
+    }
+
+    class AddInvoiceToBatchForm
+    {
+        public string InvoiceId { get; set; } = string.Empty;
+        public string AuthorizationId { get; set; } = string.Empty;
+        public string PatientId { get; set; } = string.Empty;
+        public string PatientName { get; set; } = string.Empty;
+        public string VendorId { get; set; } = string.Empty;
+        public string VendorName { get; set; } = string.Empty;
+        public decimal PaidAmount { get; set; }
+    }
+}

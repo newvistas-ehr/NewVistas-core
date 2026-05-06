@@ -1,0 +1,1077 @@
+@page "/engineering"
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+@rendermode InteractiveServer
+@using NewVistas.BlazorWeb.Services
+@using NewVistas.Abstractions.GrainInterfaces
+@using NewVistas.Abstractions.GrainStates
+@inject OrleansGrainService Grains
+
+<PageTitle>Engineering</PageTitle>
+
+<h1>Engineering</h1>
+<p class="subtitle">VistA Files #6914, #6920 — Facilities &amp; Work Orders (ENSITE.m, ENWORK.m, ENWLIS.m)</p>
+
+@if (error != null) { <div class="alert alert-error">@error</div> }
+@if (successMessage != null) { <div class="alert alert-success">@successMessage</div> }
+
+<div class="tabs">
+    <button class="tab @(activeTab == "workorders" ? "active" : "")"
+            @onclick='() => { activeTab = "workorders"; _ = LoadActiveWorkOrders(); }'>
+        Work Orders
+    </button>
+    <button class="tab @(activeTab == "facilities" ? "active" : "")"
+            @onclick='() => { activeTab = "facilities"; _ = LoadFacilities(); }'>
+        Facilities
+    </button>
+</div>
+
+<!-- ── Work Orders Tab ────────────────────────────────────────────────────── -->
+@if (activeTab == "workorders")
+{
+    <div class="section-card">
+        <div class="section-header">
+            <h2>Active Work Orders</h2>
+            <button class="btn btn-primary btn-sm" @onclick='() => showNewWorkOrderForm = !showNewWorkOrderForm'>
+                @(showNewWorkOrderForm ? "Cancel" : "+ New Work Order")
+            </button>
+        </div>
+
+        @if (showNewWorkOrderForm)
+        {
+            <div class="form-section">
+                <h3>New Work Order</h3>
+                <div class="form-grid">
+                    <div class="form-group">
+                        <label>Facility ID *</label>
+                        <input type="text" @bind="newWoFacilityId" placeholder="ENG-FAC:..." class="form-control" />
+                    </div>
+                    <div class="form-group">
+                        <label>Facility Name *</label>
+                        <input type="text" @bind="newWoFacilityName" placeholder="e.g. Building A — Room 201" class="form-control" />
+                    </div>
+                    <div class="form-group">
+                        <label>Location Description</label>
+                        <input type="text" @bind="newWoLocation" placeholder="e.g. 2nd floor, west corridor" class="form-control" />
+                    </div>
+                    <div class="form-group">
+                        <label>Work Order Type *</label>
+                        <select @bind="newWoType" class="form-control">
+                            <option value="Repair">Repair</option>
+                            <option value="PreventiveMaintenance">Preventive Maintenance</option>
+                            <option value="NewInstall">New Install</option>
+                            <option value="Inspection">Inspection</option>
+                            <option value="Emergency">Emergency</option>
+                            <option value="Alteration">Alteration</option>
+                            <option value="Other">Other</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Priority *</label>
+                        <select @bind="newWoPriority" class="form-control">
+                            <option value="Routine">Routine</option>
+                            <option value="Urgent">Urgent</option>
+                            <option value="Emergency">Emergency</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Shop *</label>
+                        <select @bind="newWoShop" class="form-control">
+                            <option value="Electrical">Electrical</option>
+                            <option value="Mechanical">Mechanical</option>
+                            <option value="Plumbing">Plumbing</option>
+                            <option value="Hvac">HVAC</option>
+                            <option value="Carpentry">Carpentry</option>
+                            <option value="Paint">Paint</option>
+                            <option value="General">General</option>
+                            <option value="IT">IT</option>
+                            <option value="Biomedical">Biomedical</option>
+                            <option value="Grounds">Grounds</option>
+                        </select>
+                    </div>
+                    <div class="form-group form-group-full">
+                        <label>Description *</label>
+                        <textarea @bind="newWoDescription" placeholder="Describe the problem or work required..." class="form-control" rows="3"></textarea>
+                    </div>
+                    <div class="form-group">
+                        <label>Requested By ID *</label>
+                        <input type="text" @bind="newWoRequestedById" placeholder="STAFF-..." class="form-control" />
+                    </div>
+                    <div class="form-group">
+                        <label>Requested By Name *</label>
+                        <input type="text" @bind="newWoRequestedByName" placeholder="Staff name" class="form-control" />
+                    </div>
+                    <div class="form-group">
+                        <label>Estimated Hours</label>
+                        <input type="number" @bind="newWoEstimatedHours" step="0.5" min="0" class="form-control" />
+                    </div>
+                    <div class="form-group">
+                        <label>Scheduled Date</label>
+                        <input type="date" @bind="newWoScheduledDate" class="form-control" />
+                    </div>
+                </div>
+                <button class="btn btn-success" @onclick="CreateWorkOrder" disabled="@creatingWorkOrder">
+                    @(creatingWorkOrder ? "Creating..." : "Create Work Order")
+                </button>
+            </div>
+        }
+
+        <!-- Search / Filter Bar -->
+        <div class="filter-bar">
+            <select @bind="filterStatus" class="form-control form-control-sm">
+                <option value="">All Statuses</option>
+                <option value="Open">Open</option>
+                <option value="InProgress">In Progress</option>
+                <option value="OnHold">On Hold</option>
+                <option value="Completed">Completed</option>
+                <option value="Cancelled">Cancelled</option>
+            </select>
+            <select @bind="filterShop" class="form-control form-control-sm">
+                <option value="">All Shops</option>
+                <option value="Electrical">Electrical</option>
+                <option value="Mechanical">Mechanical</option>
+                <option value="Plumbing">Plumbing</option>
+                <option value="Hvac">HVAC</option>
+                <option value="Carpentry">Carpentry</option>
+                <option value="Paint">Paint</option>
+                <option value="General">General</option>
+                <option value="IT">IT</option>
+                <option value="Biomedical">Biomedical</option>
+                <option value="Grounds">Grounds</option>
+            </select>
+            <button class="btn btn-secondary btn-sm" @onclick="SearchWorkOrders">Search</button>
+            <button class="btn btn-secondary btn-sm" @onclick="LoadActiveWorkOrders">Active Only</button>
+        </div>
+
+        @if (loadingWorkOrders)
+        {
+            <p class="loading-hint">Loading work orders...</p>
+        }
+        else if (workOrders != null)
+        {
+            @if (workOrders.Count == 0)
+            {
+                <p class="empty-state">No work orders found.</p>
+            }
+            else
+            {
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>WO #</th>
+                            <th>Facility</th>
+                            <th>Type</th>
+                            <th>Priority</th>
+                            <th>Shop</th>
+                            <th>Status</th>
+                            <th>Assigned To</th>
+                            <th>Scheduled</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (WorkOrderIndexEntry wo in workOrders)
+                        {
+                            <tr class="@GetWorkOrderRowClass(wo.Priority, wo.Status)">
+                                <td><code>@wo.WorkOrderNumber</code></td>
+                                <td>
+                                    <strong>@wo.FacilityName</strong>
+                                    @if (!string.IsNullOrWhiteSpace(wo.LocationDescription))
+                                    {
+                                        <br /><small>@wo.LocationDescription</small>
+                                    }
+                                </td>
+                                <td>@wo.WorkOrderType</td>
+                                <td><span class="badge @GetPriorityBadge(wo.Priority)">@wo.Priority</span></td>
+                                <td>@wo.Shop</td>
+                                <td><span class="badge @GetStatusBadge(wo.Status)">@wo.Status</span></td>
+                                <td>@(wo.AssignedToName ?? "—")</td>
+                                <td>@(wo.ScheduledDate?.ToString("MM/dd/yyyy") ?? "—")</td>
+                                <td>
+                                    <button class="btn btn-xs" @onclick="() => ViewWorkOrder(wo.WorkOrderId)">Detail</button>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            }
+        }
+
+        <!-- Work Order Detail Panel -->
+        @if (selectedWorkOrder != null)
+        {
+            <div class="detail-panel">
+                <div class="section-header">
+                    <h3>Work Order @selectedWorkOrder.WorkOrderNumber</h3>
+                    <button class="btn btn-sm" @onclick="() => selectedWorkOrder = null">Close</button>
+                </div>
+                <div class="detail-grid">
+                    <div><strong>Facility:</strong> @selectedWorkOrder.FacilityName</div>
+                    <div><strong>Location:</strong> @(selectedWorkOrder.LocationDescription ?? "—")</div>
+                    <div><strong>Type:</strong> @selectedWorkOrder.WorkOrderType</div>
+                    <div><strong>Priority:</strong> <span class="badge @GetPriorityBadge(selectedWorkOrder.Priority)">@selectedWorkOrder.Priority</span></div>
+                    <div><strong>Shop:</strong> @selectedWorkOrder.Shop</div>
+                    <div><strong>Status:</strong> <span class="badge @GetStatusBadge(selectedWorkOrder.Status)">@selectedWorkOrder.Status</span></div>
+                    <div><strong>Requested By:</strong> @selectedWorkOrder.RequestedByName</div>
+                    <div><strong>Assigned To:</strong> @(selectedWorkOrder.AssignedToName ?? "—")</div>
+                    <div><strong>Est. Hours:</strong> @(selectedWorkOrder.EstimatedHours?.ToString("F1") ?? "—")</div>
+                    <div><strong>Actual Hours:</strong> @selectedWorkOrder.ActualHours.ToString("F1")</div>
+                    <div><strong>Scheduled:</strong> @(selectedWorkOrder.ScheduledDate?.ToString("MM/dd/yyyy") ?? "—")</div>
+                    <div><strong>Started:</strong> @(selectedWorkOrder.StartedDate?.ToString("MM/dd/yyyy HH:mm") ?? "—")</div>
+                    <div><strong>Completed:</strong> @(selectedWorkOrder.CompletedDate?.ToString("MM/dd/yyyy HH:mm") ?? "—")</div>
+                    <div class="form-group-full"><strong>Description:</strong> @selectedWorkOrder.Description</div>
+                </div>
+
+                <!-- Notes -->
+                @if (selectedWorkOrder.Notes.Count > 0)
+                {
+                    <h4>Notes (@selectedWorkOrder.Notes.Count)</h4>
+                    @foreach (WoNoteEntry note in selectedWorkOrder.Notes)
+                    {
+                        <div class="note-entry">
+                            <strong>@note.AuthorName</strong> — @note.EnteredDate.ToString("MM/dd/yyyy HH:mm")
+                            <p>@note.NoteText</p>
+                        </div>
+                    }
+                }
+
+                <!-- Labor Entries -->
+                @if (selectedWorkOrder.LaborEntries.Count > 0)
+                {
+                    <h4>Labor (@selectedWorkOrder.LaborEntries.Count entries, @selectedWorkOrder.ActualHours.ToString("F1") hrs total)</h4>
+                    <table class="data-table data-table-sm">
+                        <thead><tr><th>Technician</th><th>Date</th><th>Hours</th><th>Notes</th></tr></thead>
+                        <tbody>
+                            @foreach (WoLaborEntry labor in selectedWorkOrder.LaborEntries)
+                            {
+                                <tr>
+                                    <td>@labor.TechnicianName</td>
+                                    <td>@labor.WorkDate.ToString("MM/dd/yyyy")</td>
+                                    <td>@labor.HoursWorked.ToString("F1")</td>
+                                    <td>@(labor.Notes ?? "—")</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                }
+
+                <!-- Parts Entries -->
+                @if (selectedWorkOrder.PartsEntries.Count > 0)
+                {
+                    <h4>Parts Used</h4>
+                    <table class="data-table data-table-sm">
+                        <thead><tr><th>Part #</th><th>Description</th><th>Qty</th><th>Unit Cost</th><th>Total</th></tr></thead>
+                        <tbody>
+                            @foreach (WoPartEntry part in selectedWorkOrder.PartsEntries)
+                            {
+                                <tr>
+                                    <td>@part.PartNumber</td>
+                                    <td>@part.PartDescription</td>
+                                    <td>@part.Quantity</td>
+                                    <td>$@part.UnitCost.ToString("F2")</td>
+                                    <td>$@((part.Quantity * part.UnitCost).ToString("F2"))</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                }
+
+                <!-- Quick Actions -->
+                <div class="action-bar">
+                    @if (selectedWorkOrder.Status == WorkOrderStatus.Open)
+                    {
+                        <button class="btn btn-primary btn-sm" @onclick="() => showAssignForm = !showAssignForm">Assign</button>
+                        <button class="btn btn-success btn-sm" @onclick="() => showStartForm = !showStartForm">Start</button>
+                    }
+                    @if (selectedWorkOrder.Status == WorkOrderStatus.InProgress)
+                    {
+                        <button class="btn btn-warning btn-sm" @onclick="() => showHoldForm = !showHoldForm">Hold</button>
+                        <button class="btn btn-success btn-sm" @onclick="CompleteWorkOrder">Complete</button>
+                    }
+                    @if (selectedWorkOrder.Status == WorkOrderStatus.OnHold)
+                    {
+                        <button class="btn btn-primary btn-sm" @onclick="ResumeWorkOrder">Resume</button>
+                    }
+                    @if (selectedWorkOrder.Status != WorkOrderStatus.Completed && selectedWorkOrder.Status != WorkOrderStatus.Cancelled)
+                    {
+                        <button class="btn btn-danger btn-sm" @onclick="() => showCancelForm = !showCancelForm">Cancel</button>
+                    }
+                    <button class="btn btn-secondary btn-sm" @onclick="() => showNoteForm = !showNoteForm">Add Note</button>
+                    <button class="btn btn-secondary btn-sm" @onclick="() => showLaborForm = !showLaborForm">Log Labor</button>
+                    <button class="btn btn-secondary btn-sm" @onclick="() => showPartForm = !showPartForm">Add Part</button>
+                </div>
+
+                @if (showAssignForm || showStartForm)
+                {
+                    <div class="form-inline">
+                        <input type="text" @bind="actionTechId" placeholder="Technician ID" class="form-control form-control-sm" />
+                        <input type="text" @bind="actionTechName" placeholder="Technician Name" class="form-control form-control-sm" />
+                        @if (showAssignForm)
+                        {
+                            <button class="btn btn-primary btn-sm" @onclick="AssignWorkOrder">Assign</button>
+                            <button class="btn btn-sm" @onclick="() => showAssignForm = false">Cancel</button>
+                        }
+                        else
+                        {
+                            <button class="btn btn-success btn-sm" @onclick="StartWorkOrder">Start</button>
+                            <button class="btn btn-sm" @onclick="() => showStartForm = false">Cancel</button>
+                        }
+                    </div>
+                }
+
+                @if (showHoldForm)
+                {
+                    <div class="form-inline">
+                        <input type="text" @bind="actionReason" placeholder="Hold reason (optional)" class="form-control form-control-sm" />
+                        <button class="btn btn-warning btn-sm" @onclick="HoldWorkOrder">Place On Hold</button>
+                        <button class="btn btn-sm" @onclick="() => showHoldForm = false">Cancel</button>
+                    </div>
+                }
+
+                @if (showCancelForm)
+                {
+                    <div class="form-inline">
+                        <input type="text" @bind="actionCancelById" placeholder="Cancelled by ID" class="form-control form-control-sm" />
+                        <input type="text" @bind="actionCancelByName" placeholder="Cancelled by name" class="form-control form-control-sm" />
+                        <input type="text" @bind="actionReason" placeholder="Reason (optional)" class="form-control form-control-sm" />
+                        <button class="btn btn-danger btn-sm" @onclick="CancelWorkOrder">Confirm Cancel</button>
+                        <button class="btn btn-sm" @onclick="() => showCancelForm = false">Cancel</button>
+                    </div>
+                }
+
+                @if (showNoteForm)
+                {
+                    <div class="form-inline">
+                        <input type="text" @bind="noteAuthorId" placeholder="Author ID" class="form-control form-control-sm" />
+                        <input type="text" @bind="noteAuthorName" placeholder="Author Name" class="form-control form-control-sm" />
+                        <input type="text" @bind="noteText" placeholder="Note text..." class="form-control form-control-sm" />
+                        <button class="btn btn-secondary btn-sm" @onclick="AddNote">Add Note</button>
+                        <button class="btn btn-sm" @onclick="() => showNoteForm = false">Cancel</button>
+                    </div>
+                }
+
+                @if (showLaborForm)
+                {
+                    <div class="form-inline">
+                        <input type="text" @bind="laborTechId" placeholder="Technician ID" class="form-control form-control-sm" />
+                        <input type="text" @bind="laborTechName" placeholder="Technician Name" class="form-control form-control-sm" />
+                        <input type="number" @bind="laborHours" step="0.5" min="0.5" placeholder="Hours" class="form-control form-control-sm" style="width:80px" />
+                        <input type="date" @bind="laborDate" class="form-control form-control-sm" />
+                        <input type="text" @bind="laborNotes" placeholder="Notes (optional)" class="form-control form-control-sm" />
+                        <button class="btn btn-secondary btn-sm" @onclick="AddLabor">Log Labor</button>
+                        <button class="btn btn-sm" @onclick="() => showLaborForm = false">Cancel</button>
+                    </div>
+                }
+
+                @if (showPartForm)
+                {
+                    <div class="form-inline">
+                        <input type="text" @bind="partNumber" placeholder="Part #" class="form-control form-control-sm" />
+                        <input type="text" @bind="partDescription" placeholder="Description" class="form-control form-control-sm" />
+                        <input type="number" @bind="partQty" min="1" placeholder="Qty" class="form-control form-control-sm" style="width:60px" />
+                        <input type="number" @bind="partUnitCost" step="0.01" min="0" placeholder="Unit $" class="form-control form-control-sm" style="width:80px" />
+                        <button class="btn btn-secondary btn-sm" @onclick="AddPart">Add Part</button>
+                        <button class="btn btn-sm" @onclick="() => showPartForm = false">Cancel</button>
+                    </div>
+                }
+            </div>
+        }
+    </div>
+}
+
+<!-- ── Facilities Tab ─────────────────────────────────────────────────────── -->
+@if (activeTab == "facilities")
+{
+    <div class="section-card">
+        <div class="section-header">
+            <h2>Facilities &amp; Equipment</h2>
+            <button class="btn btn-primary btn-sm" @onclick='() => showNewFacilityForm = !showNewFacilityForm'>
+                @(showNewFacilityForm ? "Cancel" : "+ New Facility")
+            </button>
+        </div>
+
+        @if (showNewFacilityForm)
+        {
+            <div class="form-section">
+                <h3>New Facility / Equipment Record</h3>
+                <div class="form-grid">
+                    <div class="form-group">
+                        <label>Facility Name *</label>
+                        <input type="text" @bind="newFacilityName" placeholder="e.g. Building A — MRI Room" class="form-control" />
+                    </div>
+                    <div class="form-group">
+                        <label>Category *</label>
+                        <select @bind="newFacilityCategory" class="form-control">
+                            <option value="Building">Building</option>
+                            <option value="Room">Room</option>
+                            <option value="Equipment">Equipment</option>
+                            <option value="Vehicle">Vehicle</option>
+                            <option value="Utility">Utility</option>
+                            <option value="System">System</option>
+                            <option value="Other">Other</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Building</label>
+                        <input type="text" @bind="newFacilityBuilding" placeholder="Building name/number" class="form-control" />
+                    </div>
+                    <div class="form-group">
+                        <label>Floor</label>
+                        <input type="text" @bind="newFacilityFloor" placeholder="Floor/Level" class="form-control" />
+                    </div>
+                    <div class="form-group">
+                        <label>Room</label>
+                        <input type="text" @bind="newFacilityRoom" placeholder="Room number" class="form-control" />
+                    </div>
+                    <div class="form-group">
+                        <label>Department Name</label>
+                        <input type="text" @bind="newFacilityDept" placeholder="Department" class="form-control" />
+                    </div>
+                    <div class="form-group">
+                        <label>Equipment Type</label>
+                        <input type="text" @bind="newFacilityEquipType" placeholder="e.g. MRI Scanner" class="form-control" />
+                    </div>
+                    <div class="form-group">
+                        <label>Manufacturer</label>
+                        <input type="text" @bind="newFacilityManufacturer" placeholder="Manufacturer" class="form-control" />
+                    </div>
+                    <div class="form-group">
+                        <label>Model</label>
+                        <input type="text" @bind="newFacilityModel" placeholder="Model" class="form-control" />
+                    </div>
+                    <div class="form-group">
+                        <label>Serial Number</label>
+                        <input type="text" @bind="newFacilitySerial" placeholder="Serial #" class="form-control" />
+                    </div>
+                    <div class="form-group">
+                        <label>Warranty Expiration</label>
+                        <input type="date" @bind="newFacilityWarranty" class="form-control" />
+                    </div>
+                </div>
+                <button class="btn btn-success" @onclick="CreateFacility" disabled="@creatingFacility">
+                    @(creatingFacility ? "Creating..." : "Create Facility")
+                </button>
+            </div>
+        }
+
+        @if (loadingFacilities)
+        {
+            <p class="loading-hint">Loading facilities...</p>
+        }
+        else if (facilities != null)
+        {
+            <div class="filter-bar">
+                <input type="text" @bind="facilitySearch" @bind:event="oninput" placeholder="Search..." class="form-control form-control-sm" />
+                <select @bind="facilityActiveOnly" class="form-control form-control-sm">
+                    <option value="true">Active Only</option>
+                    <option value="false">All</option>
+                </select>
+                <button class="btn btn-secondary btn-sm" @onclick="LoadFacilities">Filter</button>
+            </div>
+
+            @if (facilities.Count == 0)
+            {
+                <p class="empty-state">No facilities found. Create one to get started.</p>
+            }
+            else
+            {
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>Name</th>
+                            <th>Category</th>
+                            <th>Location</th>
+                            <th>Department</th>
+                            <th>Status</th>
+                            <th>Work Orders</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (FacilityIndexEntry fac in facilities)
+                        {
+                            <tr>
+                                <td><strong>@fac.FacilityName</strong></td>
+                                <td>@fac.Category</td>
+                                <td>
+                                    @string.Join(", ", new[] { fac.Building, fac.Floor, fac.Room }
+                                        .Where(s => !string.IsNullOrWhiteSpace(s)))
+                                </td>
+                                <td>@(fac.DepartmentName ?? "—")</td>
+                                <td><span class="badge @GetFacilityStatusBadge(fac.Status)">@fac.Status</span></td>
+                                <td>@fac.WorkOrderCount</td>
+                                <td>
+                                    @if (fac.Status == FacilityStatus.Active)
+                                    {
+                                        <button class="btn btn-xs btn-warning"
+                                                @onclick="() => SetFacilityMaintenance(fac.FacilityId)">
+                                            Maintenance
+                                        </button>
+                                    }
+                                    else if (fac.Status == FacilityStatus.UnderMaintenance)
+                                    {
+                                        <button class="btn btn-xs btn-success"
+                                                @onclick="() => ActivateFacility(fac.FacilityId)">
+                                            Activate
+                                        </button>
+                                    }
+                                    @if (fac.Status != FacilityStatus.Decommissioned)
+                                    {
+                                        <button class="btn btn-xs btn-danger"
+                                                @onclick="() => DecommissionFacility(fac.FacilityId)">
+                                            Decommission
+                                        </button>
+                                    }
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            }
+        }
+    </div>
+}
+
+<style>
+    .subtitle { color: #6b7280; font-size: 0.9rem; margin-top: -0.5rem; margin-bottom: 1rem; }
+
+    .tabs { display: flex; gap: 0.25rem; margin-bottom: 1rem; border-bottom: 2px solid #e5e7eb; }
+    .tab { padding: 0.5rem 1.25rem; border: none; background: none; cursor: pointer; color: #6b7280; font-weight: 500; border-bottom: 3px solid transparent; margin-bottom: -2px; }
+    .tab.active { color: #2563eb; border-bottom-color: #2563eb; }
+
+    .section-card { background: white; border: 1px solid #e5e7eb; border-radius: 8px; padding: 1.5rem; margin-bottom: 1.5rem; }
+    .section-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; }
+    .section-header h2, .section-header h3 { margin: 0; }
+
+    .form-section { background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 6px; padding: 1rem; margin-bottom: 1rem; }
+    .form-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 0.75rem; margin-bottom: 0.75rem; }
+    .form-group { display: flex; flex-direction: column; gap: 0.25rem; }
+    .form-group-full { grid-column: 1 / -1; }
+    .form-group label { font-size: 0.8rem; font-weight: 600; color: #374151; }
+    .form-control { padding: 0.375rem 0.5rem; border: 1px solid #d1d5db; border-radius: 4px; font-size: 0.875rem; }
+    .form-control-sm { padding: 0.25rem 0.375rem; font-size: 0.8rem; }
+
+    .filter-bar { display: flex; gap: 0.5rem; margin-bottom: 1rem; flex-wrap: wrap; align-items: center; }
+
+    .data-table { width: 100%; border-collapse: collapse; font-size: 0.875rem; }
+    .data-table th { background: #f3f4f6; text-align: left; padding: 0.5rem 0.75rem; font-weight: 600; border-bottom: 1px solid #e5e7eb; }
+    .data-table td { padding: 0.5rem 0.75rem; border-bottom: 1px solid #f3f4f6; vertical-align: top; }
+    .data-table-sm td, .data-table-sm th { padding: 0.25rem 0.5rem; font-size: 0.8rem; }
+    .data-table tr.priority-emergency { background-color: #fff1f2; }
+    .data-table tr.priority-urgent { background-color: #fffbeb; }
+
+    .badge { display: inline-block; padding: 0.15rem 0.5rem; border-radius: 9999px; font-size: 0.75rem; font-weight: 600; }
+    .badge-red { background: #fee2e2; color: #991b1b; }
+    .badge-yellow { background: #fef3c7; color: #92400e; }
+    .badge-green { background: #d1fae5; color: #065f46; }
+    .badge-blue { background: #dbeafe; color: #1e40af; }
+    .badge-gray { background: #f3f4f6; color: #374151; }
+    .badge-orange { background: #ffedd5; color: #9a3412; }
+
+    .detail-panel { background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 6px; padding: 1rem; margin-top: 1rem; }
+    .detail-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 0.5rem; margin-bottom: 1rem; font-size: 0.875rem; }
+
+    .action-bar { display: flex; gap: 0.5rem; flex-wrap: wrap; margin: 1rem 0; }
+    .form-inline { display: flex; gap: 0.5rem; flex-wrap: wrap; align-items: center; margin: 0.5rem 0; padding: 0.75rem; background: white; border: 1px solid #d1d5db; border-radius: 4px; }
+
+    .note-entry { background: white; border: 1px solid #e5e7eb; border-radius: 4px; padding: 0.5rem 0.75rem; margin-bottom: 0.5rem; font-size: 0.875rem; }
+    .note-entry p { margin: 0.25rem 0 0; }
+
+    .empty-state { color: #9ca3af; text-align: center; padding: 2rem; }
+    .loading-hint { color: #6b7280; font-style: italic; }
+
+    .btn { padding: 0.375rem 0.75rem; border: none; border-radius: 4px; cursor: pointer; font-weight: 500; font-size: 0.875rem; }
+    .btn-primary { background: #2563eb; color: white; }
+    .btn-success { background: #059669; color: white; }
+    .btn-warning { background: #d97706; color: white; }
+    .btn-danger { background: #dc2626; color: white; }
+    .btn-secondary { background: #6b7280; color: white; }
+    .btn-sm { font-size: 0.8rem; padding: 0.25rem 0.5rem; }
+    .btn-xs { font-size: 0.75rem; padding: 0.15rem 0.4rem; margin-right: 0.25rem; }
+    .btn:disabled { opacity: 0.6; cursor: not-allowed; }
+
+    .alert { padding: 0.75rem 1rem; border-radius: 4px; margin-bottom: 1rem; }
+    .alert-error { background: #fee2e2; color: #991b1b; border: 1px solid #fecaca; }
+    .alert-success { background: #d1fae5; color: #065f46; border: 1px solid #a7f3d0; }
+
+    code { background: #f3f4f6; padding: 0.1rem 0.3rem; border-radius: 3px; font-size: 0.8rem; }
+</style>
+
+@code {
+    // Tab state
+    string activeTab = "workorders";
+
+    // Shared feedback
+    string? error;
+    string? successMessage;
+
+    // Work Orders
+    bool loadingWorkOrders;
+    bool creatingWorkOrder;
+    List<WorkOrderIndexEntry>? workOrders;
+    EngineeringWorkOrderState? selectedWorkOrder;
+    string filterStatus = string.Empty;
+    string filterShop = string.Empty;
+
+    // New work order form
+    bool showNewWorkOrderForm;
+    string newWoFacilityId = string.Empty;
+    string newWoFacilityName = string.Empty;
+    string newWoLocation = string.Empty;
+    string newWoType = "Repair";
+    string newWoPriority = "Routine";
+    string newWoShop = "General";
+    string newWoDescription = string.Empty;
+    string newWoRequestedById = string.Empty;
+    string newWoRequestedByName = string.Empty;
+    decimal? newWoEstimatedHours;
+    DateTime? newWoScheduledDate;
+
+    // Work order action forms
+    bool showAssignForm;
+    bool showStartForm;
+    bool showHoldForm;
+    bool showCancelForm;
+    bool showNoteForm;
+    bool showLaborForm;
+    bool showPartForm;
+    string actionTechId = string.Empty;
+    string actionTechName = string.Empty;
+    string actionReason = string.Empty;
+    string actionCancelById = string.Empty;
+    string actionCancelByName = string.Empty;
+    string noteAuthorId = string.Empty;
+    string noteAuthorName = string.Empty;
+    string noteText = string.Empty;
+    string laborTechId = string.Empty;
+    string laborTechName = string.Empty;
+    decimal laborHours = 1.0m;
+    DateTime laborDate = DateTime.Today;
+    string laborNotes = string.Empty;
+    string partNumber = string.Empty;
+    string partDescription = string.Empty;
+    int partQty = 1;
+    decimal partUnitCost;
+
+    // Facilities
+    bool loadingFacilities;
+    bool creatingFacility;
+    List<FacilityIndexEntry>? facilities;
+    string facilitySearch = string.Empty;
+    string facilityActiveOnly = "true";
+
+    // New facility form
+    bool showNewFacilityForm;
+    string newFacilityName = string.Empty;
+    string newFacilityCategory = "Room";
+    string newFacilityBuilding = string.Empty;
+    string newFacilityFloor = string.Empty;
+    string newFacilityRoom = string.Empty;
+    string newFacilityDept = string.Empty;
+    string newFacilityEquipType = string.Empty;
+    string newFacilityManufacturer = string.Empty;
+    string newFacilityModel = string.Empty;
+    string newFacilitySerial = string.Empty;
+    DateTime? newFacilityWarranty;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadActiveWorkOrders();
+    }
+
+    // ── Work Order Methods ────────────────────────────────────────────────────
+
+    async Task LoadActiveWorkOrders()
+    {
+        loadingWorkOrders = true;
+        error = null;
+        try
+        {
+            var idx = Grains.GetGrain<IEngineeringWorkOrderIndexGrain>("ENG-WO-IDX");
+            workOrders = await idx.GetActiveAsync(200);
+        }
+        catch
+        {
+            error = "Failed to load active work orders.";
+        }
+        finally { loadingWorkOrders = false; }
+    }
+
+    async Task SearchWorkOrders()
+    {
+        loadingWorkOrders = true;
+        error = null;
+        try
+        {
+            var idx = Grains.GetGrain<IEngineeringWorkOrderIndexGrain>("ENG-WO-IDX");
+            WorkOrderStatus? statusFilter2 = string.IsNullOrEmpty(filterStatus) ? null : Enum.Parse<WorkOrderStatus>(filterStatus);
+            EngineeringShop? shopFilter = string.IsNullOrEmpty(filterShop) ? null : Enum.Parse<EngineeringShop>(filterShop);
+            workOrders = await idx.SearchAsync(null, shopFilter, statusFilter2, null, null, null, null, null, 200);
+        }
+        catch
+        {
+            error = "Failed to search work orders.";
+        }
+        finally { loadingWorkOrders = false; }
+    }
+
+    async Task ViewWorkOrder(string workOrderId)
+    {
+        error = null;
+        try
+        {
+            var grain = Grains.GetGrain<IEngineeringWorkOrderGrain>(workOrderId);
+            selectedWorkOrder = await grain.GetWorkOrderAsync();
+            // Reset action forms
+            showAssignForm = showStartForm = showHoldForm = showCancelForm
+                = showNoteForm = showLaborForm = showPartForm = false;
+        }
+        catch
+        {
+            error = "Failed to load work order detail.";
+        }
+    }
+
+    async Task CreateWorkOrder()
+    {
+        if (string.IsNullOrWhiteSpace(newWoFacilityId) || string.IsNullOrWhiteSpace(newWoFacilityName)
+            || string.IsNullOrWhiteSpace(newWoDescription) || string.IsNullOrWhiteSpace(newWoRequestedById))
+        {
+            error = "Facility ID, facility name, description, and requested-by are required.";
+            return;
+        }
+
+        creatingWorkOrder = true;
+        error = null;
+        successMessage = null;
+        try
+        {
+            string workOrderId = $"ENG-WO:{Guid.NewGuid()}";
+            string workOrderNumber = $"WO-{DateTime.UtcNow:yyyy}-{Guid.NewGuid():N}"[..16];
+            var woGrain = Grains.GetGrain<IEngineeringWorkOrderGrain>(workOrderId);
+            await woGrain.CreateAsync(
+                workOrderNumber,
+                newWoFacilityId.Trim(), newWoFacilityName.Trim(),
+                string.IsNullOrWhiteSpace(newWoLocation) ? null : newWoLocation.Trim(),
+                Enum.Parse<WorkOrderType>(newWoType),
+                Enum.Parse<WorkOrderPriority>(newWoPriority),
+                Enum.Parse<EngineeringShop>(newWoShop),
+                newWoDescription.Trim(),
+                newWoRequestedById.Trim(), newWoRequestedByName.Trim(),
+                newWoEstimatedHours, null, newWoScheduledDate);
+            var woState = await woGrain.GetWorkOrderAsync();
+            var idx = Grains.GetGrain<IEngineeringWorkOrderIndexGrain>("ENG-WO-IDX");
+            await idx.AddOrUpdateAsync(new WorkOrderIndexEntry
+            {
+                WorkOrderId = workOrderId,
+                WorkOrderNumber = woState.WorkOrderNumber,
+                FacilityId = woState.FacilityId,
+                FacilityName = woState.FacilityName,
+                WorkOrderType = woState.WorkOrderType,
+                Priority = woState.Priority,
+                Shop = woState.Shop,
+                Status = woState.Status,
+                CreatedDate = woState.CreatedDate,
+                AssignedToName = woState.AssignedToName,
+            });
+            successMessage = "Work order created successfully.";
+            showNewWorkOrderForm = false;
+            newWoFacilityId = newWoFacilityName = newWoLocation = newWoDescription
+                = newWoRequestedById = newWoRequestedByName = string.Empty;
+            newWoEstimatedHours = null;
+            newWoScheduledDate = null;
+            await LoadActiveWorkOrders();
+        }
+        catch
+        {
+            error = "An error occurred while creating the work order.";
+        }
+        finally { creatingWorkOrder = false; }
+    }
+
+    async Task AssignWorkOrder()
+    {
+        if (selectedWorkOrder == null) return;
+        try
+        {
+            var woGrain = Grains.GetGrain<IEngineeringWorkOrderGrain>(selectedWorkOrder.WorkOrderId);
+            await woGrain.AssignAsync(actionTechId, actionTechName);
+            successMessage = "Work order assigned.";
+            showAssignForm = false;
+            await ViewWorkOrder(selectedWorkOrder.WorkOrderId);
+            await LoadActiveWorkOrders();
+        }
+        catch { error = "An error occurred while assigning."; }
+    }
+
+    async Task StartWorkOrder()
+    {
+        if (selectedWorkOrder == null) return;
+        try
+        {
+            var startGrain = Grains.GetGrain<IEngineeringWorkOrderGrain>(selectedWorkOrder.WorkOrderId);
+            await startGrain.StartAsync(actionTechId, actionTechName);
+            successMessage = "Work order started.";
+            showStartForm = false;
+            await ViewWorkOrder(selectedWorkOrder.WorkOrderId);
+            await LoadActiveWorkOrders();
+        }
+        catch { error = "An error occurred while starting."; }
+    }
+
+    async Task HoldWorkOrder()
+    {
+        if (selectedWorkOrder == null) return;
+        try
+        {
+            var holdGrain = Grains.GetGrain<IEngineeringWorkOrderGrain>(selectedWorkOrder.WorkOrderId);
+            await holdGrain.PlaceOnHoldAsync(string.IsNullOrWhiteSpace(actionReason) ? null : actionReason);
+            successMessage = "Work order placed on hold.";
+            showHoldForm = false;
+            actionReason = string.Empty;
+            await ViewWorkOrder(selectedWorkOrder.WorkOrderId);
+            await LoadActiveWorkOrders();
+        }
+        catch { error = "An error occurred."; }
+    }
+
+    async Task ResumeWorkOrder()
+    {
+        if (selectedWorkOrder == null) return;
+        try
+        {
+            var resumeGrain = Grains.GetGrain<IEngineeringWorkOrderGrain>(selectedWorkOrder.WorkOrderId);
+            await resumeGrain.ResumeAsync();
+            successMessage = "Work order resumed.";
+            await ViewWorkOrder(selectedWorkOrder.WorkOrderId);
+            await LoadActiveWorkOrders();
+        }
+        catch { error = "An error occurred."; }
+    }
+
+    async Task CompleteWorkOrder()
+    {
+        if (selectedWorkOrder == null) return;
+        try
+        {
+            var completeGrain = Grains.GetGrain<IEngineeringWorkOrderGrain>(selectedWorkOrder.WorkOrderId);
+            await completeGrain.CompleteAsync(DateTime.UtcNow);
+            successMessage = "Work order completed.";
+            await ViewWorkOrder(selectedWorkOrder.WorkOrderId);
+            await LoadActiveWorkOrders();
+        }
+        catch { error = "An error occurred."; }
+    }
+
+    async Task CancelWorkOrder()
+    {
+        if (selectedWorkOrder == null) return;
+        try
+        {
+            var cancelGrain = Grains.GetGrain<IEngineeringWorkOrderGrain>(selectedWorkOrder.WorkOrderId);
+            await cancelGrain.CancelAsync(actionCancelById, actionCancelByName, string.IsNullOrWhiteSpace(actionReason) ? null : actionReason);
+            successMessage = "Work order cancelled.";
+            showCancelForm = false;
+            actionCancelById = actionCancelByName = actionReason = string.Empty;
+            await ViewWorkOrder(selectedWorkOrder.WorkOrderId);
+            await LoadActiveWorkOrders();
+        }
+        catch { error = "An error occurred."; }
+    }
+
+    async Task AddNote()
+    {
+        if (selectedWorkOrder == null || string.IsNullOrWhiteSpace(noteText)) return;
+        try
+        {
+            var noteGrain = Grains.GetGrain<IEngineeringWorkOrderGrain>(selectedWorkOrder.WorkOrderId);
+            await noteGrain.AddNoteAsync(noteAuthorId, noteAuthorName, noteText);
+            successMessage = "Note added.";
+            showNoteForm = false;
+            noteAuthorId = noteAuthorName = noteText = string.Empty;
+            await ViewWorkOrder(selectedWorkOrder.WorkOrderId);
+        }
+        catch { error = "An error occurred."; }
+    }
+
+    async Task AddLabor()
+    {
+        if (selectedWorkOrder == null || laborHours <= 0) return;
+        try
+        {
+            var laborGrain = Grains.GetGrain<IEngineeringWorkOrderGrain>(selectedWorkOrder.WorkOrderId);
+            await laborGrain.AddLaborAsync(laborTechId, laborTechName, laborHours, laborDate, string.IsNullOrWhiteSpace(laborNotes) ? null : laborNotes);
+            successMessage = "Labor recorded.";
+            showLaborForm = false;
+            laborTechId = laborTechName = laborNotes = string.Empty;
+            laborHours = 1.0m;
+            await ViewWorkOrder(selectedWorkOrder.WorkOrderId);
+        }
+        catch { error = "An error occurred."; }
+    }
+
+    async Task AddPart()
+    {
+        if (selectedWorkOrder == null || string.IsNullOrWhiteSpace(partNumber)) return;
+        try
+        {
+            var partGrain = Grains.GetGrain<IEngineeringWorkOrderGrain>(selectedWorkOrder.WorkOrderId);
+            await partGrain.AddPartAsync(partNumber, partDescription, partQty, partUnitCost);
+            successMessage = "Part added.";
+            showPartForm = false;
+            partNumber = partDescription = string.Empty;
+            partQty = 1;
+            partUnitCost = 0;
+            await ViewWorkOrder(selectedWorkOrder.WorkOrderId);
+        }
+        catch { error = "An error occurred."; }
+    }
+
+    // ── Facility Methods ──────────────────────────────────────────────────────
+
+    async Task LoadFacilities()
+    {
+        loadingFacilities = true;
+        error = null;
+        try
+        {
+            bool activeOnly = facilityActiveOnly == "true";
+            var facIdx = Grains.GetGrain<IFacilityIndexGrain>("ENG-FAC-IDX");
+            facilities = await facIdx.SearchAsync(
+                string.IsNullOrWhiteSpace(facilitySearch) ? null : facilitySearch,
+                null, activeOnly, 200);
+        }
+        catch
+        {
+            error = "Failed to load facilities.";
+        }
+        finally { loadingFacilities = false; }
+    }
+
+    async Task CreateFacility()
+    {
+        if (string.IsNullOrWhiteSpace(newFacilityName))
+        {
+            error = "Facility name is required.";
+            return;
+        }
+
+        creatingFacility = true;
+        error = null;
+        successMessage = null;
+        try
+        {
+            string facilityId = $"ENG-FAC:{Guid.NewGuid()}";
+            var facGrain = Grains.GetGrain<IFacilityGrain>(facilityId);
+            await facGrain.UpsertAsync(
+                newFacilityName.Trim(),
+                Enum.Parse<FacilityCategory>(newFacilityCategory),
+                string.IsNullOrWhiteSpace(newFacilityBuilding) ? null : newFacilityBuilding.Trim(),
+                string.IsNullOrWhiteSpace(newFacilityFloor) ? null : newFacilityFloor.Trim(),
+                string.IsNullOrWhiteSpace(newFacilityRoom) ? null : newFacilityRoom.Trim(),
+                null,
+                string.IsNullOrWhiteSpace(newFacilityDept) ? null : newFacilityDept.Trim(),
+                string.IsNullOrWhiteSpace(newFacilityEquipType) ? null : newFacilityEquipType.Trim(),
+                string.IsNullOrWhiteSpace(newFacilitySerial) ? null : newFacilitySerial.Trim(),
+                string.IsNullOrWhiteSpace(newFacilityModel) ? null : newFacilityModel.Trim(),
+                string.IsNullOrWhiteSpace(newFacilityManufacturer) ? null : newFacilityManufacturer.Trim(),
+                null, newFacilityWarranty, null);
+            var facState = await facGrain.GetFacilityAsync();
+            var facIndex = Grains.GetGrain<IFacilityIndexGrain>("ENG-FAC-IDX");
+            await facIndex.AddOrUpdateAsync(new FacilityIndexEntry
+            {
+                FacilityId = facilityId,
+                FacilityName = facState.FacilityName,
+                Category = facState.Category,
+                Building = facState.Building,
+                Floor = facState.Floor,
+                Status = facState.Status,
+            });
+            successMessage = "Facility created successfully.";
+            showNewFacilityForm = false;
+            newFacilityName = newFacilityBuilding = newFacilityFloor = newFacilityRoom
+                = newFacilityDept = newFacilityEquipType = newFacilityManufacturer
+                = newFacilityModel = newFacilitySerial = string.Empty;
+            newFacilityWarranty = null;
+            await LoadFacilities();
+        }
+        catch
+        {
+            error = "An error occurred while creating the facility.";
+        }
+        finally { creatingFacility = false; }
+    }
+
+    async Task SetFacilityMaintenance(string facilityId)
+    {
+        try
+        {
+            var mGrain = Grains.GetGrain<IFacilityGrain>(facilityId);
+            await mGrain.SetUnderMaintenanceAsync();
+            successMessage = "Facility set to under maintenance."; await LoadFacilities();
+        }
+        catch { error = "An error occurred."; }
+    }
+
+    async Task ActivateFacility(string facilityId)
+    {
+        try
+        {
+            var aGrain = Grains.GetGrain<IFacilityGrain>(facilityId);
+            await aGrain.SetActiveAsync();
+            successMessage = "Facility activated."; await LoadFacilities();
+        }
+        catch { error = "An error occurred."; }
+    }
+
+    async Task DecommissionFacility(string facilityId)
+    {
+        try
+        {
+            var dGrain = Grains.GetGrain<IFacilityGrain>(facilityId);
+            await dGrain.DecommissionAsync();
+            successMessage = "Facility decommissioned."; await LoadFacilities();
+        }
+        catch { error = "An error occurred."; }
+    }
+
+    // ── Helpers ───────────────────────────────────────────────────────────────
+
+    static string GetWorkOrderRowClass(WorkOrderPriority priority, WorkOrderStatus status)
+    {
+        if (status == WorkOrderStatus.Completed || status == WorkOrderStatus.Cancelled)
+            return string.Empty;
+        return priority switch
+        {
+            WorkOrderPriority.Emergency => "priority-emergency",
+            WorkOrderPriority.Urgent => "priority-urgent",
+            _ => string.Empty,
+        };
+    }
+
+    static string GetPriorityBadge(WorkOrderPriority priority) => priority switch
+    {
+        WorkOrderPriority.Emergency => "badge-red",
+        WorkOrderPriority.Urgent => "badge-orange",
+        _ => "badge-gray",
+    };
+
+    static string GetStatusBadge(WorkOrderStatus status) => status switch
+    {
+        WorkOrderStatus.Open => "badge-blue",
+        WorkOrderStatus.InProgress => "badge-yellow",
+        WorkOrderStatus.Completed => "badge-green",
+        WorkOrderStatus.Cancelled => "badge-gray",
+        WorkOrderStatus.OnHold => "badge-orange",
+        _ => "badge-gray",
+    };
+
+    static string GetFacilityStatusBadge(FacilityStatus status) => status switch
+    {
+        FacilityStatus.Active => "badge-green",
+        FacilityStatus.UnderMaintenance => "badge-yellow",
+        FacilityStatus.Decommissioned => "badge-gray",
+        _ => "badge-gray",
+    };
+
+    // DTOs removed — using grain state types directly from NewVistas.Abstractions.GrainStates
+}

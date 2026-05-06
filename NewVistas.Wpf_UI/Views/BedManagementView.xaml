@@ -1,0 +1,53 @@
+<UserControl x:Class="NewVistas.Wpf_UI.Views.BedManagementView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <ScrollViewer VerticalScrollBarVisibility="Auto">
+        <StackPanel Margin="24">
+            <TextBlock Style="{StaticResource PageTitle}" Text="Bed Management"/>
+            <TextBlock Style="{StaticResource ErrorText}" Text="{Binding Error}"
+                       Visibility="{Binding Error, Converter={StaticResource NullToVisibility}}"/>
+
+            <StackPanel Orientation="Horizontal" Margin="0,0,0,12">
+                <TextBlock Style="{StaticResource FieldLabel}" Text="Ward Filter:" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                <TextBox Text="{Binding WardFilter, UpdateSourceTrigger=PropertyChanged}" Width="160" Margin="0,0,8,0"/>
+                <Button Content="Load Bed Board" Style="{StaticResource PrimaryButton}"
+                        Command="{Binding LoadCommand}" Margin="0,0,8,0"/>
+                <ProgressBar IsIndeterminate="True" Width="120" Height="20"
+                             Visibility="{Binding IsLoading, Converter={StaticResource BoolToVisibility}}"/>
+            </StackPanel>
+
+            <!-- Statistics -->
+            <Border Style="{StaticResource FormPanel}"
+                    Visibility="{Binding Stats, Converter={StaticResource NullToVisibility}}">
+                <StackPanel Orientation="Horizontal">
+                    <TextBlock Style="{StaticResource FieldLabel}" Text="Total:" Margin="0,0,4,0"/>
+                    <TextBlock Text="{Binding Stats.TotalBeds}" FontWeight="SemiBold" Margin="0,0,16,0"/>
+                    <TextBlock Style="{StaticResource FieldLabel}" Text="Occupied:" Margin="0,0,4,0"/>
+                    <TextBlock Text="{Binding Stats.OccupiedBeds}" FontWeight="SemiBold" Margin="0,0,16,0"/>
+                    <TextBlock Style="{StaticResource FieldLabel}" Text="Available:" Margin="0,0,4,0"/>
+                    <TextBlock Text="{Binding Stats.AvailableBeds}" FontWeight="SemiBold" Foreground="Green" Margin="0,0,16,0"/>
+                    <TextBlock Style="{StaticResource FieldLabel}" Text="Cleaning:" Margin="0,0,4,0"/>
+                    <TextBlock Text="{Binding Stats.CleaningBeds}" FontWeight="SemiBold" Foreground="Orange"/>
+                </StackPanel>
+            </Border>
+
+            <DataGrid ItemsSource="{Binding Beds}" SelectedItem="{Binding SelectedBed}" AutoGenerateColumns="False">
+                <DataGrid.Columns>
+                    <DataGridTextColumn Header="Bed ID" Binding="{Binding BedId}" Width="100"/>
+                    <DataGridTextColumn Header="Ward" Binding="{Binding WardId}" Width="120"/>
+                    <DataGridTextColumn Header="Status" Binding="{Binding Status}" Width="100"/>
+                    <DataGridTextColumn Header="Patient" Binding="{Binding PatientName}" Width="*"/>
+                    <DataGridTextColumn Header="Isolation" Binding="{Binding IsolationType}" Width="120"/>
+                </DataGrid.Columns>
+            </DataGrid>
+
+            <StackPanel Orientation="Horizontal" Margin="0,8,0,0"
+                        Visibility="{Binding SelectedBed, Converter={StaticResource NullToVisibility}}">
+                <Button Content="Mark Available" Style="{StaticResource SecondaryButton}"
+                        Command="{Binding MarkAvailableCommand}" Margin="0,0,8,0"/>
+                <Button Content="Discharge" Style="{StaticResource DangerButton}"
+                        Command="{Binding DischargeCommand}"/>
+            </StackPanel>
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>

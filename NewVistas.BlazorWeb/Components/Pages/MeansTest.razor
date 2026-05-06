@@ -1,0 +1,542 @@
+@page "/means-test"
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+@rendermode InteractiveServer
+@using NewVistas.BlazorWeb.Services
+@using NewVistas.Abstractions.GrainInterfaces
+@using NewVistas.Abstractions.GrainStates
+@inject OrleansGrainService Grains
+
+<PageTitle>Means Test</PageTitle>
+<h1>Means Test / Eligibility</h1>
+
+<div class="lookup-bar">
+    <input type="text" @bind="patientId" @bind:event="oninput" @onkeydown="HandleKeyDown" placeholder="Patient ID" class="lookup-input" />
+    <button @onclick="Load" disabled="@(string.IsNullOrWhiteSpace(patientId) || loading)" class="btn btn-primary">@(loading ? "Loading..." : "Load")</button>
+    <button @onclick="ShowForm" disabled="@(string.IsNullOrWhiteSpace(patientId))" class="btn btn-secondary">+ Record Test</button>
+</div>
+
+@if (error != null) { <div class="alert alert-error">@error</div> }
+@if (success != null) { <div class="alert alert-success">@success</div> }
+
+@if (items != null || detail != null)
+{
+    <div class="tab-bar">
+        <button class="tab @(activeTab == "list" ? "tab-active" : "")" @onclick='() => SetTab("list")'>Tests</button>
+        @if (detail != null)
+        {
+            <button class="tab @(activeTab == "detail" ? "tab-active" : "")" @onclick='() => SetTab("detail")'>Detail</button>
+        }
+    </div>
+}
+
+@if (showNew)
+{
+    <div class="entry-form">
+        <h3>Record Means Test</h3>
+        <div class="form-grid">
+            <div class="form-row"><label>Test Type *</label>
+                <select @bind="f_type"><option>MEANS TEST</option><option>COPAY TEST</option><option>HARDSHIP</option><option>GMT THRESHOLD</option></select>
+            </div>
+            <div class="form-row"><label>Date of Test</label><input type="date" @bind="f_date" /></div>
+            <div class="form-row"><label>Annual Income ($)</label><input type="number" @bind="f_income" step="0.01" min="0" /></div>
+            <div class="form-row"><label>Net Worth ($)</label><input type="number" @bind="f_netWorth" step="0.01" min="0" /></div>
+            <div class="form-row"><label>Number of Dependents</label><input type="number" @bind="f_deps" min="0" /></div>
+            <div class="form-row"><label>Priority Group</label><input type="text" @bind="f_priority" placeholder="e.g. GROUP 5, 1" /></div>
+            <div class="form-row"><label>Eligibility Status</label>
+                <select @bind="f_eligibility"><option value="">--</option><option>VERIFIED</option><option>PENDING</option><option>NOT ELIGIBLE</option></select>
+            </div>
+            <div class="form-row"><label>Completed By</label><input type="text" @bind="f_clerk" /></div>
+            <div class="form-row full"><label>Comments</label><textarea @bind="f_comments" rows="2"></textarea></div>
+        </div>
+        <div class="form-actions">
+            <button @onclick="Submit" disabled="@saving" class="btn btn-primary">@(saving ? "Saving..." : "Record")</button>
+            <button @onclick="() => showNew = false" class="btn btn-outline">Cancel</button>
+        </div>
+    </div>
+}
+
+@if (activeTab == "list" && items != null)
+{
+    @if (items.Count == 0) { <div class="empty-state">No means tests found.</div> }
+    else
+    {
+        <table class="data-table">
+            <thead><tr><th>Date</th><th>Type</th><th>Income</th><th>Net Worth</th><th>Dependents</th><th>Priority</th><th>Eligibility</th><th>Status</th></tr></thead>
+            <tbody>
+                @foreach (var s in items)
+                {
+                    <tr class="clickable" @onclick="() => ViewDetail(s.MeansTestId)">
+                        <td class="date">@s.DateOfTest.ToString("MM/dd/yyyy")</td>
+                        <td>@s.TestType</td>
+                        <td>@(s.AnnualIncome.HasValue ? s.AnnualIncome.Value.ToString("C") : "--")</td>
+                        <td>@(s.NetWorth.HasValue ? s.NetWorth.Value.ToString("C") : "--")</td>
+                        <td>@s.NumberOfDependents</td><td>@s.PriorityGroup</td><td>@s.EligibilityStatus</td>
+                        <td><span class="badge @(s.Status == "COMPLETED" ? "badge-green" : "badge-yellow")">@s.Status</span></td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    }
+}
+
+@if (activeTab == "detail" && detail != null)
+{
+    <div class="detail-panel">
+        <div class="detail-header">
+            <h3>@detail.TestType</h3>
+            <span class="badge @(detail.Status == "COMPLETED" ? "badge-green" : "badge-yellow")">@detail.Status</span>
+            <button @onclick="CloseDetail" class="btn btn-outline btn-sm-action">Close</button>
+        </div>
+        <div class="detail-grid">
+            <div><strong>ID:</strong> @detail.MeansTestId</div>
+            <div><strong>Date:</strong> @detail.DateOfTest.ToString("MM/dd/yyyy")</div>
+            <div><strong>Annual Income:</strong> @(detail.AnnualIncome.HasValue ? detail.AnnualIncome.Value.ToString("C") : "--")</div>
+            <div><strong>Net Worth:</strong> @(detail.NetWorth.HasValue ? detail.NetWorth.Value.ToString("C") : "--")</div>
+            <div><strong>Dependents:</strong> @(detail.NumberOfDependents?.ToString() ?? "--")</div>
+            <div><strong>Priority Group:</strong> @(detail.PriorityGroup ?? "--")</div>
+            <div><strong>Eligibility:</strong> @(detail.EligibilityStatus ?? "--")</div>
+            <div><strong>Vet Income:</strong> @(detail.VeteranGrossIncome.HasValue ? detail.VeteranGrossIncome.Value.ToString("C") : "--")</div>
+            <div><strong>Spouse Income:</strong> @(detail.SpouseGrossIncome.HasValue ? detail.SpouseGrossIncome.Value.ToString("C") : "--")</div>
+            <div><strong>Dependent Income:</strong> @(detail.DependentIncome.HasValue ? detail.DependentIncome.Value.ToString("C") : "--")</div>
+            <div><strong>Property Value:</strong> @(detail.PropertyValue.HasValue ? detail.PropertyValue.Value.ToString("C") : "--")</div>
+            <div><strong>Other Assets:</strong> @(detail.OtherAssets.HasValue ? detail.OtherAssets.Value.ToString("C") : "--")</div>
+            <div><strong>Deductible Expenses:</strong> @(detail.DeductibleExpenses.HasValue ? detail.DeductibleExpenses.Value.ToString("C") : "--")</div>
+            <div><strong>Adjusted Income:</strong> @(detail.AdjustedIncome.HasValue ? detail.AdjustedIncome.Value.ToString("C") : "--")</div>
+            <div><strong>GMT Threshold:</strong> @(detail.GmtThreshold.HasValue ? detail.GmtThreshold.Value.ToString("C") : "--")</div>
+            <div><strong>Hardship:</strong> @(detail.HardshipDetermination ?? "--")</div>
+            <div><strong>Copay Result:</strong> @(detail.CopayTestResult ?? "--")</div>
+            @if (!string.IsNullOrEmpty(detail.Comments))
+            {
+                <div class="full"><strong>Comments:</strong> @detail.Comments</div>
+            }
+        </div>
+
+        @* -- Income -- *@
+        <div class="section">
+            <h4>Income</h4>
+            <div class="entry-form compact">
+                <div class="form-grid">
+                    <div class="form-row"><label>Veteran Gross Income ($) *</label><input type="number" @bind="inc_vet" step="0.01" min="0" /></div>
+                    <div class="form-row"><label>Spouse Gross Income ($)</label><input type="number" @bind="inc_spouse" step="0.01" min="0" /></div>
+                    <div class="form-row"><label>Dependent Income ($)</label><input type="number" @bind="inc_dep" step="0.01" min="0" /></div>
+                </div>
+                <div class="form-actions">
+                    <button @onclick="SubmitIncome" disabled="@saving" class="btn btn-primary">Record Income</button>
+                </div>
+            </div>
+        </div>
+
+        @* -- Assets -- *@
+        <div class="section">
+            <h4>Assets</h4>
+            <div class="entry-form compact">
+                <div class="form-grid">
+                    <div class="form-row"><label>Total Net Worth ($)</label><input type="number" @bind="ast_nw" step="0.01" min="0" /></div>
+                    <div class="form-row"><label>Property Value ($)</label><input type="number" @bind="ast_prop" step="0.01" min="0" /></div>
+                    <div class="form-row"><label>Other Assets ($)</label><input type="number" @bind="ast_other" step="0.01" min="0" /></div>
+                </div>
+                <div class="form-actions">
+                    <button @onclick="SubmitAssets" disabled="@saving" class="btn btn-primary">Record Assets</button>
+                </div>
+            </div>
+        </div>
+
+        @* -- Expenses -- *@
+        <div class="section">
+            <h4>Expenses</h4>
+            <div class="entry-form compact">
+                <div class="form-grid">
+                    <div class="form-row"><label>Deductible Expenses ($) *</label><input type="number" @bind="exp_deductible" step="0.01" min="0" /></div>
+                </div>
+                <div class="form-actions">
+                    <button @onclick="SubmitExpenses" disabled="@saving" class="btn btn-primary">Record Expenses</button>
+                </div>
+            </div>
+        </div>
+
+        @* -- Calculate Adjusted Income -- *@
+        <div class="section">
+            <h4>Calculate Adjusted Income</h4>
+            <div class="form-actions">
+                <button @onclick="CalculateAdjusted" disabled="@saving" class="btn btn-primary">Calculate Adjusted Income</button>
+            </div>
+        </div>
+
+        @* -- GMT Threshold -- *@
+        <div class="section">
+            <h4>GMT Threshold</h4>
+            <div class="entry-form compact">
+                <div class="form-grid">
+                    <div class="form-row"><label>GMT Threshold ($) *</label><input type="number" @bind="gmt_threshold" step="0.01" min="0" /></div>
+                </div>
+                <div class="form-actions">
+                    <button @onclick="SubmitGmt" disabled="@saving" class="btn btn-primary">Set GMT Threshold</button>
+                </div>
+            </div>
+        </div>
+
+        @* -- Hardship -- *@
+        <div class="section">
+            <h4>Hardship Determination</h4>
+            <div class="entry-form compact">
+                <div class="form-grid">
+                    <div class="form-row"><label>Determination *</label>
+                        <select @bind="hd_determination"><option value="">--</option><option>HARDSHIP_APPROVED</option><option>HARDSHIP_DENIED</option><option>NOT_APPLICABLE</option></select>
+                    </div>
+                </div>
+                <div class="form-actions">
+                    <button @onclick="SubmitHardship" disabled="@saving" class="btn btn-primary">Record Hardship</button>
+                </div>
+            </div>
+        </div>
+
+        @* -- Copay Result -- *@
+        <div class="section">
+            <h4>Copay Test Result</h4>
+            <div class="entry-form compact">
+                <div class="form-grid">
+                    <div class="form-row"><label>Result *</label>
+                        <select @bind="cp_result"><option value="">--</option><option>EXEMPT</option><option>COPAY_REQUIRED</option><option>REDUCED_COPAY</option></select>
+                    </div>
+                </div>
+                <div class="form-actions">
+                    <button @onclick="SubmitCopay" disabled="@saving" class="btn btn-primary">Set Copay Result</button>
+                </div>
+            </div>
+        </div>
+
+        @* -- Dependents -- *@
+        <div class="section">
+            <h4>Dependents (@dependents.Count)</h4>
+            @if (dependents.Count > 0)
+            {
+                <table class="data-table">
+                    <thead><tr><th>Name</th><th>Relationship</th><th>DOB</th><th>Income</th><th>Net Worth</th></tr></thead>
+                    <tbody>
+                        @foreach (var d in dependents)
+                        {
+                            <tr>
+                                <td>@d.Name</td><td>@d.Relationship</td>
+                                <td class="date">@d.DateOfBirth?.ToString("MM/dd/yyyy")</td>
+                                <td>@d.Income.ToString("C")</td><td>@d.NetWorth.ToString("C")</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            }
+            <div class="entry-form compact">
+                <div class="form-grid">
+                    <div class="form-row"><label>Name *</label><input type="text" @bind="dp_name" /></div>
+                    <div class="form-row"><label>Relationship *</label>
+                        <select @bind="dp_rel"><option>SPOUSE</option><option>CHILD</option><option>PARENT</option><option>OTHER</option></select>
+                    </div>
+                    <div class="form-row"><label>Date of Birth</label><input type="date" @bind="dp_dob" /></div>
+                    <div class="form-row"><label>Income ($)</label><input type="number" @bind="dp_income" step="0.01" min="0" /></div>
+                    <div class="form-row"><label>Net Worth ($)</label><input type="number" @bind="dp_nw" step="0.01" min="0" /></div>
+                </div>
+                <div class="form-actions">
+                    <button @onclick="SubmitDependent" disabled="@saving" class="btn btn-primary">Add Dependent</button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    [SupplyParameterFromQuery] public string? patientId { get; set; }
+    private List<MtListDto>? items;
+    private MtDetailDto? detail;
+    private List<MtDependentDto> dependents = new();
+    private bool loading, saving, showNew;
+    private string? error, success;
+    private string activeTab = "list";
+
+    // New form
+    private string f_type = "MEANS TEST", f_priority = "", f_eligibility = "", f_clerk = "", f_comments = "";
+    private DateTime f_date = DateTime.Today; private decimal? f_income, f_netWorth; private int? f_deps;
+
+    // Detail forms
+    private decimal inc_vet; private decimal? inc_spouse, inc_dep;
+    private decimal? ast_nw, ast_prop, ast_other;
+    private decimal exp_deductible;
+    private decimal gmt_threshold;
+    private string hd_determination = "";
+    private string cp_result = "";
+    private string dp_name = "", dp_rel = "SPOUSE"; private DateTime? dp_dob; private decimal dp_income, dp_nw;
+
+    protected override async Task OnParametersSetAsync() { if (!string.IsNullOrWhiteSpace(patientId)) await Load(); }
+    private async Task HandleKeyDown(KeyboardEventArgs e) { if (e.Key == "Enter") await Load(); }
+    private void SetTab(string tab) { activeTab = tab; success = null; }
+    private void ShowForm() { showNew = true; success = null; f_type = "MEANS TEST"; f_priority = ""; f_eligibility = ""; f_clerk = ""; f_comments = ""; f_date = DateTime.Today; f_income = null; f_netWorth = null; f_deps = null; }
+    private void CloseDetail() { detail = null; activeTab = "list"; }
+
+    private async Task Load()
+    {
+        if (string.IsNullOrWhiteSpace(patientId)) return; loading = true; error = null;
+        try
+        {
+            var workflow = Grains.GetGrain<IPatientWorkflowGrain>(patientId.Trim());
+            List<MeansTestSummary> summaries = await workflow.GetMeansTestsAsync();
+            items = summaries.Select(s => new MtListDto
+            {
+                MeansTestId = s.MeansTestId, TestType = s.TestType, DateOfTest = s.DateOfTest,
+                Status = s.Status, EligibilityStatus = s.EligibilityStatus, PriorityGroup = s.PriorityGroup
+            }).ToList();
+        }
+        catch (Exception ex) { error = $"Error: {ex.Message}"; } finally { loading = false; }
+    }
+
+    private async Task ViewDetail(string meansTestId)
+    {
+        error = null;
+        try
+        {
+            var match = items?.FirstOrDefault(i => i.MeansTestId == meansTestId);
+            if (match != null)
+            {
+                detail = new MtDetailDto
+                {
+                    MeansTestId = match.MeansTestId, TestType = match.TestType,
+                    DateOfTest = match.DateOfTest, AnnualIncome = match.AnnualIncome,
+                    NetWorth = match.NetWorth, NumberOfDependents = match.NumberOfDependents,
+                    PriorityGroup = match.PriorityGroup, EligibilityStatus = match.EligibilityStatus,
+                    Status = match.Status
+                };
+            }
+            activeTab = "detail";
+            ResetDetailForms();
+            await LoadDependents(meansTestId);
+        }
+        catch (Exception ex) { error = ex.Message; }
+    }
+
+    private async Task LoadDependents(string meansTestId)
+    {
+        try
+        {
+            var workflow = Grains.GetGrain<IPatientWorkflowGrain>(patientId!.Trim());
+            List<MeansTestDependent> deps = await workflow.GetMeansTestDependentsAsync(meansTestId);
+            dependents = deps.Select(d => new MtDependentDto
+            {
+                Name = d.Name, Relationship = d.Relationship,
+                Income = d.Income, NetWorth = d.NetWorth, DateOfBirth = d.DateOfBirth
+            }).ToList();
+        }
+        catch { dependents = new(); }
+    }
+
+    private void ResetDetailForms()
+    {
+        inc_vet = 0; inc_spouse = null; inc_dep = null;
+        ast_nw = null; ast_prop = null; ast_other = null;
+        exp_deductible = 0; gmt_threshold = 0;
+        hd_determination = ""; cp_result = "";
+        dp_name = ""; dp_rel = "SPOUSE"; dp_dob = null; dp_income = 0; dp_nw = 0;
+    }
+
+    private async Task Submit()
+    {
+        saving = true; error = null;
+        try
+        {
+            var workflow = Grains.GetGrain<IPatientWorkflowGrain>(patientId!.Trim());
+            await workflow.RecordMeansTestAsync(f_type, f_date, f_income, f_netWorth, f_deps,
+                NullIfEmpty(f_eligibility), NullIfEmpty(f_priority), null, NullIfEmpty(f_clerk), NullIfEmpty(f_comments));
+            showNew = false; success = "Means test recorded."; await Load();
+        }
+        catch (Exception ex) { error = $"Error: {ex.Message}"; } finally { saving = false; }
+    }
+
+    private async Task SubmitIncome()
+    {
+        saving = true; error = null;
+        try
+        {
+            var workflow = Grains.GetGrain<IPatientWorkflowGrain>(patientId!.Trim());
+            await workflow.RecordMeansTestIncomeAsync(detail!.MeansTestId, inc_vet, inc_spouse, inc_dep);
+            success = "Income recorded.";
+        }
+        catch (Exception ex) { error = $"Error: {ex.Message}"; } finally { saving = false; }
+    }
+
+    private async Task SubmitAssets()
+    {
+        saving = true; error = null;
+        try
+        {
+            var workflow = Grains.GetGrain<IPatientWorkflowGrain>(patientId!.Trim());
+            await workflow.RecordMeansTestAssetsAsync(detail!.MeansTestId, ast_nw, ast_prop, ast_other);
+            success = "Assets recorded.";
+        }
+        catch (Exception ex) { error = $"Error: {ex.Message}"; } finally { saving = false; }
+    }
+
+    private async Task SubmitExpenses()
+    {
+        saving = true; error = null;
+        try
+        {
+            var workflow = Grains.GetGrain<IPatientWorkflowGrain>(patientId!.Trim());
+            await workflow.RecordMeansTestExpensesAsync(detail!.MeansTestId, exp_deductible);
+            success = "Expenses recorded.";
+        }
+        catch (Exception ex) { error = $"Error: {ex.Message}"; } finally { saving = false; }
+    }
+
+    private async Task CalculateAdjusted()
+    {
+        saving = true; error = null;
+        try
+        {
+            var workflow = Grains.GetGrain<IPatientWorkflowGrain>(patientId!.Trim());
+            await workflow.CalculateMeansTestAdjustedIncomeAsync(detail!.MeansTestId);
+            success = "Adjusted income calculated.";
+        }
+        catch (Exception ex) { error = $"Error: {ex.Message}"; } finally { saving = false; }
+    }
+
+    private async Task SubmitGmt()
+    {
+        saving = true; error = null;
+        try
+        {
+            var workflow = Grains.GetGrain<IPatientWorkflowGrain>(patientId!.Trim());
+            await workflow.SetMeansTestGmtThresholdAsync(detail!.MeansTestId, gmt_threshold);
+            success = "GMT threshold set.";
+        }
+        catch (Exception ex) { error = $"Error: {ex.Message}"; } finally { saving = false; }
+    }
+
+    private async Task SubmitHardship()
+    {
+        if (string.IsNullOrWhiteSpace(hd_determination)) { error = "Determination is required."; return; }
+        saving = true; error = null;
+        try
+        {
+            var workflow = Grains.GetGrain<IPatientWorkflowGrain>(patientId!.Trim());
+            await workflow.DetermineMeansTestHardshipAsync(detail!.MeansTestId, hd_determination);
+            success = "Hardship determination recorded.";
+        }
+        catch (Exception ex) { error = $"Error: {ex.Message}"; } finally { saving = false; }
+    }
+
+    private async Task SubmitCopay()
+    {
+        if (string.IsNullOrWhiteSpace(cp_result)) { error = "Result is required."; return; }
+        saving = true; error = null;
+        try
+        {
+            var workflow = Grains.GetGrain<IPatientWorkflowGrain>(patientId!.Trim());
+            await workflow.SetMeansTestCopayResultAsync(detail!.MeansTestId, cp_result);
+            success = "Copay result set.";
+        }
+        catch (Exception ex) { error = $"Error: {ex.Message}"; } finally { saving = false; }
+    }
+
+    private async Task SubmitDependent()
+    {
+        if (string.IsNullOrWhiteSpace(dp_name)) { error = "Dependent name is required."; return; }
+        saving = true; error = null;
+        try
+        {
+            var workflow = Grains.GetGrain<IPatientWorkflowGrain>(patientId!.Trim());
+            await workflow.AddMeansTestDependentAsync(detail!.MeansTestId, dp_name, dp_rel, dp_income, dp_nw, dp_dob);
+            success = "Dependent added."; dp_name = ""; dp_income = 0; dp_nw = 0; dp_dob = null;
+            await LoadDependents(detail.MeansTestId);
+        }
+        catch (Exception ex) { error = $"Error: {ex.Message}"; } finally { saving = false; }
+    }
+
+    private static string? NullIfEmpty(string s) => string.IsNullOrWhiteSpace(s) ? null : s;
+
+    private class MtListDto
+    {
+        public string MeansTestId { get; set; } = "";
+        public string TestType { get; set; } = "";
+        public DateTime DateOfTest { get; set; }
+        public decimal? AnnualIncome { get; set; }
+        public decimal? NetWorth { get; set; }
+        public int? NumberOfDependents { get; set; }
+        public string? PriorityGroup { get; set; }
+        public string? EligibilityStatus { get; set; }
+        public string Status { get; set; } = "";
+    }
+
+    private class MtDetailDto
+    {
+        public string MeansTestId { get; set; } = "";
+        public string TestType { get; set; } = "";
+        public DateTime DateOfTest { get; set; }
+        public decimal? AnnualIncome { get; set; }
+        public decimal? NetWorth { get; set; }
+        public int? NumberOfDependents { get; set; }
+        public string? PriorityGroup { get; set; }
+        public string? EligibilityStatus { get; set; }
+        public string Status { get; set; } = "";
+        public string? Comments { get; set; }
+        public decimal? VeteranGrossIncome { get; set; }
+        public decimal? SpouseGrossIncome { get; set; }
+        public decimal? DependentIncome { get; set; }
+        public decimal? PropertyValue { get; set; }
+        public decimal? OtherAssets { get; set; }
+        public decimal? DeductibleExpenses { get; set; }
+        public decimal? AdjustedIncome { get; set; }
+        public decimal? GmtThreshold { get; set; }
+        public string? HardshipDetermination { get; set; }
+        public string? CopayTestResult { get; set; }
+    }
+
+    private class MtDependentDto
+    {
+        public string Name { get; set; } = "";
+        public string Relationship { get; set; } = "";
+        public decimal Income { get; set; }
+        public decimal NetWorth { get; set; }
+        public DateTime? DateOfBirth { get; set; }
+    }
+}
+
+<style>
+    h1 { color: #003f72; margin-bottom: 1.25rem; font-size: 1.4rem; }
+    .lookup-bar { display: flex; gap: .5rem; margin-bottom: 1.5rem; align-items: center; }
+    .lookup-input { width: 280px; padding: .5rem .75rem; border: 1px solid #ccc; border-radius: 4px; font-size: .9rem; }
+    .btn { padding: .5rem 1.25rem; border: none; border-radius: 4px; cursor: pointer; font-size: .85rem; }
+    .btn-primary { background: #003f72; color: white; } .btn-primary:hover { background: #002a4e; } .btn-primary:disabled { background: #999; cursor: not-allowed; }
+    .btn-secondary { background: #16a34a; color: white; } .btn-secondary:disabled { background: #999; }
+    .btn-outline { background: white; border: 1px solid #ccc; color: #333; }
+    .btn-sm-action { padding: 4px 12px; font-size: .8rem; }
+    .alert { padding: .75rem 1rem; border-radius: 4px; margin-bottom: 1rem; font-size: .85rem; }
+    .alert-error { background: #fde8e8; color: #b91c1c; border: 1px solid #f5c6c6; }
+    .alert-success { background: #dcfce7; color: #166534; border: 1px solid #bbf7d0; }
+    .empty-state { color: #999; font-style: italic; padding: 2rem 0; }
+    .tab-bar { display: flex; gap: 0; border-bottom: 2px solid #d4d9e0; margin-bottom: 1.25rem; }
+    .tab { background: none; border: none; padding: .6rem 1.25rem; cursor: pointer; font-size: .85rem; color: #555; border-bottom: 2px solid transparent; margin-bottom: -2px; }
+    .tab-active { color: #003f72; font-weight: 600; border-bottom-color: #003f72; }
+    .entry-form { border: 1px solid #d4d9e0; border-radius: 6px; padding: 1.25rem; margin-bottom: 1.5rem; background: #f9fafb; }
+    .entry-form.compact { margin-top: .75rem; padding: 1rem; }
+    .entry-form h3 { margin-bottom: 1rem; color: #003f72; }
+    .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: .75rem; }
+    .form-row { display: flex; flex-direction: column; gap: .25rem; }
+    .form-row.full { grid-column: 1 / -1; }
+    .form-row label { font-size: .8rem; font-weight: 600; color: #555; }
+    .form-row input, .form-row select, .form-row textarea { padding: .4rem .6rem; border: 1px solid #ccc; border-radius: 4px; font-size: .85rem; }
+    .form-row textarea { resize: vertical; }
+    .form-actions { display: flex; gap: .5rem; margin-top: .75rem; }
+    .data-table { width: 100%; border-collapse: collapse; font-size: .85rem; border: 1px solid #d4d9e0; }
+    .data-table thead { background: #f4f6f9; }
+    .data-table th { text-align: left; padding: .5rem; font-weight: 600; color: #003f72; border-bottom: 2px solid #d4d9e0; font-size: .75rem; text-transform: uppercase; }
+    .data-table td { padding: .4rem .5rem; border-bottom: 1px solid #f0f0f0; }
+    .data-table tr.clickable { cursor: pointer; }
+    .data-table tr.clickable:hover { background: #eef3f9; }
+    .date { color: #888; font-size: .8rem; white-space: nowrap; }
+    .badge { padding: 2px 8px; border-radius: 3px; font-size: .7rem; font-weight: 600; }
+    .badge-green { background: #dcfce7; color: #166534; }
+    .badge-yellow { background: #fef3c7; color: #92400e; }
+    .detail-panel { border: 1px solid #d4d9e0; border-radius: 6px; padding: 1.25rem; margin-bottom: 1.5rem; }
+    .detail-header { display: flex; align-items: center; gap: .75rem; margin-bottom: 1rem; }
+    .detail-header h3 { margin: 0; color: #003f72; flex: 1; }
+    .detail-grid { display: grid; grid-template-columns: 1fr 1fr; gap: .5rem; font-size: .85rem; margin-bottom: .5rem; }
+    .detail-grid .full { grid-column: 1 / -1; }
+    .section { border-top: 1px solid #e5e7eb; padding-top: 1rem; margin-top: 1rem; }
+    .section h4 { color: #003f72; margin-bottom: .75rem; font-size: .95rem; }
+</style>

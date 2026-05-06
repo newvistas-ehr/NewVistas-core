@@ -1,0 +1,704 @@
+@page "/pt/{BodyGroupName}"
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+@rendermode InteractiveServer
+@using NewVistas.BlazorWeb.Services
+@using NewVistas.PT.GrainInterfaces
+@using NewVistas.PT.GrainStates
+@using NewVistas.PT.Models
+@inject OrleansGrainService Grains
+@inject PatientContextService PatientContext
+@inject NavigationManager Nav
+
+<PageTitle>PT — @FormatGroupName()</PageTitle>
+
+<div class="page-header">
+    <button class="btn btn-back" @onclick='() => Nav.NavigateTo($"/pt?patientId={Uri.EscapeDataString(patientId ?? "")}")'>Back to PT Hub</button>
+    <h1>@FormatGroupName()</h1>
+</div>
+
+<div class="lookup-bar">
+    <input type="text" @bind="patientId" @bind:event="oninput" @onkeydown="HandleKeyDown"
+           placeholder="Patient ID" class="lookup-input" />
+    <button @onclick="Load" disabled="@(string.IsNullOrWhiteSpace(patientId) || loading)" class="btn btn-primary">
+        @if (loading) { <span>Loading...</span> } else { <span>Load</span> }
+    </button>
+</div>
+
+@if (error != null) { <div class="alert alert-error">@error</div> }
+@if (successMessage != null) { <div class="alert alert-success">@successMessage</div> }
+
+@if (loaded)
+{
+    <div class="tab-bar">
+        <button class="tab @(activeTab == "record" ? "active" : "")" @onclick='() => activeTab = "record"'>Record Session</button>
+        <button class="tab @(activeTab == "compare" ? "active" : "")" @onclick="LoadComparison">Compare (Last 2)</button>
+        <button class="tab @(activeTab == "history" ? "active" : "")" @onclick='() => activeTab = "history"'>History</button>
+        <button class="tab @(activeTab == "exercises" ? "active" : "")" @onclick="LoadExercises">Exercises</button>
+    </div>
+
+    @if (activeTab == "record")
+    {
+        <div class="form-section">
+            <div class="form-row">
+                <label>Session Date</label>
+                <input type="datetime-local" @bind="sessionDate" class="form-input" />
+            </div>
+            <div class="form-row">
+                <label>Side</label>
+                <select @bind="selectedSide" class="form-input">
+                    <option value="@Laterality.Bilateral">Bilateral</option>
+                    <option value="@Laterality.Left">Left</option>
+                    <option value="@Laterality.Right">Right</option>
+                </select>
+            </div>
+            <div class="form-row">
+                <label>Therapist</label>
+                <input type="text" @bind="therapistName" placeholder="Therapist name" class="form-input" />
+            </div>
+            <div class="form-row">
+                <label>Location</label>
+                <input type="text" @bind="locationName" placeholder="Clinic/facility" class="form-input" />
+            </div>
+            <div class="form-row">
+                <label>Referral</label>
+                <select @bind="selectedReferralKey" class="form-input">
+                    <option value="">— No Referral —</option>
+                    @if (activeReferrals != null)
+                    {
+                        @foreach (var r in activeReferrals)
+                        {
+                            <option value="@r.ReferralId">
+                                @(r.ReferringProviderName ?? "Unknown") — @(r.Diagnosis ?? "No dx") (@r.UsedVisits/@(r.AuthorizedVisits == 0 ? "Unlim" : r.AuthorizedVisits.ToString()) visits)
+                            </option>
+                        }
+                    }
+                </select>
+            </div>
+
+            <h3 class="measure-subhead">Measurements</h3>
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th></th>
+                        <th>Movement</th>
+                        <th>Normal</th>
+                        <th>Tool</th>
+                        <th>Value / Active</th>
+                        <th>Passive</th>
+                        <th>Pain</th>
+                        <th>Strength</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var def in movementDefs)
+                    {
+                        var m = def.Movement;
+                        <tr>
+                            <td class="illustration-cell">
+                                @if (def.IllustrationKey != null)
+                                {
+                                    <img src="/images/pt/@(def.IllustrationKey).svg" alt="@def.DisplayName"
+                                         class="movement-illustration"
+                                         onerror="this.style.display='none'" />
+                                }
+                            </td>
+                            <td class="movement-name">
+                                <div>@def.DisplayName</div>
+                                @if (def.PatientPosition != null)
+                                {
+                                    <div class="movement-position">@def.PatientPosition</div>
+                                }
+                                @if (def.Instruction != null)
+                                {
+                                    <div class="movement-instruction">@def.Instruction</div>
+                                }
+                            </td>
+                            <td class="normal-range">
+                                @if (def.NormalValue.HasValue)
+                                {
+                                    <span>@def.NormalValue@(def.MeasurementType == MeasurementType.Angle ? "°" : def.MeasurementType == MeasurementType.Force ? " lbs" : " mm")</span>
+                                }
+                                else
+                                {
+                                    <span>—</span>
+                                }
+                            </td>
+                            <td class="tool-cell">@(def.Tool ?? "—")</td>
+                            <td>
+                                <input type="text" @bind="romActive[m]"
+                                       placeholder="@(def.Units)"
+                                       class="measure-input"
+                                       title="@(def.HasActivePassive ? "Active ROM" : "Value") (@def.Units)" />
+                            </td>
+                            <td>
+                                @if (def.HasActivePassive)
+                                {
+                                    <input type="text" @bind="romPassive[m]" placeholder="@def.Units" class="measure-input"
+                                           title="Passive ROM (@def.Units)" />
+                                }
+                            </td>
+                            <td><input type="text" @bind="romPain[m]" placeholder="" class="measure-input pain-input" /></td>
+                            <td><input type="text" @bind="strengthGrade[m]" placeholder="MMT" class="measure-input"
+                                       title="MMT grade (0-5, e.g. 3+, 4-, 5)" /></td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+
+            <div class="form-row">
+                <label>Notes</label>
+                <textarea @bind="sessionNotes" placeholder="Session notes..." class="form-input" rows="3"></textarea>
+            </div>
+
+            <div class="form-actions">
+                <button @onclick="SubmitSession" disabled="@submitting" class="btn btn-primary">
+                    @(submitting ? "Saving..." : "Record Session")
+                </button>
+            </div>
+        </div>
+    }
+
+    @if (activeTab == "compare" && comparisonSessions != null)
+    {
+        @if (comparisonSessions.Count == 0)
+        {
+            <div class="empty-state">No prior sessions recorded for this body group.</div>
+        }
+        else
+        {
+            <h3 class="compare-title">Side-by-Side Comparison (Most Recent Sessions)</h3>
+            <table class="data-table compare-table">
+                <thead>
+                    <tr>
+                        <th>Movement</th>
+                        <th>Normal</th>
+                        @foreach (var s in comparisonSessions)
+                        {
+                            <th colspan="3" class="session-header">
+                                @s.SessionDate.ToString("MM/dd/yyyy") — @s.Side
+                            </th>
+                        }
+                    </tr>
+                    <tr>
+                        <th></th>
+                        <th></th>
+                        @foreach (var _ in comparisonSessions)
+                        {
+                            <th class="sub-header">Active</th>
+                            <th class="sub-header">Passive</th>
+                            <th class="sub-header">Strength</th>
+                        }
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var m in movements)
+                    {
+                        <tr>
+                            <td class="movement-name">@FormatMovement(m)</td>
+                            <td class="normal-range">@GetNormalRange(m)</td>
+                            @foreach (var s in comparisonSessions)
+                            {
+                                var rom = s.RomMeasurements.FirstOrDefault(r => r.Movement == m);
+                                var str = s.StrengthMeasurements.FirstOrDefault(r => r.Movement == m);
+                                <td class="@(IsDeficient(rom?.ActiveRom, m) ? "deficient" : "")">@(rom?.ActiveRom?.ToString("0") ?? "—")</td>
+                                <td class="@(IsDeficient(rom?.PassiveRom, m) ? "deficient" : "")">@(rom?.PassiveRom?.ToString("0") ?? "—")</td>
+                                <td class="@(str != null && str.Grade < 3 ? "deficient" : "")">@(str?.GradeDisplay ?? "—")</td>
+                            }
+                        </tr>
+                    }
+                </tbody>
+            </table>
+
+            @foreach (var s in comparisonSessions.Where(s => !string.IsNullOrWhiteSpace(s.Notes)))
+            {
+                <div class="session-notes-block">
+                    <strong>Notes (@s.SessionDate.ToString("MM/dd/yyyy")):</strong> @s.Notes
+                </div>
+            }
+        }
+    }
+
+    @if (activeTab == "history")
+    {
+        <div class="form-section">
+            <div class="history-filters">
+                <div class="form-row">
+                    <label>From</label>
+                    <input type="datetime-local" @bind="historyFrom" class="form-input" />
+                </div>
+                <div class="form-row">
+                    <label>To</label>
+                    <input type="datetime-local" @bind="historyTo" class="form-input" />
+                </div>
+                <div class="form-actions">
+                    <button @onclick="LoadHistory" disabled="@historyLoading" class="btn btn-primary">
+                        @(historyLoading ? "Searching..." : "Search")
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        @if (historySessions == null && !historyLoading)
+        {
+            <div class="empty-state">Set date range and click Search to load session history.</div>
+        }
+        else if (historySessions != null && historySessions.Count == 0)
+        {
+            <div class="empty-state">No sessions found for the selected date range.</div>
+        }
+        else if (historySessions != null)
+        {
+            <div class="history-result-count">@historySessions.Count session(s)</div>
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Date</th>
+                        <th>Side</th>
+                        <th>Therapist</th>
+                        <th>ROM Measurements</th>
+                        <th>Strength Measurements</th>
+                        <th>Notes</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var s in historySessions)
+                    {
+                        <tr>
+                            <td class="date">@s.SessionDate.ToString("MM/dd/yyyy HH:mm")</td>
+                            <td>@s.Side</td>
+                            <td>@(s.TherapistName ?? "—")</td>
+                            <td>@s.RomMeasurements.Count</td>
+                            <td>@s.StrengthMeasurements.Count</td>
+                            <td class="notes-cell">@(Truncate(s.Notes, 60))</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        }
+    }
+
+    @if (activeTab == "exercises")
+    {
+        <div class="form-section">
+            <h3 class="measure-subhead">Add Exercise to Latest Session</h3>
+            <div class="exercise-form-grid">
+                <div class="form-row">
+                    <label>Exercise Name</label>
+                    <input type="text" @bind="exName" placeholder="e.g., Quad Sets" class="form-input" />
+                </div>
+                <div class="form-row">
+                    <label>Category</label>
+                    <select @bind="exCategory" class="form-input">
+                        <option value="@ExerciseCategory.Strengthening">Strengthening</option>
+                        <option value="@ExerciseCategory.Stretching">Stretching</option>
+                        <option value="@ExerciseCategory.Balance">Balance</option>
+                        <option value="@ExerciseCategory.Endurance">Endurance</option>
+                        <option value="@ExerciseCategory.Functional">Functional</option>
+                        <option value="@ExerciseCategory.Modality">Modality</option>
+                        <option value="@ExerciseCategory.Other">Other</option>
+                    </select>
+                </div>
+                <div class="form-row">
+                    <label>Sets</label>
+                    <input type="number" @bind="exSets" class="form-input" style="width:80px" />
+                    <label style="width:auto">Reps</label>
+                    <input type="number" @bind="exReps" class="form-input" style="width:80px" />
+                    <label style="width:auto">Weight (lbs)</label>
+                    <input type="number" step="0.5" @bind="exWeight" class="form-input" style="width:80px" />
+                </div>
+                <div class="form-row">
+                    <label>Duration (sec)</label>
+                    <input type="number" @bind="exDuration" class="form-input" style="width:80px" />
+                    <label style="width:auto">Notes</label>
+                    <input type="text" @bind="exNotes" class="form-input" />
+                </div>
+            </div>
+            <div class="form-actions">
+                <button @onclick="AddExercise" disabled="@exSubmitting" class="btn btn-primary">
+                    @(exSubmitting ? "Adding..." : "Add Exercise")
+                </button>
+            </div>
+        </div>
+
+        @if (exerciseSession != null && exerciseSession.Exercises.Count > 0)
+        {
+            <h3 class="measure-subhead">Exercises in Latest Session (@exerciseSession.SessionDate.ToString("MM/dd/yyyy"))</h3>
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Exercise</th>
+                        <th>Category</th>
+                        <th>Sets</th>
+                        <th>Reps</th>
+                        <th>Weight</th>
+                        <th>Duration</th>
+                        <th>Notes</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var ex in exerciseSession.Exercises)
+                    {
+                        <tr>
+                            <td class="exercise-name-cell">@ex.ExerciseName</td>
+                            <td>@ex.Category</td>
+                            <td>@(ex.Sets?.ToString() ?? "—")</td>
+                            <td>@(ex.Reps?.ToString() ?? "—")</td>
+                            <td>@(ex.WeightLbs.HasValue ? $"{ex.WeightLbs} lbs" : "—")</td>
+                            <td>@(ex.DurationSeconds.HasValue ? $"{ex.DurationSeconds}s" : "—")</td>
+                            <td class="notes-cell">@(ex.Notes ?? "—")</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        }
+        else if (exerciseSession != null)
+        {
+            <div class="empty-state">No exercises recorded in the latest session yet.</div>
+        }
+        else if (latestSessionKey == null)
+        {
+            <div class="empty-state">No sessions recorded for this body group. Record a session first.</div>
+        }
+    }
+}
+
+@code {
+    [Parameter] public string BodyGroupName { get; set; } = "";
+    [SupplyParameterFromQuery] public string? patientId { get; set; }
+
+    private BodyGroup bodyGroup;
+    private List<Movement> movements = [];
+    private List<MovementDefinition> movementDefs = [];
+    private bool loading, loaded, submitting, exSubmitting;
+    private string? error, successMessage;
+    private string activeTab = "record";
+
+    // Exercise tab state
+    private string? latestSessionKey;
+    private PTSessionState? exerciseSession;
+    private string? exName, exNotes;
+    private ExerciseCategory exCategory = ExerciseCategory.Strengthening;
+    private int? exSets, exReps, exDuration;
+    private decimal? exWeight;
+
+    // Record form state
+    private DateTime sessionDate = DateTime.Now;
+    private Laterality selectedSide = Laterality.Bilateral;
+    private string? therapistName, locationName, sessionNotes;
+    private Dictionary<Movement, string?> romActive = new();
+    private Dictionary<Movement, string?> romPassive = new();
+    private Dictionary<Movement, string?> romPain = new();
+    private Dictionary<Movement, string?> strengthGrade = new();
+    private Dictionary<Movement, string?> strengthComments = new();
+
+    // Referral state
+    private List<PTReferralState>? activeReferrals;
+    private string? selectedReferralKey;
+
+    // Compare tab state
+    private List<PTSessionState>? comparisonSessions;
+
+    // History tab state
+    private DateTime historyFrom = DateTime.Now.AddMonths(-6);
+    private DateTime historyTo = DateTime.Now;
+    private bool historyLoading;
+    private List<PTSessionState>? historySessions;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (!Enum.TryParse<BodyGroup>(BodyGroupName, true, out bodyGroup))
+        {
+            error = $"Unknown body group: {BodyGroupName}";
+            return;
+        }
+
+        movements = BodyGroupDefinitions.GetMovements(bodyGroup).ToList();
+        movementDefs = BodyGroupDefinitions.GetMovementDefinitions(bodyGroup).ToList();
+        InitFormDictionaries();
+
+        if (string.IsNullOrWhiteSpace(patientId) && !string.IsNullOrWhiteSpace(PatientContext.PatientId))
+            patientId = PatientContext.PatientId;
+        if (!string.IsNullOrWhiteSpace(patientId))
+            await Load();
+    }
+
+    private void InitFormDictionaries()
+    {
+        romActive = movements.ToDictionary(m => m, _ => (string?)null);
+        romPassive = movements.ToDictionary(m => m, _ => (string?)null);
+        romPain = movements.ToDictionary(m => m, _ => (string?)null);
+        strengthGrade = movements.ToDictionary(m => m, _ => (string?)null);
+        strengthComments = movements.ToDictionary(m => m, _ => (string?)null);
+    }
+
+    private async Task HandleKeyDown(KeyboardEventArgs e) { if (e.Key == "Enter") await Load(); }
+
+    private async Task Load()
+    {
+        if (string.IsNullOrWhiteSpace(patientId)) return;
+        loading = true; error = null;
+        try
+        {
+            PatientContext.SetPatient(patientId.Trim());
+            var grain = Grains.GetGrain<IPTWorkflowGrain>(patientId.Trim());
+            activeReferrals = await grain.GetActiveReferralsAsync();
+            loaded = true;
+        }
+        catch (Exception ex) { error = $"Error: {ex.Message}"; }
+        finally { loading = false; }
+    }
+
+    private async Task SubmitSession()
+    {
+        if (string.IsNullOrWhiteSpace(patientId)) return;
+        submitting = true; error = null; successMessage = null;
+
+        try
+        {
+            var romMeasurements = new List<RomMeasurement>();
+            var strengthMeasurements = new List<StrengthMeasurement>();
+
+            foreach (var m in movements)
+            {
+                decimal? active = ParseDecimal(romActive.GetValueOrDefault(m));
+                decimal? passive = ParseDecimal(romPassive.GetValueOrDefault(m));
+                string? pain = romPain.GetValueOrDefault(m);
+
+                if (active.HasValue || passive.HasValue || !string.IsNullOrWhiteSpace(pain))
+                {
+                    romMeasurements.Add(new RomMeasurement
+                    {
+                        Movement = m,
+                        ActiveRom = active,
+                        PassiveRom = passive,
+                        PainOnMotion = pain
+                    });
+                }
+
+                string? grade = strengthGrade.GetValueOrDefault(m);
+                string? comments = strengthComments.GetValueOrDefault(m);
+                if (!string.IsNullOrWhiteSpace(grade))
+                {
+                    var parsed = BodyGroupDefinitions.ParseMmtGrade(grade);
+                    if (parsed == null) { error = $"Invalid strength grade '{grade}' for {FormatMovement(m)}."; return; }
+                    strengthMeasurements.Add(new StrengthMeasurement
+                    {
+                        Movement = m,
+                        Grade = parsed.Value.grade,
+                        GradeDisplay = parsed.Value.display,
+                        Comments = comments
+                    });
+                }
+            }
+
+            if (romMeasurements.Count == 0 && strengthMeasurements.Count == 0)
+            {
+                error = "Enter at least one ROM or strength measurement.";
+                return;
+            }
+
+            var grain = Grains.GetGrain<IPTWorkflowGrain>(patientId.Trim());
+            if (!string.IsNullOrEmpty(selectedReferralKey))
+            {
+                await grain.RecordBodyGroupSessionAsync(
+                    bodyGroup, sessionDate,
+                    null, therapistName,
+                    null, locationName,
+                    selectedSide,
+                    romMeasurements, strengthMeasurements,
+                    sessionNotes,
+                    selectedReferralKey);
+            }
+            else
+            {
+                await grain.RecordBodyGroupSessionAsync(
+                    bodyGroup, sessionDate,
+                    null, therapistName,
+                    null, locationName,
+                    selectedSide,
+                    romMeasurements, strengthMeasurements,
+                    sessionNotes);
+            }
+
+            successMessage = $"{FormatGroupName()} session recorded successfully.";
+            InitFormDictionaries();
+            sessionNotes = null;
+            selectedReferralKey = null;
+            sessionDate = DateTime.Now;
+            // Refresh referral list to show updated visit count
+            activeReferrals = await grain.GetActiveReferralsAsync();
+        }
+        catch (Exception ex) { error = $"Error saving session: {ex.Message}"; }
+        finally { submitting = false; }
+    }
+
+    private async Task LoadComparison()
+    {
+        activeTab = "compare";
+        if (string.IsNullOrWhiteSpace(patientId)) return;
+        loading = true; error = null;
+        try
+        {
+            var grain = Grains.GetGrain<IPTWorkflowGrain>(patientId.Trim());
+            comparisonSessions = await grain.GetLatestSessionsAsync(bodyGroup, 2);
+        }
+        catch (Exception ex) { error = $"Error loading comparison: {ex.Message}"; }
+        finally { loading = false; }
+    }
+
+    private async Task LoadHistory()
+    {
+        if (string.IsNullOrWhiteSpace(patientId)) return;
+        historyLoading = true; error = null; historySessions = null;
+        try
+        {
+            var grain = Grains.GetGrain<IPTWorkflowGrain>(patientId.Trim());
+            historySessions = await grain.GetSessionHistoryAsync(bodyGroup, historyFrom, historyTo, 50);
+        }
+        catch (Exception ex) { error = $"Error loading history: {ex.Message}"; }
+        finally { historyLoading = false; }
+    }
+
+    private string FormatGroupName() => bodyGroup switch
+    {
+        BodyGroup.Cervical => "Cervical (Neck)",
+        BodyGroup.ThoracicSpine => "Thoracic Spine",
+        BodyGroup.LumbarSpine => "Lumbar Spine",
+        BodyGroup.TMJ => "TMJ",
+        _ => bodyGroup.ToString()
+    };
+
+    private string FormatMovement(Movement m) => System.Text.RegularExpressions.Regex.Replace(m.ToString(), "(\\B[A-Z])", " $1");
+
+    private string GetNormalRange(Movement m)
+    {
+        var range = BodyGroupDefinitions.GetNormalRomRange(bodyGroup, m);
+        return range.HasValue ? $"{range.Value}°" : "—";
+    }
+
+    private bool IsDeficient(decimal? value, Movement m)
+    {
+        if (!value.HasValue) return false;
+        var normal = BodyGroupDefinitions.GetNormalRomRange(bodyGroup, m);
+        return normal.HasValue && value.Value < normal.Value * 0.75m;
+    }
+
+    private static decimal? ParseDecimal(string? s) =>
+        !string.IsNullOrWhiteSpace(s) && decimal.TryParse(s, out var d) ? d : null;
+
+    private static string Truncate(string? s, int max) =>
+        string.IsNullOrWhiteSpace(s) ? "—" : s.Length <= max ? s : s[..max] + "...";
+
+    private async Task LoadExercises()
+    {
+        activeTab = "exercises";
+        if (string.IsNullOrWhiteSpace(patientId)) return;
+        loading = true; error = null;
+        try
+        {
+            var grain = Grains.GetGrain<IPTWorkflowGrain>(patientId.Trim());
+            var latest = await grain.GetLatestSessionsAsync(bodyGroup, 1);
+            if (latest.Count > 0)
+            {
+                exerciseSession = latest[0];
+                latestSessionKey = latest[0].SessionId;
+            }
+            else
+            {
+                exerciseSession = null;
+                latestSessionKey = null;
+            }
+        }
+        catch (Exception ex) { error = ex.Message; }
+        finally { loading = false; }
+    }
+
+    private async Task AddExercise()
+    {
+        if (string.IsNullOrWhiteSpace(patientId) || latestSessionKey == null) return;
+        if (string.IsNullOrWhiteSpace(exName)) { error = "Exercise name is required."; return; }
+        exSubmitting = true; error = null; successMessage = null;
+        try
+        {
+            var grain = Grains.GetGrain<IPTWorkflowGrain>(patientId.Trim());
+            await grain.AddClinicExerciseAsync(latestSessionKey, new ClinicExerciseLog
+            {
+                ExerciseName = exName,
+                Category = exCategory,
+                BodyGroup = bodyGroup,
+                Sets = exSets,
+                Reps = exReps,
+                WeightLbs = exWeight,
+                DurationSeconds = exDuration,
+                Notes = exNotes
+            });
+            successMessage = $"Added {exName} to session.";
+            exName = exNotes = null; exSets = exReps = exDuration = null; exWeight = null;
+            await LoadExercises();
+        }
+        catch (Exception ex) { error = ex.Message; }
+        finally { exSubmitting = false; }
+    }
+}
+
+<style>
+    .page-header { display: flex; align-items: center; gap: 1rem; margin-bottom: 1rem; }
+    .page-header h1 { margin: 0; }
+    .btn-back { background: none; border: 1px solid #ccc; border-radius: 4px; padding: 0.3rem 0.75rem; cursor: pointer; font-size: 0.8rem; color: #003f72; }
+    .btn-back:hover { background: #f4f6f9; }
+
+    .lookup-bar { display: flex; gap: 0.5rem; margin-bottom: 1.5rem; }
+    .lookup-input { width: 280px; padding: 0.5rem 0.75rem; border: 1px solid #ccc; border-radius: 4px; font-size: 0.9rem; }
+    .btn { padding: 0.5rem 1.25rem; border: none; border-radius: 4px; cursor: pointer; font-size: 0.85rem; }
+    .btn-primary { background: #003f72; color: white; }
+    .btn-primary:disabled { background: #999; cursor: not-allowed; }
+    .alert-error { background: #fde8e8; color: #b91c1c; border: 1px solid #f5c6c6; padding: 0.75rem 1rem; border-radius: 4px; margin-bottom: 1rem; }
+    .alert-success { background: #dcfce7; color: #166534; border: 1px solid #bbf7d0; padding: 0.75rem 1rem; border-radius: 4px; margin-bottom: 1rem; }
+    .empty-state { color: #999; font-style: italic; padding: 2rem 0; }
+
+    .tab-bar { display: flex; gap: 0; margin-bottom: 1.5rem; border-bottom: 2px solid #d4d9e0; }
+    .tab { padding: 0.5rem 1.25rem; border: none; background: none; cursor: pointer; font-size: 0.85rem; color: #555; border-bottom: 2px solid transparent; margin-bottom: -2px; }
+    .tab.active { color: #003f72; border-bottom-color: #003f72; font-weight: 600; }
+
+    .form-section { max-width: 900px; }
+    .form-row { display: flex; align-items: center; gap: 1rem; margin-bottom: 0.75rem; }
+    .form-row label { width: 120px; font-size: 0.85rem; font-weight: 500; color: #333; flex-shrink: 0; }
+    .form-input { flex: 1; padding: 0.4rem 0.6rem; border: 1px solid #ccc; border-radius: 4px; font-size: 0.85rem; }
+    .form-actions { margin-top: 1.25rem; }
+
+    .measure-subhead { font-size: 0.85rem; font-weight: 600; color: #003f72; margin: 1.25rem 0 0.75rem; border-top: 1px solid #e5e7eb; padding-top: 1rem; }
+
+    .data-table { width: 100%; border-collapse: collapse; font-size: 0.85rem; border: 1px solid #d4d9e0; margin-bottom: 1rem; }
+    .data-table thead { background: #f4f6f9; }
+    .data-table th { text-align: left; padding: 0.5rem; font-weight: 600; color: #003f72; border-bottom: 2px solid #d4d9e0; font-size: 0.75rem; text-transform: uppercase; }
+    .data-table td { padding: 0.35rem 0.5rem; border-bottom: 1px solid #f0f0f0; }
+    .data-table tr:hover { background: #f9fafb; }
+
+    .movement-name { font-weight: 500; }
+    .movement-position { font-size: 0.7rem; color: #888; font-style: italic; margin-top: 2px; }
+    .movement-instruction { font-size: 0.7rem; color: #2563eb; margin-top: 1px; }
+    .normal-range { color: #888; font-size: 0.8rem; white-space: nowrap; }
+    .tool-cell { font-size: 0.75rem; color: #888; white-space: nowrap; }
+    .illustration-cell { width: 48px; text-align: center; padding: 2px; }
+    .movement-illustration { width: 40px; height: 40px; opacity: 0.7; }
+    .measure-input { width: 70px; padding: 0.3rem 0.4rem; border: 1px solid #d4d9e0; border-radius: 3px; font-size: 0.8rem; text-align: center; }
+    .pain-input, .comment-input { width: 120px; text-align: left; }
+    .date { color: #888; font-size: 0.8rem; white-space: nowrap; }
+    .notes-cell { max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 0.8rem; color: #666; }
+
+    /* Comparison table */
+    .compare-title { font-size: 0.9rem; color: #003f72; margin-bottom: 0.75rem; }
+    .compare-table .session-header { background: #003f72; color: white; text-align: center; font-size: 0.7rem; }
+    .compare-table .sub-header { font-size: 0.65rem; text-align: center; }
+    .compare-table td { text-align: center; }
+    .compare-table .movement-name { text-align: left; }
+    .compare-table .normal-range { text-align: center; }
+    .deficient { color: #b91c1c; font-weight: 600; }
+    .session-notes-block { font-size: 0.8rem; color: #555; margin: 0.5rem 0; padding: 0.5rem; background: #f9fafb; border-left: 3px solid #003f72; }
+
+    .history-filters { margin-bottom: 1.5rem; padding-bottom: 1rem; border-bottom: 1px solid #e5e7eb; }
+    .history-result-count { font-size: 0.8rem; color: #666; margin-bottom: 0.5rem; font-style: italic; }
+
+    .exercise-form-grid { display: flex; flex-direction: column; gap: 0.5rem; }
+    .exercise-name-cell { font-weight: 500; }
+</style>

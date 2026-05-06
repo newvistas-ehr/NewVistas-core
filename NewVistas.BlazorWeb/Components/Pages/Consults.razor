@@ -1,0 +1,689 @@
+@page "/consults"
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+@rendermode InteractiveServer
+@using NewVistas.BlazorWeb.Services
+@using NewVistas.Abstractions.GrainInterfaces
+@using NewVistas.Abstractions.GrainStates
+@inject OrleansGrainService Grains
+
+<PageTitle>Consults</PageTitle>
+<h1>Consults</h1>
+
+<div class="lookup-bar">
+    <input type="text" @bind="patientId" @bind:event="oninput" @onkeydown="HandleKeyDown"
+           placeholder="Patient ID" class="lookup-input" />
+    <button @onclick="LoadConsults" disabled="@(string.IsNullOrWhiteSpace(patientId) || loading)" class="btn btn-primary">
+        @if (loading) { <span>Loading...</span> } else { <span>Load Consults</span> }
+    </button>
+    <button @onclick="ShowNewConsultForm" disabled="@(string.IsNullOrWhiteSpace(patientId))" class="btn btn-secondary">
+        + New Consult
+    </button>
+</div>
+
+@if (error != null) { <div class="alert alert-error">@error</div> }
+@if (successMessage != null) { <div class="alert alert-success">@successMessage</div> }
+
+@* -- New Consult Form -- *@
+@if (showNewConsult)
+{
+    <div class="consult-form">
+        <h3>Request Consult</h3>
+        <div class="form-row">
+            <label>To Service *</label>
+            <input type="text" @bind="newToService" placeholder="e.g. Cardiology, Orthopedics" />
+        </div>
+        <div class="form-row">
+            <label>From Service</label>
+            <input type="text" @bind="newFromService" placeholder="Requesting service" />
+        </div>
+        <div class="form-row">
+            <label>Urgency</label>
+            <select @bind="newUrgency">
+                <option value="ROUTINE">Routine</option>
+                <option value="URGENT">Urgent</option>
+                <option value="STAT">STAT</option>
+            </select>
+        </div>
+        <div class="form-row">
+            <label>Requesting Provider</label>
+            <input type="text" @bind="newRequestingProvider" placeholder="Provider name" />
+        </div>
+        <div class="form-row">
+            <label>Attention</label>
+            <input type="text" @bind="newAttentionProvider" placeholder="Specific provider requested (optional)" />
+        </div>
+        <div class="form-row">
+            <label>Provisional Diagnosis</label>
+            <input type="text" @bind="newDiagnosis" placeholder="Provisional diagnosis" />
+        </div>
+        <div class="form-row full">
+            <label>Reason for Request</label>
+            <textarea @bind="newReason" rows="4" placeholder="Clinical reason for this consult..."></textarea>
+        </div>
+        <div class="form-actions">
+            <button @onclick="SubmitConsult" disabled="@saving" class="btn btn-primary">
+                @if (saving) { <span>Submitting...</span> } else { <span>Submit Request</span> }
+            </button>
+            <button @onclick="() => showNewConsult = false" class="btn btn-outline">Cancel</button>
+        </div>
+    </div>
+}
+
+@* -- Consult Detail View -- *@
+@if (selectedConsult != null)
+{
+    <div class="consult-detail">
+        <div class="detail-header">
+            <div class="detail-title">
+                <span class="badge badge-urgency urgency-@selectedConsult.Urgency.ToLowerInvariant()">@selectedConsult.Urgency</span>
+                <span class="badge badge-status @StatusClass(selectedConsult.Status)">@selectedConsult.Status</span>
+                @if (!string.IsNullOrEmpty(selectedConsult.ConsultType))
+                {
+                    <span class="badge badge-type">@selectedConsult.ConsultType</span>
+                }
+                <strong>@selectedConsult.ToService</strong>
+            </div>
+            <div class="detail-meta">
+                <span>From: @(selectedConsult.FromService ?? "--")</span>
+                <span>Requested: @selectedConsult.RequestDateTime.ToString("MM/dd/yyyy HH:mm")</span>
+                <span>Requesting: @(selectedConsult.RequestingProviderName ?? "--")</span>
+                <span>Attention: @(selectedConsult.AttentionProviderName ?? "--")</span>
+            </div>
+            @if (!string.IsNullOrEmpty(selectedConsult.ConsultingProviderName))
+            {
+                <div class="detail-meta"><span>Consulting Provider: @selectedConsult.ConsultingProviderName</span></div>
+            }
+            @if (!string.IsNullOrEmpty(selectedConsult.ProvisionalDiagnosis))
+            {
+                <div class="detail-diagnosis">Dx: @selectedConsult.ProvisionalDiagnosis</div>
+            }
+            @if (!string.IsNullOrEmpty(selectedConsult.ReasonForRequest))
+            {
+                <div class="detail-reason"><pre>@selectedConsult.ReasonForRequest</pre></div>
+            }
+            @if (!string.IsNullOrEmpty(selectedConsult.ClinicalHistory))
+            {
+                <div class="detail-reason"><strong>Clinical History:</strong><pre>@selectedConsult.ClinicalHistory</pre></div>
+            }
+            @if (!string.IsNullOrEmpty(selectedConsult.FollowUpRecommendation))
+            {
+                <div class="detail-reason"><strong>Follow-Up:</strong><pre>@selectedConsult.FollowUpRecommendation</pre></div>
+            }
+            @if (selectedConsult.IsInterfacility)
+            {
+                <div class="detail-meta">
+                    <span class="badge badge-orange">INTERFACILITY</span>
+                    <span>External: @(selectedConsult.ExternalFacilityName ?? "--")</span>
+                </div>
+            }
+            @if (selectedConsult.ScheduledDateTime.HasValue)
+            {
+                <div class="detail-meta">
+                    <span>Scheduled: @selectedConsult.ScheduledDateTime.Value.ToString("MM/dd/yyyy HH:mm")</span>
+                    @if (!string.IsNullOrEmpty(selectedConsult.ScheduledClinicName))
+                    {
+                        <span>Clinic: @selectedConsult.ScheduledClinicName</span>
+                    }
+                </div>
+            }
+            @if (selectedConsult.AcceptedDateTime.HasValue)
+            {
+                <div class="detail-meta">
+                    <span>Accepted: @selectedConsult.AcceptedDateTime.Value.ToString("MM/dd/yyyy HH:mm")</span>
+                    @if (!string.IsNullOrEmpty(selectedConsult.AcceptedByName))
+                    {
+                        <span>by @selectedConsult.AcceptedByName</span>
+                    }
+                </div>
+            }
+            <div class="detail-actions">
+                @if (selectedConsult.Status == "PENDING")
+                {
+                    <button @onclick="() => showAcceptForm = true" class="btn btn-accept">Accept</button>
+                    <button @onclick="() => CancelConsult(selectedConsult.ConsultId)" class="btn btn-cancel-action">Cancel</button>
+                }
+                @if (selectedConsult.Status == "ACTIVE")
+                {
+                    <button @onclick="() => showScheduleForm = true" class="btn btn-schedule">Schedule</button>
+                }
+                @if (selectedConsult.Status is "ACTIVE" or "SCHEDULED")
+                {
+                    <button @onclick="() => ShowCompleteForm(selectedConsult.ConsultId)" class="btn btn-complete">Complete</button>
+                }
+                <button @onclick="() => { selectedConsult = null; showAcceptForm = false; showScheduleForm = false; }" class="btn btn-outline">Close</button>
+            </div>
+        </div>
+        @if (selectedConsult.CompletedDateTime.HasValue)
+        {
+            <div class="completion-info">
+                Completed: @selectedConsult.CompletedDateTime.Value.ToString("MM/dd/yyyy HH:mm")
+                @if (!string.IsNullOrEmpty(selectedConsult.ResultDocumentId))
+                {
+                    <span> -- Result Note: @selectedConsult.ResultDocumentId</span>
+                }
+            </div>
+        }
+
+        @* -- Phase 4: Consult Type -- *@
+        <div class="phase4-section">
+            <h4>Consult Type</h4>
+            <div class="inline-form">
+                <select @bind="ct_type">
+                    <option value="">--</option>
+                    <option>CONSULT</option>
+                    <option>PROCEDURE</option>
+                    <option>INTERFACILITY</option>
+                    <option>COMMUNITY_CARE</option>
+                </select>
+                <button @onclick="SetConsultType" disabled="@(saving || string.IsNullOrEmpty(ct_type))" class="btn btn-primary">Set Type</button>
+            </div>
+        </div>
+
+        @* -- Phase 4: Clinical History -- *@
+        <div class="phase4-section">
+            <h4>Clinical History</h4>
+            <div class="form-row full">
+                <textarea @bind="ch_history" rows="3" placeholder="Enter clinical history..."></textarea>
+            </div>
+            <div class="form-actions">
+                <button @onclick="SetClinicalHistory" disabled="@(saving || string.IsNullOrWhiteSpace(ch_history))" class="btn btn-primary">Set Clinical History</button>
+            </div>
+        </div>
+
+        @* -- Phase 4: Follow-Up Recommendation -- *@
+        <div class="phase4-section">
+            <h4>Follow-Up Recommendation</h4>
+            <div class="form-row full">
+                <textarea @bind="fu_rec" rows="3" placeholder="Enter follow-up recommendation..."></textarea>
+            </div>
+            <div class="form-actions">
+                <button @onclick="SetFollowUp" disabled="@(saving || string.IsNullOrWhiteSpace(fu_rec))" class="btn btn-primary">Set Follow-Up</button>
+            </div>
+        </div>
+
+        @* -- Phase 4: Consulting Provider -- *@
+        <div class="phase4-section">
+            <h4>Consulting Provider</h4>
+            <div class="inline-form">
+                <input type="text" @bind="cp_id" placeholder="Provider ID" style="width:150px" />
+                <input type="text" @bind="cp_name" placeholder="Provider Name" style="width:200px" />
+                <button @onclick="SetConsultingProvider" disabled="@(saving || string.IsNullOrWhiteSpace(cp_name))" class="btn btn-primary">Set Provider</button>
+            </div>
+        </div>
+
+        @* -- Phase 4: Interfacility -- *@
+        <div class="phase4-section">
+            <h4>Interfacility</h4>
+            <div class="inline-form">
+                <input type="text" @bind="if_id" placeholder="External Facility ID" style="width:180px" />
+                <input type="text" @bind="if_name" placeholder="External Facility Name" style="width:220px" />
+                <button @onclick="MarkInterfacility" disabled="@(saving || string.IsNullOrWhiteSpace(if_name))" class="btn btn-primary">Mark Interfacility</button>
+            </div>
+        </div>
+
+        @* -- Phase 4: Tracking Comments -- *@
+        <div class="phase4-section">
+            <h4>Tracking Comments (@trackingComments.Count)</h4>
+            @if (trackingComments.Count > 0)
+            {
+                <div class="tracking-list">
+                    @foreach (var tc in trackingComments)
+                    {
+                        <div class="tracking-entry">
+                            <span class="date">@tc.CommentDateTime.ToString("MM/dd/yyyy HH:mm")</span>
+                            <strong>@tc.AuthorName</strong>
+                            @if (!string.IsNullOrEmpty(tc.ActionTaken))
+                            {
+                                <span class="badge badge-blue">@tc.ActionTaken</span>
+                            }
+                            <div class="tracking-text">@tc.CommentText</div>
+                        </div>
+                    }
+                </div>
+            }
+            <div class="entry-form compact">
+                <div class="form-grid">
+                    <div class="form-row"><label>Author ID</label><input type="text" @bind="tc_authorId" /></div>
+                    <div class="form-row"><label>Author Name *</label><input type="text" @bind="tc_authorName" /></div>
+                    <div class="form-row"><label>Action Taken</label>
+                        <select @bind="tc_action"><option value="">--</option><option>FORWARDED</option><option>UPDATED</option><option>ACCEPTED</option><option>SCHEDULED</option><option>REVIEWED</option></select>
+                    </div>
+                    <div class="form-row full"><label>Comment *</label><textarea @bind="tc_text" rows="2"></textarea></div>
+                </div>
+                <div class="form-actions">
+                    <button @onclick="AddTrackingComment" disabled="@(saving || string.IsNullOrWhiteSpace(tc_text) || string.IsNullOrWhiteSpace(tc_authorName))" class="btn btn-primary">Add Comment</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    @* -- Accept with Details Form -- *@
+    @if (showAcceptForm)
+    {
+        <div class="consult-form">
+            <h3>Accept Consult with Details</h3>
+            <div class="form-row"><label>Accepted By ID</label><input type="text" @bind="ac_id" /></div>
+            <div class="form-row"><label>Accepted By Name *</label><input type="text" @bind="ac_name" /></div>
+            <div class="form-actions">
+                <button @onclick="AcceptWithDetails" disabled="@saving" class="btn btn-primary">Accept</button>
+                <button @onclick="() => showAcceptForm = false" class="btn btn-outline">Cancel</button>
+            </div>
+        </div>
+    }
+
+    @* -- Schedule with Details Form -- *@
+    @if (showScheduleForm)
+    {
+        <div class="consult-form">
+            <h3>Schedule Consult with Details</h3>
+            <div class="form-row"><label>Scheduled Date/Time *</label><input type="datetime-local" @bind="sc_dt" /></div>
+            <div class="form-row"><label>Clinic ID</label><input type="text" @bind="sc_clinicId" /></div>
+            <div class="form-row"><label>Clinic Name</label><input type="text" @bind="sc_clinicName" /></div>
+            <div class="form-actions">
+                <button @onclick="ScheduleWithDetails" disabled="@saving" class="btn btn-primary">Schedule</button>
+                <button @onclick="() => showScheduleForm = false" class="btn btn-outline">Cancel</button>
+            </div>
+        </div>
+    }
+}
+
+@* -- Complete Consult Form -- *@
+@if (showCompleteForm)
+{
+    <div class="consult-form">
+        <h3>Complete Consult</h3>
+        <div class="form-row">
+            <label>Author</label>
+            <input type="text" @bind="completeAuthor" placeholder="Completing provider name" />
+        </div>
+        <div class="form-row full">
+            <label>Result Note</label>
+            <textarea @bind="completeNoteText" rows="8" placeholder="Consult findings and recommendations..."></textarea>
+        </div>
+        <div class="form-actions">
+            <button @onclick="CompleteConsult" disabled="@saving" class="btn btn-primary">
+                @if (saving) { <span>Completing...</span> } else { <span>Complete Consult</span> }
+            </button>
+            <button @onclick="() => showCompleteForm = false" class="btn btn-outline">Cancel</button>
+        </div>
+    </div>
+}
+
+@* -- Consults List -- *@
+@if (consults != null && selectedConsult == null)
+{
+    @if (consults.Count == 0)
+    {
+        <div class="empty-state">No consults found for this patient.</div>
+    }
+    else
+    {
+        <div class="results-header">@consults.Count consult(s)</div>
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>Date</th>
+                    <th>To Service</th>
+                    <th>From</th>
+                    <th>Type</th>
+                    <th>Urgency</th>
+                    <th>Status</th>
+                    <th>Requesting</th>
+                    <th>Diagnosis</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var c in consults)
+                {
+                    <tr class="clickable" @onclick="() => ViewConsult(c.ConsultId)">
+                        <td class="date-cell">@c.RequestDateTime.ToString("MM/dd/yyyy")</td>
+                        <td class="service-name">@c.ToService</td>
+                        <td>@(c.FromService ?? "--")</td>
+                        <td>--</td>
+                        <td><span class="badge badge-urgency urgency-@c.Urgency.ToLowerInvariant()">@c.Urgency</span></td>
+                        <td><span class="badge badge-status @StatusClass(c.Status)">@c.Status</span></td>
+                        <td>@(c.RequestingProviderName ?? "--")</td>
+                        <td>@(c.ProvisionalDiagnosis ?? "--") @(c.HasResultDocument ? " [Note]" : "")</td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    }
+}
+
+@code {
+    [SupplyParameterFromQuery] public string? patientId { get; set; }
+
+    private List<ConsultSummary>? consults;
+    private ConsultState? selectedConsult;
+    private List<ConsultTrackingComment> trackingComments = new();
+    private bool loading, saving;
+    private bool showNewConsult, showCompleteForm, showAcceptForm, showScheduleForm;
+    private string? error, successMessage;
+
+    // New consult form
+    private string newToService = "";
+    private string? newFromService, newRequestingProvider, newAttentionProvider, newDiagnosis, newReason;
+    private string newUrgency = "ROUTINE";
+
+    // Complete consult form
+    private string completingConsultId = "";
+    private string? completeAuthor, completeNoteText;
+
+    // Phase 4 form fields
+    private string ct_type = "";
+    private string ch_history = "";
+    private string fu_rec = "";
+    private string cp_id = "", cp_name = "";
+    private string if_id = "", if_name = "";
+    private string tc_authorId = "", tc_authorName = "", tc_text = "", tc_action = "";
+    private string ac_id = "", ac_name = "";
+    private DateTime sc_dt = DateTime.Now.AddDays(7);
+    private string sc_clinicId = "", sc_clinicName = "";
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (!string.IsNullOrWhiteSpace(patientId)) await LoadConsults();
+    }
+
+    private async Task HandleKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter") await LoadConsults();
+    }
+
+    private async Task LoadConsults()
+    {
+        if (string.IsNullOrWhiteSpace(patientId)) return;
+        loading = true; error = null; successMessage = null; selectedConsult = null;
+        try
+        {
+            var grain = Grains.GetGrain<IPatientWorkflowGrain>(patientId.Trim());
+            consults = await grain.GetConsultsAsync(null, 100);
+        }
+        catch (Exception ex) { error = $"Error loading consults: {ex.Message}"; }
+        finally { loading = false; }
+    }
+
+    private async Task ViewConsult(string consultId)
+    {
+        error = null;
+        try
+        {
+            var grain = Grains.GetGrain<IPatientWorkflowGrain>(patientId!.Trim());
+            selectedConsult = await grain.GetConsultAsync(consultId);
+            showAcceptForm = false; showScheduleForm = false;
+            ct_type = selectedConsult?.ConsultType ?? "";
+            ch_history = selectedConsult?.ClinicalHistory ?? "";
+            fu_rec = selectedConsult?.FollowUpRecommendation ?? "";
+            cp_id = ""; cp_name = "";
+            if_id = ""; if_name = "";
+            tc_authorId = ""; tc_authorName = ""; tc_text = ""; tc_action = "";
+            await LoadTrackingComments(consultId);
+        }
+        catch (Exception ex) { error = $"Error loading consult: {ex.Message}"; }
+    }
+
+    private async Task LoadTrackingComments(string consultId)
+    {
+        try
+        {
+            var grain = Grains.GetGrain<IPatientWorkflowGrain>(patientId!.Trim());
+            trackingComments = await grain.GetConsultTrackingCommentsAsync(consultId) ?? new();
+        }
+        catch { trackingComments = new(); }
+    }
+
+    private void ShowNewConsultForm()
+    {
+        newToService = ""; newFromService = null; newUrgency = "ROUTINE";
+        newRequestingProvider = null; newAttentionProvider = null;
+        newDiagnosis = null; newReason = null;
+        showNewConsult = true; showCompleteForm = false;
+        selectedConsult = null; successMessage = null;
+    }
+
+    private async Task SubmitConsult()
+    {
+        if (string.IsNullOrWhiteSpace(newToService)) { error = "To Service is required."; return; }
+        saving = true; error = null;
+        try
+        {
+            var grain = Grains.GetGrain<IPatientWorkflowGrain>(patientId!.Trim());
+            await grain.RequestConsultAsync(
+                newToService, null, newFromService, null, newUrgency,
+                null, newRequestingProvider, null, newAttentionProvider,
+                newReason, newDiagnosis, null, null, null);
+            showNewConsult = false;
+            successMessage = "Consult requested successfully.";
+            await LoadConsults();
+        }
+        catch (Exception ex) { error = $"Error: {ex.Message}"; }
+        finally { saving = false; }
+    }
+
+    private void ShowCompleteForm(string consultId)
+    {
+        completingConsultId = consultId;
+        completeAuthor = null; completeNoteText = null;
+        showCompleteForm = true;
+    }
+
+    private async Task CompleteConsult()
+    {
+        saving = true; error = null;
+        try
+        {
+            var grain = Grains.GetGrain<IPatientWorkflowGrain>(patientId!.Trim());
+            await grain.CompleteConsultAsync(completingConsultId, completeNoteText, null, completeAuthor);
+            showCompleteForm = false;
+            successMessage = "Consult completed.";
+            selectedConsult = null;
+            await LoadConsults();
+        }
+        catch (Exception ex) { error = $"Error: {ex.Message}"; }
+        finally { saving = false; }
+    }
+
+    private async Task CancelConsult(string consultId)
+    {
+        error = null;
+        try
+        {
+            var grain = Grains.GetGrain<IPatientWorkflowGrain>(patientId!.Trim());
+            await grain.CancelConsultAsync(consultId, "Cancelled by user");
+            successMessage = "Consult cancelled.";
+            selectedConsult = null;
+            await LoadConsults();
+        }
+        catch (Exception ex) { error = $"Error: {ex.Message}"; }
+    }
+
+    private async Task SetConsultType()
+    {
+        saving = true; error = null;
+        try
+        {
+            var grain = Grains.GetGrain<IPatientWorkflowGrain>(patientId!.Trim());
+            await grain.SetConsultTypeAsync(selectedConsult!.ConsultId, ct_type);
+            successMessage = "Consult type set."; await ViewConsult(selectedConsult.ConsultId);
+        }
+        catch (Exception ex) { error = ex.Message; } finally { saving = false; }
+    }
+
+    private async Task SetClinicalHistory()
+    {
+        saving = true; error = null;
+        try
+        {
+            var grain = Grains.GetGrain<IPatientWorkflowGrain>(patientId!.Trim());
+            await grain.SetConsultClinicalHistoryAsync(selectedConsult!.ConsultId, ch_history);
+            successMessage = "Clinical history set."; await ViewConsult(selectedConsult.ConsultId);
+        }
+        catch (Exception ex) { error = ex.Message; } finally { saving = false; }
+    }
+
+    private async Task SetFollowUp()
+    {
+        saving = true; error = null;
+        try
+        {
+            var grain = Grains.GetGrain<IPatientWorkflowGrain>(patientId!.Trim());
+            await grain.SetConsultFollowUpRecommendationAsync(selectedConsult!.ConsultId, fu_rec);
+            successMessage = "Follow-up recommendation set."; await ViewConsult(selectedConsult.ConsultId);
+        }
+        catch (Exception ex) { error = ex.Message; } finally { saving = false; }
+    }
+
+    private async Task SetConsultingProvider()
+    {
+        saving = true; error = null;
+        try
+        {
+            var grain = Grains.GetGrain<IPatientWorkflowGrain>(patientId!.Trim());
+            await grain.SetConsultingProviderAsync(selectedConsult!.ConsultId, NullIfEmpty(cp_id) ?? "PROV-1", cp_name);
+            successMessage = "Consulting provider set."; await ViewConsult(selectedConsult.ConsultId);
+        }
+        catch (Exception ex) { error = ex.Message; } finally { saving = false; }
+    }
+
+    private async Task MarkInterfacility()
+    {
+        saving = true; error = null;
+        try
+        {
+            var grain = Grains.GetGrain<IPatientWorkflowGrain>(patientId!.Trim());
+            await grain.MarkConsultInterfacilityAsync(selectedConsult!.ConsultId, NullIfEmpty(if_id) ?? "EXT-1", if_name);
+            successMessage = "Marked as interfacility."; await ViewConsult(selectedConsult.ConsultId);
+        }
+        catch (Exception ex) { error = ex.Message; } finally { saving = false; }
+    }
+
+    private async Task AddTrackingComment()
+    {
+        saving = true; error = null;
+        try
+        {
+            var grain = Grains.GetGrain<IPatientWorkflowGrain>(patientId!.Trim());
+            await grain.AddConsultTrackingCommentAsync(selectedConsult!.ConsultId,
+                NullIfEmpty(tc_authorId) ?? "USER-1", tc_authorName, tc_text, NullIfEmpty(tc_action));
+            successMessage = "Tracking comment added.";
+            tc_text = ""; tc_action = "";
+            await LoadTrackingComments(selectedConsult.ConsultId);
+        }
+        catch (Exception ex) { error = ex.Message; } finally { saving = false; }
+    }
+
+    private async Task AcceptWithDetails()
+    {
+        if (string.IsNullOrWhiteSpace(ac_name)) { error = "Name is required."; return; }
+        saving = true; error = null;
+        try
+        {
+            var grain = Grains.GetGrain<IPatientWorkflowGrain>(patientId!.Trim());
+            await grain.AcceptConsultWithDetailsAsync(selectedConsult!.ConsultId, NullIfEmpty(ac_id) ?? "PROV-1", ac_name);
+            successMessage = "Consult accepted."; showAcceptForm = false; await ViewConsult(selectedConsult.ConsultId); await LoadConsults();
+        }
+        catch (Exception ex) { error = ex.Message; } finally { saving = false; }
+    }
+
+    private async Task ScheduleWithDetails()
+    {
+        saving = true; error = null;
+        try
+        {
+            var grain = Grains.GetGrain<IPatientWorkflowGrain>(patientId!.Trim());
+            await grain.ScheduleConsultWithDetailsAsync(selectedConsult!.ConsultId, sc_dt, NullIfEmpty(sc_clinicId), NullIfEmpty(sc_clinicName));
+            successMessage = "Consult scheduled."; showScheduleForm = false; await ViewConsult(selectedConsult.ConsultId); await LoadConsults();
+        }
+        catch (Exception ex) { error = ex.Message; } finally { saving = false; }
+    }
+
+    private static string? NullIfEmpty(string? s) => string.IsNullOrWhiteSpace(s) ? null : s;
+
+    private static string StatusClass(string status) => status switch
+    {
+        "PENDING" => "status-pending",
+        "ACTIVE" => "status-active",
+        "SCHEDULED" => "status-scheduled",
+        "COMPLETE" => "status-complete",
+        "CANCELLED" => "status-cancelled",
+        "DISCONTINUED" => "status-cancelled",
+        _ => ""
+    };
+}
+
+<style>
+    h1 { color: #003f72; margin-bottom: 1.25rem; font-size: 1.4rem; }
+    .lookup-bar { display: flex; gap: 0.5rem; margin-bottom: 1.5rem; align-items: center; }
+    .lookup-input { width: 280px; padding: 0.5rem 0.75rem; border: 1px solid #ccc; border-radius: 4px; font-size: 0.9rem; }
+    .btn { padding: 0.5rem 1.25rem; border: none; border-radius: 4px; cursor: pointer; font-size: 0.85rem; }
+    .btn-primary { background: #003f72; color: white; }
+    .btn-primary:hover { background: #002a4e; }
+    .btn-primary:disabled { background: #999; cursor: not-allowed; }
+    .btn-secondary { background: #16a34a; color: white; }
+    .btn-secondary:disabled { background: #999; cursor: not-allowed; }
+    .btn-outline { background: white; border: 1px solid #ccc; color: #333; }
+    .btn-accept { background: #16a34a; color: white; }
+    .btn-schedule { background: #2563eb; color: white; }
+    .btn-complete { background: #7c3aed; color: white; }
+    .btn-cancel-action { background: #dc2626; color: white; }
+
+    .alert { padding: 0.75rem 1rem; border-radius: 4px; margin-bottom: 1rem; font-size: 0.85rem; }
+    .alert-error { background: #fde8e8; color: #b91c1c; border: 1px solid #f5c6c6; }
+    .alert-success { background: #dcfce7; color: #166534; border: 1px solid #bbf7d0; }
+    .empty-state { color: #999; font-style: italic; padding: 2rem 0; }
+    .results-header { font-size: 0.8rem; color: #666; margin-bottom: 0.5rem; }
+
+    .data-table { width: 100%; border-collapse: collapse; font-size: 0.85rem; border: 1px solid #d4d9e0; }
+    .data-table thead { background: #f4f6f9; }
+    .data-table th { text-align: left; padding: 0.5rem; font-weight: 600; color: #003f72; border-bottom: 2px solid #d4d9e0; font-size: 0.75rem; text-transform: uppercase; }
+    .data-table td { padding: 0.4rem 0.5rem; border-bottom: 1px solid #f0f0f0; }
+    .data-table tr.clickable { cursor: pointer; }
+    .data-table tr.clickable:hover { background: #eef3f9; }
+    .date-cell { color: #888; font-size: 0.8rem; white-space: nowrap; }
+    .service-name { color: #003f72; font-weight: 500; }
+
+    .badge { padding: 2px 8px; border-radius: 3px; font-size: 0.7rem; font-weight: 600; display: inline-block; }
+    .urgency-routine { background: #dbeafe; color: #1e40af; }
+    .urgency-urgent { background: #fef3c7; color: #92400e; }
+    .urgency-stat { background: #fde8e8; color: #b91c1c; }
+    .status-pending { background: #fef3c7; color: #92400e; }
+    .status-active { background: #dbeafe; color: #1e40af; }
+    .status-scheduled { background: #e0e7ff; color: #3730a3; }
+    .status-complete { background: #dcfce7; color: #166534; }
+    .status-cancelled { background: #fde8e8; color: #b91c1c; }
+    .badge-blue { background: #dbeafe; color: #1e40af; }
+    .badge-orange { background: #fef3c7; color: #92400e; }
+    .badge-type { background: #e0e7ff; color: #3730a3; }
+
+    .consult-form { border: 1px solid #d4d9e0; border-radius: 6px; padding: 1.25rem; margin-bottom: 1.5rem; background: #f9fafb; }
+    .consult-form h3 { margin-bottom: 1rem; color: #003f72; }
+    .form-row { display: flex; flex-direction: column; gap: 0.25rem; margin-bottom: 0.75rem; max-width: 400px; }
+    .form-row.full { max-width: 100%; }
+    .form-row label { font-size: 0.8rem; font-weight: 600; color: #555; }
+    .form-row input, .form-row select { padding: 0.4rem 0.6rem; border: 1px solid #ccc; border-radius: 4px; font-size: 0.85rem; }
+    .form-row textarea { padding: 0.5rem 0.6rem; border: 1px solid #ccc; border-radius: 4px; font-size: 0.85rem; font-family: monospace; resize: vertical; }
+    .form-actions { display: flex; gap: 0.5rem; margin-top: 0.5rem; }
+
+    .consult-detail { border: 1px solid #d4d9e0; border-radius: 6px; overflow: hidden; margin-bottom: 1.5rem; }
+    .detail-header { background: #f4f6f9; padding: 0.75rem 1rem; border-bottom: 1px solid #d4d9e0; }
+    .detail-title { display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.35rem; }
+    .detail-meta { display: flex; gap: 1.5rem; font-size: 0.8rem; color: #555; margin-bottom: 0.5rem; flex-wrap: wrap; }
+    .detail-diagnosis { font-size: 0.85rem; color: #333; margin-bottom: 0.35rem; font-style: italic; }
+    .detail-reason { padding: 0.5rem 0; }
+    .detail-reason pre { white-space: pre-wrap; word-wrap: break-word; font-family: -apple-system, sans-serif; font-size: 0.85rem; margin: 0; line-height: 1.5; color: #333; }
+    .detail-actions { display: flex; gap: 0.5rem; margin-top: 0.5rem; }
+    .completion-info { padding: 0.5rem 1rem; background: #dcfce7; font-size: 0.8rem; color: #166534; border-top: 1px solid #bbf7d0; }
+
+    .phase4-section { padding: 0.75rem 1rem; border-top: 1px solid #e5e7eb; }
+    .phase4-section h4 { color: #003f72; margin-bottom: 0.5rem; font-size: 0.9rem; }
+    .inline-form { display: flex; gap: 0.5rem; align-items: flex-end; flex-wrap: wrap; }
+    .inline-form input, .inline-form select { padding: 0.4rem 0.6rem; border: 1px solid #ccc; border-radius: 4px; font-size: 0.85rem; }
+    .entry-form.compact { margin-top: 0.5rem; padding: 0.75rem; }
+    .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; }
+
+    .tracking-list { margin-bottom: 0.75rem; }
+    .tracking-entry { padding: 0.5rem; border-bottom: 1px solid #f0f0f0; font-size: 0.85rem; }
+    .tracking-entry .date { color: #888; font-size: 0.8rem; margin-right: 0.5rem; }
+    .tracking-text { margin-top: 0.25rem; color: #333; }
+</style>

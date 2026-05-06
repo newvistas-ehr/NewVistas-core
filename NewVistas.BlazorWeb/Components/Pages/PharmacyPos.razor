@@ -1,0 +1,806 @@
+﻿@* Copyright 2026 James Smyth. All rights reserved. *@
+@page "/pharmacy-pos"
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+@rendermode InteractiveServer
+@using NewVistas.BlazorWeb.Services
+@using NewVistas.Abstractions.GrainInterfaces
+@using NewVistas.Abstractions.GrainStates
+@inject OrleansGrainService Grains
+
+<h3>Pharmacy Point of Sale (POS)</h3>
+
+@if (!string.IsNullOrEmpty(error))
+{
+    <div class="alert alert-danger">@error</div>
+}
+
+@* ── Tab Bar ─────────────────────────────────────────────────────────── *@
+<ul class="nav nav-tabs mt-3">
+    <li class="nav-item"><a class="nav-link @(activeTab == 0 ? "active" : "")" @onclick="() => activeTab = 0">POS Claims</a></li>
+    <li class="nav-item"><a class="nav-link @(activeTab == 1 ? "active" : "")" @onclick="() => activeTab = 1">Claim Detail</a></li>
+    <li class="nav-item"><a class="nav-link @(activeTab == 2 ? "active" : "")" @onclick="async () => { activeTab = 2; await LoadInsurers(); }">Insurers</a></li>
+</ul>
+
+@* ── Tab 0: POS Claims ──────────────────────────────────────────────── *@
+@if (activeTab == 0)
+{
+    <div class="patient-bar">
+        <input type="text" @bind="patientId" placeholder="Patient ID" class="form-control d-inline-block" style="width:260px" />
+        <button class="btn btn-primary ms-2" @onclick="LoadClaims" disabled="@loading">Load</button>
+        <button class="btn btn-success ms-2" @onclick="() => showClaimForm = !showClaimForm">New Claim</button>
+        <select class="form-select ms-2 d-inline-block" style="width:160px" @bind="statusFilter" @bind:after="LoadClaims">
+            <option value="">All Statuses</option>
+            <option value="0">Pending</option>
+            <option value="1">Transmitted</option>
+            <option value="2">Paid</option>
+            <option value="3">Rejected</option>
+            <option value="4">Reversed</option>
+            <option value="5">DuplicatePaid</option>
+            <option value="6">PartialPay</option>
+            <option value="7">Cancelled</option>
+        </select>
+    </div>
+
+    @if (showClaimForm)
+    {
+        <div class="card mt-3 p-3">
+            <h5>Submit POS Claim</h5>
+            <div class="row g-2">
+                <div class="col-md-3">
+                    <label>Transaction Type *</label>
+                    <select class="form-select" @bind="newClaim.TransactionType">
+                        <option value="0">B1 — Billing</option>
+                        <option value="1">B2 — Reversal</option>
+                        <option value="2">B3 — Rebill</option>
+                        <option value="3">E1 — Eligibility</option>
+                        <option value="4">D1 — Downtime</option>
+                        <option value="5">P1 — Prior Auth</option>
+                    </select>
+                </div>
+                <div class="col-md-3"><label>BIN *</label><input type="text" class="form-control" @bind="newClaim.Bin" /></div>
+                <div class="col-md-3"><label>PCN *</label><input type="text" class="form-control" @bind="newClaim.Pcn" /></div>
+                <div class="col-md-3"><label>NCPDP Version *</label><input type="text" class="form-control" @bind="newClaim.NcpdpVersion" /></div>
+            </div>
+            <div class="row g-2 mt-2">
+                <div class="col-md-3"><label>Prescription ID</label><input type="text" class="form-control" @bind="newClaim.PrescriptionId" /></div>
+                <div class="col-md-3"><label>Group Number</label><input type="text" class="form-control" @bind="newClaim.GroupNumber" /></div>
+                <div class="col-md-3"><label>Cardholder ID</label><input type="text" class="form-control" @bind="newClaim.CardholderId" /></div>
+                <div class="col-md-3"><label>Relationship Code</label><input type="text" class="form-control" @bind="newClaim.RelationshipCode" /></div>
+            </div>
+            <div class="row g-2 mt-2">
+                <div class="col-md-3"><label>Insurer ID</label><input type="text" class="form-control" @bind="newClaim.InsurerId" /></div>
+                <div class="col-md-3"><label>Insurer Name</label><input type="text" class="form-control" @bind="newClaim.InsurerName" /></div>
+                <div class="col-md-3"><label>NDC</label><input type="text" class="form-control" @bind="newClaim.Ndc" /></div>
+                <div class="col-md-3"><label>Drug Name</label><input type="text" class="form-control" @bind="newClaim.DrugName" /></div>
+            </div>
+            <div class="row g-2 mt-2">
+                <div class="col-md-2"><label>Qty Dispensed</label><input type="number" step="0.001" class="form-control" @bind="newClaim.QuantityDispensed" /></div>
+                <div class="col-md-2"><label>Days Supply</label><input type="number" class="form-control" @bind="newClaim.DaysSupply" /></div>
+                <div class="col-md-2"><label>Date of Service</label><input type="date" class="form-control" @bind="newClaim.DateOfService" /></div>
+                <div class="col-md-2"><label>Ingredient Cost</label><input type="number" step="0.01" class="form-control" @bind="newClaim.IngredientCostSubmitted" /></div>
+                <div class="col-md-2"><label>Dispensing Fee</label><input type="number" step="0.01" class="form-control" @bind="newClaim.DispensingFeeSubmitted" /></div>
+                <div class="col-md-2"><label>U&amp;C</label><input type="number" step="0.01" class="form-control" @bind="newClaim.UsualAndCustomary" /></div>
+            </div>
+            <div class="row g-2 mt-2">
+                <div class="col-md-3"><label>Pharmacy NCPDP ID</label><input type="text" class="form-control" @bind="newClaim.PharmacyNcpdpId" /></div>
+                <div class="col-md-3"><label>Pharmacist Name</label><input type="text" class="form-control" @bind="newClaim.PharmacistName" /></div>
+                <div class="col-md-3"><label>Prescriber NPI</label><input type="text" class="form-control" @bind="newClaim.PrescriberNpi" /></div>
+                <div class="col-md-3"><label>Prescriber Name</label><input type="text" class="form-control" @bind="newClaim.PrescriberName" /></div>
+            </div>
+            <div class="row g-2 mt-2">
+                <div class="col-md-4"><label>Original Claim ID (for B2 reversal)</label><input type="text" class="form-control" @bind="newClaim.OriginalClaimId" /></div>
+            </div>
+            <button class="btn btn-primary mt-3" @onclick="SubmitClaim">Submit Claim</button>
+        </div>
+    }
+
+    @if (loading)
+    {
+        <div class="spinner-border mt-3" role="status"><span class="visually-hidden">Loading...</span></div>
+    }
+    else if (claims != null)
+    {
+        <table class="table table-striped mt-3">
+            <thead>
+                <tr>
+                    <th>Date of Service</th>
+                    <th>Drug</th>
+                    <th>Type</th>
+                    <th>Status</th>
+                    <th>Insurer</th>
+                    <th>Ins Paid</th>
+                    <th>Patient Resp</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var c in claims)
+                {
+                    <tr>
+                        <td>@c.DateOfService?.ToString("MM/dd/yyyy")</td>
+                        <td>@c.DrugName</td>
+                        <td><span class="badge bg-info">@TxTypeName(c.TransactionType)</span></td>
+                        <td><span class="badge @StatusBadge(c.Status)">@StatusName(c.Status)</span></td>
+                        <td>@c.InsurerName</td>
+                        <td>@FormatCurrency(c.InsurancePaidAmount)</td>
+                        <td>@FormatCurrency(c.PatientResponsibility)</td>
+                        <td>
+                            <button class="btn btn-sm btn-outline-primary" @onclick="() => SelectClaim(c.ClaimId)">View</button>
+                            @if (c.Status == 0)
+                            {
+                                <button class="btn btn-sm btn-outline-warning ms-1" @onclick="() => ShowAdjudicateForm(c.ClaimId)">Adjudicate</button>
+                            }
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    }
+
+    @if (showAdjudicateForm)
+    {
+        <div class="card mt-3 p-3">
+            <h5>Adjudicate Claim: @adjudicateClaimId</h5>
+            <div class="row g-2">
+                <div class="col-md-3">
+                    <label>Status *</label>
+                    <select class="form-select" @bind="adjReq.Status">
+                        <option value="2">Paid</option>
+                        <option value="3">Rejected</option>
+                        <option value="5">DuplicatePaid</option>
+                        <option value="6">PartialPay</option>
+                    </select>
+                </div>
+                <div class="col-md-3"><label>Insurance Paid</label><input type="number" step="0.01" class="form-control" @bind="adjReq.InsurancePaidAmount" /></div>
+                <div class="col-md-3"><label>Patient Responsibility</label><input type="number" step="0.01" class="form-control" @bind="adjReq.PatientResponsibility" /></div>
+                <div class="col-md-3"><label>Authorization #</label><input type="text" class="form-control" @bind="adjReq.AuthorizationNumber" /></div>
+            </div>
+            <div class="row g-2 mt-2">
+                <div class="col-md-3"><label>Copay</label><input type="number" step="0.01" class="form-control" @bind="adjReq.CopayAmount" /></div>
+                <div class="col-md-3"><label>Coinsurance</label><input type="number" step="0.01" class="form-control" @bind="adjReq.CoinsuranceAmount" /></div>
+                <div class="col-md-3"><label>Deductible</label><input type="number" step="0.01" class="form-control" @bind="adjReq.DeductibleAmount" /></div>
+            </div>
+            <button class="btn btn-primary mt-3" @onclick="AdjudicateClaim">Submit Adjudication</button>
+            <button class="btn btn-secondary mt-3 ms-2" @onclick="() => showAdjudicateForm = false">Cancel</button>
+        </div>
+    }
+}
+
+@* ── Tab 1: Claim Detail ────────────────────────────────────────────── *@
+@if (activeTab == 1)
+{
+    <div class="mt-3">
+        @if (selectedClaim == null)
+        {
+            <div class="alert alert-info">Select a claim from the POS Claims tab to view details.</div>
+        }
+        else
+        {
+            <h5>Claim @selectedClaim.ClaimId — <span class="badge @StatusBadge((int)selectedClaim.Status)">@selectedClaim.Status</span></h5>
+
+            @* NCPDP Header *@
+            <div class="card p-3 mb-3">
+                <h6>NCPDP Header</h6>
+                <div class="row">
+                    <div class="col-md-3"><strong>Transaction Type:</strong> @selectedClaim.TransactionType</div>
+                    <div class="col-md-3"><strong>BIN:</strong> @selectedClaim.Bin</div>
+                    <div class="col-md-3"><strong>PCN:</strong> @selectedClaim.Pcn</div>
+                    <div class="col-md-3"><strong>Version:</strong> @selectedClaim.NcpdpVersion</div>
+                </div>
+                <div class="row mt-2">
+                    <div class="col-md-3"><strong>Pharmacy NCPDP:</strong> @selectedClaim.PharmacyNcpdpId</div>
+                    <div class="col-md-3"><strong>Pharmacist:</strong> @selectedClaim.PharmacistName</div>
+                    <div class="col-md-3"><strong>Prescriber NPI:</strong> @selectedClaim.PrescriberNpi</div>
+                    <div class="col-md-3"><strong>Prescriber:</strong> @selectedClaim.PrescriberName</div>
+                </div>
+                @if (!string.IsNullOrEmpty(selectedClaim.OriginalClaimId))
+                {
+                    <div class="row mt-2">
+                        <div class="col-md-6"><strong>Original Claim ID:</strong> @selectedClaim.OriginalClaimId</div>
+                    </div>
+                }
+            </div>
+
+            @* Insurance Segment *@
+            <div class="card p-3 mb-3">
+                <h6>Insurance</h6>
+                <div class="row">
+                    <div class="col-md-3"><strong>Insurer:</strong> @selectedClaim.InsurerName</div>
+                    <div class="col-md-3"><strong>Group #:</strong> @selectedClaim.GroupNumber</div>
+                    <div class="col-md-3"><strong>Cardholder ID:</strong> @selectedClaim.CardholderId</div>
+                    <div class="col-md-3"><strong>Relationship:</strong> @selectedClaim.RelationshipCode</div>
+                </div>
+            </div>
+
+            @* Drug / Prescription Segment *@
+            <div class="card p-3 mb-3">
+                <h6>Drug / Prescription</h6>
+                <div class="row">
+                    <div class="col-md-3"><strong>NDC:</strong> @selectedClaim.Ndc</div>
+                    <div class="col-md-3"><strong>Drug:</strong> @selectedClaim.DrugName</div>
+                    <div class="col-md-3"><strong>Qty Dispensed:</strong> @selectedClaim.QuantityDispensed</div>
+                    <div class="col-md-3"><strong>Days Supply:</strong> @selectedClaim.DaysSupply</div>
+                </div>
+                <div class="row mt-2">
+                    <div class="col-md-3"><strong>Date of Service:</strong> @selectedClaim.DateOfService?.ToString("MM/dd/yyyy")</div>
+                    <div class="col-md-3"><strong>Prescription ID:</strong> @selectedClaim.PrescriptionId</div>
+                </div>
+            </div>
+
+            @* Pricing Segment *@
+            <div class="card p-3 mb-3">
+                <h6>Pricing</h6>
+                <div class="row">
+                    <div class="col-md-3"><strong>Ingredient Cost:</strong> @FormatCurrency(selectedClaim.IngredientCostSubmitted)</div>
+                    <div class="col-md-3"><strong>Dispensing Fee:</strong> @FormatCurrency(selectedClaim.DispensingFeeSubmitted)</div>
+                    <div class="col-md-3"><strong>U&amp;C:</strong> @FormatCurrency(selectedClaim.UsualAndCustomary)</div>
+                    <div class="col-md-3"><strong>Gross Due:</strong> @FormatCurrency(selectedClaim.GrossAmountDue)</div>
+                </div>
+            </div>
+
+            @* Response / Adjudication *@
+            <div class="card p-3 mb-3">
+                <h6>Response / Adjudication</h6>
+                <div class="row">
+                    <div class="col-md-3"><strong>Insurance Paid:</strong> @FormatCurrency(selectedClaim.InsurancePaidAmount)</div>
+                    <div class="col-md-3"><strong>Patient Resp:</strong> @FormatCurrency(selectedClaim.PatientResponsibility)</div>
+                    <div class="col-md-3"><strong>Copay:</strong> @FormatCurrency(selectedClaim.CopayAmount)</div>
+                    <div class="col-md-3"><strong>Auth #:</strong> @selectedClaim.AuthorizationNumber</div>
+                </div>
+                <div class="row mt-2">
+                    <div class="col-md-3"><strong>Coinsurance:</strong> @FormatCurrency(selectedClaim.CoinsuranceAmount)</div>
+                    <div class="col-md-3"><strong>Deductible:</strong> @FormatCurrency(selectedClaim.DeductibleAmount)</div>
+                </div>
+            </div>
+
+            @* Rejections *@
+            @if (selectedClaim.Rejections != null && selectedClaim.Rejections.Count > 0)
+            {
+                <div class="card p-3 mb-3">
+                    <h6>Rejections</h6>
+                    <table class="table table-sm table-bordered">
+                        <thead class="table-light">
+                            <tr><th>Code</th><th>Description</th><th>Category</th></tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var rej in selectedClaim.Rejections)
+                            {
+                                <tr>
+                                    <td>@rej.Code</td>
+                                    <td>@rej.Description</td>
+                                    <td>@rej.Category</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            }
+
+            @* DUR Messages *@
+            @if (selectedClaim.DurMessages != null && selectedClaim.DurMessages.Count > 0)
+            {
+                <div class="card p-3 mb-3">
+                    <h6>DUR Messages</h6>
+                    <table class="table table-sm table-bordered">
+                        <thead class="table-light">
+                            <tr><th>Reason Code</th><th>Level</th><th>Significance</th><th>Conflicting NDC</th><th>Message</th></tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var dur in selectedClaim.DurMessages)
+                            {
+                                <tr>
+                                    <td>@dur.ReasonCode</td>
+                                    <td><span class="badge @DurBadge(dur.Level)">@DurLevelName(dur.Level)</span></td>
+                                    <td>@dur.ClinicalSignificance</td>
+                                    <td>@dur.ConflictingDrugNdc</td>
+                                    <td>@dur.Message</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            }
+
+            <div class="mt-2 text-muted">
+                <small>Created: @selectedClaim.CreatedDate.ToString("MM/dd/yyyy HH:mm") | Last Modified: @selectedClaim.LastModifiedDate.ToString("MM/dd/yyyy HH:mm")</small>
+            </div>
+        }
+    </div>
+}
+
+@* ── Tab 2: Insurers ────────────────────────────────────────────────── *@
+@if (activeTab == 2)
+{
+    <div class="mt-3">
+        <button class="btn btn-success btn-sm mb-2" @onclick="() => showInsurerForm = !showInsurerForm">Add / Edit Insurer</button>
+
+        @if (showInsurerForm)
+        {
+            <div class="card p-3 mb-3">
+                <h6>@(string.IsNullOrEmpty(newInsurer.InsurerId) ? "New Insurer" : "Edit Insurer")</h6>
+                <div class="row g-2">
+                    <div class="col-md-3"><label>Insurer ID *</label><input type="text" class="form-control" @bind="newInsurer.InsurerId" /></div>
+                    <div class="col-md-3"><label>Insurer Name *</label><input type="text" class="form-control" @bind="newInsurer.InsurerName" /></div>
+                    <div class="col-md-3"><label>BIN *</label><input type="text" class="form-control" @bind="newInsurer.Bin" /></div>
+                    <div class="col-md-3"><label>PCN *</label><input type="text" class="form-control" @bind="newInsurer.Pcn" /></div>
+                </div>
+                <div class="row g-2 mt-2">
+                    <div class="col-md-3"><label>NCPDP Version</label><input type="text" class="form-control" @bind="newInsurer.NcpdpVersion" /></div>
+                    <div class="col-md-3"><label>Pharmacy NCPDP ID</label><input type="text" class="form-control" @bind="newInsurer.PharmacyNcpdpId" /></div>
+                    <div class="col-md-3"><label>Svc Provider ID Qualifier</label><input type="text" class="form-control" @bind="newInsurer.ServiceProviderIdQualifier" /></div>
+                    <div class="col-md-3"><label>Plan Name</label><input type="text" class="form-control" @bind="newInsurer.PlanName" /></div>
+                </div>
+                <div class="row g-2 mt-2">
+                    <div class="col-md-3"><label>Help Desk Phone</label><input type="text" class="form-control" @bind="newInsurer.HelpDeskPhone" /></div>
+                    <div class="col-md-3">
+                        <label>Active</label>
+                        <select class="form-select" @bind="newInsurer.IsActive">
+                            <option value="true">Yes</option>
+                            <option value="false">No</option>
+                        </select>
+                    </div>
+                </div>
+                <button class="btn btn-primary mt-3" @onclick="SaveInsurer">Save Insurer</button>
+            </div>
+        }
+
+        @if (loadingInsurers)
+        {
+            <div class="spinner-border mt-3" role="status"><span class="visually-hidden">Loading...</span></div>
+        }
+        else if (insurers != null)
+        {
+            <table class="table table-striped mt-3">
+                <thead>
+                    <tr>
+                        <th>Insurer ID</th>
+                        <th>Name</th>
+                        <th>BIN</th>
+                        <th>PCN</th>
+                        <th>Active</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var ins in insurers)
+                    {
+                        <tr>
+                            <td>@ins.InsurerId</td>
+                            <td>@ins.InsurerName</td>
+                            <td>@ins.Bin</td>
+                            <td>@ins.Pcn</td>
+                            <td>
+                                @if (ins.IsActive)
+                                {
+                                    <span class="badge bg-success">Active</span>
+                                }
+                                else
+                                {
+                                    <span class="badge bg-secondary">Inactive</span>
+                                }
+                            </td>
+                            <td>
+                                <button class="btn btn-sm btn-outline-primary" @onclick="() => EditInsurer(ins)">Edit</button>
+                                @if (ins.IsActive)
+                                {
+                                    <button class="btn btn-sm btn-outline-danger ms-1" @onclick="() => DeactivateInsurer(ins.InsurerId)">Deactivate</button>
+                                }
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        }
+    </div>
+}
+
+<style>
+    .patient-bar { display: flex; align-items: center; margin-top: 16px; flex-wrap: wrap; }
+    .badge { font-size: 0.8em; }
+</style>
+
+@code {
+    private string patientId = "";
+    private string? error;
+    private bool loading;
+    private bool loadingInsurers;
+    private int activeTab;
+    private bool showClaimForm;
+    private bool showAdjudicateForm;
+    private bool showInsurerForm;
+    private string statusFilter = "";
+
+    private List<ClaimIndexDto>? claims;
+    private ClaimDetailDto? selectedClaim;
+    private string adjudicateClaimId = "";
+    private AdjudicateForm adjReq = new();
+
+    private List<InsurerIndexDto>? insurers;
+
+    private NewClaimForm newClaim = new();
+    private InsurerForm newInsurer = new();
+
+    private IPatientWorkflowGrain GetWorkflow() =>
+        Grains.GetGrain<IPatientWorkflowGrain>(patientId.Trim());
+
+    private IPharmacyPosInsurerIndexGrain GetInsurerIndex() =>
+        Grains.GetGrain<IPharmacyPosInsurerIndexGrain>("POS-INSURER-IDX");
+
+    private IPharmacyPosInsurerGrain GetInsurerGrain(string insurerId) =>
+        Grains.GetGrain<IPharmacyPosInsurerGrain>($"POS-INSURER:{insurerId}");
+
+    private static string Esc(string id) => Uri.EscapeDataString(id.Trim());
+
+    private static string FormatCurrency(decimal? value) =>
+        value.HasValue ? value.Value.ToString("C2") : "";
+
+    private static string TxTypeName(int txType) => txType switch
+    {
+        0 => "B1",
+        1 => "B2",
+        2 => "B3",
+        3 => "E1",
+        4 => "D1",
+        5 => "P1",
+        _ => "?"
+    };
+
+    private static string StatusName(int status) => status switch
+    {
+        0 => "Pending",
+        1 => "Transmitted",
+        2 => "Paid",
+        3 => "Rejected",
+        4 => "Reversed",
+        5 => "DuplicatePaid",
+        6 => "PartialPay",
+        7 => "Cancelled",
+        _ => "Unknown"
+    };
+
+    private static string StatusBadge(int status) => status switch
+    {
+        0 => "bg-warning text-dark",
+        1 => "bg-info",
+        2 => "bg-success",
+        3 => "bg-danger",
+        4 => "bg-secondary",
+        5 => "bg-success",
+        6 => "bg-warning text-dark",
+        7 => "bg-secondary",
+        _ => "bg-secondary"
+    };
+
+    private static string DurBadge(int level) => level switch
+    {
+        0 => "bg-info",
+        1 => "bg-warning text-dark",
+        2 => "bg-danger",
+        _ => "bg-secondary"
+    };
+
+    private static string DurLevelName(int level) => level switch
+    {
+        0 => "Info",
+        1 => "Warning",
+        2 => "Critical",
+        _ => "Unknown"
+    };
+
+    private async Task LoadClaims()
+    {
+        if (string.IsNullOrWhiteSpace(patientId)) return;
+        error = null;
+        loading = true;
+        try
+        {
+            List<PosClaimIndexEntry> entries;
+            if (!string.IsNullOrEmpty(statusFilter) && int.TryParse(statusFilter, out int s))
+                entries = await GetWorkflow().GetPosClaimsByStatusAsync((PosClaimStatus)s);
+            else
+                entries = await GetWorkflow().GetPosClaimsAsync();
+            claims = entries.Select(e => new ClaimIndexDto
+            {
+                ClaimId = e.ClaimId, PatientId = e.PatientId, TransactionType = (int)e.TransactionType,
+                Status = (int)e.Status, DrugName = e.DrugName, DateOfService = e.DateOfService,
+                InsurancePaidAmount = e.InsurancePaidAmount, PatientResponsibility = e.PatientResponsibility,
+                InsurerName = e.InsurerName
+            }).ToList();
+        }
+        catch (Exception ex) { error = ex.Message; }
+        finally { loading = false; }
+    }
+
+    private async Task SelectClaim(string claimId)
+    {
+        if (string.IsNullOrWhiteSpace(claimId)) return;
+        error = null;
+        try
+        {
+            PharmacyPosClaimState state = await GetWorkflow().GetPosClaimAsync(claimId);
+            selectedClaim = new ClaimDetailDto
+            {
+                ClaimId = state.ClaimId, PatientId = state.PatientId, PrescriptionId = state.PrescriptionId,
+                TransactionType = (int)state.TransactionType, Status = (int)state.Status,
+                Bin = state.Bin, Pcn = state.Pcn, NcpdpVersion = state.NcpdpVersion,
+                GroupNumber = state.GroupNumber, CardholderId = state.CardholderId,
+                RelationshipCode = state.RelationshipCode, InsurerId = state.InsurerId,
+                InsurerName = state.InsurerName, Ndc = state.Ndc, DrugName = state.DrugName,
+                QuantityDispensed = state.QuantityDispensed, DaysSupply = state.DaysSupply,
+                DateOfService = state.DateOfService, IngredientCostSubmitted = state.IngredientCostSubmitted,
+                DispensingFeeSubmitted = state.DispensingFeeSubmitted, UsualAndCustomary = state.UsualAndCustomary,
+                GrossAmountDue = state.GrossAmountDue, InsurancePaidAmount = state.InsurancePaidAmount,
+                PatientResponsibility = state.PatientResponsibility, CopayAmount = state.CopayAmount,
+                CoinsuranceAmount = state.CoinsuranceAmount, DeductibleAmount = state.DeductibleAmount,
+                AuthorizationNumber = state.AuthorizationNumber,
+                PharmacyNcpdpId = state.PharmacyNcpdpId, PharmacistName = state.PharmacistName,
+                PrescriberNpi = state.PrescriberNpi, PrescriberName = state.PrescriberName,
+                OriginalClaimId = state.OriginalClaimId,
+                CreatedDate = state.CreatedDate, LastModifiedDate = state.LastModifiedDate,
+                Rejections = state.Rejections.Select(r => new RejectionDto { Code = r.Code, Description = r.Description, Category = r.Category }).ToList(),
+                DurMessages = state.DurMessages.Select(d => new DurMessageDto { ReasonCode = d.ReasonCode, ClinicalSignificance = d.ClinicalSignificance, ConflictingDrugNdc = d.ConflictingDrugNdc, Level = (int)d.Level, Message = d.Message }).ToList()
+            };
+            activeTab = 1;
+        }
+        catch (Exception ex) { error = ex.Message; }
+    }
+
+    private void ShowAdjudicateForm(string claimId)
+    {
+        adjudicateClaimId = claimId;
+        adjReq = new();
+        showAdjudicateForm = true;
+    }
+
+    private async Task SubmitClaim()
+    {
+        if (string.IsNullOrWhiteSpace(patientId)) return;
+        error = null;
+        try
+        {
+            await GetWorkflow().SubmitPosClaimAsync(
+                string.IsNullOrEmpty(newClaim.PrescriptionId) ? null : newClaim.PrescriptionId,
+                (NcpdpTransactionType)newClaim.TransactionType,
+                newClaim.Bin, newClaim.Pcn, newClaim.NcpdpVersion,
+                string.IsNullOrEmpty(newClaim.GroupNumber) ? null : newClaim.GroupNumber,
+                string.IsNullOrEmpty(newClaim.CardholderId) ? null : newClaim.CardholderId,
+                string.IsNullOrEmpty(newClaim.RelationshipCode) ? null : newClaim.RelationshipCode,
+                string.IsNullOrEmpty(newClaim.InsurerId) ? null : newClaim.InsurerId,
+                string.IsNullOrEmpty(newClaim.InsurerName) ? null : newClaim.InsurerName,
+                string.IsNullOrEmpty(newClaim.Ndc) ? null : newClaim.Ndc,
+                string.IsNullOrEmpty(newClaim.DrugName) ? null : newClaim.DrugName,
+                newClaim.QuantityDispensed, newClaim.DaysSupply, newClaim.DateOfService,
+                newClaim.IngredientCostSubmitted, newClaim.DispensingFeeSubmitted, newClaim.UsualAndCustomary,
+                string.IsNullOrEmpty(newClaim.PharmacyNcpdpId) ? null : newClaim.PharmacyNcpdpId,
+                string.IsNullOrEmpty(newClaim.PharmacistName) ? null : newClaim.PharmacistName,
+                string.IsNullOrEmpty(newClaim.PrescriberNpi) ? null : newClaim.PrescriberNpi,
+                string.IsNullOrEmpty(newClaim.PrescriberName) ? null : newClaim.PrescriberName,
+                string.IsNullOrEmpty(newClaim.OriginalClaimId) ? null : newClaim.OriginalClaimId);
+            showClaimForm = false;
+            newClaim = new();
+            await LoadClaims();
+        }
+        catch (Exception ex) { error = ex.Message; }
+    }
+
+    private async Task AdjudicateClaim()
+    {
+        if (string.IsNullOrWhiteSpace(adjudicateClaimId)) return;
+        error = null;
+        try
+        {
+            await GetWorkflow().AdjudicatePosClaimAsync(
+                adjudicateClaimId, (PosClaimStatus)adjReq.Status,
+                adjReq.InsurancePaidAmount, adjReq.PatientResponsibility,
+                adjReq.CopayAmount, adjReq.CoinsuranceAmount, adjReq.DeductibleAmount,
+                string.IsNullOrEmpty(adjReq.AuthorizationNumber) ? null : adjReq.AuthorizationNumber,
+                null, null);
+            showAdjudicateForm = false;
+            adjReq = new();
+            await LoadClaims();
+        }
+        catch (Exception ex) { error = ex.Message; }
+    }
+
+    private async Task LoadInsurers()
+    {
+        error = null;
+        loadingInsurers = true;
+        try
+        {
+            List<PosInsurerIndexEntry> entries = await GetInsurerIndex().GetAllAsync();
+            insurers = entries.Select(e => new InsurerIndexDto
+            {
+                InsurerId = e.InsurerId, InsurerName = e.InsurerName,
+                Bin = e.Bin, Pcn = e.Pcn, IsActive = e.IsActive
+            }).ToList();
+        }
+        catch (Exception ex) { error = ex.Message; }
+        finally { loadingInsurers = false; }
+    }
+
+    private void EditInsurer(InsurerIndexDto ins)
+    {
+        newInsurer = new InsurerForm
+        {
+            InsurerId = ins.InsurerId,
+            InsurerName = ins.InsurerName,
+            Bin = ins.Bin,
+            Pcn = ins.Pcn,
+            IsActive = ins.IsActive,
+        };
+        showInsurerForm = true;
+    }
+
+    private async Task SaveInsurer()
+    {
+        error = null;
+        try
+        {
+            var grain = GetInsurerGrain(newInsurer.InsurerId);
+            await grain.SaveAsync(
+                newInsurer.InsurerName, newInsurer.Bin, newInsurer.Pcn,
+                string.IsNullOrEmpty(newInsurer.NcpdpVersion) ? "D0" : newInsurer.NcpdpVersion,
+                string.IsNullOrEmpty(newInsurer.PharmacyNcpdpId) ? null : newInsurer.PharmacyNcpdpId,
+                string.IsNullOrEmpty(newInsurer.ServiceProviderIdQualifier) ? null : newInsurer.ServiceProviderIdQualifier,
+                string.IsNullOrEmpty(newInsurer.PlanName) ? null : newInsurer.PlanName,
+                string.IsNullOrEmpty(newInsurer.HelpDeskPhone) ? null : newInsurer.HelpDeskPhone,
+                newInsurer.IsActive);
+            showInsurerForm = false;
+            newInsurer = new();
+            await LoadInsurers();
+        }
+        catch (Exception ex) { error = ex.Message; }
+    }
+
+    private async Task DeactivateInsurer(string insurerId)
+    {
+        error = null;
+        try
+        {
+            await GetInsurerGrain(insurerId).DeactivateAsync();
+            await LoadInsurers();
+        }
+        catch (Exception ex) { error = ex.Message; }
+    }
+
+    // ── DTOs ────────────────────────────────────────────────────────────
+
+    class ClaimIndexDto
+    {
+        public string ClaimId { get; set; } = "";
+        public string PatientId { get; set; } = "";
+        public int TransactionType { get; set; }
+        public int Status { get; set; }
+        public string? DrugName { get; set; }
+        public DateTime? DateOfService { get; set; }
+        public decimal? InsurancePaidAmount { get; set; }
+        public decimal? PatientResponsibility { get; set; }
+        public string? InsurerName { get; set; }
+    }
+
+    class ClaimDetailDto
+    {
+        public string ClaimId { get; set; } = "";
+        public string PatientId { get; set; } = "";
+        public string? PrescriptionId { get; set; }
+        public int TransactionType { get; set; }
+        public int Status { get; set; }
+        // NCPDP Header
+        public string Bin { get; set; } = "";
+        public string Pcn { get; set; } = "";
+        public string NcpdpVersion { get; set; } = "";
+        // Insurance
+        public string? GroupNumber { get; set; }
+        public string? CardholderId { get; set; }
+        public string? RelationshipCode { get; set; }
+        public string? InsurerId { get; set; }
+        public string? InsurerName { get; set; }
+        // Drug
+        public string? Ndc { get; set; }
+        public string? DrugName { get; set; }
+        public decimal? QuantityDispensed { get; set; }
+        public int? DaysSupply { get; set; }
+        public DateTime? DateOfService { get; set; }
+        // Pricing
+        public decimal? IngredientCostSubmitted { get; set; }
+        public decimal? DispensingFeeSubmitted { get; set; }
+        public decimal? UsualAndCustomary { get; set; }
+        public decimal? GrossAmountDue { get; set; }
+        // Response
+        public decimal? InsurancePaidAmount { get; set; }
+        public decimal? PatientResponsibility { get; set; }
+        public decimal? CopayAmount { get; set; }
+        public decimal? CoinsuranceAmount { get; set; }
+        public decimal? DeductibleAmount { get; set; }
+        public string? AuthorizationNumber { get; set; }
+        public List<RejectionDto> Rejections { get; set; } = new();
+        public List<DurMessageDto> DurMessages { get; set; } = new();
+        // Provider
+        public string? PharmacyNcpdpId { get; set; }
+        public string? PharmacistName { get; set; }
+        public string? PrescriberNpi { get; set; }
+        public string? PrescriberName { get; set; }
+        public string? OriginalClaimId { get; set; }
+        // Audit
+        public DateTime CreatedDate { get; set; }
+        public DateTime LastModifiedDate { get; set; }
+    }
+
+    class RejectionDto
+    {
+        public string Code { get; set; } = "";
+        public string Description { get; set; } = "";
+        public string? Category { get; set; }
+    }
+
+    class DurMessageDto
+    {
+        public string ReasonCode { get; set; } = "";
+        public string? ClinicalSignificance { get; set; }
+        public string? ConflictingDrugNdc { get; set; }
+        public int Level { get; set; }
+        public string? Message { get; set; }
+    }
+
+    class InsurerIndexDto
+    {
+        public string InsurerId { get; set; } = "";
+        public string InsurerName { get; set; } = "";
+        public string Bin { get; set; } = "";
+        public string Pcn { get; set; } = "";
+        public bool IsActive { get; set; }
+    }
+
+    class NewClaimForm
+    {
+        public int TransactionType { get; set; }
+        public string Bin { get; set; } = "";
+        public string Pcn { get; set; } = "";
+        public string NcpdpVersion { get; set; } = "D0";
+        public string? PrescriptionId { get; set; }
+        public string? GroupNumber { get; set; }
+        public string? CardholderId { get; set; }
+        public string? RelationshipCode { get; set; }
+        public string? InsurerId { get; set; }
+        public string? InsurerName { get; set; }
+        public string? Ndc { get; set; }
+        public string? DrugName { get; set; }
+        public decimal? QuantityDispensed { get; set; }
+        public int? DaysSupply { get; set; }
+        public DateTime? DateOfService { get; set; }
+        public decimal? IngredientCostSubmitted { get; set; }
+        public decimal? DispensingFeeSubmitted { get; set; }
+        public decimal? UsualAndCustomary { get; set; }
+        public string? PharmacyNcpdpId { get; set; }
+        public string? PharmacistName { get; set; }
+        public string? PrescriberNpi { get; set; }
+        public string? PrescriberName { get; set; }
+        public string? OriginalClaimId { get; set; }
+    }
+
+    class AdjudicateForm
+    {
+        public int Status { get; set; } = 2;
+        public decimal? InsurancePaidAmount { get; set; }
+        public decimal? PatientResponsibility { get; set; }
+        public decimal? CopayAmount { get; set; }
+        public decimal? CoinsuranceAmount { get; set; }
+        public decimal? DeductibleAmount { get; set; }
+        public string? AuthorizationNumber { get; set; }
+    }
+
+    class InsurerForm
+    {
+        public string InsurerId { get; set; } = "";
+        public string InsurerName { get; set; } = "";
+        public string Bin { get; set; } = "";
+        public string Pcn { get; set; } = "";
+        public string NcpdpVersion { get; set; } = "D0";
+        public string? PharmacyNcpdpId { get; set; }
+        public string? ServiceProviderIdQualifier { get; set; }
+        public string? PlanName { get; set; }
+        public string? HelpDeskPhone { get; set; }
+        public bool IsActive { get; set; } = true;
+    }
+}

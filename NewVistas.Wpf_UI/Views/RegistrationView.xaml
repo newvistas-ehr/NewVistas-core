@@ -1,0 +1,212 @@
+<UserControl x:Class="NewVistas.Wpf_UI.Views.RegistrationView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <ScrollViewer>
+        <StackPanel Margin="16">
+
+            <TextBlock Text="Registration" Style="{StaticResource PageTitle}"/>
+
+            <ProgressBar IsIndeterminate="True" Height="4" Margin="0,0,0,8"
+                         Visibility="{Binding IsLoading, Converter={StaticResource BoolToVisibility}}"/>
+            <TextBlock Text="{Binding Error}" Style="{StaticResource ErrorText}"
+                       Visibility="{Binding Error, Converter={StaticResource NullToVisibility}}"/>
+
+            <!-- Patient search -->
+            <StackPanel Orientation="Horizontal" Margin="0,0,0,12">
+                <TextBox Width="200" Text="{Binding PatientId, UpdateSourceTrigger=PropertyChanged}"
+                         Margin="0,0,8,0"/>
+                <Button Content="Load Patient" Style="{StaticResource PrimaryButton}"
+                        Command="{Binding LoadCommand}"/>
+            </StackPanel>
+
+            <TabControl SelectedIndex="{Binding SelectedTab}">
+
+                <!-- ── Tab: Enrollment ── -->
+                <TabItem Header="Enrollment">
+                    <Grid Margin="8">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="280"/>
+                        </Grid.ColumnDefinitions>
+
+                        <!-- Left: enrollment summary -->
+                        <StackPanel Grid.Column="0" Margin="0,0,16,0"
+                                    Visibility="{Binding Loaded, Converter={StaticResource BoolToVisibility}}">
+                            <TextBlock Text="Enrollment Record" Style="{StaticResource SectionHeader}"/>
+                            <Border Style="{StaticResource FormPanel}">
+                                <StackPanel>
+                                    <TextBlock Text="Status" Style="{StaticResource FieldLabel}"/>
+                                    <TextBlock Text="{Binding Enrollment.EnrollmentStatus}" FontWeight="SemiBold"/>
+                                    <TextBlock Text="Enrollment Date" Style="{StaticResource FieldLabel}"/>
+                                    <TextBlock Text="{Binding Enrollment.EnrollmentDate, StringFormat=d}"/>
+                                    <TextBlock Text="Priority Group" Style="{StaticResource FieldLabel}"/>
+                                    <TextBlock Text="{Binding Enrollment.PriorityGroup}"/>
+                                    <TextBlock Text="Means Test Status" Style="{StaticResource FieldLabel}"/>
+                                    <TextBlock Text="{Binding Enrollment.MeansTestStatus}"/>
+                                    <TextBlock Text="Last Changed By" Style="{StaticResource FieldLabel}"/>
+                                    <TextBlock Text="{Binding Enrollment.LastChangedByUserId}"/>
+                                    <TextBlock Text="Last Changed" Style="{StaticResource FieldLabel}"/>
+                                    <TextBlock Text="{Binding Enrollment.LastModifiedDate, StringFormat=d}"/>
+                                </StackPanel>
+                            </Border>
+                        </StackPanel>
+
+                        <!-- Right: update enrollment form -->
+                        <StackPanel Grid.Column="1">
+                            <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+                                <TextBlock Text="Update Status" Style="{StaticResource SectionHeader}" Margin="0"/>
+                                <Button Content="Edit" Style="{StaticResource SecondaryButton}" Margin="8,0,0,0"
+                                        Command="{Binding ToggleEnrollmentFormCommand}"/>
+                            </StackPanel>
+                            <Border Style="{StaticResource FormPanel}"
+                                    Visibility="{Binding ShowEnrollmentForm, Converter={StaticResource BoolToVisibility}}">
+                                <StackPanel>
+                                    <TextBlock Text="New Status *" Style="{StaticResource FieldLabel}"/>
+                                    <ComboBox ItemsSource="{Binding EnrollmentStatuses}"
+                                              SelectedItem="{Binding NewEnrollmentStatus}"/>
+                                    <TextBlock Text="Changed By User ID" Style="{StaticResource FieldLabel}"/>
+                                    <TextBox Text="{Binding ChangedByUserId}"/>
+                                    <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
+                                        <Button Content="Update" Style="{StaticResource PrimaryButton}"
+                                                Command="{Binding UpdateEnrollmentStatusCommand}" Margin="0,0,8,0"/>
+                                        <Button Content="Cancel" Style="{StaticResource SecondaryButton}"
+                                                Command="{Binding ToggleEnrollmentFormCommand}"/>
+                                    </StackPanel>
+                                </StackPanel>
+                            </Border>
+                        </StackPanel>
+                    </Grid>
+                </TabItem>
+
+                <!-- ── Tab: PRF Flags ── -->
+                <TabItem Header="PRF Flags">
+                    <Grid Margin="8">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="280"/>
+                        </Grid.ColumnDefinitions>
+
+                        <!-- Left: active flags -->
+                        <StackPanel Grid.Column="0" Margin="0,0,16,0">
+                            <TextBlock Text="Active PRF Flag Assignments" Style="{StaticResource SectionHeader}"/>
+                            <DataGrid ItemsSource="{Binding PrfFlags}" MaxHeight="320" AutoGenerateColumns="False">
+                                <DataGrid.Columns>
+                                    <DataGridTextColumn Header="Flag Name" Binding="{Binding FlagName}" Width="180"/>
+                                    <DataGridTextColumn Header="Type" Binding="{Binding FlagType}" Width="80"/>
+                                    <DataGridTextColumn Header="Assigned" Binding="{Binding AssignedDate, StringFormat=d}" Width="90"/>
+                                    <DataGridTextColumn Header="Assigned By" Binding="{Binding AssignedByUserName}" Width="130"/>
+                                    <DataGridTextColumn Header="Narrative" Binding="{Binding Narrative}" Width="200"/>
+                                </DataGrid.Columns>
+                            </DataGrid>
+                        </StackPanel>
+
+                        <!-- Right: assign flag form -->
+                        <StackPanel Grid.Column="1">
+                            <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+                                <TextBlock Text="Assign Flag" Style="{StaticResource SectionHeader}" Margin="0"/>
+                                <Button Content="+ New" Style="{StaticResource SecondaryButton}" Margin="8,0,0,0"
+                                        Command="{Binding ToggleFlagFormCommand}"/>
+                            </StackPanel>
+                            <Border Style="{StaticResource FormPanel}"
+                                    Visibility="{Binding ShowFlagForm, Converter={StaticResource BoolToVisibility}}">
+                                <StackPanel>
+                                    <TextBlock Text="Flag Name *" Style="{StaticResource FieldLabel}"/>
+                                    <ComboBox ItemsSource="{Binding NationalFlagNames}"
+                                              SelectedItem="{Binding FlagName}"/>
+                                    <TextBlock Text="Assigned By User ID" Style="{StaticResource FieldLabel}"/>
+                                    <TextBox Text="{Binding AssignedByUserId}"/>
+                                    <TextBlock Text="Assigned By Name" Style="{StaticResource FieldLabel}"/>
+                                    <TextBox Text="{Binding AssignedByUserName}"/>
+                                    <TextBlock Text="Narrative" Style="{StaticResource FieldLabel}"/>
+                                    <TextBox Text="{Binding FlagNarrative}" TextWrapping="Wrap" Height="60" AcceptsReturn="True"/>
+                                    <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
+                                        <Button Content="Assign" Style="{StaticResource PrimaryButton}"
+                                                Command="{Binding AssignFlagCommand}" Margin="0,0,8,0"/>
+                                        <Button Content="Cancel" Style="{StaticResource SecondaryButton}"
+                                                Command="{Binding ToggleFlagFormCommand}"/>
+                                    </StackPanel>
+                                </StackPanel>
+                            </Border>
+                        </StackPanel>
+                    </Grid>
+                </TabItem>
+
+                <!-- ── Tab: MST History ── -->
+                <TabItem Header="MST History">
+                    <Grid Margin="8">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="280"/>
+                        </Grid.ColumnDefinitions>
+
+                        <!-- Left: MST screenings list -->
+                        <StackPanel Grid.Column="0" Margin="0,0,16,0"
+                                    Visibility="{Binding Loaded, Converter={StaticResource BoolToVisibility}}">
+                            <TextBlock Text="MST Screening History" Style="{StaticResource SectionHeader}"/>
+                            <Border Style="{StaticResource FormPanel}" Margin="0,0,0,8">
+                                <StackPanel>
+                                    <TextBlock Text="Current Status" Style="{StaticResource FieldLabel}"/>
+                                    <TextBlock Text="{Binding MstHistory.CurrentStatus}" FontWeight="SemiBold"/>
+                                    <TextBlock Text="Last Screened" Style="{StaticResource FieldLabel}"/>
+                                    <TextBlock Text="{Binding MstHistory.LastScreeningDate, StringFormat=d}"/>
+                                </StackPanel>
+                            </Border>
+                            <DataGrid ItemsSource="{Binding MstHistory.Screenings}" MaxHeight="260" AutoGenerateColumns="False">
+                                <DataGrid.Columns>
+                                    <DataGridTextColumn Header="Date" Binding="{Binding ScreeningDate, StringFormat=d}" Width="100"/>
+                                    <DataGridTextColumn Header="Status" Binding="{Binding Status}" Width="100"/>
+                                    <DataGridTextColumn Header="Screened By" Binding="{Binding ScreenedByUserName}" Width="140"/>
+                                    <DataGridTextColumn Header="Facility" Binding="{Binding FacilityId}" Width="80"/>
+                                </DataGrid.Columns>
+                            </DataGrid>
+                        </StackPanel>
+
+                        <!-- Right: record screening form -->
+                        <StackPanel Grid.Column="1">
+                            <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+                                <TextBlock Text="Record Screening" Style="{StaticResource SectionHeader}" Margin="0"/>
+                                <Button Content="+ New" Style="{StaticResource SecondaryButton}" Margin="8,0,0,0"
+                                        Command="{Binding ToggleMstFormCommand}"/>
+                            </StackPanel>
+                            <Border Style="{StaticResource FormPanel}"
+                                    Visibility="{Binding ShowMstForm, Converter={StaticResource BoolToVisibility}}">
+                                <StackPanel>
+                                    <TextBlock Text="MST Status *" Style="{StaticResource FieldLabel}"/>
+                                    <ComboBox ItemsSource="{Binding MstStatuses}"
+                                              SelectedItem="{Binding MstStatus}"/>
+                                    <TextBlock Text="Screened By User ID" Style="{StaticResource FieldLabel}"/>
+                                    <TextBox Text="{Binding ScreenedByUserId}"/>
+                                    <TextBlock Text="Screened By Name" Style="{StaticResource FieldLabel}"/>
+                                    <TextBox Text="{Binding ScreenedByUserName}"/>
+                                    <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
+                                        <Button Content="Record" Style="{StaticResource PrimaryButton}"
+                                                Command="{Binding RecordMstScreeningCommand}" Margin="0,0,8,0"/>
+                                        <Button Content="Cancel" Style="{StaticResource SecondaryButton}"
+                                                Command="{Binding ToggleMstFormCommand}"/>
+                                    </StackPanel>
+                                </StackPanel>
+                            </Border>
+                        </StackPanel>
+                    </Grid>
+                </TabItem>
+
+                <!-- ── Tab: Relations ── -->
+                <TabItem Header="Relations">
+                    <StackPanel Margin="8">
+                        <TextBlock Text="Patient Relations" Style="{StaticResource SectionHeader}"/>
+                        <DataGrid ItemsSource="{Binding Relations}" MaxHeight="400" AutoGenerateColumns="False">
+                            <DataGrid.Columns>
+                                <DataGridTextColumn Header="Relationship" Binding="{Binding RelationshipType}" Width="130"/>
+                                <DataGridTextColumn Header="Name" Binding="{Binding Name}" Width="160"/>
+                                <DataGridTextColumn Header="Phone" Binding="{Binding Phone}" Width="120"/>
+                                <DataGridTextColumn Header="Emergency Contact" Binding="{Binding IsEmergencyContact}" Width="130"/>
+                                <DataGridTextColumn Header="Primary" Binding="{Binding IsPrimary}" Width="70"/>
+                            </DataGrid.Columns>
+                        </DataGrid>
+                    </StackPanel>
+                </TabItem>
+
+            </TabControl>
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>

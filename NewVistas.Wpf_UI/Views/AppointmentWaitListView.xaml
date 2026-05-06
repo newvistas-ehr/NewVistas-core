@@ -1,0 +1,116 @@
+<UserControl x:Class="NewVistas.Wpf_UI.Views.AppointmentWaitListView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <ScrollViewer VerticalScrollBarVisibility="Auto">
+        <StackPanel Margin="24">
+            <TextBlock Style="{StaticResource PageTitle}" Text="Appointment Wait List"/>
+
+            <!-- Feature disabled banner -->
+            <Border Background="#FFF3CD" BorderBrush="#FFC107" BorderThickness="1" CornerRadius="3"
+                    Padding="12,8" Margin="0,0,0,12"
+                    Visibility="{Binding IsFeatureEnabled, Converter={StaticResource InverseBoolToVisibility}}">
+                <TextBlock Text="Appointment Wait List is not currently enabled for this site."
+                           Foreground="#856404" FontSize="13"/>
+            </Border>
+
+            <!-- Error / Success -->
+            <TextBlock Style="{StaticResource ErrorText}" Text="{Binding Error}"
+                       Visibility="{Binding Error, Converter={StaticResource NullToVisibility}}"/>
+            <TextBlock Foreground="{StaticResource VaSuccessBrush}" FontSize="13" Margin="0,0,0,8"
+                       Text="{Binding SuccessMessage}"
+                       Visibility="{Binding SuccessMessage, Converter={StaticResource NullToVisibility}}"/>
+
+            <!-- Actions -->
+            <StackPanel Orientation="Horizontal" Margin="0,0,0,12">
+                <Button Content="Load" Style="{StaticResource PrimaryButton}"
+                        Command="{Binding LoadCommand}" Margin="0,0,8,0"/>
+                <Button Content="Add to Wait List" Style="{StaticResource SecondaryButton}"
+                        Command="{Binding ToggleNewFormCommand}" Margin="0,0,8,0"/>
+                <ProgressBar IsIndeterminate="True" Width="120" Height="20"
+                             Visibility="{Binding IsLoading, Converter={StaticResource BoolToVisibility}}"/>
+            </StackPanel>
+
+            <!-- New Wait List Entry Form -->
+            <Border Background="{StaticResource VaLightBlueBrush}" BorderBrush="{StaticResource VaBorderBrush}"
+                    BorderThickness="1" CornerRadius="4" Padding="16" Margin="0,0,0,16"
+                    Visibility="{Binding ShowNewForm, Converter={StaticResource BoolToVisibility}}">
+                <StackPanel>
+                    <TextBlock Style="{StaticResource SectionHeader}" Text="Add to Wait List"/>
+
+                    <Grid Margin="0,8,0,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="140"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                        </Grid.RowDefinitions>
+
+                        <TextBlock Grid.Row="0" Grid.Column="0" Text="Clinic ID:*" VerticalAlignment="Center" Margin="0,0,0,6"/>
+                        <TextBox Grid.Row="0" Grid.Column="1" Text="{Binding ClinicId, UpdateSourceTrigger=PropertyChanged}" Margin="0,0,0,6" Width="200" HorizontalAlignment="Left"/>
+
+                        <TextBlock Grid.Row="1" Grid.Column="0" Text="Clinic Name:*" VerticalAlignment="Center" Margin="0,0,0,6"/>
+                        <TextBox Grid.Row="1" Grid.Column="1" Text="{Binding ClinicName, UpdateSourceTrigger=PropertyChanged}" Margin="0,0,0,6" Width="300" HorizontalAlignment="Left"/>
+
+                        <TextBlock Grid.Row="2" Grid.Column="0" Text="Appt Type:" VerticalAlignment="Center" Margin="0,0,0,6"/>
+                        <ComboBox Grid.Row="2" Grid.Column="1" SelectedItem="{Binding AppointmentType}" Margin="0,0,0,6" Width="200" HorizontalAlignment="Left">
+                            <ComboBoxItem Content="FOLLOW-UP" IsSelected="True"/>
+                            <ComboBoxItem Content="NEW PATIENT"/>
+                            <ComboBoxItem Content="PROCEDURE"/>
+                            <ComboBoxItem Content="CONSULT"/>
+                        </ComboBox>
+
+                        <TextBlock Grid.Row="3" Grid.Column="0" Text="Priority:" VerticalAlignment="Center" Margin="0,0,0,6"/>
+                        <ComboBox Grid.Row="3" Grid.Column="1" SelectedItem="{Binding Priority}" Margin="0,0,0,6" Width="200" HorizontalAlignment="Left">
+                            <ComboBoxItem Content="ROUTINE" IsSelected="True"/>
+                            <ComboBoxItem Content="URGENT"/>
+                            <ComboBoxItem Content="STAT"/>
+                        </ComboBox>
+
+                        <TextBlock Grid.Row="4" Grid.Column="0" Text="Preferred Provider:" VerticalAlignment="Center" Margin="0,0,0,6"/>
+                        <TextBox Grid.Row="4" Grid.Column="1" Text="{Binding PreferredProvider, UpdateSourceTrigger=PropertyChanged}" Margin="0,0,0,6" Width="300" HorizontalAlignment="Left"/>
+
+                        <TextBlock Grid.Row="5" Grid.Column="0" Text="Desired Start:" VerticalAlignment="Center" Margin="0,0,0,6"/>
+                        <DatePicker Grid.Row="5" Grid.Column="1" SelectedDate="{Binding DesiredStart}" Margin="0,0,0,6" Width="200" HorizontalAlignment="Left"/>
+
+                        <TextBlock Grid.Row="6" Grid.Column="0" Text="Desired End:" VerticalAlignment="Center" Margin="0,0,0,6"/>
+                        <DatePicker Grid.Row="6" Grid.Column="1" SelectedDate="{Binding DesiredEnd}" Margin="0,0,0,6" Width="200" HorizontalAlignment="Left"/>
+
+                        <TextBlock Grid.Row="7" Grid.Column="0" Text="Comments:" VerticalAlignment="Top" Margin="0,0,0,6"/>
+                        <TextBox Grid.Row="7" Grid.Column="1" Text="{Binding Comments, UpdateSourceTrigger=PropertyChanged}"
+                                 Margin="0,0,0,6" Width="300" Height="60" AcceptsReturn="True"
+                                 TextWrapping="Wrap" VerticalScrollBarVisibility="Auto" HorizontalAlignment="Left"/>
+                    </Grid>
+
+                    <Button Content="Add to Wait List" Style="{StaticResource PrimaryButton}"
+                            Command="{Binding AddToWaitListCommand}" Margin="0,8,0,0"
+                            HorizontalAlignment="Left"/>
+                </StackPanel>
+            </Border>
+
+            <!-- Entries DataGrid -->
+            <TextBlock Style="{StaticResource SectionHeader}" Text="Wait List Entries"/>
+            <DataGrid ItemsSource="{Binding Entries}" AutoGenerateColumns="False"
+                      IsReadOnly="True" MaxHeight="400">
+                <DataGrid.Columns>
+                    <DataGridTextColumn Header="Clinic" Binding="{Binding ClinicName}" Width="160"/>
+                    <DataGridTextColumn Header="Type" Binding="{Binding DesiredAppointmentType}" Width="120"/>
+                    <DataGridTextColumn Header="Priority" Binding="{Binding Priority}" Width="90"/>
+                    <DataGridTextColumn Header="Status" Binding="{Binding Status}" Width="100"/>
+                    <DataGridTextColumn Header="Wait Date" Binding="{Binding WaitListDate, StringFormat=d}" Width="110"/>
+                    <DataGridTextColumn Header="Desired Start" Binding="{Binding DesiredDateRangeStart, StringFormat=d}" Width="110"/>
+                    <DataGridTextColumn Header="Desired End" Binding="{Binding DesiredDateRangeEnd, StringFormat=d}" Width="110"/>
+                    <DataGridTextColumn Header="Provider" Binding="{Binding PreferredProviderName}" Width="140"/>
+                    <DataGridTextColumn Header="Offers" Binding="{Binding OfferCount}" Width="60"/>
+                </DataGrid.Columns>
+            </DataGrid>
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>

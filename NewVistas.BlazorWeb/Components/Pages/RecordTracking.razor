@@ -1,0 +1,432 @@
+@page "/record-tracking"
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+@rendermode InteractiveServer
+@using NewVistas.BlazorWeb.Services
+@using NewVistas.Abstractions.GrainInterfaces
+@using NewVistas.Abstractions.GrainStates
+@inject OrleansGrainService Grains
+
+<PageTitle>Record Tracking</PageTitle>
+
+<h2>Record Tracking</h2>
+<p class="subtitle">Paper chart location tracking — VistA File #190 (RTOUT.m / RTIN.m)</p>
+
+@if (error != null)
+{
+    <div class="alert-error">@error</div>
+}
+
+<div class="tab-bar">
+    <button class="@TabClass(1)" @onclick="() => activeTab = 1">Chart Locator</button>
+    <button class="@TabClass(2)" @onclick="() => activeTab = 2">Request Queue</button>
+    <button class="@TabClass(3)" @onclick="() => activeTab = 3">Dashboard</button>
+</div>
+
+<!-- ── Tab 1: Chart Locator ─────────────────────────────────────────────── -->
+@if (activeTab == 1)
+{
+    <div class="panel">
+        <div class="filter-bar">
+            <button class="@FilterClass("all")" @onclick='() => SetChartFilter("all")'>All Charts</button>
+            <button class="@FilterClass("checkedout")" @onclick='() => SetChartFilter("checkedout")'>Checked Out</button>
+            <button class="@FilterClass("overdue")" @onclick='() => SetChartFilter("overdue")'>Overdue</button>
+            <button class="@FilterClass("onrequest")" @onclick='() => SetChartFilter("onrequest")'>On Request</button>
+            <button class="@FilterClass("lost")" @onclick='() => SetChartFilter("lost")'>Lost</button>
+        </div>
+
+        @if (loadingCharts)
+        {
+            <p>Loading charts...</p>
+        }
+        else if (charts.Count == 0)
+        {
+            <p class="empty-state">No charts found for the selected filter.</p>
+        }
+        else
+        {
+            <table>
+                <thead>
+                    <tr>
+                        <th>Patient</th>
+                        <th>Chart #</th>
+                        <th>Current Location</th>
+                        <th>Status</th>
+                        <th>Borrower</th>
+                        <th>Expected Return</th>
+                        <th>Vols</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (ChartIndexEntry c in charts)
+                    {
+                        <tr class="@ChartRowClass(c)">
+                            <td>@c.PatientName</td>
+                            <td>@c.ChartNumber</td>
+                            <td><span class="badge @LocationBadgeClass(c.CurrentLocationType)">@c.CurrentLocationType</span></td>
+                            <td>
+                                @if (c.IsLost) { <span class="badge danger">LOST</span> }
+                                else if (c.IsCheckedOut) { <span class="badge warning">Checked Out</span> }
+                                else { <span class="badge success">In File Room</span> }
+                                @if (c.IsOnRequest) { <span class="badge info">On Request</span> }
+                            </td>
+                            <td>@c.CurrentBorrowerName</td>
+                            <td class="@(IsOverdue(c) ? "overdue-text" : "")">
+                                @(c.ExpectedReturnDate.HasValue ? c.ExpectedReturnDate.Value.ToLocalTime().ToString("MM/dd/yyyy") : "—")
+                            </td>
+                            <td>@c.VolumeCount</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        }
+    </div>
+}
+
+<!-- ── Tab 2: Request Queue ──────────────────────────────────────────────── -->
+@if (activeTab == 2)
+{
+    <div class="panel">
+        <div class="filter-bar">
+            <button class="@ReqFilterClass("pending")" @onclick='() => SetRequestFilter("pending")'>Pending</button>
+            <button class="@ReqFilterClass("urgent")" @onclick='() => SetRequestFilter("urgent")'>Urgent / STAT</button>
+            <button class="@ReqFilterClass("all")" @onclick='() => SetRequestFilter("all")'>All Requests</button>
+        </div>
+
+        @if (loadingRequests)
+        {
+            <p>Loading requests...</p>
+        }
+        else if (requests.Count == 0)
+        {
+            <p class="empty-state">No requests found.</p>
+        }
+        else
+        {
+            <table>
+                <thead>
+                    <tr>
+                        <th>Patient</th>
+                        <th>Requested By</th>
+                        <th>Deliver To</th>
+                        <th>Type</th>
+                        <th>Priority</th>
+                        <th>Needed By</th>
+                        <th>Status</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (ChartRequestIndexEntry r in requests)
+                    {
+                        <tr>
+                            <td>@r.PatientName</td>
+                            <td>@r.RequestedByName</td>
+                            <td>@r.RequestedForLocation</td>
+                            <td>@r.RequestType</td>
+                            <td><span class="badge @PriorityBadgeClass(r.Priority)">@r.Priority</span></td>
+                            <td>@r.NeededBy.ToLocalTime().ToString("MM/dd/yyyy HH:mm")</td>
+                            <td><span class="badge @RequestStatusBadgeClass(r.Status)">@r.Status</span></td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        }
+    </div>
+}
+
+<!-- ── Tab 3: Dashboard ──────────────────────────────────────────────────── -->
+@if (activeTab == 3)
+{
+    <div class="panel">
+        @if (loadingDashboard)
+        {
+            <p>Loading dashboard...</p>
+        }
+        else if (dashboard != null)
+        {
+            <div class="dashboard-grid">
+                <div class="stat-card">
+                    <div class="stat-value">@dashboard.TotalCharts</div>
+                    <div class="stat-label">Total Charts</div>
+                </div>
+                <div class="stat-card warning">
+                    <div class="stat-value">@dashboard.CheckedOut</div>
+                    <div class="stat-label">Checked Out</div>
+                </div>
+                <div class="stat-card danger">
+                    <div class="stat-value">@dashboard.Overdue</div>
+                    <div class="stat-label">Overdue</div>
+                </div>
+                <div class="stat-card info">
+                    <div class="stat-value">@dashboard.OnRequest</div>
+                    <div class="stat-label">On Request</div>
+                </div>
+                <div class="stat-card danger">
+                    <div class="stat-value">@dashboard.Lost</div>
+                    <div class="stat-label">Lost Charts</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value">@dashboard.PendingRequests</div>
+                    <div class="stat-label">Pending Requests</div>
+                </div>
+                <div class="stat-card danger">
+                    <div class="stat-value">@dashboard.StatRequests</div>
+                    <div class="stat-label">STAT Requests</div>
+                </div>
+            </div>
+        }
+    </div>
+}
+
+@code {
+    private int activeTab = 3;
+    private string chartFilter = "all";
+    private string requestFilter = "pending";
+    private string? error;
+
+    private bool loadingCharts = false;
+    private bool loadingRequests = false;
+    private bool loadingDashboard = false;
+
+    private List<ChartIndexEntry> charts = new();
+    private List<ChartRequestIndexEntry> requests = new();
+    private DashboardData? dashboard;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadDashboard();
+    }
+
+    private string TabClass(int tab) => tab == activeTab ? "tab-btn active" : "tab-btn";
+    private string FilterClass(string f) => f == chartFilter ? "filter-btn active" : "filter-btn";
+    private string ReqFilterClass(string f) => f == requestFilter ? "filter-btn active" : "filter-btn";
+
+    private async Task SetChartFilter(string filter)
+    {
+        chartFilter = filter;
+        await LoadCharts();
+    }
+
+    private async Task SetRequestFilter(string filter)
+    {
+        requestFilter = filter;
+        await LoadRequests();
+    }
+
+    private async Task LoadCharts()
+    {
+        loadingCharts = true;
+        error = null;
+        try
+        {
+            var chIdx = Grains.GetGrain<IChartIndexGrain>("RT-CHART-IDX");
+            var rawCharts = chartFilter switch
+            {
+                "checkedout" => await chIdx.GetCheckedOutChartsAsync(),
+                "overdue" => await chIdx.GetOverdueChartsAsync(),
+                "onrequest" => await chIdx.GetChartsOnRequestAsync(),
+                "lost" => await chIdx.GetLostChartsAsync(),
+                _ => await chIdx.GetAllChartsAsync()
+            };
+            charts = rawCharts.Select(c => new ChartIndexEntry
+            {
+                PatientId = c.PatientId, PatientName = c.PatientName,
+                ChartNumber = c.ChartNumber, CurrentLocation = c.CurrentLocation,
+                CurrentLocationType = (ChartLocationType)(int)c.CurrentLocationType,
+                IsCheckedOut = c.IsCheckedOut, IsOnRequest = c.IsOnRequest, IsLost = c.IsLost,
+                CheckOutDate = c.CheckOutDate, CurrentBorrowerName = c.CurrentBorrowerName,
+                ExpectedReturnDate = c.ExpectedReturnDate, VolumeCount = c.VolumeCount
+            }).ToList();
+        }
+        catch
+        {
+            error = "Failed to load charts.";
+        }
+        finally { loadingCharts = false; }
+    }
+
+    private async Task LoadRequests()
+    {
+        loadingRequests = true;
+        error = null;
+        try
+        {
+            var reqIdx = Grains.GetGrain<IChartRequestIndexGrain>("RT-REQUEST-IDX");
+            var rawReqs = requestFilter switch
+            {
+                "pending" => await reqIdx.GetPendingRequestsAsync(),
+                "urgent" => await reqIdx.GetUrgentRequestsAsync(),
+                _ => await reqIdx.GetAllRequestsAsync()
+            };
+            requests = rawReqs.Select(r => new ChartRequestIndexEntry
+            {
+                RequestId = r.RequestId, PatientId = r.PatientId, PatientName = r.PatientName,
+                RequestedByName = r.RequestedByName, RequestDate = r.RequestDate,
+                NeededBy = r.NeededBy, Priority = (ChartRequestPriority)(int)r.Priority,
+                Status = (ChartRequestStatus)(int)r.Status,
+                RequestedForLocation = r.RequestedForLocation,
+                RequestType = (ChartRequestType)(int)r.RequestType
+            }).ToList();
+        }
+        catch
+        {
+            error = "Failed to load requests.";
+        }
+        finally { loadingRequests = false; }
+    }
+
+    private async Task LoadDashboard()
+    {
+        loadingDashboard = true;
+        error = null;
+        try
+        {
+            var dashChIdx = Grains.GetGrain<IChartIndexGrain>("RT-CHART-IDX");
+            var dashReqIdx = Grains.GetGrain<IChartRequestIndexGrain>("RT-REQUEST-IDX");
+            var allCharts = await dashChIdx.GetAllChartsAsync();
+            var pendingReqs = await dashReqIdx.GetPendingRequestsAsync();
+            var urgentReqs = await dashReqIdx.GetUrgentRequestsAsync();
+            dashboard = new DashboardData
+            {
+                TotalCharts = allCharts.Count,
+                CheckedOut = allCharts.Count(c => c.IsCheckedOut),
+                Overdue = allCharts.Count(c => c.IsCheckedOut && c.ExpectedReturnDate.HasValue && c.ExpectedReturnDate.Value < DateTime.UtcNow),
+                OnRequest = allCharts.Count(c => c.IsOnRequest),
+                Lost = allCharts.Count(c => c.IsLost),
+                PendingRequests = pendingReqs.Count,
+                StatRequests = urgentReqs.Count
+            };
+        }
+        catch
+        {
+            error = "Failed to load dashboard.";
+        }
+        finally { loadingDashboard = false; }
+    }
+
+    private bool IsOverdue(ChartIndexEntry c) =>
+        c.IsCheckedOut && c.ExpectedReturnDate.HasValue && c.ExpectedReturnDate.Value < DateTime.UtcNow;
+
+    private string ChartRowClass(ChartIndexEntry c)
+    {
+        if (c.IsLost) return "row-danger";
+        if (IsOverdue(c)) return "row-warning";
+        return string.Empty;
+    }
+
+    private string LocationBadgeClass(ChartLocationType t) => t switch
+    {
+        ChartLocationType.FileRoom => "success",
+        ChartLocationType.Lost => "danger",
+        ChartLocationType.Destroyed => "danger",
+        _ => "info"
+    };
+
+    private string PriorityBadgeClass(ChartRequestPriority p) => p switch
+    {
+        ChartRequestPriority.STAT => "danger",
+        ChartRequestPriority.Urgent => "warning",
+        _ => "info"
+    };
+
+    private string RequestStatusBadgeClass(ChartRequestStatus s) => s switch
+    {
+        ChartRequestStatus.Delivered => "success",
+        ChartRequestStatus.Cancelled => "secondary",
+        ChartRequestStatus.NotFound => "danger",
+        ChartRequestStatus.InTransit => "warning",
+        ChartRequestStatus.Pulled => "info",
+        _ => "secondary"
+    };
+
+    // ── Response DTOs ──────────────────────────────────────────────────────────
+
+    private class ChartIndexEntry
+    {
+        public string PatientId { get; set; } = string.Empty;
+        public string PatientName { get; set; } = string.Empty;
+        public string ChartNumber { get; set; } = string.Empty;
+        public string CurrentLocation { get; set; } = string.Empty;
+        public ChartLocationType CurrentLocationType { get; set; }
+        public bool IsCheckedOut { get; set; }
+        public bool IsOnRequest { get; set; }
+        public bool IsLost { get; set; }
+        public DateTime? CheckOutDate { get; set; }
+        public string CurrentBorrowerName { get; set; } = string.Empty;
+        public DateTime? ExpectedReturnDate { get; set; }
+        public int VolumeCount { get; set; }
+    }
+
+    private class ChartRequestIndexEntry
+    {
+        public string RequestId { get; set; } = string.Empty;
+        public string PatientId { get; set; } = string.Empty;
+        public string PatientName { get; set; } = string.Empty;
+        public string RequestedByName { get; set; } = string.Empty;
+        public DateTime RequestDate { get; set; }
+        public DateTime NeededBy { get; set; }
+        public ChartRequestPriority Priority { get; set; }
+        public ChartRequestStatus Status { get; set; }
+        public string RequestedForLocation { get; set; } = string.Empty;
+        public ChartRequestType RequestType { get; set; }
+    }
+
+    private class DashboardData
+    {
+        public int TotalCharts { get; set; }
+        public int CheckedOut { get; set; }
+        public int Overdue { get; set; }
+        public int OnRequest { get; set; }
+        public int Lost { get; set; }
+        public int PendingRequests { get; set; }
+        public int StatRequests { get; set; }
+    }
+
+    private enum ChartLocationType
+    {
+        FileRoom, ClinicOutpatient, InpatientWard, ProviderOffice,
+        ROI, Scanning, Radiology, Lab, Administrative, Lost, Destroyed, Other
+    }
+
+    private enum ChartRequestPriority { Routine, Urgent, STAT }
+
+    private enum ChartRequestStatus { Pending, Pulled, InTransit, Delivered, NotFound, Cancelled }
+
+    private enum ChartRequestType
+    {
+        PatientCare, ROI, Research, Administrative, Legal, QualityReview, Other
+    }
+}
+
+<style>
+    .subtitle { color: #666; margin-top: -0.5rem; margin-bottom: 1rem; }
+    .tab-bar { display: flex; gap: 0.5rem; margin-bottom: 1rem; flex-wrap: wrap; }
+    .tab-btn { padding: 0.5rem 1rem; border: 1px solid #ccc; background: #f5f5f5; cursor: pointer; border-radius: 4px; }
+    .tab-btn.active { background: #1976d2; color: white; border-color: #1976d2; }
+    .filter-bar { display: flex; gap: 0.5rem; margin-bottom: 1rem; flex-wrap: wrap; }
+    .filter-btn { padding: 0.4rem 0.8rem; border: 1px solid #ccc; background: #f9f9f9; cursor: pointer; border-radius: 4px; font-size: 0.875rem; }
+    .filter-btn.active { background: #e3f2fd; border-color: #1976d2; color: #1976d2; font-weight: bold; }
+    .panel { background: white; border: 1px solid #e0e0e0; border-radius: 6px; padding: 1.5rem; }
+    table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
+    th { background: #f5f5f5; padding: 0.6rem 0.8rem; text-align: left; border-bottom: 2px solid #ddd; }
+    td { padding: 0.5rem 0.8rem; border-bottom: 1px solid #eee; }
+    .row-danger td { background-color: #fff3f3; }
+    .row-warning td { background-color: #fffde7; }
+    .badge { padding: 2px 8px; border-radius: 12px; font-size: 0.75rem; font-weight: bold; margin-right: 3px; }
+    .badge.success { background: #e8f5e9; color: #2e7d32; }
+    .badge.warning { background: #fff8e1; color: #f57f17; }
+    .badge.danger { background: #ffebee; color: #c62828; }
+    .badge.info { background: #e3f2fd; color: #1565c0; }
+    .badge.secondary { background: #f5f5f5; color: #616161; }
+    .overdue-text { color: #c62828; font-weight: bold; }
+    .empty-state { color: #888; font-style: italic; padding: 2rem 0; text-align: center; }
+    .alert-error { background: #ffebee; border: 1px solid #ef9a9a; color: #c62828; padding: 0.75rem 1rem; border-radius: 4px; margin-bottom: 1rem; }
+    .dashboard-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 1rem; }
+    .stat-card { background: #f9f9f9; border: 1px solid #e0e0e0; border-radius: 8px; padding: 1.5rem 1rem; text-align: center; }
+    .stat-card.warning { border-color: #f9a825; background: #fff8e1; }
+    .stat-card.danger { border-color: #ef9a9a; background: #ffebee; }
+    .stat-card.info { border-color: #90caf9; background: #e3f2fd; }
+    .stat-value { font-size: 2rem; font-weight: bold; color: #1976d2; }
+    .stat-card.warning .stat-value { color: #f57f17; }
+    .stat-card.danger .stat-value { color: #c62828; }
+    .stat-label { font-size: 0.875rem; color: #555; margin-top: 0.25rem; }
+</style>

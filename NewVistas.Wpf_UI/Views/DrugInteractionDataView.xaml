@@ -1,0 +1,37 @@
+<UserControl x:Class="NewVistas.Wpf_UI.Views.DrugInteractionDataView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <ScrollViewer VerticalScrollBarVisibility="Auto">
+        <StackPanel Margin="24">
+            <TextBlock Style="{StaticResource PageTitle}" Text="Drug Interaction Dataset"/>
+            <TextBlock Style="{StaticResource ErrorText}" Text="{Binding Error}"
+                       Visibility="{Binding Error, Converter={StaticResource NullToVisibility}}"/>
+
+            <StackPanel Orientation="Horizontal" Margin="0,0,0,12">
+                <Button Content="Refresh Status" Style="{StaticResource PrimaryButton}"
+                        Command="{Binding LoadCommand}" Margin="0,0,8,0"/>
+                <Button Content="Load All Pairs" Style="{StaticResource SecondaryButton}"
+                        Command="{Binding LoadAllPairsCommand}" Margin="0,0,8,0"/>
+                <ProgressBar IsIndeterminate="True" Width="120" Height="20"
+                             Visibility="{Binding IsLoading, Converter={StaticResource BoolToVisibility}}"/>
+            </StackPanel>
+
+            <StackPanel Orientation="Horizontal" Margin="0,0,0,12">
+                <TextBox Text="{Binding LookupIen1, UpdateSourceTrigger=PropertyChanged}" Width="160" Margin="0,0,8,0"/>
+                <TextBox Text="{Binding LookupIen2, UpdateSourceTrigger=PropertyChanged}" Width="160" Margin="0,0,8,0"/>
+                <Button Content="Lookup Pair" Style="{StaticResource PrimaryButton}"
+                        Command="{Binding LookupPairCommand}"/>
+            </StackPanel>
+
+            <DataGrid ItemsSource="{Binding AllPairs}" AutoGenerateColumns="False" IsReadOnly="True"
+                      SelectedItem="{Binding SelectedPair}" Height="400">
+                <DataGrid.Columns>
+                    <DataGridTextColumn Header="Ingredient 1" Binding="{Binding IngredientName1}" Width="*"/>
+                    <DataGridTextColumn Header="Ingredient 2" Binding="{Binding IngredientName2}" Width="*"/>
+                    <DataGridTextColumn Header="Severity" Binding="{Binding Severity}" Width="120"/>
+                    <DataGridTextColumn Header="Description" Binding="{Binding Description}" Width="300"/>
+                </DataGrid.Columns>
+            </DataGrid>
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>

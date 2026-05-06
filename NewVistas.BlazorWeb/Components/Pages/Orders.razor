@@ -1,0 +1,517 @@
+@page "/orders"
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+@rendermode InteractiveServer
+@using NewVistas.BlazorWeb.Services
+@using NewVistas.Abstractions.GrainInterfaces
+@using NewVistas.Abstractions.GrainStates
+@inject OrleansGrainService Grains
+
+<PageTitle>Order Entry</PageTitle>
+
+<h1>Order Entry / Results Reporting</h1>
+
+<div class="lookup-bar">
+    <input type="text" @bind="patientId" @bind:event="oninput" @onkeydown="HandleKeyDown"
+           placeholder="Patient ID" class="lookup-input" />
+    <button @onclick="Load" disabled="@(string.IsNullOrWhiteSpace(patientId) || loading)" class="btn btn-primary">
+        @if (loading) { <span>Loading...</span> } else { <span>Load</span> }
+    </button>
+</div>
+
+@if (error != null) { <div class="alert alert-error">@error</div> }
+@if (successMsg != null) { <div class="alert alert-success">@successMsg</div> }
+
+<div class="tab-bar">
+    <button class="@TabClass(0)" @onclick="() => activeTab = 0">Active Orders</button>
+    <button class="@TabClass(1)" @onclick="() => activeTab = 1">New Order</button>
+    <button class="@TabClass(2)" @onclick="() => activeTab = 2">Order Sets</button>
+    <button class="@TabClass(3)" @onclick="() => activeTab = 3">Order History</button>
+</div>
+
+@* ─── Tab 0: Active Orders ─────────────────────────────────────────────── *@
+@if (activeTab == 0 && orders != null)
+{
+    <div class="filter-bar">
+        <label>Filter:</label>
+        <select @bind="orderFilter" @bind:after="Load">
+            <option value="2">Current (Active/Pending/Hold)</option>
+            <option value="1">All Orders</option>
+            <option value="3">Discontinued</option>
+            <option value="4">Completed/Expired</option>
+            <option value="7">Pending</option>
+            <option value="11">Unsigned</option>
+        </select>
+    </div>
+
+    @if (orders.Count == 0)
+    {
+        <div class="empty-state">No orders found for this filter.</div>
+    }
+    else
+    {
+        <table class="data-table">
+            <thead>
+                <tr><th>Order</th><th>Type</th><th>Status</th><th>Start</th><th>Provider</th><th>Actions</th></tr>
+            </thead>
+            <tbody>
+                @foreach (var o in orders)
+                {
+                    <tr class="@(o.Status == "Hold" ? "row-hold" : o.Status == "Pending" ? "row-pending" : "")">
+                        <td>@o.OrderText</td>
+                        <td class="type">@o.OrderType</td>
+                        <td class="status"><span class="badge badge-@o.Status.ToLower().Replace(" ", "")">@o.Status</span></td>
+                        <td class="date">@o.StartDate?.ToString("MM/dd/yyyy HH:mm")</td>
+                        <td>@o.ProviderName</td>
+                        <td class="actions">
+                            @if (o.Status is "Pending" or "Active")
+                            {
+                                <button class="btn-sm btn-sign" @onclick="() => SignOrder(o.OrderId)">Sign</button>
+                            }
+                            @if (o.Status == "Active")
+                            {
+                                <button class="btn-sm btn-hold" @onclick="() => HoldOrder(o.OrderId)">Hold</button>
+                                <button class="btn-sm btn-dc" @onclick="() => DiscontinueOrder(o.OrderId)">DC</button>
+                            }
+                            @if (o.Status == "Hold")
+                            {
+                                <button class="btn-sm btn-release" @onclick="() => ReleaseOrder(o.OrderId)">Release</button>
+                            }
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    }
+}
+
+@* ─── Tab 1: New Order ─────────────────────────────────────────────────── *@
+@if (activeTab == 1)
+{
+    <div class="form-card">
+        <h3>Place New Order</h3>
+        <div class="form-row">
+            <label>Order Type</label>
+            <select @bind="newOrderType">
+                <option value="Lab">Lab</option>
+                <option value="Pharmacy">Pharmacy</option>
+                <option value="Radiology">Radiology</option>
+                <option value="Consult">Consult</option>
+                <option value="Nursing">Nursing</option>
+                <option value="Diet">Diet</option>
+                <option value="Vitals">Vitals</option>
+            </select>
+        </div>
+        <div class="form-row">
+            <label>Order Text</label>
+            <input type="text" @bind="newOrderText" placeholder="e.g., CBC WITH DIFFERENTIAL" />
+        </div>
+        <div class="form-row">
+            <label>Urgency</label>
+            <select @bind="newUrgency">
+                <option value="ROUTINE">Routine</option>
+                <option value="URGENT">Urgent</option>
+                <option value="STAT">STAT</option>
+            </select>
+        </div>
+        <div class="form-row">
+            <label>Instructions</label>
+            <textarea @bind="newInstructions" rows="2" placeholder="Optional instructions"></textarea>
+        </div>
+        <div class="form-row">
+            <label>Clinic / Location</label>
+            @if (orderClinics is null)
+            {
+                <button @onclick="LoadOrderClinics" class="btn" style="background:#6c757d;color:white;font-size:0.8rem;padding:0.3rem 0.6rem;">Load Clinics</button>
+            }
+            else
+            {
+                <select @bind="newClinicId">
+                    <option value="">-- none --</option>
+                    @foreach (var c in orderClinics.Where(c => c.Status == "ACTIVE"))
+                    {
+                        <option value="@c.ClinicId">@c.Name</option>
+                    }
+                </select>
+            }
+        </div>
+        <div class="form-row">
+            <label>Provider</label>
+            <input type="text" @bind="newProviderName" placeholder="Provider name" />
+        </div>
+
+        @if (orderChecks != null && orderChecks.Count > 0)
+        {
+            <div class="check-warnings">
+                <h4>Order Check Warnings</h4>
+                @foreach (var check in orderChecks)
+                {
+                    <div class="check-item check-@check.Severity.ToLower()">
+                        <strong>[@check.CheckType] @check.Severity:</strong> @check.Message
+                    </div>
+                }
+            </div>
+        }
+
+        <div class="form-actions">
+            <button class="btn btn-check" @onclick="CheckNewOrder" disabled="@(string.IsNullOrWhiteSpace(newOrderText))">
+                Check Order
+            </button>
+            <button class="btn btn-primary" @onclick="PlaceNewOrder"
+                    disabled="@(string.IsNullOrWhiteSpace(newOrderText) || string.IsNullOrWhiteSpace(newProviderName) || placingOrder)">
+                @if (placingOrder) { <span>Placing...</span> } else { <span>Place Order</span> }
+            </button>
+        </div>
+    </div>
+}
+
+@* ─── Tab 2: Order Sets ────────────────────────────────────────────────── *@
+@if (activeTab == 2)
+{
+    @if (orderSets == null)
+    {
+        <button class="btn btn-primary" @onclick="LoadOrderSets">Load Order Sets</button>
+    }
+    else
+    {
+        <div class="order-sets-grid">
+            @foreach (var os in orderSets)
+            {
+                <div class="set-card @(selectedSetId == os.OrderSetId ? "set-selected" : "")"
+                     @onclick="() => SelectOrderSet(os.OrderSetId)">
+                    <div class="set-name">@os.Name</div>
+                    <div class="set-meta">@os.Category &middot; @os.ServiceSection &middot; @os.ItemCount items</div>
+                </div>
+            }
+        </div>
+
+        @if (selectedSetDetail != null)
+        {
+            <div class="set-detail">
+                <h3>@selectedSetDetail.Name</h3>
+                <p>@selectedSetDetail.Description</p>
+                <table class="data-table">
+                    <thead><tr><th>Seq</th><th>Order</th><th>Type</th><th>Urgency</th></tr></thead>
+                    <tbody>
+                        @foreach (var t in selectedSetDetail.Items.OrderBy(i => i.Sequence))
+                        {
+                            <tr>
+                                <td>@t.Sequence</td>
+                                <td>@t.OrderableItem</td>
+                                <td class="type">@t.OrderType</td>
+                                <td>@t.Urgency</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+                <div class="form-row" style="margin-top:0.75rem">
+                    <label>Provider</label>
+                    <input type="text" @bind="setProviderName" placeholder="Provider name" />
+                </div>
+                <button class="btn btn-primary" @onclick="ExecuteSelectedSet"
+                        disabled="@(string.IsNullOrWhiteSpace(patientId) || string.IsNullOrWhiteSpace(setProviderName) || executingSet)">
+                    @if (executingSet) { <span>Executing...</span> } else { <span>Execute Order Set</span> }
+                </button>
+            </div>
+        }
+    }
+}
+
+@* ─── Tab 3: Order History ────────────────────────────────────────────── *@
+@if (activeTab == 3)
+{
+    <div class="form-card">
+        <div class="history-filters">
+            <div class="form-row">
+                <label>From</label>
+                <input type="datetime-local" @bind="historyFrom" />
+            </div>
+            <div class="form-row">
+                <label>To</label>
+                <input type="datetime-local" @bind="historyTo" />
+            </div>
+            <div class="form-row">
+                <label>Max Results</label>
+                <input type="number" @bind="historyMaxResults" min="1" max="500" style="width:80px" />
+            </div>
+            <div class="form-actions">
+                <button class="btn btn-primary" @onclick="LoadHistory" disabled="@(string.IsNullOrWhiteSpace(patientId) || historyLoading)">
+                    @(historyLoading ? "Searching..." : "Search")
+                </button>
+            </div>
+        </div>
+    </div>
+
+    @if (historyOrders == null && !historyLoading)
+    {
+        <div class="empty-state">Set date range and click Search to load order history.</div>
+    }
+    else if (historyOrders != null && historyOrders.Count == 0)
+    {
+        <div class="empty-state">No orders found for the selected date range.</div>
+    }
+    else if (historyOrders != null)
+    {
+        <div class="history-result-count">@historyOrders.Count result(s)</div>
+        <table class="data-table">
+            <thead>
+                <tr><th>Order</th><th>Type</th><th>Status</th><th>Start</th><th>Provider</th></tr>
+            </thead>
+            <tbody>
+                @foreach (var o in historyOrders)
+                {
+                    <tr>
+                        <td>@o.OrderText</td>
+                        <td class="type">@o.OrderType</td>
+                        <td class="status"><span class="badge badge-@o.Status.ToLower().Replace(" ", "")">@o.Status</span></td>
+                        <td class="date">@o.StartDate?.ToString("MM/dd/yyyy HH:mm")</td>
+                        <td>@o.ProviderName</td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    }
+}
+
+@code {
+    [SupplyParameterFromQuery] public string? patientId { get; set; }
+    [SupplyParameterFromQuery] public string? action { get; set; }
+    [SupplyParameterFromQuery] public string? type { get; set; }
+
+    private List<OrderSummary>? orders;
+    private bool loading;
+    private string? error;
+    private string? successMsg;
+    private int activeTab;
+    private int orderFilter = 2;
+
+    // New Order form
+    private string newOrderType = "Lab";
+    private string newOrderText = "";
+    private string newUrgency = "ROUTINE";
+    private string? newInstructions;
+    private string newProviderName = "";
+    private string newClinicId = "";
+    private List<ClinicEntry>? orderClinics;
+    private List<OrderCheckResult>? orderChecks;
+    private bool placingOrder;
+
+    // Order Sets
+    private List<OrderSetEntry>? orderSets;
+    private string? selectedSetId;
+    private OrderSetState? selectedSetDetail;
+    private string setProviderName = "";
+    private bool executingSet;
+
+    // History tab
+    private DateTime historyFrom = DateTime.Now.AddDays(-90);
+    private DateTime historyTo = DateTime.Now;
+    private int historyMaxResults = 100;
+    private bool historyLoading;
+    private List<OrderSummary>? historyOrders;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        // Handle workflow navigation from Cover Sheet
+        if (action == "new")
+        {
+            activeTab = 1; // Switch to New Order tab
+            if (!string.IsNullOrWhiteSpace(type))
+                newOrderType = type;
+            action = null; // consume one-shot
+        }
+        if (!string.IsNullOrWhiteSpace(patientId)) await Load();
+    }
+    private async Task HandleKeyDown(KeyboardEventArgs e) { if (e.Key == "Enter") await Load(); }
+
+    private async Task Load()
+    {
+        if (string.IsNullOrWhiteSpace(patientId)) return;
+        loading = true; error = null; successMsg = null;
+        try
+        {
+            var grain = Grains.GetGrain<IPatientWorkflowGrain>(patientId.Trim());
+            orders = await grain.GetOrdersByFilterAsync(orderFilter);
+        }
+        catch (Exception ex) { error = $"Error loading orders: {ex.Message}"; }
+        finally { loading = false; }
+    }
+
+    private async Task PlaceNewOrder()
+    {
+        if (string.IsNullOrWhiteSpace(patientId)) return;
+        placingOrder = true; error = null; successMsg = null;
+        try
+        {
+            var grain = Grains.GetGrain<IPatientWorkflowGrain>(patientId.Trim());
+            string? clinicId = string.IsNullOrWhiteSpace(newClinicId) ? null : newClinicId;
+            string? clinicName = clinicId != null ? orderClinics?.FirstOrDefault(c => c.ClinicId == clinicId)?.Name : null;
+            await grain.PlaceOrderAsync(newOrderType, newOrderText, null, "PROV-001", newProviderName, clinicId, clinicName, newUrgency, newInstructions, null);
+            successMsg = $"Order placed: {newOrderText}";
+            newOrderText = ""; newInstructions = null; orderChecks = null;
+            await Load();
+        }
+        catch (Exception ex) { error = ex.Message; }
+        finally { placingOrder = false; }
+    }
+
+    private async Task CheckNewOrder()
+    {
+        if (string.IsNullOrWhiteSpace(patientId)) return;
+        error = null;
+        try
+        {
+            var grain = Grains.GetGrain<IPatientWorkflowGrain>(patientId.Trim());
+            orderChecks = await grain.CheckOrderAsync(newOrderType, newOrderText, null);
+        }
+        catch (Exception ex) { error = ex.Message; }
+    }
+
+    private async Task SignOrder(string orderId)
+    {
+        await OrderAction(async (grain) => await grain.SignOrderAsync(orderId, "ESIG-" + Guid.NewGuid().ToString("N")[..8]), "sign");
+    }
+    private async Task HoldOrder(string orderId)
+    {
+        await OrderAction(async (grain) => await grain.HoldOrderAsync(orderId), "hold");
+    }
+    private async Task ReleaseOrder(string orderId)
+    {
+        await OrderAction(async (grain) => await grain.ReleaseOrderAsync(orderId), "release");
+    }
+    private async Task DiscontinueOrder(string orderId)
+    {
+        await OrderAction(async (grain) => await grain.DiscontinueOrderAsync(orderId, "Clinician requested"), "discontinue");
+    }
+
+    private async Task OrderAction(Func<IPatientWorkflowGrain, Task> action, string actionName)
+    {
+        if (string.IsNullOrWhiteSpace(patientId)) return;
+        error = null; successMsg = null;
+        try
+        {
+            var grain = Grains.GetGrain<IPatientWorkflowGrain>(patientId.Trim());
+            await action(grain);
+            successMsg = $"Order {actionName} successful."; await Load();
+        }
+        catch (Exception ex) { error = ex.Message; }
+    }
+
+    private async Task LoadHistory()
+    {
+        if (string.IsNullOrWhiteSpace(patientId)) return;
+        historyLoading = true; error = null; historyOrders = null;
+        try
+        {
+            var grain = Grains.GetGrain<IPatientWorkflowGrain>(patientId.Trim());
+            historyOrders = await grain.GetOrderHistoryAsync(historyFrom, historyTo, historyMaxResults);
+        }
+        catch (Exception ex) { error = $"Error loading history: {ex.Message}"; }
+        finally { historyLoading = false; }
+    }
+
+    private async Task LoadOrderClinics()
+    {
+        try
+        {
+            orderClinics = await Grains.GetGrain<IClinicIndexGrain>("SD-CLINIC-INDEX").GetAllClinicsAsync();
+        }
+        catch (Exception ex) { error = $"Error loading clinics: {ex.Message}"; }
+    }
+
+    private async Task LoadOrderSets()
+    {
+        try
+        {
+            var indexGrain = Grains.GetGrain<IOrderSetIndexGrain>("ORDER-SET-INDEX");
+            orderSets = await indexGrain.GetAllOrderSetsAsync();
+        }
+        catch (Exception ex) { error = ex.Message; }
+    }
+
+    private async Task SelectOrderSet(string setId)
+    {
+        selectedSetId = setId;
+        try
+        {
+            var setGrain = Grains.GetGrain<IOrderSetGrain>(setId);
+            selectedSetDetail = await setGrain.GetOrderSetAsync();
+        }
+        catch (Exception ex) { error = ex.Message; }
+    }
+
+    private async Task ExecuteSelectedSet()
+    {
+        if (string.IsNullOrWhiteSpace(patientId) || selectedSetId == null) return;
+        executingSet = true; error = null; successMsg = null;
+        try
+        {
+            var grain = Grains.GetGrain<IPatientWorkflowGrain>(patientId.Trim());
+            var orderIds = await grain.ExecuteOrderSetAsync(selectedSetId, "PROV-001", setProviderName, null, null, null);
+            successMsg = $"Order set executed: {orderIds.Count} orders created.";
+            activeTab = 0; await Load();
+        }
+        catch (Exception ex) { error = ex.Message; }
+        finally { executingSet = false; }
+    }
+
+    private string TabClass(int tab) => activeTab == tab ? "tab active" : "tab";
+}
+
+<style>
+    .lookup-bar { display: flex; gap: 0.5rem; margin-bottom: 1rem; }
+    .lookup-input { width: 280px; padding: 0.5rem 0.75rem; border: 1px solid #ccc; border-radius: 4px; font-size: 0.9rem; }
+    .btn { padding: 0.5rem 1.25rem; border: none; border-radius: 4px; cursor: pointer; font-size: 0.85rem; }
+    .btn-primary { background: #003f72; color: white; }
+    .btn-primary:disabled { background: #999; cursor: not-allowed; }
+    .btn-check { background: #e8a317; color: white; }
+    .btn-sm { padding: 0.2rem 0.5rem; font-size: 0.75rem; border: 1px solid #ccc; border-radius: 3px; cursor: pointer; background: white; }
+    .btn-sign { border-color: #2563eb; color: #2563eb; }
+    .btn-hold { border-color: #d97706; color: #d97706; }
+    .btn-dc { border-color: #dc2626; color: #dc2626; }
+    .btn-release { border-color: #059669; color: #059669; }
+    .alert { padding: 0.75rem 1rem; border-radius: 4px; margin-bottom: 1rem; }
+    .alert-error { background: #fde8e8; color: #b91c1c; border: 1px solid #f5c6c6; }
+    .alert-success { background: #d1fae5; color: #065f46; border: 1px solid #a7f3d0; }
+    .empty-state { color: #999; font-style: italic; padding: 2rem 0; }
+    .tab-bar { display: flex; gap: 0; margin-bottom: 1.5rem; border-bottom: 2px solid #d4d9e0; }
+    .tab { padding: 0.6rem 1.25rem; border: none; background: transparent; cursor: pointer; font-size: 0.85rem; color: #666; border-bottom: 2px solid transparent; margin-bottom: -2px; }
+    .tab.active { color: #003f72; font-weight: 600; border-bottom: 2px solid #003f72; }
+    .data-table { width: 100%; border-collapse: collapse; font-size: 0.85rem; border: 1px solid #d4d9e0; }
+    .data-table thead { background: #f4f6f9; }
+    .data-table th { text-align: left; padding: 0.5rem; font-weight: 600; color: #003f72; border-bottom: 2px solid #d4d9e0; font-size: 0.75rem; text-transform: uppercase; }
+    .data-table td { padding: 0.4rem 0.5rem; border-bottom: 1px solid #f0f0f0; }
+    .data-table tr:hover { background: #f9fafb; }
+    .type { color: #003f72; }
+    .status { color: #555; }
+    .date { color: #888; font-size: 0.8rem; }
+    .actions { white-space: nowrap; display: flex; gap: 0.25rem; }
+    .badge { padding: 0.15rem 0.5rem; border-radius: 10px; font-size: 0.7rem; font-weight: 600; }
+    .badge-active { background: #d1fae5; color: #065f46; }
+    .badge-pending { background: #fef3c7; color: #92400e; }
+    .badge-hold { background: #fed7aa; color: #9a3412; }
+    .badge-discontinued { background: #fecaca; color: #991b1b; }
+    .badge-completed { background: #e0e7ff; color: #3730a3; }
+    .row-hold { background: #fff7ed; }
+    .row-pending { background: #fffbeb; }
+    .filter-bar { display: flex; gap: 0.5rem; align-items: center; margin-bottom: 1rem; font-size: 0.85rem; }
+    .filter-bar select { padding: 0.35rem 0.5rem; border: 1px solid #ccc; border-radius: 4px; }
+    .form-card { background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 6px; padding: 1.25rem; max-width: 600px; }
+    .form-row { margin-bottom: 0.75rem; }
+    .form-row label { display: block; font-size: 0.8rem; font-weight: 600; color: #374151; margin-bottom: 0.25rem; }
+    .form-row input, .form-row select, .form-row textarea { width: 100%; padding: 0.4rem 0.6rem; border: 1px solid #d1d5db; border-radius: 4px; font-size: 0.85rem; }
+    .form-actions { display: flex; gap: 0.5rem; margin-top: 1rem; }
+    .check-warnings { background: #fffbeb; border: 1px solid #fde68a; border-radius: 4px; padding: 0.75rem; margin: 0.75rem 0; }
+    .check-item { padding: 0.35rem 0; font-size: 0.8rem; }
+    .check-high { color: #b91c1c; }
+    .check-moderate { color: #d97706; }
+    .check-low { color: #6b7280; }
+    .order-sets-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 0.75rem; margin-bottom: 1rem; }
+    .set-card { padding: 0.75rem; border: 1px solid #d4d9e0; border-radius: 6px; cursor: pointer; }
+    .set-card:hover { background: #f0f4f8; }
+    .set-selected { border-color: #003f72; background: #eff6ff; }
+    .set-name { font-weight: 600; font-size: 0.9rem; color: #003f72; }
+    .set-meta { font-size: 0.75rem; color: #6b7280; margin-top: 0.25rem; }
+    .set-detail { margin-top: 1rem; }
+    .history-filters { display: flex; flex-wrap: wrap; gap: 0.75rem; align-items: flex-end; margin-bottom: 1rem; }
+    .history-result-count { font-size: 0.8rem; color: #666; margin-bottom: 0.5rem; font-style: italic; }
+</style>

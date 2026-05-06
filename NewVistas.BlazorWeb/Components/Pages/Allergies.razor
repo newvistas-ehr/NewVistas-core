@@ -1,0 +1,261 @@
+@page "/allergies"
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+@rendermode InteractiveServer
+@using NewVistas.BlazorWeb.Services
+@using NewVistas.Abstractions.GrainInterfaces
+@using NewVistas.Abstractions.GrainStates
+@inject OrleansGrainService Grains
+
+<PageTitle>Allergies</PageTitle>
+
+<h1>Allergies</h1>
+
+<div class="lookup-bar">
+    <input type="text" @bind="patientId" @bind:event="oninput" @onkeydown="HandleKeyDown"
+           placeholder="Patient ID" class="lookup-input" />
+    <button @onclick="Load" disabled="@(string.IsNullOrWhiteSpace(patientId) || loading)" class="btn btn-primary">
+        @if (loading) { <span>Loading...</span> } else { <span>Load</span> }
+    </button>
+</div>
+
+@if (error != null) { <div class="alert alert-error">@error</div> }
+@if (successMessage != null) { <div class="alert alert-success">@successMessage</div> }
+
+@if (patientId != null)
+{
+    <div class="tab-bar">
+        <button class="tab @(activeTab == "view" ? "active" : "")" @onclick='() => activeTab = "view"'>Allergies</button>
+        <button class="tab @(activeTab == "record" ? "active" : "")" @onclick='() => activeTab = "record"'>Record Allergy</button>
+    </div>
+
+    @if (activeTab == "view")
+    {
+        @if (items == null)
+        {
+            <div class="empty-state">Enter a Patient ID and click Load.</div>
+        }
+        else if (items.Count == 0)
+        {
+            <div class="nka-banner">No Known Allergies</div>
+        }
+        else
+        {
+            <table class="data-table">
+                <thead>
+                    <tr><th>Allergen</th><th>Type</th><th>Reactions</th><th>Severity</th><th>Observed/Historical</th></tr>
+                </thead>
+                <tbody>
+                    @foreach (var a in items)
+                    {
+                        <tr>
+                            <td class="allergen">@a.Allergen</td>
+                            <td>@a.AllergenType</td>
+                            <td class="reactions">@string.Join(", ", a.Reactions ?? [])</td>
+                            <td class="severity @SeverityClass(a.Severity)">@a.Severity</td>
+                            <td>@(a.ObservedHistorical == "O" ? "Observed" : a.ObservedHistorical == "H" ? "Historical" : a.ObservedHistorical)</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        }
+    }
+
+    @if (activeTab == "record")
+    {
+        <div class="form-section">
+            <div class="form-row">
+                <label>Allergen <span class="required">*</span></label>
+                <input type="text" @bind="form.Allergen" placeholder="e.g. Penicillin" class="form-input" />
+            </div>
+            <div class="form-row">
+                <label>Allergen Type <span class="required">*</span></label>
+                <select @bind="form.AllergenType" class="form-input">
+                    <option value="Drug">Drug</option>
+                    <option value="Food">Food</option>
+                    <option value="Other">Other</option>
+                </select>
+            </div>
+            <div class="form-row">
+                <label>Reaction Type</label>
+                <select @bind="form.ReactionType" class="form-input">
+                    <option value="ALLERGY">Allergy</option>
+                    <option value="ADVERSE REACTION">Adverse Reaction</option>
+                    <option value="PHARMACOLOGIC">Pharmacologic</option>
+                </select>
+            </div>
+            <div class="form-row">
+                <label>Reactions</label>
+                <input type="text" @bind="form.Reactions" placeholder="e.g. Rash, Itching (comma-separated)" class="form-input" />
+            </div>
+            <div class="form-row">
+                <label>Severity</label>
+                <select @bind="form.Severity" class="form-input">
+                    <option value="">-- Select --</option>
+                    <option value="Mild">Mild</option>
+                    <option value="Moderate">Moderate</option>
+                    <option value="Severe">Severe</option>
+                </select>
+            </div>
+            <div class="form-row">
+                <label>Observed / Historical</label>
+                <div class="radio-group">
+                    <label class="radio-label">
+                        <input type="radio" name="oh" checked="@(form.ObservedHistorical == "O")"
+                               @onchange="@(() => form.ObservedHistorical = "O")" /> Observed
+                    </label>
+                    <label class="radio-label">
+                        <input type="radio" name="oh" checked="@(form.ObservedHistorical == "H")"
+                               @onchange="@(() => form.ObservedHistorical = "H")" /> Historical
+                    </label>
+                </div>
+            </div>
+            <div class="form-row">
+                <label>Originator</label>
+                <input type="text" @bind="form.OriginatorName" placeholder="Entering clinician name" class="form-input" />
+            </div>
+            <div class="form-row align-top">
+                <label>Comments</label>
+                <textarea @bind="form.Comments" rows="3" class="form-input"></textarea>
+            </div>
+            <div class="form-actions">
+                <button @onclick="SubmitAllergy" disabled="@submitting" class="btn btn-primary">
+                    @(submitting ? "Saving..." : "Record Allergy")
+                </button>
+            </div>
+        </div>
+    }
+}
+
+@code {
+    [SupplyParameterFromQuery] public string? patientId { get; set; }
+    private List<AllergyDto>? items;
+    private bool loading;
+    private bool submitting;
+    private string? error;
+    private string? successMessage;
+    private string activeTab = "view";
+
+    private AllergyFormModel form = new();
+
+    protected override async Task OnParametersSetAsync() { if (!string.IsNullOrWhiteSpace(patientId)) await Load(); }
+    private async Task HandleKeyDown(KeyboardEventArgs e) { if (e.Key == "Enter") await Load(); }
+
+    private async Task Load()
+    {
+        if (string.IsNullOrWhiteSpace(patientId)) return;
+        loading = true; error = null; items = null; successMessage = null;
+        try
+        {
+            var workflow = Grains.GetGrain<IPatientWorkflowGrain>(patientId.Trim());
+            List<AllergySummary> allergies = await workflow.GetAllergiesAsync();
+            items = allergies.Select(a => new AllergyDto
+            {
+                Allergen = a.Allergen,
+                AllergenType = a.AllergenType,
+                Reactions = a.Reactions,
+                Severity = a.Severity,
+                ObservedHistorical = a.ObservedHistorical
+            }).ToList();
+        }
+        catch (Exception ex) { error = $"Error loading allergies: {ex.Message}"; }
+        finally { loading = false; }
+    }
+
+    private async Task SubmitAllergy()
+    {
+        if (string.IsNullOrWhiteSpace(patientId)) return;
+        if (string.IsNullOrWhiteSpace(form.Allergen)) { error = "Allergen is required."; return; }
+
+        List<string> reactions = string.IsNullOrWhiteSpace(form.Reactions)
+            ? []
+            : [.. form.Reactions.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)];
+
+        submitting = true; error = null; successMessage = null;
+        try
+        {
+            var workflow = Grains.GetGrain<IPatientWorkflowGrain>(patientId.Trim());
+            await workflow.RecordAllergyAsync(
+                form.Allergen, form.AllergenType, null,
+                form.ObservedHistorical, reactions,
+                string.IsNullOrEmpty(form.Severity) ? null : form.Severity,
+                null, form.OriginatorName, form.Comments);
+
+            successMessage = "Allergy recorded successfully.";
+            form = new AllergyFormModel();
+            activeTab = "view";
+            await Load();
+        }
+        catch (Exception ex) { error = $"Error saving allergy: {ex.Message}"; }
+        finally { submitting = false; }
+    }
+
+    private static string SeverityClass(string? severity) => severity?.ToUpper() switch
+    {
+        "SEVERE" => "severe",
+        "MODERATE" => "moderate",
+        _ => ""
+    };
+
+    private class AllergyDto
+    {
+        public string Allergen { get; set; } = "";
+        public string AllergenType { get; set; } = "";
+        public List<string>? Reactions { get; set; }
+        public string? Severity { get; set; }
+        public string? ObservedHistorical { get; set; }
+    }
+
+    private class AllergyFormModel
+    {
+        public string Allergen { get; set; } = "";
+        public string AllergenType { get; set; } = "Drug";
+        public string ReactionType { get; set; } = "ALLERGY";
+        public string? Reactions { get; set; }
+        public string? Severity { get; set; }
+        public string ObservedHistorical { get; set; } = "O";
+        public string? OriginatorName { get; set; }
+        public string? Comments { get; set; }
+    }
+}
+
+<style>
+    .lookup-bar { display: flex; gap: 0.5rem; margin-bottom: 1.5rem; }
+    .lookup-input { width: 280px; padding: 0.5rem 0.75rem; border: 1px solid #ccc; border-radius: 4px; font-size: 0.9rem; }
+    .btn { padding: 0.5rem 1.25rem; border: none; border-radius: 4px; cursor: pointer; font-size: 0.85rem; }
+    .btn-primary { background: #003f72; color: white; }
+    .btn-primary:disabled { background: #999; cursor: not-allowed; }
+    .alert { padding: 0.75rem 1rem; border-radius: 4px; margin-bottom: 1rem; }
+    .alert-error { background: #fde8e8; color: #b91c1c; border: 1px solid #f5c6c6; }
+    .alert-success { background: #dcfce7; color: #166534; border: 1px solid #bbf7d0; }
+    .empty-state { color: #999; font-style: italic; padding: 2rem 0; }
+
+    .tab-bar { display: flex; gap: 0; margin-bottom: 1.5rem; border-bottom: 2px solid #d4d9e0; }
+    .tab { padding: 0.5rem 1.25rem; border: none; background: none; cursor: pointer; font-size: 0.85rem; color: #555; border-bottom: 2px solid transparent; margin-bottom: -2px; }
+    .tab.active { color: #003f72; border-bottom-color: #003f72; font-weight: 600; }
+
+    .nka-banner {
+        background: #dcfce7; color: #166534; border: 1px solid #bbf7d0;
+        padding: 1rem; border-radius: 6px; font-weight: 600;
+    }
+
+    .data-table { width: 100%; border-collapse: collapse; font-size: 0.85rem; border: 1px solid #d4d9e0; }
+    .data-table thead { background: #f4f6f9; }
+    .data-table th { text-align: left; padding: 0.5rem; font-weight: 600; color: #003f72; border-bottom: 2px solid #d4d9e0; font-size: 0.75rem; text-transform: uppercase; }
+    .data-table td { padding: 0.4rem 0.5rem; border-bottom: 1px solid #f0f0f0; }
+    .data-table tr:hover { background: #f9fafb; }
+    .allergen { font-weight: 500; }
+    .reactions { color: #555; }
+    .severity.severe { color: #b91c1c; font-weight: 600; }
+    .severity.moderate { color: #92400e; font-weight: 500; }
+
+    .form-section { max-width: 600px; }
+    .form-row { display: flex; align-items: center; gap: 1rem; margin-bottom: 0.75rem; }
+    .form-row.align-top { align-items: flex-start; }
+    .form-row label:first-child { width: 150px; font-size: 0.85rem; font-weight: 500; color: #333; flex-shrink: 0; }
+    .required { color: #b91c1c; }
+    .form-input { flex: 1; padding: 0.4rem 0.6rem; border: 1px solid #ccc; border-radius: 4px; font-size: 0.85rem; }
+    textarea.form-input { resize: vertical; }
+    .radio-group { display: flex; gap: 1.5rem; }
+    .radio-label { font-size: 0.85rem; display: flex; align-items: center; gap: 0.3rem; cursor: pointer; }
+    .form-actions { margin-top: 1.25rem; }
+</style>

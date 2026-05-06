@@ -1,0 +1,425 @@
+@page "/provider-dashboard"
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+@rendermode InteractiveServer
+@using NewVistas.BlazorWeb.Services
+@using NewVistas.Abstractions.GrainInterfaces
+@using NewVistas.Abstractions.GrainStates
+@inject OrleansGrainService Grains
+
+<PageTitle>Provider Dashboard</PageTitle>
+
+<h2>Provider Dashboard</h2>
+<p class="subtitle">PCMM — My Schedule and My Patients</p>
+
+<div class="pd-toolbar">
+    <input @bind="providerId" @onkeydown="HandleEnterKey" placeholder="Provider ID" class="input-id" />
+    <button @onclick="HandleProviderLoad" disabled="@loading">Load</button>
+</div>
+
+<div class="tabs">
+    <button class="@TabClass("calendar")" @onclick='() => SetTab("calendar")'>📅 Calendar</button>
+    <button class="@TabClass("patients")" @onclick='() => SetTab("patients")'>👥 My Patients</button>
+</div>
+
+@if (!string.IsNullOrEmpty(error))
+{
+    <div class="error">@error</div>
+}
+
+@* ─── Tab: Calendar ──────────────────────────────────────────────────── *@
+
+@if (activeTab == "calendar")
+{
+    <div class="cal-wrap">
+
+        <div class="cal-toolbar">
+            <button class="cal-nav-btn" @onclick="CalPrev" title="Previous">&#8249;</button>
+            <button class="cal-nav-btn cal-today-btn" @onclick="CalToday">Today</button>
+            <button class="cal-nav-btn" @onclick="CalNext" title="Next">&#8250;</button>
+            <span class="cal-title">@CalTitle</span>
+            <div style="flex:1"></div>
+            <div class="cal-view-seg">
+                <button class="@CalViewBtnClass("day")" @onclick='() => SetCalView("day")'>Day</button>
+                <button class="@CalViewBtnClass("week")" @onclick='() => SetCalView("week")'>Week</button>
+            </div>
+            <button class="cal-refresh" @onclick="LoadCalendarData" disabled="@loading" title="Refresh">&#8635;</button>
+            @if (loading) { <span class="cal-busy">&#9675;</span> }
+        </div>
+
+        @if (calEntries is not null)
+        {
+            <div class="cal-head @(calView == "week" ? "week" : "day")">
+                <div class="cal-gutter-hdr"></div>
+                @foreach (DateTime day in CalDays)
+                {
+                    <div class="cal-day-hdr @(IsToday(day) ? "is-today" : "")">
+                        <span class="dname">@day.ToString("ddd").ToUpper()</span>
+                        <span class="dnum-ring @(IsToday(day) ? "today-ring" : "")">@day.Day</span>
+                    </div>
+                }
+            </div>
+
+            <div class="cal-scroll">
+                <div class="cal-body @(calView == "week" ? "week" : "day")" style="height:@(CalHeightPx)px">
+
+                    <div class="cal-gutter">
+                        @foreach (int h in CalHours)
+                        {
+                            <div class="cal-hr-lbl" style="top:@(HourTopPx(h))px">@h.ToString("00"):00</div>
+                        }
+                    </div>
+
+                    @foreach (DateTime day in CalDays)
+                    {
+                        <div class="cal-day-col @(IsToday(day) ? "is-today" : "")">
+                            @foreach (int h in CalHours)
+                            {
+                                <div class="cal-bg-hr" style="top:@(HourTopPx(h))px"></div>
+                                <div class="cal-bg-hh" style="top:@(HourTopPx(h) + HalfPx)px"></div>
+                            }
+                            @foreach (ProviderScheduleEntry e in GetEntriesForDay(day))
+                            {
+                                int top = GetTopPx(e.AppointmentDateTime);
+                                int ht  = GetHeightPx(e.DurationMinutes);
+                                @if (top >= 0 && top < CalHeightPx)
+                                {
+                                    <div class="cal-event @EventClass(e.Status)"
+                                         style="top:@(top)px; height:@(ht)px"
+                                         @onclick="() => Nav.NavigateTo(CoverSheetUrl(e.PatientId))"
+                                         title="@AppointmentTooltip(e)">
+                                        <span class="ev-name">@TrimName(e.PatientName)</span>
+                                        @if (ht >= 44) { <span class="ev-sub">@e.ClinicName</span> }
+                                        @if (ht >= 60) { <span class="ev-time">@LocalDt(e.AppointmentDateTime).ToString("HH:mm")</span> }
+                                    </div>
+                                }
+                            }
+                            @if (IsToday(day) && NowTopPx >= 0)
+                            {
+                                <div class="cal-now-line" style="top:@(NowTopPx)px">
+                                    <div class="cal-now-dot"></div>
+                                </div>
+                            }
+                        </div>
+                    }
+
+                </div>
+            </div>
+
+            <div class="cal-legend">
+                <span class="leg-item leg-scheduled">Scheduled</span>
+                <span class="leg-item leg-checkin">Checked In</span>
+                <span class="leg-item leg-completed">Completed</span>
+                <span class="leg-item leg-cancelled">Cancelled</span>
+                <span class="leg-item leg-noshow">No-Show</span>
+            </div>
+        }
+        else if (!loading)
+        {
+            <div class="cal-empty">
+                <p>Enter a Provider ID above and click <strong>Load</strong> to view the schedule.</p>
+            </div>
+        }
+
+    </div>
+}
+
+@* ─── Tab: My Patients ────────────────────────────────────────────────── *@
+
+@if (activeTab == "patients")
+{
+    <div class="toolbar">
+        <input @bind="patientSearch" placeholder="Search by name..." class="input-search" />
+        <button @onclick="LoadMyPatients" disabled="@loading">Search</button>
+        <button @onclick="LoadAllPatients" disabled="@loading">Show All</button>
+    </div>
+
+    @if (loading) { <p>Loading...</p> }
+
+    @if (myPatients is not null)
+    {
+        <h3>My Patients (@myPatients.Count)</h3>
+
+        @if (myPatients.Count == 0)
+        {
+            <p class="empty-msg">No patients found.</p>
+        }
+        else
+        {
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Patient Name</th>
+                        <th>DOB</th>
+                        <th>SSN Last 4</th>
+                        <th>Relationship</th>
+                        <th>Last Seen</th>
+                        <th>Next Appt</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var p in myPatients)
+                    {
+                        <tr>
+                            <td><a href="/cover-sheet?patientId=@Uri.EscapeDataString(p.PatientId)">@p.PatientName</a></td>
+                            <td>@(p.DateOfBirth?.ToString("yyyy-MM-dd") ?? "—")</td>
+                            <td>@(p.SsnLast4 ?? "—")</td>
+                            <td><span class="badge @(p.Relationship == "PCP" ? "badge-pcp" : "badge-default")">@p.Relationship</span></td>
+                            <td>@(p.LastSeenDate?.ToString("yyyy-MM-dd") ?? "—")</td>
+                            <td>@(p.NextAppointmentDate?.ToString("yyyy-MM-dd") ?? "—")</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        }
+    }
+}
+
+@code {
+    [Inject] private NavigationManager Nav { get; set; } = default!;
+
+    // ── Page state ───────────────────────────────────────────────────────────
+    private string activeTab = "calendar";
+    private string? error;
+    private bool loading;
+    private string providerId = "";
+
+    // ── Calendar state ───────────────────────────────────────────────────────
+    private string calView = "week";
+    private DateTime calDate = DateTime.Today;
+    private List<ProviderScheduleEntry>? calEntries;
+
+    private const int CalStartHour = 7;
+    private const int CalEndHour   = 19;
+    private const int PxPerMin     = 2;
+    private const int CalHeightPx  = (CalEndHour - CalStartHour) * 60 * PxPerMin; // 1440
+    private const int HalfPx       = 30 * PxPerMin;                               // 60
+
+    private DateTime WeekStart => GetWeekStart(calDate);
+
+    private IEnumerable<DateTime> CalDays => calView == "day"
+        ? [calDate]
+        : Enumerable.Range(0, 7).Select(i => WeekStart.AddDays(i));
+
+    private static IEnumerable<int> CalHours =>
+        Enumerable.Range(CalStartHour, CalEndHour - CalStartHour);
+
+    private string CalTitle => calView == "day"
+        ? calDate.ToString("dddd, MMMM d, yyyy")
+        : $"{WeekStart:MMMM d} \u2013 {WeekStart.AddDays(6):MMMM d, yyyy}";
+
+    private int NowTopPx
+    {
+        get
+        {
+            var now = DateTime.Now;
+            if (now.Hour < CalStartHour || now.Hour >= CalEndHour) return -1;
+            return GetTopPx(now);
+        }
+    }
+
+    // ── Calendar helpers ─────────────────────────────────────────────────────
+    private static DateTime GetWeekStart(DateTime d)
+    {
+        int diff = ((int)d.DayOfWeek - 1 + 7) % 7;   // Monday-anchored
+        return d.Date.AddDays(-diff);
+    }
+
+    private static int HourTopPx(int h) => (h - CalStartHour) * 60 * PxPerMin;
+
+    private static DateTime LocalDt(DateTime dt) =>
+        dt.Kind == DateTimeKind.Utc ? dt.ToLocalTime() : dt;
+
+    private static int GetTopPx(DateTime dt)
+    {
+        var l = LocalDt(dt);
+        return ((l.Hour - CalStartHour) * 60 + l.Minute) * PxPerMin;
+    }
+
+    private static int GetHeightPx(int dur) => Math.Max(dur * PxPerMin, 24);
+
+    private static bool IsToday(DateTime day) => day.Date == DateTime.Today;
+
+    private IEnumerable<ProviderScheduleEntry> GetEntriesForDay(DateTime day) =>
+        calEntries?
+            .Where(e => LocalDt(e.AppointmentDateTime).Date == day.Date)
+            .OrderBy(e => e.AppointmentDateTime)
+        ?? Enumerable.Empty<ProviderScheduleEntry>();
+
+    private static string EventClass(string status) => status switch
+    {
+        "Checked In"                    => "cal-ev-checkin",
+        "Completed" or "Checked Out"    => "cal-ev-completed",
+        "Cancelled"                     => "cal-ev-cancelled",
+        "No-Show"                       => "cal-ev-noshow",
+        _                               => "cal-ev-scheduled"
+    };
+
+    private static string TrimName(string name)
+    {
+        if (name.Length <= 20) return name;
+        int c = name.IndexOf(',');
+        return c > 0 ? name[..c] : name[..18] + "\u2026";
+    }
+
+    private static string CoverSheetUrl(string patientId) =>
+        "/cover-sheet?patientId=" + Uri.EscapeDataString(patientId);
+
+    private string AppointmentTooltip(ProviderScheduleEntry e) =>
+        $"{e.PatientName} \u00b7 {e.ClinicName} \u00b7 {LocalDt(e.AppointmentDateTime):HH:mm} ({e.DurationMinutes} min) \u00b7 {e.Status}";
+
+    // ── Tab / view helpers ───────────────────────────────────────────────────
+    private string TabClass(string t) => activeTab == t ? "tab active" : "tab";
+    private string CalViewBtnClass(string v) => calView == v ? "cal-view-btn active" : "cal-view-btn";
+    private void SetTab(string tab) { activeTab = tab; error = null; }
+    private void SetCalView(string v) => calView = v;
+
+    // ── Calendar navigation ──────────────────────────────────────────────────
+    private void CalPrev()  => calDate = calView == "day" ? calDate.AddDays(-1) : calDate.AddDays(-7);
+    private void CalNext()  => calDate = calView == "day" ? calDate.AddDays(1)  : calDate.AddDays(7);
+    private void CalToday() => calDate = DateTime.Today;
+
+    // ── Load actions ─────────────────────────────────────────────────────────
+    private async Task HandleEnterKey(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter") await HandleProviderLoad();
+    }
+
+    private async Task HandleProviderLoad()
+    {
+        await LoadCalendarData();
+        if (activeTab == "patients") await LoadMyPatients();
+    }
+
+    private async Task LoadCalendarData()
+    {
+        if (string.IsNullOrWhiteSpace(providerId)) return;
+        loading = true; error = null;
+        try
+        {
+            var grain = Grains.GetGrain<IProviderScheduleIndexGrain>($"PROV-SCHED:{providerId.Trim()}");
+            calEntries = await grain.GetAllAsync(500);
+        }
+        catch (Exception ex) { error = $"Error: {ex.Message}"; }
+        finally { loading = false; }
+    }
+
+    // ── My Patients ──────────────────────────────────────────────────────────
+    private string patientSearch = "";
+    private List<ProviderPatientEntry>? myPatients;
+
+    private async Task LoadMyPatients()
+    {
+        if (string.IsNullOrWhiteSpace(providerId)) return;
+        loading = true; error = null;
+        try
+        {
+            var patIdx = Grains.GetGrain<IProviderPatientIndexGrain>($"PROV-PAT-IDX:{providerId.Trim()}");
+            myPatients = string.IsNullOrWhiteSpace(patientSearch)
+                ? await patIdx.GetActivePatientsAsync()
+                : await patIdx.SearchPatientsAsync(patientSearch.Trim());
+        }
+        catch (Exception ex) { error = $"Error: {ex.Message}"; }
+        finally { loading = false; }
+    }
+
+    private async Task LoadAllPatients()
+    {
+        patientSearch = "";
+        await LoadMyPatients();
+    }
+}
+
+<style>
+    /* ── Page chrome ──────────────────────────────────────────────────────── */
+    .subtitle { color: #666; margin-top: -8px; margin-bottom: 12px; }
+    .error { color: #c62828; padding: 8px 12px; background: #fdecea; border-left: 3px solid #e53935; border-radius: 3px; margin: 8px 0; }
+
+    .pd-toolbar { display: flex; gap: 8px; align-items: center; margin-bottom: 12px; }
+    .input-id { width: 220px; padding: 6px 10px; border: 1px solid #ccc; border-radius: 4px; font-size: 0.9em; }
+    .input-search { width: 280px; padding: 6px 10px; border: 1px solid #ccc; border-radius: 4px; font-size: 0.9em; }
+
+    .tabs { display: flex; gap: 0; margin-bottom: 0; border-bottom: 2px solid #e0e0e0; }
+    .tab { padding: 8px 20px; border: none; background: none; cursor: pointer; font-size: 0.92em; color: #666; border-bottom: 2px solid transparent; margin-bottom: -2px; transition: color .15s, border-color .15s; }
+    .tab:hover { color: #1565c0; }
+    .tab.active { color: #1565c0; border-bottom-color: #1565c0; font-weight: 600; }
+
+    .data-table { width: 100%; border-collapse: collapse; margin: 12px 0; font-size: 0.88em; }
+    .data-table th, .data-table td { padding: 6px 10px; border: 1px solid #e0e0e0; text-align: left; }
+    .data-table th { background: #f5f5f5; font-weight: 600; }
+    .data-table a { color: #1565c0; text-decoration: none; }
+    .data-table a:hover { text-decoration: underline; }
+    .badge { padding: 2px 8px; border-radius: 10px; font-size: 0.78em; font-weight: 600; display: inline-block; }
+    .badge-pcp { background: #e8f5e9; color: #2e7d32; }
+    .badge-default { background: #eeeeee; color: #555; }
+
+    /* ── Calendar wrapper ─────────────────────────────────────────────────── */
+    .cal-wrap { background: #fff; border: 1px solid #e0e0e0; border-radius: 6px; overflow: hidden; margin-top: 12px; }
+
+    /* ── Calendar toolbar ─────────────────────────────────────────────────── */
+    .cal-toolbar { display: flex; align-items: center; gap: 6px; padding: 10px 14px; background: #fafafa; border-bottom: 1px solid #e0e0e0; }
+    .cal-nav-btn { padding: 4px 10px; border: 1px solid #ccc; background: #fff; border-radius: 4px; cursor: pointer; font-size: 1.1em; line-height: 1; color: #444; }
+    .cal-nav-btn:hover { background: #f0f4ff; border-color: #90caf9; color: #1565c0; }
+    .cal-today-btn { font-size: 0.82em; padding: 4px 10px; }
+    .cal-title { font-weight: 600; font-size: 0.95em; color: #222; margin-left: 4px; white-space: nowrap; }
+    .cal-view-seg { display: flex; border: 1px solid #ccc; border-radius: 4px; overflow: hidden; }
+    .cal-view-btn { padding: 4px 12px; border: none; background: #fff; cursor: pointer; font-size: 0.82em; color: #555; }
+    .cal-view-btn:hover { background: #f0f4ff; color: #1565c0; }
+    .cal-view-btn.active { background: #1565c0; color: #fff; font-weight: 600; }
+    .cal-view-seg .cal-view-btn + .cal-view-btn { border-left: 1px solid #ccc; }
+    .cal-refresh { padding: 4px 8px; border: 1px solid #ccc; background: #fff; border-radius: 4px; cursor: pointer; font-size: 1em; color: #555; }
+    .cal-refresh:hover { color: #1565c0; border-color: #90caf9; }
+    .cal-busy { font-size: 0.85em; color: #888; animation: cal-spin 1s linear infinite; display: inline-block; }
+    @@keyframes cal-spin { to { transform: rotate(360deg); } }
+
+    /* ── Day header row ───────────────────────────────────────────────────── */
+    .cal-head { display: flex; border-bottom: 1px solid #e0e0e0; background: #fafafa; position: sticky; top: 0; z-index: 10; }
+    .cal-gutter-hdr { width: 52px; flex-shrink: 0; }
+    .cal-day-hdr { flex: 1; text-align: center; padding: 6px 2px 5px; display: flex; flex-direction: column; align-items: center; gap: 2px; }
+    .cal-day-hdr.is-today .dname { color: #1565c0; }
+    .dname { font-size: 0.7em; font-weight: 700; color: #888; letter-spacing: .04em; }
+    .dnum-ring { width: 28px; height: 28px; display: flex; align-items: center; justify-content: center; border-radius: 50%; font-size: 0.92em; font-weight: 500; color: #333; }
+    .today-ring { background: #1565c0; color: #fff; font-weight: 700; }
+
+    /* ── Scrollable body ──────────────────────────────────────────────────── */
+    .cal-scroll { overflow-y: auto; max-height: 580px; }
+
+    /* ── Body grid ────────────────────────────────────────────────────────── */
+    .cal-body { display: flex; position: relative; }
+    .cal-gutter { width: 52px; flex-shrink: 0; position: relative; }
+    .cal-hr-lbl { position: absolute; right: 8px; font-size: 0.68em; color: #aaa; transform: translateY(-50%); white-space: nowrap; user-select: none; }
+    .cal-day-col { flex: 1; position: relative; border-left: 1px solid #f0f0f0; min-width: 0; }
+    .cal-day-col.is-today { background: #f8f9ff; }
+    .cal-bg-hr { position: absolute; left: 0; right: 0; height: 1px; background: #eeeeee; }
+    .cal-bg-hh { position: absolute; left: 0; right: 0; height: 1px; background: #f6f6f6; }
+
+    /* ── Appointment event blocks ─────────────────────────────────────────── */
+    .cal-event { position: absolute; left: 2px; right: 2px; border-radius: 4px; padding: 2px 5px; overflow: hidden; cursor: pointer; font-size: 0.76em; line-height: 1.3; box-sizing: border-box; border-left: 3px solid transparent; transition: filter .12s; }
+    .cal-event:hover { filter: brightness(0.93); z-index: 5; }
+    .ev-name { display: block; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .ev-sub  { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; opacity: .85; }
+    .ev-time { display: block; opacity: .75; }
+
+    /* Status palettes */
+    .cal-ev-scheduled  { background: #e3f2fd; border-left-color: #1976d2; color: #0d47a1; }
+    .cal-ev-checkin    { background: #fff8e1; border-left-color: #f9a825; color: #6d4c00; }
+    .cal-ev-completed  { background: #e8f5e9; border-left-color: #388e3c; color: #1b5e20; }
+    .cal-ev-cancelled  { background: #f5f5f5; border-left-color: #bdbdbd; color: #757575; text-decoration: line-through; }
+    .cal-ev-noshow     { background: #fce4ec; border-left-color: #e53935; color: #880e4f; }
+
+    /* ── Current-time indicator ───────────────────────────────────────────── */
+    .cal-now-line { position: absolute; left: -2px; right: 0; height: 2px; background: #e53935; pointer-events: none; z-index: 6; }
+    .cal-now-dot  { position: absolute; left: -4px; top: -4px; width: 10px; height: 10px; background: #e53935; border-radius: 50%; }
+
+    /* ── Legend bar ───────────────────────────────────────────────────────── */
+    .cal-legend { display: flex; gap: 16px; padding: 8px 14px; border-top: 1px solid #f0f0f0; background: #fafafa; flex-wrap: wrap; }
+    .leg-item { font-size: 0.75em; padding: 2px 10px; border-radius: 10px; font-weight: 600; }
+    .leg-scheduled { background: #e3f2fd; color: #0d47a1; }
+    .leg-checkin   { background: #fff8e1; color: #6d4c00; }
+    .leg-completed { background: #e8f5e9; color: #1b5e20; }
+    .leg-cancelled { background: #f5f5f5; color: #757575; }
+    .leg-noshow    { background: #fce4ec; color: #880e4f; }
+
+    /* ── Empty state ──────────────────────────────────────────────────────── */
+    .cal-empty { padding: 48px; text-align: center; color: #999; font-size: 0.95em; }
+    .empty-msg { color: #999; font-style: italic; }
+</style>

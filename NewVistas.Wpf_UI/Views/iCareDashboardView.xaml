@@ -1,0 +1,115 @@
+<UserControl x:Class="NewVistas.Wpf_UI.Views.iCareDashboardView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <ScrollViewer VerticalScrollBarVisibility="Auto">
+        <StackPanel Margin="24">
+            <TextBlock Style="{StaticResource PageTitle}" Text="iCare Dashboard"/>
+
+            <!-- Feature banner -->
+            <Border Background="#fff3cd" BorderBrush="#ffc107" BorderThickness="1" CornerRadius="4"
+                    Padding="12" Margin="0,0,0,12"
+                    Visibility="{Binding IsFeatureEnabled, Converter={StaticResource InverseBoolToVisibility}}">
+                <TextBlock Text="iCare Dashboard feature is not currently enabled for this site." FontSize="13"/>
+            </Border>
+
+            <!-- Error / Success -->
+            <TextBlock Style="{StaticResource ErrorText}" Text="{Binding Error}"
+                       Visibility="{Binding Error, Converter={StaticResource NullToVisibility}}"/>
+            <TextBlock Foreground="{StaticResource VaSuccessBrush}" FontSize="13" Margin="0,4,0,4"
+                       Text="{Binding SuccessMessage}"
+                       Visibility="{Binding SuccessMessage, Converter={StaticResource NullToVisibility}}"/>
+
+            <!-- Provider ID + actions -->
+            <StackPanel Orientation="Horizontal" Margin="0,0,0,12" VerticalAlignment="Center">
+                <TextBlock Style="{StaticResource FieldLabel}" Text="Provider ID:" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                <TextBox Text="{Binding ProviderId, UpdateSourceTrigger=PropertyChanged}" Width="200" Margin="0,0,8,0"/>
+                <Button Content="Load Panel" Style="{StaticResource PrimaryButton}"
+                        Command="{Binding LoadPanelCommand}" Margin="0,0,8,0"/>
+                <Button Content="Generate Dashboard" Style="{StaticResource PrimaryButton}"
+                        Command="{Binding GenerateDashboardCommand}" Margin="0,0,8,0"/>
+                <Button Content="Check Feature" Style="{StaticResource SecondaryButton}"
+                        Command="{Binding CheckFeatureCommand}" Margin="0,0,8,0"/>
+                <ProgressBar IsIndeterminate="True" Width="120" Height="20"
+                             Visibility="{Binding IsLoading, Converter={StaticResource BoolToVisibility}}"/>
+            </StackPanel>
+
+            <!-- Summary Cards -->
+            <TextBlock Style="{StaticResource SectionHeader}" Text="Dashboard Summary"/>
+            <UniformGrid Columns="4" Margin="0,0,0,16">
+                <Border Style="{StaticResource FormPanel}" Margin="0,0,8,0">
+                    <StackPanel HorizontalAlignment="Center">
+                        <TextBlock Text="Total Patients" FontSize="11" Foreground="Gray" HorizontalAlignment="Center"/>
+                        <TextBlock Text="{Binding TotalPatients}" FontSize="24" FontWeight="Bold"
+                                   Foreground="{StaticResource VaBlueBrush}" HorizontalAlignment="Center"/>
+                    </StackPanel>
+                </Border>
+                <Border Style="{StaticResource FormPanel}" Margin="0,0,8,0">
+                    <StackPanel HorizontalAlignment="Center">
+                        <TextBlock Text="Patients with Gaps" FontSize="11" Foreground="Gray" HorizontalAlignment="Center"/>
+                        <TextBlock Text="{Binding PatientsWithGaps}" FontSize="24" FontWeight="Bold"
+                                   Foreground="#c62828" HorizontalAlignment="Center"/>
+                    </StackPanel>
+                </Border>
+                <Border Style="{StaticResource FormPanel}" Margin="0,0,8,0">
+                    <StackPanel HorizontalAlignment="Center">
+                        <TextBlock Text="Due Reminders" FontSize="11" Foreground="Gray" HorizontalAlignment="Center"/>
+                        <TextBlock Text="{Binding TotalDueReminders}" FontSize="24" FontWeight="Bold"
+                                   Foreground="#e65100" HorizontalAlignment="Center"/>
+                    </StackPanel>
+                </Border>
+                <Border Style="{StaticResource FormPanel}">
+                    <StackPanel HorizontalAlignment="Center">
+                        <TextBlock Text="Quality Gaps" FontSize="11" Foreground="Gray" HorizontalAlignment="Center"/>
+                        <TextBlock Text="{Binding TotalQualityGaps}" FontSize="24" FontWeight="Bold"
+                                   Foreground="#c62828" HorizontalAlignment="Center"/>
+                    </StackPanel>
+                </Border>
+            </UniformGrid>
+
+            <!-- Patient Summaries DataGrid -->
+            <TextBlock Style="{StaticResource SectionHeader}" Text="Patient Summaries"/>
+            <DataGrid ItemsSource="{Binding PatientSummaries}" AutoGenerateColumns="False" Margin="0,0,0,16">
+                <DataGrid.Columns>
+                    <DataGridTextColumn Header="Patient ID" Binding="{Binding PatientId}" Width="150"/>
+                    <DataGridTextColumn Header="Patient Name" Binding="{Binding PatientName}" Width="*"/>
+                    <DataGridTextColumn Header="Status" Binding="{Binding OverallStatus}" Width="100"/>
+                    <DataGridTextColumn Header="Due Reminders" Binding="{Binding DueReminderCount}" Width="120"/>
+                    <DataGridTextColumn Header="Quality Gaps" Binding="{Binding QualityGapCount}" Width="110"/>
+                    <DataGridTextColumn Header="Registries" Binding="{Binding RegistryCount}" Width="100"/>
+                </DataGrid.Columns>
+            </DataGrid>
+
+            <!-- Panel Management -->
+            <TextBlock Style="{StaticResource SectionHeader}" Text="Panel Management"/>
+            <Border Style="{StaticResource FormPanel}">
+                <StackPanel>
+                    <TextBlock Style="{StaticResource FieldLabel}" Text="Add Patient to Panel"/>
+                    <StackPanel Orientation="Horizontal" Margin="0,4,0,8">
+                        <TextBox Text="{Binding NewPatientId, UpdateSourceTrigger=PropertyChanged}"
+                                 Width="160" Margin="0,0,8,0"/>
+                        <TextBox Text="{Binding NewPatientName, UpdateSourceTrigger=PropertyChanged}"
+                                 Width="200" Margin="0,0,8,0"/>
+                        <Button Content="Add to Panel" Style="{StaticResource PrimaryButton}"
+                                Command="{Binding AddToPanelCommand}"/>
+                    </StackPanel>
+
+                    <DataGrid ItemsSource="{Binding Panel}" AutoGenerateColumns="False">
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Header="Patient ID" Binding="{Binding PatientId}" Width="200"/>
+                            <DataGridTextColumn Header="Patient Name" Binding="{Binding PatientName}" Width="*"/>
+                            <DataGridTemplateColumn Header="Actions" Width="120">
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <Button Content="Remove" Style="{StaticResource DangerButton}"
+                                                Command="{Binding DataContext.RemoveFromPanelCommand, RelativeSource={RelativeSource AncestorType=DataGrid}}"
+                                                CommandParameter="{Binding PatientId}" Padding="8,2"/>
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                            </DataGridTemplateColumn>
+                        </DataGrid.Columns>
+                    </DataGrid>
+                </StackPanel>
+            </Border>
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>

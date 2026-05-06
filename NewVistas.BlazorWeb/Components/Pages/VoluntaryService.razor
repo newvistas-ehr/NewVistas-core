@@ -1,0 +1,713 @@
+@page "/voluntary-service"
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+@rendermode InteractiveServer
+@using NewVistas.BlazorWeb.Services
+@using NewVistas.Abstractions.GrainInterfaces
+@using NewVistas.Abstractions.GrainStates
+@inject OrleansGrainService Grains
+
+<PageTitle>Voluntary Service</PageTitle>
+
+<h2>Voluntary Service</h2>
+<p>VistA VOLUNTARY SERVICE file (#8810) — Volunteer registration, hours tracking, and recognition.</p>
+
+@if (error != null)
+{
+    <div style="color:red; margin-bottom:1rem;">@error</div>
+}
+
+<!-- Tab Navigation -->
+<div style="display:flex; gap:0.5rem; margin-bottom:1.5rem; flex-wrap:wrap;">
+    <button class="tab-btn @(activeTab == "volunteers" ? "active" : "")" @onclick='() => SetTab("volunteers")'>Volunteers</button>
+    <button class="tab-btn @(activeTab == "hours" ? "active" : "")" @onclick='() => SetTab("hours")'>Hours Tracking</button>
+    <button class="tab-btn @(activeTab == "recognition" ? "active" : "")" @onclick='() => SetTab("recognition")'>Recognition</button>
+    <button class="tab-btn @(activeTab == "enroll" ? "active" : "")" @onclick='() => SetTab("enroll")'>Enroll Volunteer</button>
+</div>
+
+<!-- ── Tab: Volunteers ─────────────────────────────────────────────────────── -->
+@if (activeTab == "volunteers")
+{
+    <div style="display:flex; gap:1rem; margin-bottom:1rem; align-items:flex-end; flex-wrap:wrap;">
+        <div>
+            <label>Filter by Status</label><br/>
+            <select @bind="filterStatus" style="width:160px;">
+                <option value="">All</option>
+                @foreach (string s in statusOptions)
+                {
+                    <option value="@s">@s</option>
+                }
+            </select>
+        </div>
+        <div>
+            <label>Search by Name</label><br/>
+            <input @bind="nameSearch" style="width:200px;" placeholder="Last or first name" />
+        </div>
+        <button @onclick="LoadVolunteers" disabled="@loading">Search</button>
+    </div>
+
+    @if (loading)
+    {
+        <p>Loading…</p>
+    }
+    else if (volunteers.Count == 0)
+    {
+        <p>No volunteers found.</p>
+    }
+    else
+    {
+        <table style="width:100%; border-collapse:collapse;">
+            <thead>
+                <tr>
+                    <th style="text-align:left; border-bottom:1px solid #ccc; padding:4px;">Name</th>
+                    <th style="text-align:left; border-bottom:1px solid #ccc; padding:4px;">Status</th>
+                    <th style="text-align:right; border-bottom:1px solid #ccc; padding:4px;">Total Hours</th>
+                    <th style="text-align:left; border-bottom:1px solid #ccc; padding:4px;">Primary Service</th>
+                    <th style="text-align:left; border-bottom:1px solid #ccc; padding:4px;">Enrolled</th>
+                    <th style="border-bottom:1px solid #ccc; padding:4px;"></th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (VolunteerIndexEntry v in volunteers)
+                {
+                    <tr>
+                        <td style="padding:4px;">@v.LastName, @v.FirstName</td>
+                        <td style="padding:4px;">@v.Status</td>
+                        <td style="padding:4px; text-align:right;">@v.TotalHours.ToString("F1")</td>
+                        <td style="padding:4px;">@(v.PrimaryServiceType?.ToString() ?? "—")</td>
+                        <td style="padding:4px;">@v.EnrollmentDate.ToString("MM/dd/yyyy")</td>
+                        <td style="padding:4px;">
+                            <button @onclick="() => SelectVolunteer(v.VolunteerId)">View</button>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    }
+
+    @if (selectedVolunteer != null)
+    {
+        <hr/>
+        <h3>Volunteer Detail — @selectedVolunteer.LastName, @selectedVolunteer.FirstName</h3>
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:1rem; max-width:700px;">
+            <div><strong>Status:</strong> @selectedVolunteer.Status</div>
+            <div><strong>Total Hours:</strong> @selectedVolunteer.TotalHours.ToString("F1")</div>
+            <div><strong>Phone:</strong> @(selectedVolunteer.PhoneNumber ?? "—")</div>
+            <div><strong>Email:</strong> @(selectedVolunteer.Email ?? "—")</div>
+            <div><strong>Background Check:</strong> @selectedVolunteer.BackgroundCheckStatus</div>
+            <div><strong>Enrolled:</strong> @selectedVolunteer.EnrollmentDate.ToString("MM/dd/yyyy")</div>
+            @if (selectedVolunteer.Address != null)
+            {
+                <div style="grid-column:1/-1;"><strong>Address:</strong> @selectedVolunteer.Address</div>
+            }
+            @if (selectedVolunteer.EmergencyContactName != null)
+            {
+                <div><strong>Emergency Contact:</strong> @selectedVolunteer.EmergencyContactName</div>
+                <div><strong>Emergency Phone:</strong> @(selectedVolunteer.EmergencyContactPhone ?? "—")</div>
+            }
+            @if (selectedVolunteer.Skills.Count > 0)
+            {
+                <div style="grid-column:1/-1;"><strong>Skills:</strong> @string.Join(", ", selectedVolunteer.Skills)</div>
+            }
+        </div>
+
+        @if (selectedVolunteer.Assignments.Count > 0)
+        {
+            <h4>Assignments</h4>
+            <table style="width:100%; border-collapse:collapse; max-width:700px;">
+                <thead>
+                    <tr>
+                        <th style="text-align:left; border-bottom:1px solid #ccc; padding:4px;">Service Area</th>
+                        <th style="text-align:left; border-bottom:1px solid #ccc; padding:4px;">Role</th>
+                        <th style="text-align:left; border-bottom:1px solid #ccc; padding:4px;">Service Type</th>
+                        <th style="text-align:left; border-bottom:1px solid #ccc; padding:4px;">Start</th>
+                        <th style="text-align:left; border-bottom:1px solid #ccc; padding:4px;">End</th>
+                        <th style="text-align:left; border-bottom:1px solid #ccc; padding:4px;">Active</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (VolunteerAssignmentRecord a in selectedVolunteer.Assignments)
+                    {
+                        <tr>
+                            <td style="padding:4px;">@a.ServiceArea @(a.IsPrimary ? "★" : "")</td>
+                            <td style="padding:4px;">@a.Role</td>
+                            <td style="padding:4px;">@a.ServiceType</td>
+                            <td style="padding:4px;">@a.StartDate.ToString("MM/dd/yyyy")</td>
+                            <td style="padding:4px;">@(a.EndDate?.ToString("MM/dd/yyyy") ?? "—")</td>
+                            <td style="padding:4px;">@(a.IsActive ? "Yes" : "No")</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        }
+    }
+}
+
+<!-- ── Tab: Hours Tracking ─────────────────────────────────────────────────── -->
+@if (activeTab == "hours")
+{
+    <div style="display:flex; gap:1rem; margin-bottom:1rem; align-items:flex-end; flex-wrap:wrap;">
+        <div>
+            <label>Volunteer ID</label><br/>
+            <input @bind="hoursVolunteerId" style="width:280px;" placeholder="Volunteer ID" />
+        </div>
+        <button @onclick="LoadHours" disabled="@loading">Load Hours</button>
+    </div>
+
+    @if (hoursLog.Count > 0)
+    {
+        <p><strong>Total Hours:</strong> @hoursLog.Sum(h => h.Hours).ToString("F1")</p>
+        <table style="width:100%; border-collapse:collapse; max-width:700px;">
+            <thead>
+                <tr>
+                    <th style="text-align:left; border-bottom:1px solid #ccc; padding:4px;">Date</th>
+                    <th style="text-align:right; border-bottom:1px solid #ccc; padding:4px;">Hours</th>
+                    <th style="text-align:left; border-bottom:1px solid #ccc; padding:4px;">Service Type</th>
+                    <th style="text-align:left; border-bottom:1px solid #ccc; padding:4px;">Notes</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (VolunteerHoursRecord h in hoursLog.OrderByDescending(x => x.LoggedDate))
+                {
+                    <tr>
+                        <td style="padding:4px;">@h.LoggedDate.ToString("MM/dd/yyyy")</td>
+                        <td style="padding:4px; text-align:right;">@h.Hours.ToString("F2")</td>
+                        <td style="padding:4px;">@h.ServiceType</td>
+                        <td style="padding:4px;">@(h.Notes ?? "—")</td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    }
+
+    <hr/>
+    <h4>Log Hours</h4>
+    <div style="display:grid; grid-template-columns:1fr 1fr; gap:0.75rem; max-width:500px;">
+        <div>
+            <label>Volunteer ID</label><br/>
+            <input @bind="newHours.VolunteerId" style="width:100%;" />
+        </div>
+        <div>
+            <label>Date</label><br/>
+            <input type="date" @bind="newHours.LoggedDate" style="width:100%;" />
+        </div>
+        <div>
+            <label>Hours</label><br/>
+            <input type="number" @bind="newHours.Hours" step="0.25" min="0" style="width:100%;" />
+        </div>
+        <div>
+            <label>Service Type</label><br/>
+            <select @bind="newHours.ServiceType" style="width:100%;">
+                @foreach (string s in serviceTypeOptions)
+                {
+                    <option value="@s">@s</option>
+                }
+            </select>
+        </div>
+        <div style="grid-column:1/-1;">
+            <label>Notes</label><br/>
+            <input @bind="newHours.Notes" style="width:100%;" />
+        </div>
+    </div>
+    <button @onclick="LogHours" disabled="@loading" style="margin-top:0.75rem;">Log Hours</button>
+    @if (hoursSuccess != null)
+    {
+        <span style="color:green; margin-left:1rem;">@hoursSuccess</span>
+    }
+}
+
+<!-- ── Tab: Recognition ───────────────────────────────────────────────────── -->
+@if (activeTab == "recognition")
+{
+    <div style="display:flex; gap:1rem; margin-bottom:1rem; align-items:flex-end;">
+        <div>
+            <label>Volunteer ID</label><br/>
+            <input @bind="recogVolunteerId" style="width:280px;" placeholder="Volunteer ID" />
+        </div>
+        <button @onclick="LoadRecognitions" disabled="@loading">Load</button>
+    </div>
+
+    @if (recognitions.Count > 0)
+    {
+        <table style="width:100%; border-collapse:collapse; max-width:700px;">
+            <thead>
+                <tr>
+                    <th style="text-align:left; border-bottom:1px solid #ccc; padding:4px;">Award Date</th>
+                    <th style="text-align:left; border-bottom:1px solid #ccc; padding:4px;">Type</th>
+                    <th style="text-align:left; border-bottom:1px solid #ccc; padding:4px;">Awarded By</th>
+                    <th style="text-align:left; border-bottom:1px solid #ccc; padding:4px;">Description</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (VolunteerRecognitionRecord r in recognitions.OrderByDescending(x => x.AwardDate))
+                {
+                    <tr>
+                        <td style="padding:4px;">@r.AwardDate.ToString("MM/dd/yyyy")</td>
+                        <td style="padding:4px;">@r.RecognitionType</td>
+                        <td style="padding:4px;">@(r.AwardedBy ?? "—")</td>
+                        <td style="padding:4px;">@(r.Description ?? "—")</td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    }
+    else
+    {
+        <p>No recognition records found.</p>
+    }
+
+    <hr/>
+    <h4>Add Recognition</h4>
+    <div style="display:grid; grid-template-columns:1fr 1fr; gap:0.75rem; max-width:500px;">
+        <div>
+            <label>Volunteer ID</label><br/>
+            <input @bind="newRecog.VolunteerId" style="width:100%;" />
+        </div>
+        <div>
+            <label>Award Date</label><br/>
+            <input type="date" @bind="newRecog.AwardDate" style="width:100%;" />
+        </div>
+        <div>
+            <label>Recognition Type</label><br/>
+            <select @bind="newRecog.RecognitionType" style="width:100%;">
+                @foreach (string r in recognitionTypeOptions)
+                {
+                    <option value="@r">@r</option>
+                }
+            </select>
+        </div>
+        <div>
+            <label>Awarded By</label><br/>
+            <input @bind="newRecog.AwardedBy" style="width:100%;" />
+        </div>
+        <div style="grid-column:1/-1;">
+            <label>Description</label><br/>
+            <input @bind="newRecog.Description" style="width:100%;" />
+        </div>
+    </div>
+    <button @onclick="AddRecognition" disabled="@loading" style="margin-top:0.75rem;">Add Recognition</button>
+    @if (recogSuccess != null)
+    {
+        <span style="color:green; margin-left:1rem;">@recogSuccess</span>
+    }
+}
+
+<!-- ── Tab: Enroll Volunteer ──────────────────────────────────────────────── -->
+@if (activeTab == "enroll")
+{
+    <h3>Enroll New Volunteer</h3>
+    <div style="display:grid; grid-template-columns:1fr 1fr; gap:0.75rem; max-width:600px;">
+        <div>
+            <label>First Name *</label><br/>
+            <input @bind="newVolunteer.FirstName" style="width:100%;" />
+        </div>
+        <div>
+            <label>Last Name *</label><br/>
+            <input @bind="newVolunteer.LastName" style="width:100%;" />
+        </div>
+        <div>
+            <label>Middle Name</label><br/>
+            <input @bind="newVolunteer.MiddleName" style="width:100%;" />
+        </div>
+        <div>
+            <label>Date of Birth</label><br/>
+            <input type="date" @bind="newVolunteer.DateOfBirth" style="width:100%;" />
+        </div>
+        <div>
+            <label>Phone</label><br/>
+            <input @bind="newVolunteer.Phone" style="width:100%;" />
+        </div>
+        <div>
+            <label>Email</label><br/>
+            <input type="email" @bind="newVolunteer.Email" style="width:100%;" />
+        </div>
+        <div style="grid-column:1/-1;">
+            <label>Address</label><br/>
+            <input @bind="newVolunteer.Address" style="width:100%;" />
+        </div>
+        <div>
+            <label>Emergency Contact Name</label><br/>
+            <input @bind="newVolunteer.EmergencyContactName" style="width:100%;" />
+        </div>
+        <div>
+            <label>Emergency Contact Phone</label><br/>
+            <input @bind="newVolunteer.EmergencyContactPhone" style="width:100%;" />
+        </div>
+        <div>
+            <label>Enrollment Date *</label><br/>
+            <input type="date" @bind="newVolunteer.EnrollmentDate" style="width:100%;" />
+        </div>
+        <div>
+            <label>Background Check Status</label><br/>
+            <select @bind="newVolunteer.BackgroundCheckStatus" style="width:100%;">
+                @foreach (string s in bgCheckOptions)
+                {
+                    <option value="@s">@s</option>
+                }
+            </select>
+        </div>
+        <div style="grid-column:1/-1;">
+            <label>Notes</label><br/>
+            <textarea @bind="newVolunteer.Notes" style="width:100%; height:60px;"></textarea>
+        </div>
+    </div>
+    <button @onclick="EnrollVolunteer" disabled="@loading" style="margin-top:0.75rem;">Enroll Volunteer</button>
+    @if (enrollSuccess != null)
+    {
+        <span style="color:green; margin-left:1rem;">@enrollSuccess</span>
+    }
+}
+
+<style>
+    .tab-btn {
+        padding: 0.4rem 1rem;
+        border: 1px solid #999;
+        background: #f0f0f0;
+        cursor: pointer;
+        border-radius: 4px;
+    }
+    .tab-btn.active {
+        background: #0066cc;
+        color: white;
+        border-color: #0066cc;
+    }
+    th { background: #f5f5f5; }
+</style>
+
+@code {
+    // ── State ──────────────────────────────────────────────────────────────────
+
+    private string activeTab = "volunteers";
+    private string? error;
+    private bool loading;
+
+    // Volunteers tab
+    private string filterStatus = string.Empty;
+    private string nameSearch = string.Empty;
+    private List<VolunteerIndexEntry> volunteers = new();
+    private VolunteerDetailDto? selectedVolunteer;
+
+    // Hours tab
+    private string hoursVolunteerId = string.Empty;
+    private List<VolunteerHoursRecord> hoursLog = new();
+    private string? hoursSuccess;
+    private NewHoursForm newHours = new();
+
+    // Recognition tab
+    private string recogVolunteerId = string.Empty;
+    private List<VolunteerRecognitionRecord> recognitions = new();
+    private string? recogSuccess;
+    private NewRecogForm newRecog = new();
+
+    // Enroll tab
+    private EnrollForm newVolunteer = new();
+    private string? enrollSuccess;
+
+    // Options
+    private string[] statusOptions = Enum.GetNames(typeof(VolunteerStatus));
+    private string[] serviceTypeOptions = Enum.GetNames(typeof(VolunteerServiceType));
+    private string[] recognitionTypeOptions = Enum.GetNames(typeof(VolunteerRecognitionType));
+    private string[] bgCheckOptions = Enum.GetNames(typeof(BackgroundCheckStatus));
+
+    // ── Lifecycle ─────────────────────────────────────────────────────────────
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadVolunteers();
+    }
+
+    private void SetTab(string tab)
+    {
+        activeTab = tab;
+        error = null;
+    }
+
+    // ── Volunteers tab ────────────────────────────────────────────────────────
+
+    private async Task LoadVolunteers()
+    {
+        loading = true;
+        error = null;
+        try
+        {
+            var vsIdx = Grains.GetGrain<IVolunteerIndexGrain>("VS-INDEX");
+            if (!string.IsNullOrWhiteSpace(nameSearch))
+            {
+                volunteers = await vsIdx.SearchAsync(nameSearch);
+            }
+            else if (!string.IsNullOrWhiteSpace(filterStatus))
+            {
+                volunteers = await vsIdx.GetByStatusAsync(Enum.Parse<VolunteerStatus>(filterStatus));
+            }
+            else
+            {
+                volunteers = await vsIdx.GetAllAsync();
+            }
+        }
+        catch (Exception ex)
+        {
+            error = $"Failed to load volunteers: {ex.Message}";
+        }
+        finally
+        {
+            loading = false;
+        }
+    }
+
+    private async Task SelectVolunteer(string volunteerId)
+    {
+        loading = true;
+        error = null;
+        try
+        {
+            var vGrain = Grains.GetGrain<IVolunteerGrain>($"VS-VOLUNTEER:{volunteerId}");
+            var vs = await vGrain.GetAsync();
+            selectedVolunteer = new VolunteerDetailDto
+            {
+                FirstName = vs.FirstName, LastName = vs.LastName,
+                Status = vs.Status, TotalHours = vs.TotalHours,
+                PhoneNumber = vs.PhoneNumber, Email = vs.Email,
+                BackgroundCheckStatus = vs.BackgroundCheckStatus, EnrollmentDate = vs.EnrollmentDate,
+                Address = vs.Address, EmergencyContactName = vs.EmergencyContactName,
+                EmergencyContactPhone = vs.EmergencyContactPhone,
+                Skills = vs.Skills, Assignments = vs.Assignments
+            };
+        }
+        catch (Exception ex)
+        {
+            error = $"Failed to load volunteer detail: {ex.Message}";
+        }
+        finally
+        {
+            loading = false;
+        }
+    }
+
+    // ── Hours tab ─────────────────────────────────────────────────────────────
+
+    private async Task LoadHours()
+    {
+        if (string.IsNullOrWhiteSpace(hoursVolunteerId)) return;
+        loading = true;
+        error = null;
+        try
+        {
+            var hGrain = Grains.GetGrain<IVolunteerGrain>($"VS-VOLUNTEER:{hoursVolunteerId.Trim()}");
+            hoursLog = await hGrain.GetHoursLogAsync();
+        }
+        catch (Exception ex)
+        {
+            error = $"Failed to load hours: {ex.Message}";
+        }
+        finally
+        {
+            loading = false;
+        }
+    }
+
+    private async Task LogHours()
+    {
+        if (string.IsNullOrWhiteSpace(newHours.VolunteerId)) return;
+        loading = true;
+        error = null;
+        hoursSuccess = null;
+        try
+        {
+            var payload = new
+            {
+                LoggedDate = newHours.LoggedDate,
+                Hours = newHours.Hours,
+                ServiceType = Enum.Parse<VolunteerServiceType>(newHours.ServiceType),
+                AssignmentId = (string?)null,
+                Notes = newHours.Notes
+            };
+
+            var logGrain = Grains.GetGrain<IVolunteerGrain>($"VS-VOLUNTEER:{newHours.VolunteerId.Trim()}");
+            await logGrain.LogHoursAsync(newHours.LoggedDate, newHours.Hours,
+                Enum.Parse<VolunteerServiceType>(newHours.ServiceType), null, newHours.Notes);
+            hoursSuccess = "Hours logged successfully.";
+            newHours = new NewHoursForm();
+            hoursLog = new();
+        }
+        catch (Exception ex)
+        {
+            error = $"Error logging hours: {ex.Message}";
+        }
+        finally
+        {
+            loading = false;
+        }
+    }
+
+    // ── Recognition tab ───────────────────────────────────────────────────────
+
+    private async Task LoadRecognitions()
+    {
+        if (string.IsNullOrWhiteSpace(recogVolunteerId)) return;
+        loading = true;
+        error = null;
+        try
+        {
+            var recGrain = Grains.GetGrain<IVolunteerGrain>($"VS-VOLUNTEER:{recogVolunteerId.Trim()}");
+            recognitions = await recGrain.GetRecognitionsAsync();
+        }
+        catch (Exception ex)
+        {
+            error = $"Failed to load recognitions: {ex.Message}";
+        }
+        finally
+        {
+            loading = false;
+        }
+    }
+
+    private async Task AddRecognition()
+    {
+        if (string.IsNullOrWhiteSpace(newRecog.VolunteerId)) return;
+        loading = true;
+        error = null;
+        recogSuccess = null;
+        try
+        {
+            var payload = new
+            {
+                RecognitionType = Enum.Parse<VolunteerRecognitionType>(newRecog.RecognitionType),
+                AwardDate = newRecog.AwardDate,
+                AwardedBy = newRecog.AwardedBy,
+                Description = newRecog.Description,
+                CertificateNumber = (string?)null
+            };
+
+            var addRecGrain = Grains.GetGrain<IVolunteerGrain>($"VS-VOLUNTEER:{newRecog.VolunteerId.Trim()}");
+            await addRecGrain.AddRecognitionAsync(
+                Enum.Parse<VolunteerRecognitionType>(newRecog.RecognitionType),
+                newRecog.AwardDate, newRecog.AwardedBy, newRecog.Description, null);
+            recogSuccess = "Recognition recorded.";
+            newRecog = new NewRecogForm();
+        }
+        catch (Exception ex)
+        {
+            error = $"Error adding recognition: {ex.Message}";
+        }
+        finally
+        {
+            loading = false;
+        }
+    }
+
+    // ── Enroll tab ────────────────────────────────────────────────────────────
+
+    private async Task EnrollVolunteer()
+    {
+        if (string.IsNullOrWhiteSpace(newVolunteer.FirstName) || string.IsNullOrWhiteSpace(newVolunteer.LastName))
+        {
+            error = "First name and last name are required.";
+            return;
+        }
+
+        loading = true;
+        error = null;
+        enrollSuccess = null;
+        try
+        {
+            var payload = new
+            {
+                FirstName = newVolunteer.FirstName,
+                LastName = newVolunteer.LastName,
+                MiddleName = newVolunteer.MiddleName,
+                DateOfBirth = newVolunteer.DateOfBirth,
+                PhoneNumber = newVolunteer.Phone,
+                Email = newVolunteer.Email,
+                Address = newVolunteer.Address,
+                EmergencyContactName = newVolunteer.EmergencyContactName,
+                EmergencyContactPhone = newVolunteer.EmergencyContactPhone,
+                EnrollmentDate = newVolunteer.EnrollmentDate,
+                BackgroundCheckStatus = Enum.Parse<BackgroundCheckStatus>(newVolunteer.BackgroundCheckStatus),
+                Skills = (List<string>?)null,
+                Interests = (List<string>?)null,
+                Notes = newVolunteer.Notes
+            };
+
+            string volId = Guid.NewGuid().ToString();
+            var enrollGrain = Grains.GetGrain<IVolunteerGrain>($"VS-VOLUNTEER:{volId}");
+            await enrollGrain.EnrollAsync(
+                volId, newVolunteer.FirstName, newVolunteer.LastName, newVolunteer.MiddleName,
+                newVolunteer.DateOfBirth, newVolunteer.Phone, newVolunteer.Email, newVolunteer.Address,
+                newVolunteer.EmergencyContactName, newVolunteer.EmergencyContactPhone,
+                newVolunteer.EnrollmentDate,
+                Enum.Parse<BackgroundCheckStatus>(newVolunteer.BackgroundCheckStatus),
+                null, null, newVolunteer.Notes);
+            var enrollState = await enrollGrain.GetAsync();
+            var volIdx = Grains.GetGrain<IVolunteerIndexGrain>("VS-INDEX");
+            await volIdx.UpsertEntryAsync(new VolunteerIndexEntry
+            {
+                VolunteerId = volId, FirstName = enrollState.FirstName, LastName = enrollState.LastName,
+                Status = enrollState.Status, TotalHours = enrollState.TotalHours,
+                EnrollmentDate = enrollState.EnrollmentDate
+            });
+            enrollSuccess = $"Volunteer {newVolunteer.FirstName} {newVolunteer.LastName} enrolled successfully.";
+            newVolunteer = new EnrollForm();
+            await LoadVolunteers();
+        }
+        catch (Exception ex)
+        {
+            error = $"Error enrolling volunteer: {ex.Message}";
+        }
+        finally
+        {
+            loading = false;
+        }
+    }
+
+    // DTOs removed — using grain state types directly from NewVistas.Abstractions.GrainStates
+
+    private class VolunteerDetailDto
+    {
+        public string FirstName { get; set; } = string.Empty;
+        public string LastName { get; set; } = string.Empty;
+        public VolunteerStatus Status { get; set; }
+        public decimal TotalHours { get; set; }
+        public string? PhoneNumber { get; set; }
+        public string? Email { get; set; }
+        public string? Address { get; set; }
+        public string? EmergencyContactName { get; set; }
+        public string? EmergencyContactPhone { get; set; }
+        public DateTime EnrollmentDate { get; set; }
+        public BackgroundCheckStatus BackgroundCheckStatus { get; set; }
+        public List<string> Skills { get; set; } = new();
+        public List<VolunteerAssignmentRecord> Assignments { get; set; } = new();
+    }
+
+    private class NewHoursForm
+    {
+        public string VolunteerId { get; set; } = string.Empty;
+        public DateTime LoggedDate { get; set; } = DateTime.Today;
+        public decimal Hours { get; set; } = 1.0m;
+        public string ServiceType { get; set; } = "Other";
+        public string? Notes { get; set; }
+    }
+
+    private class NewRecogForm
+    {
+        public string VolunteerId { get; set; } = string.Empty;
+        public DateTime AwardDate { get; set; } = DateTime.Today;
+        public string RecognitionType { get; set; } = "AnnualAward";
+        public string? AwardedBy { get; set; }
+        public string? Description { get; set; }
+    }
+
+    private class EnrollForm
+    {
+        public string FirstName { get; set; } = string.Empty;
+        public string LastName { get; set; } = string.Empty;
+        public string? MiddleName { get; set; }
+        public DateTime? DateOfBirth { get; set; }
+        public string? Phone { get; set; }
+        public string? Email { get; set; }
+        public string? Address { get; set; }
+        public string? EmergencyContactName { get; set; }
+        public string? EmergencyContactPhone { get; set; }
+        public DateTime EnrollmentDate { get; set; } = DateTime.Today;
+        public string BackgroundCheckStatus { get; set; } = "NotRequired";
+        public string? Notes { get; set; }
+    }
+}

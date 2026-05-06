@@ -1,0 +1,36 @@
+<UserControl x:Class="NewVistas.Wpf_UI.Views.DentalView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <ScrollViewer VerticalScrollBarVisibility="Auto">
+        <StackPanel Margin="24">
+            <TextBlock Style="{StaticResource PageTitle}" Text="Dental"/>
+            <TextBlock Style="{StaticResource ErrorText}" Text="{Binding Error}"
+                       Visibility="{Binding Error, Converter={StaticResource NullToVisibility}}"/>
+            <StackPanel Orientation="Horizontal" Margin="0,0,0,12">
+                <Button Content="Load" Style="{StaticResource PrimaryButton}"
+                        Command="{Binding LoadCommand}" Margin="0,0,8,0"/>
+                <ProgressBar IsIndeterminate="True" Width="120" Height="20"
+                             Visibility="{Binding IsLoading, Converter={StaticResource BoolToVisibility}}"/>
+            </StackPanel>
+            <StackPanel Visibility="{Binding Patient, Converter={StaticResource NullToVisibility}}">
+                <TextBlock Style="{StaticResource SectionHeader}" Text="Patient Dental Status"/>
+                <StackPanel Orientation="Horizontal" Margin="0,4,0,4">
+                    <TextBlock Style="{StaticResource FieldLabel}" Text="Eligibility: " Margin="0,0,4,0"/>
+                    <TextBlock Text="{Binding Patient.DentalEligibility}" FontWeight="SemiBold"/>
+                    <TextBlock Margin="16,0,4,0" Style="{StaticResource FieldLabel}" Text="Dentist: "/>
+                    <TextBlock Text="{Binding Patient.PrimaryDentistName}"/>
+                </StackPanel>
+            </StackPanel>
+            <TextBlock Style="{StaticResource SectionHeader}" Text="Treatments" Margin="0,8,0,0"/>
+            <DataGrid ItemsSource="{Binding Treatments}" SelectedItem="{Binding SelectedTreatment}" AutoGenerateColumns="False">
+                <DataGrid.Columns>
+                    <DataGridTextColumn Header="Procedure" Binding="{Binding ProcedureCode}" Width="120"/>
+                    <DataGridTextColumn Header="Description" Binding="{Binding Description}" Width="*"/>
+                    <DataGridTextColumn Header="Status" Binding="{Binding Status}" Width="110"/>
+                    <DataGridTextColumn Header="Treatment Date" Binding="{Binding TreatmentDate, StringFormat=d}" Width="120"/>
+                    <DataGridTextColumn Header="Teeth" Binding="{Binding AffectedTeeth}" Width="100"/>
+                </DataGrid.Columns>
+            </DataGrid>
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>

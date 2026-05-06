@@ -1,0 +1,39 @@
+<UserControl x:Class="NewVistas.Wpf_UI.Views.CollectionLettersView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <ScrollViewer VerticalScrollBarVisibility="Auto">
+        <StackPanel Margin="24">
+            <TextBlock Style="{StaticResource PageTitle}" Text="Collection Letters"/>
+            <TextBlock Style="{StaticResource ErrorText}" Text="{Binding Error}"
+                       Visibility="{Binding Error, Converter={StaticResource NullToVisibility}}"/>
+            <TextBlock Foreground="Green" Text="{Binding ActionMessage}"
+                       Visibility="{Binding ActionMessage, Converter={StaticResource NullToVisibility}}" Margin="0,0,0,8"/>
+
+            <StackPanel Orientation="Horizontal" Margin="0,0,0,12">
+                <Button Content="Load Letters" Style="{StaticResource PrimaryButton}"
+                        Command="{Binding LoadCommand}" Margin="0,0,8,0"/>
+                <Button Content="Generate Letter" Style="{StaticResource SecondaryButton}"
+                        Command="{Binding GenerateLetterCommand}" Margin="0,0,8,0"/>
+                <ProgressBar IsIndeterminate="True" Width="120" Height="20"
+                             Visibility="{Binding IsLoading, Converter={StaticResource BoolToVisibility}}"/>
+            </StackPanel>
+
+            <DataGrid ItemsSource="{Binding Letters}" AutoGenerateColumns="False" IsReadOnly="True" Height="300">
+                <DataGrid.Columns>
+                    <DataGridTextColumn Header="Letter ID" Binding="{Binding LetterId}" Width="160"/>
+                    <DataGridTextColumn Header="Type" Binding="{Binding LetterType}" Width="120"/>
+                    <DataGridTextColumn Header="Status" Binding="{Binding Status}" Width="100"/>
+                    <DataGridTextColumn Header="Amount" Binding="{Binding BalanceAmount, StringFormat=C}" Width="100"/>
+                    <DataGridTextColumn Header="Created" Binding="{Binding CreatedDate, StringFormat=d}" Width="100"/>
+                    <DataGridTextColumn Header="Sent" Binding="{Binding SentDate, StringFormat=d}" Width="100"/>
+                </DataGrid.Columns>
+            </DataGrid>
+
+            <StackPanel Orientation="Horizontal" Margin="0,8,0,0"
+                        Visibility="{Binding SelectedLetter, Converter={StaticResource NullToVisibility}}">
+                <Button Content="Mark Sent" Style="{StaticResource PrimaryButton}"
+                        Command="{Binding MarkSentCommand}"/>
+            </StackPanel>
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>

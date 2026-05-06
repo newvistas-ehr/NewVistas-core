@@ -1,0 +1,105 @@
+{
+  "reportId": "fy2026-q1-tribal-hub",
+  "fiscalYear": 2026,
+  "reportingPeriod": "Quarter1",
+  "currentPeriodStart": "2025-10-01",
+  "currentPeriodEnd": "2025-12-31",
+  "baselinePeriodStart": "2022-10-01",
+  "baselinePeriodEnd": "2022-12-31",
+  "facilityId": "TRIBAL-HUB",
+  "facilityName": "Tribal Health Authority Hub",
+  "communityTaxonomy": "AUTTAX-DEMO",
+  "activeUserPopulation": 5000,
+  "generatedById": "QM1",
+  "generatedByName": "Quality Coordinator",
+  "indicators": [
+    {
+      "measureId": "GPRA-DM-01",
+      "title": "Diabetes: HbA1c Testing (past year)",
+      "category": "Diabetes",
+      "currentDenominator": 800, "currentNumerator": 632, "currentPerformanceRate": 79.0,
+      "baselineDenominator": 750, "baselineNumerator": 540, "baselinePerformanceRate": 72.0,
+      "percentagePointChange": 7.0, "isImproved": true, "targetRate": 80.0, "targetMet": false
+    },
+    {
+      "measureId": "GPRA-DM-02",
+      "title": "Diabetes: Poor HbA1c Control (>9.0)",
+      "category": "Diabetes",
+      "currentDenominator": 800, "currentNumerator": 220, "currentPerformanceRate": 27.5,
+      "baselineDenominator": 750, "baselineNumerator": 240, "baselinePerformanceRate": 32.0,
+      "percentagePointChange": -4.5, "isImproved": true, "targetRate": 25.0, "targetMet": false
+    },
+    {
+      "measureId": "GPRA-DM-03",
+      "title": "Diabetes: Foot Exam (past year)",
+      "category": "Diabetes",
+      "currentDenominator": 800, "currentNumerator": 480, "currentPerformanceRate": 60.0,
+      "baselineDenominator": 750, "baselineNumerator": 405, "baselinePerformanceRate": 54.0,
+      "percentagePointChange": 6.0, "isImproved": true, "targetRate": 70.0, "targetMet": false
+    },
+    {
+      "measureId": "GPRA-DM-04",
+      "title": "Diabetes: Eye Exam (past year)",
+      "category": "Diabetes",
+      "currentDenominator": 800, "currentNumerator": 392, "currentPerformanceRate": 49.0,
+      "baselineDenominator": 750, "baselineNumerator": 315, "baselinePerformanceRate": 42.0,
+      "percentagePointChange": 7.0, "isImproved": true, "targetRate": 60.0, "targetMet": false
+    },
+    {
+      "measureId": "GPRA-CV-01",
+      "title": "Hypertension: BP Controlled (<140/90)",
+      "category": "CardiovascularDisease",
+      "currentDenominator": 1500, "currentNumerator": 1050, "currentPerformanceRate": 70.0,
+      "baselineDenominator": 1400, "baselineNumerator": 924, "baselinePerformanceRate": 66.0,
+      "percentagePointChange": 4.0, "isImproved": true, "targetRate": 70.0, "targetMet": true
+    },
+    {
+      "measureId": "GPRA-IZ-01",
+      "title": "Childhood Immunizations: Combined 7 (age 19-35 mo)",
+      "category": "Immunizations",
+      "currentDenominator": 120, "currentNumerator": 96, "currentPerformanceRate": 80.0,
+      "baselineDenominator": 110, "baselineNumerator": 77, "baselinePerformanceRate": 70.0,
+      "percentagePointChange": 10.0, "isImproved": true, "targetRate": 90.0, "targetMet": false
+    },
+    {
+      "measureId": "GPRA-IZ-02",
+      "title": "Influenza Immunization (age 65+)",
+      "category": "Immunizations",
+      "currentDenominator": 600, "currentNumerator": 360, "currentPerformanceRate": 60.0,
+      "baselineDenominator": 580, "baselineNumerator": 290, "baselinePerformanceRate": 50.0,
+      "percentagePointChange": 10.0, "isImproved": true, "targetRate": 70.0, "targetMet": false
+    },
+    {
+      "measureId": "GPRA-BH-01",
+      "title": "Depression Screening (age 12+)",
+      "category": "BehavioralHealth",
+      "currentDenominator": 4200, "currentNumerator": 2940, "currentPerformanceRate": 70.0,
+      "baselineDenominator": 4000, "baselineNumerator": 2400, "baselinePerformanceRate": 60.0,
+      "percentagePointChange": 10.0, "isImproved": true, "targetRate": 75.0, "targetMet": false
+    },
+    {
+      "measureId": "GPRA-BH-02",
+      "title": "Alcohol Screening (age 12+)",
+      "category": "BehavioralHealth",
+      "currentDenominator": 4200, "currentNumerator": 2520, "currentPerformanceRate": 60.0,
+      "baselineDenominator": 4000, "baselineNumerator": 2000, "baselinePerformanceRate": 50.0,
+      "percentagePointChange": 10.0, "isImproved": true, "targetRate": 70.0, "targetMet": false
+    },
+    {
+      "measureId": "GPRA-WH-01",
+      "title": "Cervical Cancer Screening (women 21-64, past 3 yrs)",
+      "category": "WomensHealth",
+      "currentDenominator": 1200, "currentNumerator": 720, "currentPerformanceRate": 60.0,
+      "baselineDenominator": 1150, "baselineNumerator": 645, "baselinePerformanceRate": 56.1,
+      "percentagePointChange": 3.9, "isImproved": true, "targetRate": 65.0, "targetMet": false
+    },
+    {
+      "measureId": "GPRA-PV-01",
+      "title": "Tobacco Use Screening and Cessation Intervention",
+      "category": "PreventiveCare",
+      "currentDenominator": 4200, "currentNumerator": 3528, "currentPerformanceRate": 84.0,
+      "baselineDenominator": 4000, "baselineNumerator": 3200, "baselinePerformanceRate": 80.0,
+      "percentagePointChange": 4.0, "isImproved": true, "targetRate": 85.0, "targetMet": false
+    }
+  ]
+}

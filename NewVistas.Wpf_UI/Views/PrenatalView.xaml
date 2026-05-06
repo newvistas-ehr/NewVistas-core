@@ -1,0 +1,47 @@
+<UserControl x:Class="NewVistas.Wpf_UI.Views.PrenatalView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <ScrollViewer VerticalScrollBarVisibility="Auto">
+        <StackPanel Margin="24">
+            <TextBlock Style="{StaticResource PageTitle}" Text="Prenatal / OB Care"/>
+            <TextBlock Style="{StaticResource ErrorText}" Text="{Binding Error}"
+                       Visibility="{Binding Error, Converter={StaticResource NullToVisibility}}"/>
+            <StackPanel Orientation="Horizontal" Margin="0,0,0,12">
+                <Button Content="Load" Style="{StaticResource PrimaryButton}"
+                        Command="{Binding LoadCommand}" Margin="0,0,8,0"/>
+                <ProgressBar IsIndeterminate="True" Width="120" Height="20" Margin="8,0,0,0"
+                             Visibility="{Binding IsLoading, Converter={StaticResource BoolToVisibility}}"/>
+            </StackPanel>
+
+            <!-- Pregnancy List -->
+            <TextBlock Style="{StaticResource SectionHeader}" Text="Pregnancies" Margin="0,8,0,4"/>
+            <DataGrid ItemsSource="{Binding Pregnancies}" AutoGenerateColumns="False"
+                      IsReadOnly="True" SelectionMode="Single">
+                <DataGrid.Columns>
+                    <DataGridTextColumn Header="EDD" Binding="{Binding DefinitiveEdd, StringFormat=d}" Width="110"/>
+                    <DataGridTextColumn Header="G" Binding="{Binding Gravida}" Width="40"/>
+                    <DataGridTextColumn Header="P" Binding="{Binding Para}" Width="40"/>
+                    <DataGridTextColumn Header="Risk" Binding="{Binding RiskLevel}" Width="80"/>
+                    <DataGridTextColumn Header="Status" Binding="{Binding Status}" Width="100"/>
+                    <DataGridTextColumn Header="Outcome" Binding="{Binding Outcome}" Width="100"/>
+                    <DataGridTextColumn Header="Provider" Binding="{Binding ProviderName}" Width="*"/>
+                </DataGrid.Columns>
+            </DataGrid>
+
+            <!-- Prenatal Visits Flowsheet -->
+            <TextBlock Style="{StaticResource SectionHeader}" Text="Prenatal Visits" Margin="0,16,0,4"/>
+            <DataGrid ItemsSource="{Binding Visits}" AutoGenerateColumns="False"
+                      IsReadOnly="True">
+                <DataGrid.Columns>
+                    <DataGridTextColumn Header="Date" Binding="{Binding VisitDate, StringFormat=d}" Width="110"/>
+                    <DataGridTextColumn Header="GA (wk)" Binding="{Binding GestationalAgeWeeks}" Width="70"/>
+                    <DataGridTextColumn Header="GA (d)" Binding="{Binding GestationalAgeDays}" Width="60"/>
+                    <DataGridTextColumn Header="Weight" Binding="{Binding Weight}" Width="70"/>
+                    <DataGridTextColumn Header="FH (cm)" Binding="{Binding FundalHeightCm}" Width="70"/>
+                    <DataGridTextColumn Header="FHR" Binding="{Binding FetalHeartRate}" Width="60"/>
+                    <DataGridTextColumn Header="Provider" Binding="{Binding ProviderName}" Width="*"/>
+                </DataGrid.Columns>
+            </DataGrid>
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>

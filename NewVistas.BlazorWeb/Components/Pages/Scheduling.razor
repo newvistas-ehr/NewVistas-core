@@ -1,0 +1,597 @@
+@page "/scheduling"
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+@rendermode InteractiveServer
+@using NewVistas.BlazorWeb.Services
+@using NewVistas.Abstractions.GrainInterfaces
+@using NewVistas.Abstractions.GrainStates
+@inject OrleansGrainService Grains
+
+<PageTitle>Scheduling — SD Package</PageTitle>
+
+<h2>Scheduling</h2>
+<p class="subtitle">VistA File #44 (Hospital Location) / #44.4 — SD Outpatient Scheduling Package</p>
+
+<div class="tabs">
+    <button class="@TabClass("schedule")" @onclick='() => SetTab("schedule")'>My Schedule</button>
+    <button class="@TabClass("new")" @onclick='() => SetTab("new")'>Schedule Appointment</button>
+    <button class="@TabClass("clinics")" @onclick='() => SetTab("clinics")'>Clinics</button>
+</div>
+
+@if (!string.IsNullOrEmpty(error))
+{
+    <div class="error">@error</div>
+}
+
+@if (successMessage != null)
+{
+    <div class="success">@successMessage</div>
+}
+
+@* ─── Tab: My Schedule ────────────────────────────────────────────────── *@
+
+@if (activeTab == "schedule")
+{
+    <div class="toolbar">
+        <input @bind="patientId" placeholder="Patient ID" class="input-id" />
+        <button @onclick="LoadAppointments" disabled="@loading">Load Schedule</button>
+        <button @onclick="LoadDemo" disabled="@loading" class="btn-demo">Load Demo</button>
+    </div>
+
+    @if (loading) { <p>Loading…</p> }
+
+    @if (appointments is not null)
+    {
+        <h3>Appointments — @patientId</h3>
+
+        @if (appointments.Count == 0)
+        {
+            <p class="empty-msg">No appointments found.</p>
+        }
+        else
+        {
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Date / Time</th>
+                        <th>Clinic</th>
+                        <th>Provider</th>
+                        <th>Purpose</th>
+                        <th>Type</th>
+                        <th>Duration</th>
+                        <th>Status</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (AppointmentDto appt in appointments)
+                    {
+                        <tr>
+                            <td>@appt.AppointmentDateTime.ToLocalTime().ToString("MM/dd/yy HH:mm")</td>
+                            <td>@appt.ClinicName</td>
+                            <td>@(appt.ProviderName ?? "—")</td>
+                            <td>@(appt.Purpose ?? "—")</td>
+                            <td>@(appt.AppointmentType ?? "REGULAR")</td>
+                            <td>@appt.DurationMinutes min</td>
+                            <td><span class="badge @StatusBadge(appt.Status)">@appt.Status</span></td>
+                            <td>
+                                @if (appt.Status == "Scheduled")
+                                {
+                                    <button class="btn-sm btn-checkin" @onclick="() => CheckIn(appt.AppointmentId)" disabled="@loading">Check In</button>
+                                    <button class="btn-sm btn-cancel" @onclick="() => Cancel(appt.AppointmentId)" disabled="@loading">Cancel</button>
+                                    <button class="btn-sm btn-noshow" @onclick="() => NoShow(appt.AppointmentId)" disabled="@loading">No-Show</button>
+                                }
+                                else if (appt.Status == "Checked In")
+                                {
+                                    <button class="btn-sm btn-checkout" @onclick="() => CheckOut(appt.AppointmentId)" disabled="@loading">Check Out</button>
+                                }
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        }
+    }
+}
+
+@* ─── Tab: Schedule Appointment ──────────────────────────────────────── *@
+
+@if (activeTab == "new")
+{
+    <div class="form-panel">
+        <h3>Schedule New Appointment</h3>
+
+        @if (!string.IsNullOrWhiteSpace(patientId))
+        {
+            <button class="btn-secondary" style="margin-bottom:0.75rem" @onclick="CheckEligibility"
+                    disabled="@loadingEligibility">
+                @(loadingEligibility ? "Checking..." : "Check Patient Eligibility")
+            </button>
+
+            @if (eligibility != null)
+            {
+                <div class="eligibility-panel @(eligibility.IsEligible ? "elig-ok" : "elig-fail")">
+                    <strong>Eligibility:</strong>
+                    @if (eligibility.IsEligible)
+                    {
+                        <span class="elig-badge-ok">Eligible</span>
+                    }
+                    else
+                    {
+                        <span class="elig-badge-fail">Not Eligible</span>
+                    }
+                    <span class="elig-detail">
+                        Enrollment: @eligibility.EnrollmentStatus
+                        @if (eligibility.PriorityGroup != null) { <text> | Group @eligibility.PriorityGroup</text> }
+                        @if (eligibility.CopayExempt) { <text> | Copay Exempt (@eligibility.CopayExemptionReason)</text> }
+                    </span>
+                    @if (eligibility.Reasons.Count > 0)
+                    {
+                        <ul class="elig-reasons">
+                            @foreach (string r in eligibility.Reasons) { <li>@r</li> }
+                        </ul>
+                    }
+                </div>
+            }
+        }
+
+        <div class="form-row">
+            <label>Patient ID</label>
+            <input @bind="patientId" placeholder="PATIENT-001" class="input-id" />
+        </div>
+
+        <div class="form-row">
+            <label>Clinic</label>
+            @if (clinics is null)
+            {
+                <button @onclick="LoadClinics" disabled="@loading" class="btn-sm">Load Clinics</button>
+            }
+            else
+            {
+                <select @bind="newClinicId">
+                    <option value="">— select clinic —</option>
+                    @foreach (ClinicDto c in clinics.Where(c => c.Status == "ACTIVE"))
+                    {
+                        <option value="@c.ClinicId">@c.Name (@(c.Division ?? "MAIN"))</option>
+                    }
+                </select>
+            }
+        </div>
+
+        <div class="form-row">
+            <label>Date / Time</label>
+            <input type="datetime-local" @bind="newApptDateTime" />
+            <button @onclick="LoadAvailableSlots" disabled="@(loadingSlots || string.IsNullOrWhiteSpace(newClinicId))"
+                    class="btn-secondary" style="margin-left:0.5rem;">
+                @(loadingSlots ? "Loading..." : "Show Available Slots")
+            </button>
+        </div>
+
+        @if (dailyCapacity != null)
+        {
+            <div class="capacity-panel">
+                <strong>@dailyCapacity.ClinicName — @dailyCapacity.Date.ToString("MM/dd/yyyy")</strong>
+                <span class="capacity-info">
+                    @dailyCapacity.BookedCount / @dailyCapacity.MaxPatientsPerDay booked
+                    (@dailyCapacity.RemainingSlots remaining)
+                    @if (dailyCapacity.IsAtCapacity) { <span class="capacity-full">AT CAPACITY</span> }
+                    @if (dailyCapacity.AllowOverbooking) { <span class="capacity-overbook">Overbooking allowed</span> }
+                </span>
+                <div class="slot-grid">
+                    @foreach (AvailableSlot slot in dailyCapacity.AvailableSlots)
+                    {
+                        <button class="slot @(slot.IsAvailable ? "slot-open" : "slot-booked")"
+                                @onclick="() => SelectSlot(slot)"
+                                disabled="@(!slot.IsAvailable)">
+                            @slot.StartTime.ToString("HH:mm")
+                            @if (slot.BookedCount > 0) { <span class="slot-count">(@slot.BookedCount)</span> }
+                        </button>
+                    }
+                </div>
+            </div>
+        }
+
+        <div class="form-row">
+            <label>Duration (min)</label>
+            <select @bind="newDuration">
+                <option value="15">15</option>
+                <option value="20">20</option>
+                <option value="30" selected>30</option>
+                <option value="45">45</option>
+                <option value="60">60</option>
+                <option value="90">90</option>
+            </select>
+        </div>
+
+        <div class="form-row">
+            <label>Provider</label>
+            <input @bind="newProviderName" placeholder="Dr. Smith (optional)" />
+        </div>
+
+        <div class="form-row">
+            <label>Purpose / Reason</label>
+            <input @bind="newPurpose" placeholder="Reason for visit" />
+        </div>
+
+        <div class="form-row">
+            <label>Appointment Type</label>
+            <select @bind="newApptType">
+                <option value="REGULAR">REGULAR</option>
+                <option value="FOLLOW-UP">FOLLOW-UP</option>
+                <option value="URGENT">URGENT</option>
+                <option value="CONSULT">CONSULT</option>
+            </select>
+        </div>
+
+        @if (conflictDetected)
+        {
+            <div class="conflict-warning">
+                ⚠️ <strong>Scheduling Conflict:</strong> @conflictMessage
+                <div class="form-row" style="margin-top:0.5rem">
+                    <label>
+                        <input type="checkbox" @bind="allowDoubleBook" />
+                        Double Book Override
+                    </label>
+                </div>
+                <p class="conflict-note">Check Double Book Override to proceed despite the conflict. Use only with supervisor approval.</p>
+            </div>
+        }
+
+        <div class="form-actions">
+            <button @onclick="SubmitAppointment" disabled="@(loading || string.IsNullOrWhiteSpace(newClinicId))" class="btn-primary">Schedule</button>
+        </div>
+    </div>
+}
+
+@* ─── Tab: Clinics ────────────────────────────────────────────────────── *@
+
+@if (activeTab == "clinics")
+{
+    <div class="toolbar">
+        <input @bind="clinicSearch" placeholder="Search by name or stop code" class="input-search" />
+        <button @onclick="LoadClinics" disabled="@loading">Search</button>
+        <button @onclick="LoadAllClinics" disabled="@loading">All Clinics</button>
+    </div>
+
+    @if (loading) { <p>Loading…</p> }
+
+    @if (clinics is not null)
+    {
+        <h3>Clinic Directory</h3>
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>Name</th>
+                    <th>Division</th>
+                    <th>Stop Code</th>
+                    <th>Appt Length</th>
+                    <th>Status</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (ClinicDto c in clinics)
+                {
+                    <tr>
+                        <td>@c.Name</td>
+                        <td>@(c.Division ?? "—")</td>
+                        <td>@(c.StopCode ?? "—")</td>
+                        <td>@c.AppointmentLength min</td>
+                        <td><span class="badge @(c.Status == "ACTIVE" ? "badge-active" : "badge-inactive")">@c.Status</span></td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    }
+}
+
+@code {
+    private string patientId = string.Empty;
+    private string activeTab = "schedule";
+    private bool loading = false;
+    private string? error = null;
+    private string? successMessage = null;
+
+    private List<AppointmentDto>? appointments = null;
+    private List<ClinicDto>? clinics = null;
+
+    // New appointment form fields
+    private string newClinicId = string.Empty;
+    private DateTime newApptDateTime = DateTime.Now.Date.AddDays(7).AddHours(9);
+    private int newDuration = 30;
+    private string? newProviderName;
+    private string? newPurpose;
+    private string newApptType = "REGULAR";
+    private bool allowDoubleBook = false;
+    private bool conflictDetected = false;
+    private string? conflictMessage;
+
+    // Clinic search
+    private string clinicSearch = string.Empty;
+
+    // Patient eligibility
+    private PatientEligibilityResult? eligibility;
+    private bool loadingEligibility;
+
+    private async Task CheckEligibility()
+    {
+        if (string.IsNullOrWhiteSpace(patientId)) return;
+        loadingEligibility = true;
+        try
+        {
+            IPatientWorkflowGrain wf = Grains.GetGrain<IPatientWorkflowGrain>(patientId.Trim());
+            eligibility = await wf.CheckPatientEligibilityForSchedulingAsync();
+        }
+        catch (Exception ex) { error = $"Eligibility check failed: {ex.Message}"; }
+        finally { loadingEligibility = false; }
+    }
+
+    // Available slots / capacity
+    private ClinicDailyCapacity? dailyCapacity;
+    private bool loadingSlots;
+
+    private async Task LoadAvailableSlots()
+    {
+        if (string.IsNullOrWhiteSpace(newClinicId) || string.IsNullOrWhiteSpace(patientId)) return;
+        loadingSlots = true;
+        try
+        {
+            IPatientWorkflowGrain wf = Grains.GetGrain<IPatientWorkflowGrain>(patientId.Trim());
+            dailyCapacity = await wf.GetClinicDailyCapacityAsync(newClinicId, newApptDateTime.Date);
+        }
+        catch (Exception ex) { error = $"Slot query failed: {ex.Message}"; }
+        finally { loadingSlots = false; }
+    }
+
+    private async Task SelectSlot(AvailableSlot slot)
+    {
+        newApptDateTime = slot.StartTime;
+        newDuration = slot.DurationMinutes;
+        conflictDetected = false;
+    }
+
+    private void SetTab(string tab)
+    {
+        activeTab = tab;
+        error = null;
+        successMessage = null;
+        if (tab == "clinics" && clinics is null) _ = LoadAllClinics();
+        if (tab == "new" && clinics is null) _ = LoadAllClinics();
+    }
+
+    private string TabClass(string tab) => activeTab == tab ? "tab active" : "tab";
+
+    private string StatusBadge(string status) => status switch
+    {
+        "Scheduled"   => "badge-scheduled",
+        "Checked In"  => "badge-checkin",
+        "Completed"   => "badge-completed",
+        "Cancelled"   => "badge-cancelled",
+        "No-Show"     => "badge-noshow",
+        _             => "badge-default"
+    };
+
+    // ─── Data Loading ─────────────────────────────────────────────────────
+
+    private async Task LoadAppointments()
+    {
+        if (string.IsNullOrWhiteSpace(patientId)) return;
+        loading = true; error = null; successMessage = null;
+        try
+        {
+            var workflow = Grains.GetGrain<IPatientWorkflowGrain>(patientId.Trim());
+            List<AppointmentEntry> entries = await workflow.GetAllAppointmentsAsync();
+            appointments = entries.Select(e => new AppointmentDto(e.AppointmentId, e.ClinicId, e.ClinicName,
+                e.AppointmentDateTime, e.DurationMinutes, e.Status, e.ProviderName, e.Purpose, e.AppointmentType)).ToList();
+        }
+        catch (Exception ex) { error = $"Error: {ex.Message}"; }
+        finally { loading = false; }
+    }
+
+    private async Task LoadAllClinics()
+    {
+        loading = true; error = null;
+        try
+        {
+            var clinicIndex = Grains.GetGrain<IClinicIndexGrain>("SD-CLINIC-INDEX");
+            List<ClinicEntry> entries = await clinicIndex.GetAllClinicsAsync();
+            clinics = entries.Select(c => new ClinicDto(c.ClinicId, c.Name, c.Division, c.StopCode, c.AppointmentLength, c.Status)).ToList();
+        }
+        catch (Exception ex) { error = $"Error: {ex.Message}"; }
+        finally { loading = false; }
+    }
+
+    private async Task LoadClinics()
+    {
+        loading = true; error = null;
+        try
+        {
+            var clinicIndex = Grains.GetGrain<IClinicIndexGrain>("SD-CLINIC-INDEX");
+            List<ClinicEntry> entries = string.IsNullOrWhiteSpace(clinicSearch)
+                ? await clinicIndex.GetAllClinicsAsync()
+                : await clinicIndex.SearchClinicsAsync(clinicSearch);
+            clinics = entries.Select(c => new ClinicDto(c.ClinicId, c.Name, c.Division, c.StopCode, c.AppointmentLength, c.Status)).ToList();
+        }
+        catch (Exception ex) { error = $"Error: {ex.Message}"; }
+        finally { loading = false; }
+    }
+
+    private async Task LoadDemo()
+    {
+        if (string.IsNullOrWhiteSpace(patientId)) patientId = "PATIENT-DEMO-001";
+        loading = true; error = null; successMessage = null;
+        try
+        {
+            var clinicIndex = Grains.GetGrain<IClinicIndexGrain>("SD-CLINIC-INDEX");
+            await clinicIndex.SeedDemoClinicsAsync();
+            successMessage = "Demo data loaded.";
+            await LoadAppointments();
+        }
+        catch (Exception ex) { error = $"Error: {ex.Message}"; }
+        finally { loading = false; }
+    }
+
+    // ─── Actions ──────────────────────────────────────────────────────────
+
+    private async Task SubmitAppointment()
+    {
+        if (string.IsNullOrWhiteSpace(patientId) || string.IsNullOrWhiteSpace(newClinicId)) return;
+        loading = true; error = null; successMessage = null; conflictDetected = false;
+        try
+        {
+            ClinicDto? selectedClinic = clinics?.FirstOrDefault(c => c.ClinicId == newClinicId);
+            string clinicName = selectedClinic?.Name ?? newClinicId;
+
+            var workflow = Grains.GetGrain<IPatientWorkflowGrain>(patientId.Trim());
+            await workflow.ScheduleAppointmentAsync(newClinicId, clinicName, newApptDateTime.ToUniversalTime(),
+                newDuration, null, string.IsNullOrWhiteSpace(newProviderName) ? null : newProviderName,
+                string.IsNullOrWhiteSpace(newPurpose) ? null : newPurpose, newApptType, allowDoubleBook);
+
+            successMessage = $"Appointment scheduled at {clinicName} on {newApptDateTime:MM/dd/yy HH:mm}.";
+            allowDoubleBook = false;
+            conflictDetected = false;
+            await LoadAppointments();
+            SetTab("schedule");
+        }
+        catch (InvalidOperationException ex) when (ex.Message.Contains("booked") || ex.Message.Contains("conflict"))
+        {
+            conflictDetected = true;
+            conflictMessage = ex.Message;
+        }
+        catch (Exception ex) { error = $"Error: {ex.Message}"; }
+        finally { loading = false; }
+    }
+
+    private async Task CheckIn(string appointmentId)
+    {
+        loading = true; error = null; successMessage = null;
+        try
+        {
+            var workflow = Grains.GetGrain<IPatientWorkflowGrain>(patientId.Trim());
+            await workflow.CheckInAsync(appointmentId, DateTime.UtcNow);
+            successMessage = "Patient checked in.";
+            await LoadAppointments();
+        }
+        catch (Exception ex) { error = $"Error: {ex.Message}"; }
+        finally { loading = false; }
+    }
+
+    private async Task CheckOut(string appointmentId)
+    {
+        loading = true; error = null; successMessage = null;
+        try
+        {
+            var workflow = Grains.GetGrain<IPatientWorkflowGrain>(patientId.Trim());
+            await workflow.CheckOutAsync(appointmentId, DateTime.UtcNow);
+            successMessage = "Patient checked out.";
+            await LoadAppointments();
+        }
+        catch (Exception ex) { error = $"Error: {ex.Message}"; }
+        finally { loading = false; }
+    }
+
+    private async Task Cancel(string appointmentId)
+    {
+        loading = true; error = null; successMessage = null;
+        try
+        {
+            var workflow = Grains.GetGrain<IPatientWorkflowGrain>(patientId.Trim());
+            await workflow.CancelAppointmentAsync(appointmentId);
+            successMessage = "Appointment cancelled.";
+            await LoadAppointments();
+        }
+        catch (Exception ex) { error = $"Error: {ex.Message}"; }
+        finally { loading = false; }
+    }
+
+    private async Task NoShow(string appointmentId)
+    {
+        loading = true; error = null; successMessage = null;
+        try
+        {
+            var workflow = Grains.GetGrain<IPatientWorkflowGrain>(patientId.Trim());
+            await workflow.NoShowAppointmentAsync(appointmentId);
+            successMessage = "Appointment marked as No-Show.";
+            await LoadAppointments();
+        }
+        catch (Exception ex) { error = $"Error: {ex.Message}"; }
+        finally { loading = false; }
+    }
+
+    // ─── Response DTOs ────────────────────────────────────────────────────
+
+    public record AppointmentDto(
+        string AppointmentId,
+        string ClinicId,
+        string ClinicName,
+        DateTime AppointmentDateTime,
+        int DurationMinutes,
+        string Status,
+        string? ProviderName,
+        string? Purpose,
+        string? AppointmentType);
+
+    public record ClinicDto(
+        string ClinicId,
+        string Name,
+        string? Division,
+        string? StopCode,
+        int AppointmentLength,
+        string Status);
+}
+
+<style>
+    .subtitle { color: #555; margin-top: -0.5rem; margin-bottom: 1rem; }
+    .tabs { display: flex; gap: 0.5rem; margin-bottom: 1rem; }
+    .tab { padding: 0.5rem 1.25rem; background: #ddd; border: 1px solid #999; cursor: pointer; border-radius: 3px 3px 0 0; }
+    .tab.active { background: #0066cc; color: white; border-color: #0066cc; }
+    .toolbar { display: flex; gap: 0.5rem; margin-bottom: 1rem; align-items: center; flex-wrap: wrap; }
+    .input-id { width: 220px; padding: 0.35rem 0.5rem; }
+    .input-search { width: 280px; padding: 0.35rem 0.5rem; }
+    .data-table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
+    .data-table th, .data-table td { padding: 0.45rem 0.6rem; border: 1px solid #ccc; text-align: left; vertical-align: middle; }
+    .data-table th { background: #f0f0f0; font-weight: 600; }
+    .data-table tbody tr:hover { background: #f8f8f8; }
+    .badge { display: inline-block; padding: 0.2rem 0.5rem; border-radius: 3px; font-size: 0.8rem; font-weight: 600; }
+    .badge-scheduled  { background: #cce5ff; color: #004085; }
+    .badge-checkin    { background: #fff3cd; color: #856404; }
+    .badge-completed  { background: #d4edda; color: #155724; }
+    .badge-cancelled  { background: #f8d7da; color: #721c24; }
+    .badge-noshow     { background: #e2e3e5; color: #383d41; }
+    .badge-default    { background: #e2e3e5; color: #383d41; }
+    .badge-active     { background: #d4edda; color: #155724; }
+    .badge-inactive   { background: #f8d7da; color: #721c24; }
+    .btn-sm { padding: 0.2rem 0.5rem; font-size: 0.8rem; cursor: pointer; margin-right: 0.25rem; }
+    .btn-checkin  { background: #007bff; color: white; border: none; }
+    .btn-checkout { background: #28a745; color: white; border: none; }
+    .btn-cancel   { background: #dc3545; color: white; border: none; }
+    .btn-noshow   { background: #6c757d; color: white; border: none; }
+    .btn-demo { background: #6c757d; color: white; border: none; padding: 0.35rem 0.75rem; cursor: pointer; }
+    .btn-primary { background: #0066cc; color: white; border: none; padding: 0.5rem 1.5rem; cursor: pointer; font-size: 1rem; }
+    .btn-primary:disabled { background: #aaa; cursor: not-allowed; }
+    .error   { background: #f8d7da; color: #721c24; padding: 0.75rem; border-radius: 4px; margin-bottom: 1rem; }
+    .success { background: #d4edda; color: #155724; padding: 0.75rem; border-radius: 4px; margin-bottom: 1rem; }
+    .eligibility-panel { padding: 0.5rem 0.75rem; border-radius: 4px; margin-bottom: 0.75rem; font-size: 0.9em; }
+    .elig-ok { background: #e8f5e9; border: 1px solid #27ae60; }
+    .elig-fail { background: #fde7e9; border: 1px solid #d13438; }
+    .elig-badge-ok { background: #107c41; color: #fff; padding: 2px 8px; border-radius: 3px; font-weight: 600; font-size: 0.85em; }
+    .elig-badge-fail { background: #d13438; color: #fff; padding: 2px 8px; border-radius: 3px; font-weight: 600; font-size: 0.85em; }
+    .elig-detail { margin-left: 0.5rem; color: #555; }
+    .elig-reasons { margin: 4px 0 0; padding-left: 20px; color: #a4262c; font-size: 0.85em; }
+    .capacity-panel { background: #f0f4f8; border: 1px solid #ccd; border-radius: 4px; padding: 0.75rem; margin-bottom: 0.75rem; }
+    .capacity-info { margin-left: 0.75rem; font-size: 0.9em; color: #555; }
+    .capacity-full { background: #d13438; color: #fff; padding: 2px 6px; border-radius: 3px; font-size: 0.8em; font-weight: 600; margin-left: 4px; }
+    .capacity-overbook { background: #ca5010; color: #fff; padding: 2px 6px; border-radius: 3px; font-size: 0.8em; margin-left: 4px; }
+    .slot-grid { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 0.5rem; }
+    .slot { padding: 4px 10px; border: 1px solid #ccc; border-radius: 3px; font-size: 0.85em; cursor: pointer; background: #fff; }
+    .slot-open { border-color: #107c41; color: #107c41; }
+    .slot-open:hover { background: #e6f5ec; }
+    .slot-booked { background: #f4e6e6; color: #999; border-color: #dcc; cursor: not-allowed; }
+    .slot-count { font-size: 0.75em; color: #999; }
+    .conflict-warning { background: #fff3cd; color: #856404; border: 1px solid #ffc107; border-radius: 4px; padding: 0.75rem; margin-bottom: 0.75rem; }
+    .conflict-note { font-size: 0.8rem; color: #6c5101; margin-top: 0.35rem; margin-bottom: 0; }
+    .empty-msg { color: #666; font-style: italic; }
+    .form-panel { max-width: 520px; background: #f9f9f9; border: 1px solid #ddd; border-radius: 4px; padding: 1.5rem; }
+    .form-row { display: flex; gap: 1rem; margin-bottom: 0.75rem; align-items: center; }
+    .form-row label { width: 130px; font-weight: 600; flex-shrink: 0; }
+    .form-row input, .form-row select { flex: 1; padding: 0.35rem 0.5rem; }
+    .form-actions { margin-top: 1rem; }
+</style>

@@ -1,0 +1,576 @@
+@page "/outpatientpharmacy"
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+@rendermode InteractiveServer
+@using NewVistas.BlazorWeb.Services
+@using NewVistas.Abstractions.GrainInterfaces
+@using NewVistas.Abstractions.GrainStates
+@inject OrleansGrainService Grains
+
+<h2>Outpatient Pharmacy</h2>
+
+<div class="search-bar">
+    <input @bind="patientId" placeholder="Patient ID (e.g. P-DEMO-001)" class="input-field" />
+    <button @onclick="LoadPrescriptions" disabled="@isLoading" class="btn-primary">
+        @(isLoading ? "Loading…" : "Load Prescriptions")
+    </button>
+    <button @onclick="LoadDemo" disabled="@isLoading" class="btn-secondary">Load Demo</button>
+</div>
+
+@if (error != null)
+{
+    <div class="error-banner">@error</div>
+}
+
+@if (prescriptions != null)
+{
+    <div class="rx-header">
+        <span>@prescriptions.Count prescription(s) for <strong>@patientId</strong></span>
+    </div>
+
+    <table class="rx-table">
+        <thead>
+            <tr>
+                <th>Drug</th>
+                <th>Dosage</th>
+                <th>Status</th>
+                <th>Priority</th>
+                <th>Refills Left</th>
+                <th>Expires</th>
+                <th>Verified</th>
+                <th>Counsel</th>
+                <th>Provider</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var rx in prescriptions)
+            {
+                <tr class="rx-row @(selectedRx?.PrescriptionId == rx.PrescriptionId ? "selected" : "")"
+                    @onclick="() => SelectRx(rx)">
+                    <td>@rx.DrugName</td>
+                    <td>@rx.Dosage</td>
+                    <td><span class="status-badge status-@rx.Status.ToLower()">@rx.Status</span></td>
+                    <td><span class="priority-chip priority-@rx.Priority.ToLower()">@rx.Priority</span></td>
+                    <td>@rx.RefillsRemaining</td>
+                    <td>@rx.ExpirationDate?.ToString("MM/dd/yy")</td>
+                    <td>@(rx.IsVerified ? "✓" : "")</td>
+                    <td>@(rx.CounselingRequired ? "⚑" : "")</td>
+                    <td>@rx.ProviderName</td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+
+@if (detailRx != null)
+{
+    <div class="detail-panel">
+        <h3>@detailRx.DrugName <span class="status-badge status-@detailRx.Status.ToLower()">@detailRx.Status</span></h3>
+
+        <div class="detail-grid">
+            <div><strong>Rx ID:</strong> @detailRx.PrescriptionId</div>
+            <div><strong>Rx Number:</strong> @(detailRx.RxNumber ?? "—")</div>
+            <div><strong>SIG:</strong> @(detailRx.Sig ?? "—")</div>
+            <div><strong>Route:</strong> @(detailRx.Route ?? "—")</div>
+            <div><strong>Schedule:</strong> @(detailRx.Schedule ?? "—")</div>
+            <div><strong>Days Supply:</strong> @detailRx.DaysSupply</div>
+            <div><strong>Quantity:</strong> @detailRx.Quantity</div>
+            <div><strong>Priority:</strong> <span class="priority-chip priority-@detailRx.Priority.ToLower()">@detailRx.Priority</span></div>
+            <div><strong>Provider:</strong> @(detailRx.ProviderName ?? "—")</div>
+            <div><strong>Pharmacy:</strong> @(detailRx.PharmacyName ?? "—")</div>
+            @if (detailRx.IsVerified)
+            {
+                <div><strong>Verified by:</strong> @detailRx.VerifiedBy on @detailRx.VerifiedDate?.ToString("MM/dd/yyyy HH:mm")</div>
+            }
+            @if (detailRx.IsLabelPrinted)
+            {
+                <div><strong>Label printed:</strong> @detailRx.LabelPrintedDate?.ToString("MM/dd/yyyy HH:mm")</div>
+            }
+            @if (detailRx.CounselingRequired)
+            {
+                <div class="counseling-flag">
+                    @if (detailRx.CounselingCompleted)
+                    {
+                        <span class="counseling-done">Counseling completed @detailRx.CounselingDate?.ToString("MM/dd/yyyy") by @detailRx.CounseledBy</span>
+                    }
+                    else
+                    {
+                        <span>Patient counseling required</span>
+                    }
+                </div>
+            }
+            @if (!string.IsNullOrEmpty(detailRx.NdcDispensed))
+            {
+                <div><strong>NDC dispensed:</strong> @detailRx.NdcDispensed @(!string.IsNullOrEmpty(detailRx.LotNumber) ? $"Lot: {detailRx.LotNumber}" : "")</div>
+            }
+            @if (!string.IsNullOrEmpty(detailRx.DiscontinueReason))
+            {
+                <div><strong>D/C reason:</strong> @detailRx.DiscontinueReason</div>
+            }
+            @if (!string.IsNullOrEmpty(detailRx.HoldReason))
+            {
+                <div><strong>Hold reason:</strong> @detailRx.HoldReason</div>
+            }
+        </div>
+
+        @if (refillEligibility != null && detailRx.Status == "ACTIVE" && detailRx.FillDate.HasValue)
+        {
+            <div class="refill-eligibility @(refillEligibility.IsEligible ? "eligible" : "not-eligible")">
+                <strong>Refill Status:</strong>
+                @if (refillEligibility.IsEligible)
+                {
+                    <span class="badge-eligible">Eligible</span>
+                }
+                else
+                {
+                    <span class="badge-not-eligible">Not Eligible</span>
+                }
+                <span class="refill-detail">
+                    @refillEligibility.RefillsRemaining of @refillEligibility.TotalRefillsAuthorized remaining
+                    @if (refillEligibility.EarliestRefillDate.HasValue)
+                    {
+                        <text> | Next eligible: @refillEligibility.EarliestRefillDate.Value.ToString("MM/dd/yyyy")</text>
+                    }
+                    @if (refillEligibility.IsTooEarly)
+                    {
+                        <text> | @refillEligibility.PercentConsumed% consumed</text>
+                    }
+                </span>
+                @if (refillEligibility.Reasons.Count > 0)
+                {
+                    <ul class="refill-reasons">
+                        @foreach (string reason in refillEligibility.Reasons)
+                        {
+                            <li>@reason</li>
+                        }
+                    </ul>
+                }
+            </div>
+        }
+
+        <div class="action-bar">
+            @if (detailRx.Status == "ACTIVE")
+            {
+                <button @onclick="FillRx" disabled="@isActing" class="btn-action">Fill</button>
+                <button @onclick="RefillRx" disabled="@(isActing || (refillEligibility != null && !refillEligibility.IsEligible))" class="btn-action">Refill</button>
+                <button @onclick="ShowDiscontinue" disabled="@isActing" class="btn-danger">Discontinue</button>
+                <button @onclick="HoldRx" disabled="@isActing" class="btn-warning">Hold</button>
+                @if (!detailRx.IsVerified)
+                {
+                    <button @onclick="VerifyRx" disabled="@isActing" class="btn-action">Verify</button>
+                }
+                <button @onclick="PrintLabel" disabled="@isActing" class="btn-action">Print Label</button>
+                @if (detailRx.IsVerified)
+                {
+                    <button @onclick="ShowLabelContent" disabled="@isActing" class="btn-secondary">View Label</button>
+                }
+                @if (detailRx.FillDate.HasValue)
+                {
+                    <button @onclick="ShowDispenseForm" disabled="@isActing" class="btn-secondary">Record Dispense</button>
+                }
+                @if (detailRx.CounselingRequired && !detailRx.CounselingCompleted)
+                {
+                    <button @onclick="ShowCounselingForm" disabled="@isActing" class="btn-action">Complete Counseling</button>
+                }
+                <button @onclick="ToggleCounseling" disabled="@isActing" class="btn-secondary">
+                    @(detailRx.CounselingRequired ? "Clear Counseling" : "Require Counseling")
+                </button>
+            }
+            @if (detailRx.Status == "HOLD")
+            {
+                <button @onclick="ResumeRx" disabled="@isActing" class="btn-action">Resume</button>
+            }
+        </div>
+
+        @if (showDiscontinueInput)
+        {
+            <div class="input-row">
+                <input @bind="discontinueReason" placeholder="Discontinue reason" class="input-field" />
+                <button @onclick="ConfirmDiscontinue" class="btn-danger">Confirm D/C</button>
+                <button @onclick="() => showDiscontinueInput = false" class="btn-secondary">Cancel</button>
+            </div>
+        }
+
+        @if (actionMessage != null)
+        {
+            <div class="action-message">@actionMessage</div>
+        }
+
+        @if (refillHistory != null && refillHistory.Count > 0)
+        {
+            <h4>Refill History</h4>
+            <table class="history-table">
+                <thead>
+                    <tr><th>#</th><th>Date</th><th>Qty</th><th>Days</th><th>Rx#</th><th>Pharmacist</th></tr>
+                </thead>
+                <tbody>
+                    @foreach (var r in refillHistory)
+                    {
+                        <tr>
+                            <td>@(r.FillNumber == 0 ? "Original" : $"Refill {r.FillNumber}")</td>
+                            <td>@r.FillDate.ToString("MM/dd/yyyy")</td>
+                            <td>@r.Quantity</td>
+                            <td>@r.DaysSupply</td>
+                            <td>@(r.RxNumber ?? "—")</td>
+                            <td>@(r.PharmacistId ?? "—")</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        }
+    </div>
+}
+
+<style>
+    .search-bar { display: flex; gap: 8px; align-items: center; margin-bottom: 16px; flex-wrap: wrap; }
+    .input-field { padding: 6px 10px; border: 1px solid #ccc; border-radius: 4px; min-width: 240px; }
+    .btn-primary { padding: 6px 14px; background: #0078d4; color: white; border: none; border-radius: 4px; cursor: pointer; }
+    .btn-primary:hover { background: #005a9e; }
+    .btn-secondary { padding: 6px 14px; background: #f3f3f3; color: #333; border: 1px solid #ccc; border-radius: 4px; cursor: pointer; }
+    .btn-action { padding: 5px 12px; background: #107c41; color: white; border: none; border-radius: 4px; cursor: pointer; margin-right: 4px; }
+    .btn-action:hover { background: #0b5c30; }
+    .btn-danger { padding: 5px 12px; background: #d13438; color: white; border: none; border-radius: 4px; cursor: pointer; margin-right: 4px; }
+    .btn-warning { padding: 5px 12px; background: #ca5010; color: white; border: none; border-radius: 4px; cursor: pointer; margin-right: 4px; }
+    .error-banner { background: #fde7e9; border: 1px solid #d13438; color: #a4262c; padding: 8px 12px; border-radius: 4px; margin-bottom: 12px; }
+    .rx-header { margin-bottom: 8px; color: #555; }
+    .rx-table { width: 100%; border-collapse: collapse; margin-bottom: 20px; font-size: 0.9em; }
+    .rx-table th { background: #f3f3f3; padding: 6px 10px; text-align: left; border-bottom: 2px solid #ddd; }
+    .rx-table td { padding: 6px 10px; border-bottom: 1px solid #eee; }
+    .rx-row { cursor: pointer; }
+    .rx-row:hover { background: #f0f6ff; }
+    .rx-row.selected { background: #e6f0fb; }
+    .status-badge { display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 0.8em; font-weight: 600; }
+    .status-active { background: #dff6dd; color: #107c41; }
+    .status-discontinued { background: #fde7e9; color: #a4262c; }
+    .status-expired { background: #f3f3f3; color: #666; }
+    .status-hold { background: #fff4ce; color: #7a4f00; }
+    .status-suspended { background: #e8d5ff; color: #5c2d91; }
+    .priority-chip { display: inline-block; padding: 2px 6px; border-radius: 3px; font-size: 0.75em; font-weight: 600; }
+    .priority-routine { background: #f3f3f3; color: #555; }
+    .priority-urgent { background: #fff4ce; color: #7a4f00; }
+    .priority-stat { background: #fde7e9; color: #a4262c; }
+    .detail-panel { border: 1px solid #ddd; border-radius: 6px; padding: 16px; margin-top: 10px; background: #fafafa; }
+    .detail-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 16px; margin-bottom: 12px; font-size: 0.9em; }
+    .action-bar { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; }
+    .input-row { display: flex; gap: 8px; margin-top: 8px; }
+    .action-message { background: #dff6dd; color: #107c41; padding: 6px 10px; border-radius: 4px; margin-top: 8px; font-size: 0.9em; }
+    .counseling-flag { color: #ca5010; font-weight: 600; }
+    .history-table { width: 100%; border-collapse: collapse; margin-top: 8px; font-size: 0.88em; }
+    .history-table th { background: #f3f3f3; padding: 4px 8px; text-align: left; border-bottom: 1px solid #ddd; }
+    .history-table td { padding: 4px 8px; border-bottom: 1px solid #eee; }
+    h3 { margin-top: 0; }
+    h4 { margin-bottom: 4px; }
+    .refill-eligibility { padding: 8px 12px; border-radius: 4px; margin-bottom: 8px; font-size: 0.9em; }
+    .refill-eligibility.eligible { background: #0f2e0f; border: 1px solid #27ae60; }
+    .refill-eligibility.not-eligible { background: #3c1111; border: 1px solid #e74c3c; }
+    .badge-eligible { background: #1e6e3e; color: #fff; padding: 2px 8px; border-radius: 3px; font-weight: 600; font-size: 0.85em; }
+    .badge-not-eligible { background: #8b1a1a; color: #fff; padding: 2px 8px; border-radius: 3px; font-weight: 600; font-size: 0.85em; }
+    .refill-detail { margin-left: 8px; color: #aaa; }
+    .refill-reasons { margin: 4px 0 0 0; padding-left: 20px; color: #e74c3c; font-size: 0.85em; }
+</style>
+
+@code {
+    private string patientId = string.Empty;
+    private bool isLoading;
+    private bool isActing;
+    private RefillEligibilityResult? refillEligibility;
+    private string? error;
+    private string? actionMessage;
+    private bool showDiscontinueInput;
+    private string discontinueReason = string.Empty;
+
+    private List<PrescriptionSummaryDto>? prescriptions;
+    private PrescriptionSummaryDto? selectedRx;
+    private PrescriptionDetailDto? detailRx;
+    private List<RefillHistoryDto>? refillHistory;
+
+    private IPatientPrescriptionIndexGrain GetIndexGrain() =>
+        Grains.GetGrain<IPatientPrescriptionIndexGrain>($"PSO-INDEX:{patientId.Trim()}");
+
+    private IPharmacyGrain GetRxGrain(string rxId) =>
+        Grains.GetGrain<IPharmacyGrain>(rxId);
+
+    private async Task LoadPrescriptions()
+    {
+        if (string.IsNullOrWhiteSpace(patientId)) return;
+        isLoading = true;
+        error = null;
+        prescriptions = null;
+        detailRx = null;
+        selectedRx = null;
+        refillHistory = null;
+
+        try
+        {
+            List<PrescriptionIndexEntry> entries = await GetIndexGrain().GetAllAsync();
+            prescriptions = entries.Select(e => new PrescriptionSummaryDto(
+                e.PrescriptionId, e.DrugName, e.DrugId, e.Dosage, e.Status,
+                e.IssueDate, e.ExpirationDate, e.Refills, e.RefillsRemaining,
+                e.Priority, e.IsVerified, e.CounselingRequired, e.ProviderName)).ToList();
+        }
+        catch (Exception ex)
+        {
+            error = $"Failed to load prescriptions: {ex.Message}";
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private async Task LoadDemo()
+    {
+        isLoading = true;
+        error = null;
+        if (string.IsNullOrWhiteSpace(patientId))
+            patientId = "P-DEMO-001";
+
+        try
+        {
+            // Demo load requires the API — not available via grains
+            error = "Demo load is only available when running the API server.";
+        }
+        catch (Exception ex)
+        {
+            error = $"Demo load failed: {ex.Message}";
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private async Task SelectRx(PrescriptionSummaryDto rx)
+    {
+        selectedRx = rx;
+        actionMessage = null;
+        showDiscontinueInput = false;
+        refillHistory = null;
+
+        try
+        {
+            PharmacyState state = await GetRxGrain(rx.PrescriptionId).GetPrescriptionAsync();
+            detailRx = new PrescriptionDetailDto(
+                state.PrescriptionId, state.PatientId, state.DrugName, state.DrugId,
+                state.Dosage, state.Route, state.Schedule, state.Sig, state.Status,
+                state.IssueDate, state.FillDate, state.ExpirationDate, state.LastDispenseDate,
+                state.DaysSupply, state.Quantity, state.Refills, state.RefillsRemaining,
+                state.ProviderId, state.ProviderName, state.PharmacyId, state.PharmacyName,
+                state.OrderId, state.Comments, state.RxNumber, state.Priority,
+                state.IsVerified, state.VerifiedBy, state.VerifiedDate,
+                state.CounselingRequired, state.CounselingCompleted, state.CounselingDate, state.CounseledBy,
+                state.IsLabelPrinted, state.LabelPrintedDate,
+                state.NdcDispensed, state.LotNumber, state.DiscontinueReason,
+                state.HoldReason, state.HoldDate, state.CreatedDate, state.LastModifiedDate);
+
+            List<RefillRecord> records = await GetRxGrain(rx.PrescriptionId).GetRefillHistoryAsync();
+            refillHistory = records.Select(r => new RefillHistoryDto(
+                r.FillNumber, r.FillDate, r.Quantity, r.DaysSupply,
+                r.RxNumber, r.PharmacistId, r.NdcDispensed, r.RecordedDate)).ToList();
+
+            // Load refill eligibility for active, filled prescriptions
+            refillEligibility = null;
+            if (detailRx.Status == "ACTIVE" && detailRx.FillDate.HasValue)
+            {
+                try
+                {
+                    refillEligibility = await GetWorkflowGrain().GetRefillEligibilityAsync(
+                        rx.PrescriptionId, DateTime.UtcNow);
+                }
+                catch { /* Eligibility is informational — don't block detail view */ }
+            }
+        }
+        catch (Exception ex)
+        {
+            error = $"Failed to load prescription detail: {ex.Message}";
+        }
+    }
+
+    private async Task FillRx() => await DoWorkflowAction("fill", async wf => await wf.FillPrescriptionWorkflowAsync(detailRx!.PrescriptionId, DateTime.UtcNow));
+    private async Task RefillRx() => await DoWorkflowAction("refill", async wf => await wf.RefillPrescriptionWorkflowAsync(detailRx!.PrescriptionId, DateTime.UtcNow));
+    private async Task HoldRx() => await DoWorkflowAction("hold", async wf => await wf.HoldPrescriptionWorkflowAsync(detailRx!.PrescriptionId, "Placed on hold by pharmacist"));
+    private async Task ResumeRx() => await DoWorkflowAction("resume", async wf => await wf.ResumePrescriptionWorkflowAsync(detailRx!.PrescriptionId));
+    private async Task VerifyRx() => await DoWorkflowAction("verify", async wf => await wf.VerifyPrescriptionWorkflowAsync(detailRx!.PrescriptionId, "RPH-CURRENT"));
+    private async Task PrintLabel() => await DoWorkflowAction("printlabel", async wf => await wf.PrintLabelWorkflowAsync(detailRx!.PrescriptionId, null));
+    private async Task ToggleCounseling()
+    {
+        if (detailRx == null) return;
+        await DoAction("counseling", async g => await g.SetCounselingFlagAsync(!detailRx.CounselingRequired));
+    }
+
+    // ── Dispense form ─────────────────────────────────────────────────────
+    private string d_ndc = string.Empty, d_lot = string.Empty, d_pharmacist = string.Empty;
+
+    private void ShowDispenseForm()
+    {
+        d_ndc = d_lot = d_pharmacist = string.Empty;
+    }
+
+    private async Task SubmitDispense()
+    {
+        await DoWorkflowAction("dispense", async wf =>
+            await wf.RecordDispenseWorkflowAsync(detailRx!.PrescriptionId,
+                string.IsNullOrWhiteSpace(d_ndc) ? null : d_ndc,
+                string.IsNullOrWhiteSpace(d_lot) ? null : d_lot,
+                string.IsNullOrWhiteSpace(d_pharmacist) ? null : d_pharmacist));
+    }
+
+    // ── Counseling form ─────────────────────────────────────────────────────
+    private string c_pharmacist = string.Empty, c_notes = string.Empty;
+
+    private void ShowCounselingForm()
+    {
+        c_pharmacist = c_notes = string.Empty;
+    }
+
+    private async Task SubmitCounseling()
+    {
+        if (string.IsNullOrWhiteSpace(c_pharmacist)) { error = "Pharmacist ID required."; return; }
+        await DoWorkflowAction("counseling-complete", async wf =>
+            await wf.RecordCounselingWorkflowAsync(detailRx!.PrescriptionId, c_pharmacist.Trim(),
+                string.IsNullOrWhiteSpace(c_notes) ? null : c_notes));
+    }
+
+    // ── Label content view ──────────────────────────────────────────────────
+    private PrescriptionLabelContent? labelContent;
+
+    private async Task ShowLabelContent()
+    {
+        try
+        {
+            labelContent = await GetWorkflowGrain().GenerateLabelContentWorkflowAsync(detailRx!.PrescriptionId);
+        }
+        catch (Exception ex) { error = $"Label error: {ex.Message}"; }
+    }
+
+    private void ShowDiscontinue()
+    {
+        showDiscontinueInput = true;
+        discontinueReason = string.Empty;
+    }
+
+    private async Task ConfirmDiscontinue()
+    {
+        showDiscontinueInput = false;
+        await DoWorkflowAction("discontinue", async wf => await wf.DiscontinuePrescriptionWorkflowAsync(detailRx!.PrescriptionId, discontinueReason));
+    }
+
+    private IPatientWorkflowGrain GetWorkflowGrain() =>
+        Grains.GetGrain<IPatientWorkflowGrain>(patientId!.Trim());
+
+    private async Task DoWorkflowAction(string action, Func<IPatientWorkflowGrain, Task> workflowAction)
+    {
+        if (detailRx == null) return;
+        isActing = true;
+        error = null;
+        actionMessage = null;
+        try
+        {
+            IPatientWorkflowGrain wf = GetWorkflowGrain();
+            await workflowAction(wf);
+            actionMessage = $"Action '{action}' completed successfully.";
+            await SelectRx(selectedRx!);
+            await LoadPrescriptions();
+        }
+        catch (Exception ex)
+        {
+            error = $"Action failed: {ex.Message}";
+        }
+        finally
+        {
+            isActing = false;
+        }
+    }
+
+    private async Task DoAction(string action, Func<IPharmacyGrain, Task> grainAction)
+    {
+        if (detailRx == null) return;
+        isActing = true;
+        error = null;
+        actionMessage = null;
+        try
+        {
+            IPharmacyGrain rxGrain = GetRxGrain(detailRx.PrescriptionId);
+            await grainAction(rxGrain);
+            actionMessage = $"Action '{action}' completed successfully.";
+            await SelectRx(selectedRx!);
+            await LoadPrescriptions();
+        }
+        catch (Exception ex)
+        {
+            error = $"Action failed: {ex.Message}";
+        }
+        finally
+        {
+            isActing = false;
+        }
+    }
+
+    // Response DTOs
+    private record PrescriptionSummaryDto(
+        string PrescriptionId,
+        string DrugName,
+        string? DrugId,
+        string? Dosage,
+        string Status,
+        DateTime? IssueDate,
+        DateTime? ExpirationDate,
+        int? Refills,
+        int? RefillsRemaining,
+        string Priority,
+        bool IsVerified,
+        bool CounselingRequired,
+        string? ProviderName);
+
+    private record PrescriptionDetailDto(
+        string PrescriptionId,
+        string PatientId,
+        string DrugName,
+        string? DrugId,
+        string? Dosage,
+        string? Route,
+        string? Schedule,
+        string? Sig,
+        string Status,
+        DateTime? IssueDate,
+        DateTime? FillDate,
+        DateTime? ExpirationDate,
+        DateTime? LastDispenseDate,
+        int? DaysSupply,
+        int? Quantity,
+        int? Refills,
+        int? RefillsRemaining,
+        string? ProviderId,
+        string? ProviderName,
+        string? PharmacyId,
+        string? PharmacyName,
+        string? OrderId,
+        string? Comments,
+        string? RxNumber,
+        string Priority,
+        bool IsVerified,
+        string? VerifiedBy,
+        DateTime? VerifiedDate,
+        bool CounselingRequired,
+        bool CounselingCompleted,
+        DateTime? CounselingDate,
+        string? CounseledBy,
+        bool IsLabelPrinted,
+        DateTime? LabelPrintedDate,
+        string? NdcDispensed,
+        string? LotNumber,
+        string? DiscontinueReason,
+        string? HoldReason,
+        DateTime? HoldDate,
+        DateTime CreatedDate,
+        DateTime LastModifiedDate);
+
+    private record RefillHistoryDto(
+        int FillNumber,
+        DateTime FillDate,
+        int? Quantity,
+        int? DaysSupply,
+        string? RxNumber,
+        string? PharmacistId,
+        string? NdcDispensed,
+        DateTime RecordedDate);
+}

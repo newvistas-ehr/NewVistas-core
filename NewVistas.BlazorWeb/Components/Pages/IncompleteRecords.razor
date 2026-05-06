@@ -1,0 +1,179 @@
+﻿@page "/incomplete-records"
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+@rendermode InteractiveServer
+@using NewVistas.BlazorWeb.Services
+@using NewVistas.Abstractions.GrainInterfaces
+@using NewVistas.Abstractions.GrainStates
+@inject OrleansGrainService Grains
+
+<PageTitle>Incomplete Records</PageTitle>
+
+<h1>Incomplete Records Tracking</h1>
+
+@if (error != null) { <div class="alert alert-error">@error</div> }
+@if (successMsg != null) { <div class="alert alert-success">@successMsg</div> }
+
+<div class="prov-selector">
+    <label>Provider ID:</label>
+    <input type="text" @bind="providerId" style="width:200px" />
+    <button class="btn btn-primary" @onclick="LoadDeficiencies">Load</button>
+    <button class="btn btn-demo" @onclick="LoadDemo">Load Demo</button>
+</div>
+
+<div class="tab-bar">
+    <button class="@TabClass(0)" @onclick="async () => { activeTab = 0; await LoadDeficiencies(); }">All</button>
+    <button class="@TabClass(1)" @onclick="() => LoadOpen()">Open</button>
+    <button class="@TabClass(2)" @onclick="() => LoadDelinquent()">Delinquent</button>
+</div>
+
+@if (deficiencies != null)
+{
+    @if (deficiencies.Count == 0)
+    {
+        <div class="empty-state">No deficiencies found.</div>
+    }
+    else
+    {
+        <table class="data-table">
+            <thead>
+                <tr><th>Patient</th><th>Type</th><th>Days Out</th><th>Discharge</th><th>Status</th><th>Actions</th></tr>
+            </thead>
+            <tbody>
+                @foreach (var d in deficiencies)
+                {
+                    <tr class="@(d.IsDelinquent ? "row-delinquent" : "")">
+                        <td>@d.PatientName</td>
+                        <td>@d.DeficiencyType.Replace("_"," ")</td>
+                        <td class="@(d.IsDelinquent ? "days-delinquent" : "")">@d.DaysOutstanding</td>
+                        <td class="date">@(d.DischargeDate?.ToString("MM/dd/yyyy") ?? "—")</td>
+                        <td><span class="badge badge-@d.Status.ToLower()">@d.Status</span></td>
+                        <td class="actions">
+                            @if (d.Status == "OPEN" || d.Status == "DELINQUENT")
+                            {
+                                <button class="btn-sm" @onclick="() => Complete(d.DeficiencyId)">Complete</button>
+                                <button class="btn-sm btn-dc" @onclick="() => Waive(d.DeficiencyId)">Waive</button>
+                            }
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    }
+}
+
+@code {
+    private string providerId = "PROV-001";
+    private List<DefEntryDto>? deficiencies;
+    private string? error, successMsg;
+    private int activeTab;
+
+    protected override async Task OnInitializedAsync() => await LoadDeficiencies();
+
+    private async Task LoadDeficiencies()
+    {
+        activeTab = 0; error = null;
+        try
+        {
+            var indexGrain = Grains.GetGrain<IIncompleteRecordIndexGrain>($"DGPT-INDEX:{providerId}");
+            var entries = await indexGrain.GetAllDeficienciesAsync();
+            deficiencies = entries.Select(MapToDto).ToList();
+        }
+        catch (Exception ex) { error = ex.Message; }
+    }
+
+    private async Task LoadOpen()
+    {
+        activeTab = 1; error = null;
+        try
+        {
+            var indexGrain = Grains.GetGrain<IIncompleteRecordIndexGrain>($"DGPT-INDEX:{providerId}");
+            var entries = await indexGrain.GetOpenDeficienciesAsync();
+            deficiencies = entries.Select(MapToDto).ToList();
+        }
+        catch (Exception ex) { error = ex.Message; }
+    }
+
+    private async Task LoadDelinquent()
+    {
+        activeTab = 2; error = null;
+        try
+        {
+            var indexGrain = Grains.GetGrain<IIncompleteRecordIndexGrain>($"DGPT-INDEX:{providerId}");
+            var entries = await indexGrain.GetDelinquentDeficienciesAsync();
+            deficiencies = entries.Select(MapToDto).ToList();
+        }
+        catch (Exception ex) { error = ex.Message; }
+    }
+
+    private async Task Complete(string defId)
+    {
+        try
+        {
+            var grain = Grains.GetGrain<IIncompleteRecordGrain>($"DGPT:{defId}");
+            await grain.CompleteAsync(providerId);
+            successMsg = "Completed.";
+            await LoadDeficiencies();
+        }
+        catch (Exception ex) { error = ex.Message; }
+    }
+
+    private async Task Waive(string defId)
+    {
+        try
+        {
+            var grain = Grains.GetGrain<IIncompleteRecordGrain>($"DGPT:{defId}");
+            await grain.WaiveAsync("Waived by chief of staff", "COS-001");
+            await LoadDeficiencies();
+        }
+        catch (Exception ex) { error = ex.Message; }
+    }
+
+    private static DefEntryDto MapToDto(IncompleteRecordEntry e) => new()
+    {
+        DeficiencyId = e.DeficiencyId, PatientName = e.PatientName,
+        ProviderName = e.ProviderName, DeficiencyType = e.DeficiencyType,
+        Status = e.Status, DaysOutstanding = e.DaysOutstanding,
+        IsDelinquent = e.IsDelinquent, DischargeDate = e.DischargeDate
+    };
+
+    private async Task LoadDemo()
+    {
+        successMsg = "Demo data not available in direct grain mode.";
+    }
+
+    private string TabClass(int tab) => activeTab == tab ? "tab active" : "tab";
+
+    private class DefEntryDto { public string DeficiencyId { get; set; } = ""; public string PatientName { get; set; } = ""; public string ProviderName { get; set; } = ""; public string DeficiencyType { get; set; } = ""; public string Status { get; set; } = ""; public int DaysOutstanding { get; set; } public bool IsDelinquent { get; set; } public DateTime? DischargeDate { get; set; } }
+}
+
+<style>
+    .prov-selector { display: flex; align-items: center; gap: 0.5rem; margin-bottom: 1rem; }
+    .prov-selector label { font-weight: 600; font-size: 0.85rem; }
+    .prov-selector input { padding: 0.35rem 0.6rem; border: 1px solid #d1d5db; border-radius: 4px; font-size: 0.85rem; }
+    .tab-bar { display: flex; gap: 0; margin-bottom: 1.5rem; border-bottom: 2px solid #d4d9e0; }
+    .tab { padding: 0.6rem 1.25rem; border: none; background: transparent; cursor: pointer; font-size: 0.85rem; color: #666; border-bottom: 2px solid transparent; margin-bottom: -2px; }
+    .tab.active { color: #003f72; font-weight: 600; border-bottom: 2px solid #003f72; }
+    .btn { padding: 0.5rem 1.25rem; border: none; border-radius: 4px; cursor: pointer; font-size: 0.85rem; }
+    .btn-primary { background: #003f72; color: white; }
+    .btn-demo { background: #059669; color: white; }
+    .btn-sm { padding: 0.2rem 0.5rem; font-size: 0.75rem; border: 1px solid #ccc; border-radius: 3px; cursor: pointer; background: white; }
+    .btn-dc { border-color: #dc2626; color: #dc2626; }
+    .alert { padding: 0.75rem 1rem; border-radius: 4px; margin-bottom: 1rem; }
+    .alert-error { background: #fde8e8; color: #b91c1c; border: 1px solid #f5c6c6; }
+    .alert-success { background: #d1fae5; color: #065f46; border: 1px solid #a7f3d0; }
+    .empty-state { color: #999; font-style: italic; padding: 2rem 0; }
+    .data-table { width: 100%; border-collapse: collapse; font-size: 0.85rem; border: 1px solid #d4d9e0; }
+    .data-table thead { background: #1e3a5f; color: white; }
+    .data-table th { text-align: left; padding: 0.5rem; font-weight: 600; font-size: 0.75rem; text-transform: uppercase; }
+    .data-table td { padding: 0.4rem 0.5rem; border-bottom: 1px solid #e5e7eb; }
+    .data-table tr:hover { background: #f0f4f8; }
+    .row-delinquent { background: #fde8e8; }
+    .days-delinquent { color: #dc2626; font-weight: 700; }
+    .date { color: #888; font-size: 0.8rem; }
+    .actions { white-space: nowrap; display: flex; gap: 0.25rem; }
+    .badge { padding: 0.15rem 0.5rem; border-radius: 10px; font-size: 0.7rem; font-weight: 600; }
+    .badge-open { background: #fef3c7; color: #92400e; }
+    .badge-delinquent { background: #fde8e8; color: #b91c1c; }
+    .badge-completed { background: #d1fae5; color: #065f46; }
+    .badge-waived { background: #f3f4f6; color: #6b7280; }
+</style>

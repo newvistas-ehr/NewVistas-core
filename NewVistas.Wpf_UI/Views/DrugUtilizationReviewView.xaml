@@ -1,0 +1,49 @@
+<UserControl x:Class="NewVistas.Wpf_UI.Views.DrugUtilizationReviewView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <ScrollViewer VerticalScrollBarVisibility="Auto">
+        <StackPanel Margin="24">
+            <TextBlock Style="{StaticResource PageTitle}" Text="Drug Utilization Review"/>
+            <TextBlock Style="{StaticResource ErrorText}" Text="{Binding Error}"
+                       Visibility="{Binding Error, Converter={StaticResource NullToVisibility}}"/>
+            <TextBlock Foreground="Green" Text="{Binding ActionMessage}"
+                       Visibility="{Binding ActionMessage, Converter={StaticResource NullToVisibility}}" Margin="0,0,0,8"/>
+
+            <StackPanel Orientation="Horizontal" Margin="0,0,0,12">
+                <Button Content="Load Assessments" Style="{StaticResource PrimaryButton}"
+                        Command="{Binding LoadCommand}" Margin="0,0,8,0"/>
+                <ProgressBar IsIndeterminate="True" Width="120" Height="20"
+                             Visibility="{Binding IsLoading, Converter={StaticResource BoolToVisibility}}"/>
+            </StackPanel>
+
+            <TextBlock Text="All Assessments" FontWeight="Bold" Margin="0,0,0,4"/>
+            <DataGrid ItemsSource="{Binding Assessments}" AutoGenerateColumns="False" IsReadOnly="True" Height="250">
+                <DataGrid.Columns>
+                    <DataGridTextColumn Header="Date" Binding="{Binding PerformedDate, StringFormat=g}" Width="140"/>
+                    <DataGridTextColumn Header="Drug" Binding="{Binding DrugName}" Width="*"/>
+                    <DataGridTextColumn Header="Status" Binding="{Binding Status}" Width="100"/>
+                    <DataGridTextColumn Header="Outcome" Binding="{Binding OverallOutcome}" Width="100"/>
+                    <DataGridTextColumn Header="Failed" Binding="{Binding FailedCheckCount}" Width="60"/>
+                    <DataGridTextColumn Header="Warnings" Binding="{Binding WarningCheckCount}" Width="70"/>
+                    <DataGridTextColumn Header="By" Binding="{Binding PerformedBy}" Width="120"/>
+                </DataGrid.Columns>
+            </DataGrid>
+
+            <TextBlock Text="Pending Reviews" FontWeight="Bold" Margin="0,12,0,4"/>
+            <DataGrid ItemsSource="{Binding PendingReviews}" AutoGenerateColumns="False" IsReadOnly="True" Height="150">
+                <DataGrid.Columns>
+                    <DataGridTextColumn Header="Date" Binding="{Binding PerformedDate, StringFormat=g}" Width="140"/>
+                    <DataGridTextColumn Header="Drug" Binding="{Binding DrugName}" Width="*"/>
+                    <DataGridTextColumn Header="Status" Binding="{Binding Status}" Width="100"/>
+                    <DataGridTextColumn Header="Failed" Binding="{Binding FailedCheckCount}" Width="60"/>
+                </DataGrid.Columns>
+            </DataGrid>
+
+            <StackPanel Orientation="Horizontal" Margin="0,8,0,0"
+                        Visibility="{Binding SelectedAssessment, Converter={StaticResource NullToVisibility}}">
+                <Button Content="Acknowledge" Style="{StaticResource PrimaryButton}"
+                        Command="{Binding AcknowledgeAssessmentCommand}" Margin="0,0,8,0"/>
+            </StackPanel>
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>

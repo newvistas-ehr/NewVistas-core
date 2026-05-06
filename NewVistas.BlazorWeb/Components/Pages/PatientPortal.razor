@@ -1,0 +1,1656 @@
+@page "/patient-portal"
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+@rendermode InteractiveServer
+@using NewVistas.BlazorWeb.Services
+@using NewVistas.Abstractions.GrainInterfaces
+@using NewVistas.Abstractions.GrainStates
+@inject OrleansGrainService Grains
+@inject HttpClient Http
+
+<PageTitle>Patient Portal</PageTitle>
+
+<h1>Patient Portal</h1>
+
+<div class="lookup-bar">
+    <input type="text" @bind="patientId" @bind:event="oninput" @onkeydown="HandleKeyDown"
+           placeholder="Patient ID" class="lookup-input" />
+    <button @onclick="LoadData" disabled="@(string.IsNullOrWhiteSpace(patientId) || loading)" class="btn btn-primary">
+        @if (loading) { <span>Loading...</span> } else { <span>Load Record</span> }
+    </button>
+</div>
+
+@if (error != null) { <div class="alert alert-error">@error</div> }
+@if (successMessage != null) { <div class="alert alert-success">@successMessage</div> }
+
+@if (dataLoaded)
+{
+    <div class="tabs">
+        <button class="tab @(activeTab == "submissions" ? "active" : "")" @onclick='() => activeTab = "submissions"'>
+            Submissions (@submissions.Count)
+        </button>
+        <button class="tab @(activeTab == "messages" ? "active" : "")" @onclick='() => activeTab = "messages"'>
+            Messages (@threads.Count)
+        </button>
+        <button class="tab @(activeTab == "queue" ? "active" : "")" @onclick="LoadQueue">
+            Review Queue
+        </button>
+    </div>
+
+    @* ── Submissions Tab ── *@
+    @if (activeTab == "submissions")
+    {
+        <div class="tab-content">
+            <div class="section-header">
+                <h3>Health Information Submissions</h3>
+                <button @onclick="ShowNewSubmissionForm" class="btn btn-secondary">+ New Submission</button>
+            </div>
+
+            @if (showNewSubmission)
+            {
+                <div class="portal-form">
+                    <h4>New Patient Health Information Submission</h4>
+
+                    @* Demographics Section *@
+                    <div class="form-section">
+                        <div class="form-section-header" @onclick="() => showDemographics = !showDemographics">
+                            <h5>Demographics</h5>
+                            <span class="toggle">@(showDemographics ? "−" : "+")</span>
+                        </div>
+                        @if (showDemographics)
+                        {
+                            <div class="form-grid">
+                                <div class="form-row">
+                                    <label>Street Address</label>
+                                    <input type="text" @bind="newDemographics.Street" placeholder="123 Main St" />
+                                </div>
+                                <div class="form-row">
+                                    <label>City</label>
+                                    <input type="text" @bind="newDemographics.City" />
+                                </div>
+                                <div class="form-row">
+                                    <label>State</label>
+                                    <input type="text" @bind="newDemographics.State" placeholder="CA" />
+                                </div>
+                                <div class="form-row">
+                                    <label>ZIP</label>
+                                    <input type="text" @bind="newDemographics.ZipCode" placeholder="90210" />
+                                </div>
+                                <div class="form-row">
+                                    <label>Home Phone</label>
+                                    <input type="tel" @bind="newDemographics.HomePhone" />
+                                </div>
+                                <div class="form-row">
+                                    <label>Cell Phone</label>
+                                    <input type="tel" @bind="newDemographics.CellPhone" />
+                                </div>
+                                <div class="form-row">
+                                    <label>Email</label>
+                                    <input type="email" @bind="newDemographics.Email" />
+                                </div>
+                                <div class="form-row">
+                                    <label>Preferred Language</label>
+                                    <input type="text" @bind="newDemographics.PreferredLanguage" placeholder="English" />
+                                </div>
+                                <div class="form-row">
+                                    <label>Emergency Contact Name</label>
+                                    <input type="text" @bind="newDemographics.EmergencyContactName" />
+                                </div>
+                                <div class="form-row">
+                                    <label>Emergency Contact Phone</label>
+                                    <input type="tel" @bind="newDemographics.EmergencyContactPhone" />
+                                </div>
+                            </div>
+                        }
+                    </div>
+
+                    @* Health Concerns Section *@
+                    <div class="form-section">
+                        <div class="form-section-header" @onclick="() => showHealthConcerns = !showHealthConcerns">
+                            <h5>Health Concerns (@newHealthConcerns.Count)</h5>
+                            <span class="toggle">@(showHealthConcerns ? "−" : "+")</span>
+                        </div>
+                        @if (showHealthConcerns)
+                        {
+                            @foreach (HealthConcernForm hc in newHealthConcerns)
+                            {
+                                <div class="form-grid inline-item">
+                                    <div class="form-row">
+                                        <label>Description *</label>
+                                        <input type="text" @bind="hc.Description" placeholder="Describe your concern" />
+                                    </div>
+                                    <div class="form-row">
+                                        <label>Severity</label>
+                                        <select @bind="hc.Severity">
+                                            <option value="Mild">Mild</option>
+                                            <option value="Moderate">Moderate</option>
+                                            <option value="Severe">Severe</option>
+                                        </select>
+                                    </div>
+                                    <div class="form-row">
+                                        <label>Onset Date</label>
+                                        <input type="date" @bind="hc.OnsetDate" />
+                                    </div>
+                                    <div class="form-row">
+                                        <label>Ongoing?</label>
+                                        <select @bind="hc.IsOngoing">
+                                            <option value="true">Yes</option>
+                                            <option value="false">No</option>
+                                        </select>
+                                    </div>
+                                    <div class="form-row">
+                                        <button @onclick="() => newHealthConcerns.Remove(hc)" class="btn btn-sm btn-cancel-action">Remove</button>
+                                    </div>
+                                </div>
+                            }
+                            <button @onclick="() => newHealthConcerns.Add(new())" class="btn btn-sm btn-outline">+ Add Concern</button>
+                        }
+                    </div>
+
+                    @* Medications Section *@
+                    <div class="form-section">
+                        <div class="form-section-header" @onclick="() => showMedications = !showMedications">
+                            <h5>Current Medications (@newMedications.Count)</h5>
+                            <span class="toggle">@(showMedications ? "−" : "+")</span>
+                        </div>
+                        @if (showMedications)
+                        {
+                            @foreach (MedicationForm med in newMedications)
+                            {
+                                <div class="form-grid inline-item">
+                                    <div class="form-row">
+                                        <label>Medication Name *</label>
+                                        <input type="text" @bind="med.MedicationName" />
+                                    </div>
+                                    <div class="form-row">
+                                        <label>Dosage</label>
+                                        <input type="text" @bind="med.Dosage" placeholder="e.g. 500mg" />
+                                    </div>
+                                    <div class="form-row">
+                                        <label>Frequency</label>
+                                        <input type="text" @bind="med.Frequency" placeholder="e.g. Twice daily" />
+                                    </div>
+                                    <div class="form-row">
+                                        <label>Reason</label>
+                                        <input type="text" @bind="med.Reason" />
+                                    </div>
+                                    <div class="form-row">
+                                        <button @onclick="() => newMedications.Remove(med)" class="btn btn-sm btn-cancel-action">Remove</button>
+                                    </div>
+                                </div>
+                            }
+                            <button @onclick="() => newMedications.Add(new())" class="btn btn-sm btn-outline">+ Add Medication</button>
+                        }
+                    </div>
+
+                    @* Allergies Section *@
+                    <div class="form-section">
+                        <div class="form-section-header" @onclick="() => showAllergies = !showAllergies">
+                            <h5>Allergies (@newAllergies.Count)</h5>
+                            <span class="toggle">@(showAllergies ? "−" : "+")</span>
+                        </div>
+                        @if (showAllergies)
+                        {
+                            @foreach (AllergyForm allergy in newAllergies)
+                            {
+                                <div class="form-grid inline-item">
+                                    <div class="form-row">
+                                        <label>Allergen *</label>
+                                        <input type="text" @bind="allergy.Allergen" />
+                                    </div>
+                                    <div class="form-row">
+                                        <label>Reaction</label>
+                                        <input type="text" @bind="allergy.Reaction" placeholder="e.g. Hives, Swelling" />
+                                    </div>
+                                    <div class="form-row">
+                                        <label>Severity</label>
+                                        <select @bind="allergy.Severity">
+                                            <option value="Mild">Mild</option>
+                                            <option value="Moderate">Moderate</option>
+                                            <option value="Severe">Severe</option>
+                                            <option value="Life-Threatening">Life-Threatening</option>
+                                        </select>
+                                    </div>
+                                    <div class="form-row">
+                                        <label>Type</label>
+                                        <select @bind="allergy.AllergenType">
+                                            <option value="Drug">Drug</option>
+                                            <option value="Food">Food</option>
+                                            <option value="Environmental">Environmental</option>
+                                            <option value="Other">Other</option>
+                                        </select>
+                                    </div>
+                                    <div class="form-row">
+                                        <button @onclick="() => newAllergies.Remove(allergy)" class="btn btn-sm btn-cancel-action">Remove</button>
+                                    </div>
+                                </div>
+                            }
+                            <button @onclick="() => newAllergies.Add(new())" class="btn btn-sm btn-outline">+ Add Allergy</button>
+                        }
+                    </div>
+
+                    @* Social History Section *@
+                    <div class="form-section">
+                        <div class="form-section-header" @onclick="() => showSocialHistory = !showSocialHistory">
+                            <h5>Social History</h5>
+                            <span class="toggle">@(showSocialHistory ? "−" : "+")</span>
+                        </div>
+                        @if (showSocialHistory)
+                        {
+                            <div class="form-grid">
+                                <div class="form-row">
+                                    <label>Smoking Status</label>
+                                    <select @bind="newSocialHistory.SmokingStatus">
+                                        <option value="">-- Select --</option>
+                                        <option value="Never">Never</option>
+                                        <option value="Former">Former</option>
+                                        <option value="Current">Current</option>
+                                    </select>
+                                </div>
+                                <div class="form-row">
+                                    <label>Smoking Details</label>
+                                    <input type="text" @bind="newSocialHistory.SmokingDetails" placeholder="Pack-years, quit date, etc." />
+                                </div>
+                                <div class="form-row">
+                                    <label>Alcohol Use</label>
+                                    <input type="text" @bind="newSocialHistory.AlcoholUse" placeholder="e.g. Social, None, Heavy" />
+                                </div>
+                                <div class="form-row">
+                                    <label>Exercise Frequency</label>
+                                    <input type="text" @bind="newSocialHistory.ExerciseFrequency" placeholder="e.g. 3x/week" />
+                                </div>
+                                <div class="form-row">
+                                    <label>Occupation</label>
+                                    <input type="text" @bind="newSocialHistory.Occupation" />
+                                </div>
+                            </div>
+                        }
+                    </div>
+
+                    @* Family History Section *@
+                    <div class="form-section">
+                        <div class="form-section-header" @onclick="() => showFamilyHistory = !showFamilyHistory">
+                            <h5>Family History (@newFamilyHistory.Count)</h5>
+                            <span class="toggle">@(showFamilyHistory ? "−" : "+")</span>
+                        </div>
+                        @if (showFamilyHistory)
+                        {
+                            @foreach (FamilyHistoryForm fh in newFamilyHistory)
+                            {
+                                <div class="form-grid inline-item">
+                                    <div class="form-row">
+                                        <label>Relationship *</label>
+                                        <select @bind="fh.Relationship">
+                                            <option value="Mother">Mother</option>
+                                            <option value="Father">Father</option>
+                                            <option value="Sibling">Sibling</option>
+                                            <option value="Grandparent">Grandparent</option>
+                                            <option value="Other">Other</option>
+                                        </select>
+                                    </div>
+                                    <div class="form-row">
+                                        <label>Condition *</label>
+                                        <input type="text" @bind="fh.Condition" placeholder="e.g. Diabetes, Cancer" />
+                                    </div>
+                                    <div class="form-row">
+                                        <label>Age at Onset</label>
+                                        <input type="text" @bind="fh.AgeAtOnset" placeholder="e.g. 55" />
+                                    </div>
+                                    <div class="form-row">
+                                        <label>Deceased?</label>
+                                        <select @bind="fh.IsDeceased">
+                                            <option value="false">No</option>
+                                            <option value="true">Yes</option>
+                                        </select>
+                                    </div>
+                                    <div class="form-row">
+                                        <button @onclick="() => newFamilyHistory.Remove(fh)" class="btn btn-sm btn-cancel-action">Remove</button>
+                                    </div>
+                                </div>
+                            }
+                            <button @onclick="() => newFamilyHistory.Add(new())" class="btn btn-sm btn-outline">+ Add Family Member</button>
+                        }
+                    </div>
+
+                    @* Advance Directive Section *@
+                    <div class="form-section">
+                        <div class="form-section-header" @onclick="() => showAdvanceDirective = !showAdvanceDirective">
+                            <h5>Advance Directive</h5>
+                            <span class="toggle">@(showAdvanceDirective ? "−" : "+")</span>
+                        </div>
+                        @if (showAdvanceDirective)
+                        {
+                            <div class="form-grid">
+                                <div class="form-row">
+                                    <label>Has Living Will?</label>
+                                    <select @bind="newAdvanceDirective.HasLivingWill">
+                                        <option value="false">No</option>
+                                        <option value="true">Yes</option>
+                                    </select>
+                                </div>
+                                <div class="form-row">
+                                    <label>Has Healthcare POA?</label>
+                                    <select @bind="newAdvanceDirective.HasHealthcarePoa">
+                                        <option value="false">No</option>
+                                        <option value="true">Yes</option>
+                                    </select>
+                                </div>
+                                <div class="form-row">
+                                    <label>Healthcare Proxy Name</label>
+                                    <input type="text" @bind="newAdvanceDirective.HealthcareProxyName" />
+                                </div>
+                                <div class="form-row">
+                                    <label>Proxy Phone</label>
+                                    <input type="tel" @bind="newAdvanceDirective.HealthcareProxyPhone" />
+                                </div>
+                                <div class="form-row full">
+                                    <label>Directives / Wishes</label>
+                                    <textarea @bind="newAdvanceDirective.Directives" rows="3" placeholder="Patient's wishes regarding care..."></textarea>
+                                </div>
+                            </div>
+                        }
+                    </div>
+
+                    @* Health Goals & Notes *@
+                    <div class="form-section">
+                        <div class="form-grid">
+                            <div class="form-row full">
+                                <label>Health Goals (one per line)</label>
+                                <textarea @bind="newHealthGoalsText" rows="3" placeholder="Lose 10 pounds&#10;Walk 30 minutes daily&#10;Better manage diabetes"></textarea>
+                            </div>
+                            <div class="form-row full">
+                                <label>Additional Notes</label>
+                                <textarea @bind="newPatientNotes" rows="3" placeholder="Anything else you'd like your care team to know..."></textarea>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="form-actions">
+                        <button @onclick="SubmitSubmission" disabled="@saving" class="btn btn-primary">
+                            @if (saving) { <span>Submitting...</span> } else { <span>Submit Health Information</span> }
+                        </button>
+                        <button @onclick="() => showNewSubmission = false" class="btn btn-outline">Cancel</button>
+                    </div>
+                </div>
+            }
+
+            @if (selectedSubmission != null)
+            {
+                <div class="portal-detail">
+                    <div class="detail-header">
+                        <span class="badge badge-status status-@selectedSubmission.Status">@selectedSubmission.Status</span>
+                        <strong>Submitted: @selectedSubmission.SubmittedDate.ToString("MM/dd/yyyy HH:mm")</strong>
+                        <button @onclick="() => selectedSubmission = null" class="btn btn-sm btn-outline">Close</button>
+                    </div>
+
+                    @if (selectedSubmission.Demographics != null)
+                    {
+                        <div class="detail-section">
+                            <h5>Demographics</h5>
+                            <div class="detail-grid">
+                                @if (!string.IsNullOrEmpty(selectedSubmission.Demographics.Street))
+                                {
+                                    <div><strong>Address:</strong> @selectedSubmission.Demographics.Street, @selectedSubmission.Demographics.City, @selectedSubmission.Demographics.State @selectedSubmission.Demographics.ZipCode</div>
+                                }
+                                @if (!string.IsNullOrEmpty(selectedSubmission.Demographics.HomePhone)) { <div><strong>Home Phone:</strong> @selectedSubmission.Demographics.HomePhone</div> }
+                                @if (!string.IsNullOrEmpty(selectedSubmission.Demographics.CellPhone)) { <div><strong>Cell Phone:</strong> @selectedSubmission.Demographics.CellPhone</div> }
+                                @if (!string.IsNullOrEmpty(selectedSubmission.Demographics.Email)) { <div><strong>Email:</strong> @selectedSubmission.Demographics.Email</div> }
+                                @if (!string.IsNullOrEmpty(selectedSubmission.Demographics.PreferredLanguage)) { <div><strong>Language:</strong> @selectedSubmission.Demographics.PreferredLanguage</div> }
+                                @if (!string.IsNullOrEmpty(selectedSubmission.Demographics.EmergencyContactName)) { <div><strong>Emergency Contact:</strong> @selectedSubmission.Demographics.EmergencyContactName (@(selectedSubmission.Demographics.EmergencyContactPhone ?? "—"))</div> }
+                            </div>
+                        </div>
+                    }
+
+                    @if (selectedSubmission.HealthConcerns?.Count > 0)
+                    {
+                        <div class="detail-section">
+                            <h5>Health Concerns (@selectedSubmission.HealthConcerns.Count)</h5>
+                            @foreach (HealthConcernDto hc in selectedSubmission.HealthConcerns)
+                            {
+                                <div class="inline-detail">
+                                    <span class="badge badge-severity severity-@(hc.Severity?.ToLowerInvariant() ?? "mild")">@(hc.Severity ?? "—")</span>
+                                    <strong>@hc.Description</strong>
+                                    @if (!string.IsNullOrEmpty(hc.OnsetDate)) { <span class="detail-note">Onset: @hc.OnsetDate</span> }
+                                    @if (hc.IsOngoing) { <span class="badge badge-ongoing">Ongoing</span> }
+                                </div>
+                            }
+                        </div>
+                    }
+
+                    @if (selectedSubmission.Medications?.Count > 0)
+                    {
+                        <div class="detail-section">
+                            <h5>Medications (@selectedSubmission.Medications.Count)</h5>
+                            <table class="portal-table">
+                                <thead><tr><th>Medication</th><th>Dosage</th><th>Frequency</th><th>Reason</th></tr></thead>
+                                <tbody>
+                                    @foreach (MedicationDto med in selectedSubmission.Medications)
+                                    {
+                                        <tr>
+                                            <td>@med.MedicationName</td>
+                                            <td>@(med.Dosage ?? "—")</td>
+                                            <td>@(med.Frequency ?? "—")</td>
+                                            <td>@(med.Reason ?? "—")</td>
+                                        </tr>
+                                    }
+                                </tbody>
+                            </table>
+                        </div>
+                    }
+
+                    @if (selectedSubmission.Allergies?.Count > 0)
+                    {
+                        <div class="detail-section">
+                            <h5>Allergies (@selectedSubmission.Allergies.Count)</h5>
+                            <table class="portal-table">
+                                <thead><tr><th>Allergen</th><th>Type</th><th>Reaction</th><th>Severity</th></tr></thead>
+                                <tbody>
+                                    @foreach (AllergyDto a in selectedSubmission.Allergies)
+                                    {
+                                        <tr>
+                                            <td>@a.Allergen</td>
+                                            <td>@(a.AllergenType ?? "—")</td>
+                                            <td>@(a.Reaction ?? "—")</td>
+                                            <td><span class="badge badge-severity severity-@(a.Severity?.ToLowerInvariant() ?? "mild")">@(a.Severity ?? "—")</span></td>
+                                        </tr>
+                                    }
+                                </tbody>
+                            </table>
+                        </div>
+                    }
+
+                    @if (selectedSubmission.SocialHistory != null)
+                    {
+                        <div class="detail-section">
+                            <h5>Social History</h5>
+                            <div class="detail-grid">
+                                @if (!string.IsNullOrEmpty(selectedSubmission.SocialHistory.SmokingStatus)) { <div><strong>Smoking:</strong> @selectedSubmission.SocialHistory.SmokingStatus @(!string.IsNullOrEmpty(selectedSubmission.SocialHistory.SmokingDetails) ? $"({selectedSubmission.SocialHistory.SmokingDetails})" : "")</div> }
+                                @if (!string.IsNullOrEmpty(selectedSubmission.SocialHistory.AlcoholUse)) { <div><strong>Alcohol:</strong> @selectedSubmission.SocialHistory.AlcoholUse</div> }
+                                @if (!string.IsNullOrEmpty(selectedSubmission.SocialHistory.ExerciseFrequency)) { <div><strong>Exercise:</strong> @selectedSubmission.SocialHistory.ExerciseFrequency</div> }
+                                @if (!string.IsNullOrEmpty(selectedSubmission.SocialHistory.Occupation)) { <div><strong>Occupation:</strong> @selectedSubmission.SocialHistory.Occupation</div> }
+                            </div>
+                        </div>
+                    }
+
+                    @if (selectedSubmission.FamilyHistory?.Count > 0)
+                    {
+                        <div class="detail-section">
+                            <h5>Family History (@selectedSubmission.FamilyHistory.Count)</h5>
+                            <table class="portal-table">
+                                <thead><tr><th>Relationship</th><th>Condition</th><th>Age at Onset</th><th>Deceased</th></tr></thead>
+                                <tbody>
+                                    @foreach (FamilyHistoryDto fh in selectedSubmission.FamilyHistory)
+                                    {
+                                        <tr>
+                                            <td>@fh.Relationship</td>
+                                            <td>@fh.Condition</td>
+                                            <td>@(fh.AgeAtOnset ?? "—")</td>
+                                            <td>@(fh.IsDeceased ? "Yes" : "No")</td>
+                                        </tr>
+                                    }
+                                </tbody>
+                            </table>
+                        </div>
+                    }
+
+                    @if (selectedSubmission.AdvanceDirective != null)
+                    {
+                        <div class="detail-section">
+                            <h5>Advance Directive</h5>
+                            <div class="detail-grid">
+                                <div><strong>Living Will:</strong> @(selectedSubmission.AdvanceDirective.HasLivingWill ? "Yes" : "No")</div>
+                                <div><strong>Healthcare POA:</strong> @(selectedSubmission.AdvanceDirective.HasHealthcarePoa ? "Yes" : "No")</div>
+                                @if (!string.IsNullOrEmpty(selectedSubmission.AdvanceDirective.HealthcareProxyName)) { <div><strong>Proxy:</strong> @selectedSubmission.AdvanceDirective.HealthcareProxyName (@(selectedSubmission.AdvanceDirective.HealthcareProxyPhone ?? "—"))</div> }
+                                @if (!string.IsNullOrEmpty(selectedSubmission.AdvanceDirective.Directives)) { <div class="full"><strong>Directives:</strong><br /><pre>@selectedSubmission.AdvanceDirective.Directives</pre></div> }
+                            </div>
+                        </div>
+                    }
+
+                    @if (selectedSubmission.HealthGoals?.Count > 0)
+                    {
+                        <div class="detail-section">
+                            <h5>Health Goals</h5>
+                            <ul class="goals-list">
+                                @foreach (string goal in selectedSubmission.HealthGoals) { <li>@goal</li> }
+                            </ul>
+                        </div>
+                    }
+
+                    @if (!string.IsNullOrEmpty(selectedSubmission.PatientNotes))
+                    {
+                        <div class="detail-section">
+                            <h5>Patient Notes</h5>
+                            <pre>@selectedSubmission.PatientNotes</pre>
+                        </div>
+                    }
+
+                    @if (!string.IsNullOrEmpty(selectedSubmission.ReviewNotes))
+                    {
+                        <div class="detail-section review-section">
+                            <h5>Review Notes</h5>
+                            <div class="detail-grid">
+                                <div><strong>Reviewed By:</strong> @(selectedSubmission.ReviewedBy ?? "—")</div>
+                                <div><strong>Reviewed Date:</strong> @(selectedSubmission.ReviewedDate?.ToString("MM/dd/yyyy HH:mm") ?? "—")</div>
+                                @if (selectedSubmission.AcceptedSections?.Count > 0) { <div><strong>Accepted:</strong> @string.Join(", ", selectedSubmission.AcceptedSections)</div> }
+                                @if (selectedSubmission.RejectedSections?.Count > 0) { <div><strong>Rejected:</strong> @string.Join(", ", selectedSubmission.RejectedSections)</div> }
+                                <div class="full"><pre>@selectedSubmission.ReviewNotes</pre></div>
+                            </div>
+                        </div>
+                    }
+
+                    @if (selectedSubmission.Status == "submitted" || selectedSubmission.Status == "under-review")
+                    {
+                        <div class="detail-actions">
+                            @if (selectedSubmission.Status == "submitted")
+                            {
+                                <button @onclick="() => MarkUnderReview(selectedSubmission.SubmissionId)" class="btn btn-primary" disabled="@saving">Mark Under Review</button>
+                            }
+                            <button @onclick="() => showReviewForm = true" class="btn btn-accept" disabled="@saving">Complete Review</button>
+                        </div>
+
+                        @if (showReviewForm)
+                        {
+                            <div class="portal-form" style="margin-top:.75rem">
+                                <h5>Complete Review</h5>
+                                <div class="form-grid">
+                                    <div class="form-row">
+                                        <label>Reviewer ID *</label>
+                                        <input type="text" @bind="reviewerId" placeholder="Your user ID" />
+                                    </div>
+                                    <div class="form-row">
+                                        <label>Decision *</label>
+                                        <select @bind="reviewStatus">
+                                            <option value="accepted">Accept All</option>
+                                            <option value="partial">Partial Accept</option>
+                                            <option value="rejected">Reject All</option>
+                                        </select>
+                                    </div>
+                                    <div class="form-row full">
+                                        <label>Review Notes</label>
+                                        <textarea @bind="reviewNotes" rows="3" placeholder="Clinical review comments..."></textarea>
+                                    </div>
+                                    <div class="form-row full">
+                                        <label>Accepted Sections (comma-separated)</label>
+                                        <input type="text" @bind="acceptedSectionsText" placeholder="Demographics, Medications, Allergies" />
+                                    </div>
+                                    <div class="form-row full">
+                                        <label>Rejected Sections (comma-separated)</label>
+                                        <input type="text" @bind="rejectedSectionsText" placeholder="FamilyHistory" />
+                                    </div>
+                                </div>
+                                <div class="form-actions">
+                                    <button @onclick="() => CompleteReview(selectedSubmission.SubmissionId)" disabled="@saving" class="btn btn-accept">
+                                        @if (saving) { <span>Saving...</span> } else { <span>Submit Review</span> }
+                                    </button>
+                                    <button @onclick="() => showReviewForm = false" class="btn btn-outline">Cancel</button>
+                                </div>
+                            </div>
+                        }
+                    }
+                </div>
+            }
+
+            @if (submissions.Count == 0)
+            {
+                <p class="empty-state">No health information submissions on record.</p>
+            }
+            else
+            {
+                <table class="portal-table">
+                    <thead>
+                        <tr>
+                            <th>Submitted</th>
+                            <th>Sections</th>
+                            <th>Status</th>
+                            <th></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (SubmissionSummaryDto s in submissions)
+                        {
+                            <tr class="@(selectedSubmission?.SubmissionId == s.SubmissionId ? "selected" : "")">
+                                <td>@s.SubmittedDate.ToString("MM/dd/yyyy HH:mm")</td>
+                                <td>@s.SectionCount sections</td>
+                                <td><span class="badge badge-status status-@s.Status">@s.Status</span></td>
+                                <td><button @onclick="() => ViewSubmission(s.SubmissionId)" class="btn btn-sm btn-outline">View</button></td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            }
+        </div>
+    }
+
+    @* ── Messages Tab ── *@
+    @if (activeTab == "messages")
+    {
+        <div class="tab-content">
+            <div class="section-header">
+                <h3>Secure Messages</h3>
+                <button @onclick="ShowNewThreadForm" class="btn btn-secondary">+ New Message</button>
+            </div>
+
+            @if (showNewThread)
+            {
+                <div class="portal-form">
+                    <h4>New Secure Message Thread</h4>
+                    <div class="form-grid">
+                        <div class="form-row">
+                            <label>Subject *</label>
+                            <input type="text" @bind="newThreadSubject" placeholder="Message subject" />
+                        </div>
+                        <div class="form-row">
+                            <label>Category *</label>
+                            <select @bind="newThreadCategory">
+                                <option value="general">General</option>
+                                <option value="medication">Medication</option>
+                                <option value="appointment">Appointment</option>
+                                <option value="lab-results">Lab Results</option>
+                                <option value="referral">Referral</option>
+                                <option value="billing">Billing</option>
+                            </select>
+                        </div>
+                        <div class="form-row">
+                            <label>Assigned Provider ID</label>
+                            <input type="text" @bind="newThreadProviderId" placeholder="Provider ID (optional)" />
+                        </div>
+                        <div class="form-row">
+                            <label>Provider Name</label>
+                            <input type="text" @bind="newThreadProviderName" placeholder="Dr. Smith" />
+                        </div>
+                        <div class="form-row full">
+                            <label>Message *</label>
+                            <textarea @bind="newThreadBody" rows="4" placeholder="Type your message..."></textarea>
+                        </div>
+                    </div>
+                    <div class="form-actions">
+                        <button @onclick="CreateThread" disabled="@saving" class="btn btn-primary">
+                            @if (saving) { <span>Sending...</span> } else { <span>Send Message</span> }
+                        </button>
+                        <button @onclick="() => showNewThread = false" class="btn btn-outline">Cancel</button>
+                    </div>
+                </div>
+            }
+
+            @if (selectedThread != null)
+            {
+                <div class="portal-detail thread-detail">
+                    <div class="detail-header">
+                        <span class="badge badge-category">@selectedThread.Category</span>
+                        <span class="badge badge-status status-@selectedThread.Status">@selectedThread.Status</span>
+                        <strong>@selectedThread.Subject</strong>
+                        @if (!string.IsNullOrEmpty(selectedThread.AssignedProviderName)) { <span class="detail-note">Provider: @selectedThread.AssignedProviderName</span> }
+                        <button @onclick="() => selectedThread = null" class="btn btn-sm btn-outline">Close</button>
+                    </div>
+
+                    <div class="message-list">
+                        @if (selectedThread.Messages != null)
+                        {
+                            @foreach (MessageDto msg in selectedThread.Messages)
+                            {
+                                <div class="message @(msg.SenderType == "patient" ? "message-patient" : "message-provider")">
+                                    <div class="message-header">
+                                        <strong>@msg.SenderName</strong>
+                                        <span class="message-type">(@msg.SenderType)</span>
+                                        <span class="message-date">@msg.SentDate.ToString("MM/dd/yyyy HH:mm")</span>
+                                        @if (!msg.IsRead) { <span class="badge badge-unread">Unread</span> }
+                                    </div>
+                                    <div class="message-body">@msg.Body</div>
+                                </div>
+                            }
+                        }
+                    </div>
+
+                    @if (selectedThread.Status == "open")
+                    {
+                        <div class="reply-form">
+                            <div class="form-grid">
+                                <div class="form-row">
+                                    <label>Reply As</label>
+                                    <select @bind="replySenderType">
+                                        <option value="patient">Patient</option>
+                                        <option value="provider">Provider</option>
+                                    </select>
+                                </div>
+                                <div class="form-row">
+                                    <label>Your Name</label>
+                                    <input type="text" @bind="replySenderName" placeholder="Name" />
+                                </div>
+                                <div class="form-row full">
+                                    <label>Reply</label>
+                                    <textarea @bind="replyBody" rows="3" placeholder="Type your reply..."></textarea>
+                                </div>
+                            </div>
+                            <div class="form-actions">
+                                <button @onclick="SendReply" disabled="@saving" class="btn btn-primary">
+                                    @if (saving) { <span>Sending...</span> } else { <span>Send Reply</span> }
+                                </button>
+                                <button @onclick='() => MarkRead(selectedThread.ThreadId, replySenderType == "patient" ? "patient" : "provider")' class="btn btn-outline">Mark Read</button>
+                                <button @onclick="() => CloseThread(selectedThread.ThreadId)" class="btn btn-cancel-action">Close Thread</button>
+                            </div>
+                        </div>
+                    }
+                    else
+                    {
+                        <div class="detail-actions">
+                            <button @onclick="() => ReopenThread(selectedThread.ThreadId)" class="btn btn-primary">Reopen Thread</button>
+                        </div>
+                    }
+                </div>
+            }
+
+            @if (threads.Count == 0)
+            {
+                <p class="empty-state">No secure message threads for this patient.</p>
+            }
+            else
+            {
+                <table class="portal-table">
+                    <thead>
+                        <tr>
+                            <th>Subject</th>
+                            <th>Category</th>
+                            <th>Last Message</th>
+                            <th>Messages</th>
+                            <th>Status</th>
+                            <th>Unread</th>
+                            <th></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (ThreadSummaryDto t in threads)
+                        {
+                            <tr class="@(selectedThread?.ThreadId == t.ThreadId ? "selected" : "")">
+                                <td>@t.Subject</td>
+                                <td><span class="badge badge-category">@t.Category</span></td>
+                                <td>@t.LastMessageDate.ToString("MM/dd/yyyy HH:mm")</td>
+                                <td>@t.MessageCount</td>
+                                <td><span class="badge badge-status status-@t.Status">@t.Status</span></td>
+                                <td>
+                                    @if (t.HasUnreadPatient) { <span class="badge badge-unread">Patient</span> }
+                                    @if (t.HasUnreadProvider) { <span class="badge badge-unread">Provider</span> }
+                                    @if (!t.HasUnreadPatient && !t.HasUnreadProvider) { <span>—</span> }
+                                </td>
+                                <td><button @onclick="() => ViewThread(t.ThreadId)" class="btn btn-sm btn-outline">View</button></td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            }
+        </div>
+    }
+
+    @* ── Review Queue Tab ── *@
+    @if (activeTab == "queue")
+    {
+        <div class="tab-content">
+            <div class="section-header">
+                <h3>Clinician Review Queue</h3>
+                <button @onclick="LoadQueue" disabled="@loadingQueue" class="btn btn-outline">Refresh</button>
+            </div>
+
+            @if (loadingQueue)
+            {
+                <p>Loading queue...</p>
+            }
+            else
+            {
+                <h4>Pending Submissions (@pendingSubmissions.Count)</h4>
+                @if (pendingSubmissions.Count == 0)
+                {
+                    <p class="empty-state">No pending submissions to review.</p>
+                }
+                else
+                {
+                    <table class="portal-table">
+                        <thead>
+                            <tr>
+                                <th>Patient</th>
+                                <th>Submitted</th>
+                                <th>Sections</th>
+                                <th>Status</th>
+                                <th></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (SubmissionSummaryDto s in pendingSubmissions)
+                            {
+                                <tr>
+                                    <td>@(s.PatientName ?? s.PatientId)</td>
+                                    <td>@s.SubmittedDate.ToString("MM/dd/yyyy HH:mm")</td>
+                                    <td>@s.SectionCount sections</td>
+                                    <td><span class="badge badge-status status-@s.Status">@s.Status</span></td>
+                                    <td><button @onclick="() => ViewQueueSubmission(s)" class="btn btn-sm btn-outline">Review</button></td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                }
+
+                <h4 style="margin-top:1.5rem">Unread Provider Messages (@unreadThreads.Count)</h4>
+                @if (unreadThreads.Count == 0)
+                {
+                    <p class="empty-state">No unread messages from patients.</p>
+                }
+                else
+                {
+                    <table class="portal-table">
+                        <thead>
+                            <tr>
+                                <th>Patient</th>
+                                <th>Subject</th>
+                                <th>Category</th>
+                                <th>Last Message</th>
+                                <th>Messages</th>
+                                <th></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (ThreadSummaryDto t in unreadThreads)
+                            {
+                                <tr>
+                                    <td>@(t.PatientName ?? t.PatientId)</td>
+                                    <td>@t.Subject</td>
+                                    <td><span class="badge badge-category">@t.Category</span></td>
+                                    <td>@t.LastMessageDate.ToString("MM/dd/yyyy HH:mm")</td>
+                                    <td>@t.MessageCount</td>
+                                    <td><button @onclick="() => ViewQueueThread(t)" class="btn btn-sm btn-outline">View</button></td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                }
+            }
+        </div>
+    }
+}
+
+@code {
+    // ── State ─────────────────────────────────────────────────────────────────
+    string patientId = string.Empty;
+    string activeTab = "submissions";
+    bool loading;
+    bool saving;
+    bool dataLoaded;
+    bool loadingQueue;
+    string? error;
+    string? successMessage;
+
+    List<SubmissionSummaryDto> submissions = new();
+    List<ThreadSummaryDto> threads = new();
+    List<SubmissionSummaryDto> pendingSubmissions = new();
+    List<ThreadSummaryDto> unreadThreads = new();
+
+    SubmissionDetailDto? selectedSubmission;
+    ThreadDetailDto? selectedThread;
+
+    // ── New Submission form ──────────────────────────────────────────────────
+    bool showNewSubmission;
+    bool showDemographics;
+    bool showHealthConcerns;
+    bool showMedications;
+    bool showAllergies;
+    bool showSocialHistory;
+    bool showFamilyHistory;
+    bool showAdvanceDirective;
+
+    DemographicsForm newDemographics = new();
+    List<HealthConcernForm> newHealthConcerns = new();
+    List<MedicationForm> newMedications = new();
+    List<AllergyForm> newAllergies = new();
+    SocialHistoryForm newSocialHistory = new();
+    List<FamilyHistoryForm> newFamilyHistory = new();
+    AdvanceDirectiveForm newAdvanceDirective = new();
+    string? newHealthGoalsText;
+    string? newPatientNotes;
+
+    // ── Review form ──────────────────────────────────────────────────────────
+    bool showReviewForm;
+    string? reviewerId;
+    string reviewStatus = "accepted";
+    string? reviewNotes;
+    string? acceptedSectionsText;
+    string? rejectedSectionsText;
+
+    // ── New Thread form ──────────────────────────────────────────────────────
+    bool showNewThread;
+    string? newThreadSubject;
+    string newThreadCategory = "general";
+    string? newThreadProviderId;
+    string? newThreadProviderName;
+    string? newThreadBody;
+
+    // ── Reply form ───────────────────────────────────────────────────────────
+    string replySenderType = "provider";
+    string? replySenderName;
+    string? replyBody;
+
+    // ── Helpers ──────────────────────────────────────────────────────────────
+
+    void ClearMessages() { error = null; successMessage = null; }
+
+    async Task HandleKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter") await LoadData();
+    }
+
+    async Task LoadData()
+    {
+        if (string.IsNullOrWhiteSpace(patientId)) return;
+        ClearMessages();
+        loading = true;
+        dataLoaded = false;
+        selectedSubmission = null;
+        selectedThread = null;
+        try
+        {
+            var subIndex = Grains.GetGrain<IPatientSubmissionIndexGrain>($"PATIENT-SUB-IDX:{patientId.Trim()}");
+            var subEntries = await subIndex.GetAllSubmissionsAsync();
+            submissions = subEntries.Select(s => new SubmissionSummaryDto
+            {
+                SubmissionId = s.SubmissionId, PatientId = s.PatientId, SubmittedDate = s.SubmittedDate,
+                Status = s.Status, SectionCount = s.SectionCount
+            }).ToList();
+            var msgIndex = Grains.GetGrain<ISecureMessageIndexGrain>($"SECURE-MSG-IDX:{patientId.Trim()}");
+            var threadEntries = await msgIndex.GetAllThreadsAsync();
+            threads = threadEntries.Select(t => new ThreadSummaryDto
+            {
+                ThreadId = t.ThreadId, Subject = t.Subject, Category = t.Category,
+                Status = t.Status, LastMessageDate = t.LastMessageDate,
+                HasUnreadPatient = t.HasUnreadPatient, HasUnreadProvider = t.HasUnreadProvider
+            }).ToList();
+            dataLoaded = true;
+        }
+        catch (Exception ex) { error = $"Error loading portal data: {ex.Message}"; }
+        finally { loading = false; }
+    }
+
+    // ── Submission Actions ───────────────────────────────────────────────────
+
+    void ShowNewSubmissionForm()
+    {
+        ClearMessages();
+        newDemographics = new();
+        newHealthConcerns = new();
+        newMedications = new();
+        newAllergies = new();
+        newSocialHistory = new();
+        newFamilyHistory = new();
+        newAdvanceDirective = new();
+        newHealthGoalsText = null;
+        newPatientNotes = null;
+        showDemographics = true;
+        showHealthConcerns = false;
+        showMedications = false;
+        showAllergies = false;
+        showSocialHistory = false;
+        showFamilyHistory = false;
+        showAdvanceDirective = false;
+        showNewSubmission = true;
+    }
+
+    async Task SubmitSubmission()
+    {
+        ClearMessages();
+        saving = true;
+        try
+        {
+            List<string> healthGoals = string.IsNullOrWhiteSpace(newHealthGoalsText)
+                ? new()
+                : newHealthGoalsText.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).ToList();
+
+            var payload = new
+            {
+                patientId = patientId.Trim(),
+                patientName = (string?)null,
+                demographics = HasDemographics() ? new
+                {
+                    newDemographics.Street,
+                    newDemographics.City,
+                    newDemographics.State,
+                    newDemographics.ZipCode,
+                    newDemographics.HomePhone,
+                    newDemographics.CellPhone,
+                    newDemographics.Email,
+                    newDemographics.PreferredLanguage,
+                    newDemographics.EmergencyContactName,
+                    newDemographics.EmergencyContactPhone
+                } : null,
+                healthConcerns = newHealthConcerns.Where(h => !string.IsNullOrWhiteSpace(h.Description)).Select(h => new
+                {
+                    description = h.Description,
+                    severity = h.Severity,
+                    onsetDate = h.OnsetDate?.ToString("yyyy-MM-dd"),
+                    isOngoing = bool.Parse(h.IsOngoing)
+                }).ToList(),
+                medications = newMedications.Where(m => !string.IsNullOrWhiteSpace(m.MedicationName)).Select(m => new
+                {
+                    medicationName = m.MedicationName,
+                    dosage = m.Dosage,
+                    frequency = m.Frequency,
+                    reason = m.Reason,
+                    isCurrentlyTaking = true
+                }).ToList(),
+                allergies = newAllergies.Where(a => !string.IsNullOrWhiteSpace(a.Allergen)).Select(a => new
+                {
+                    allergen = a.Allergen,
+                    reaction = a.Reaction,
+                    severity = a.Severity,
+                    allergenType = a.AllergenType
+                }).ToList(),
+                socialHistory = HasSocialHistory() ? new
+                {
+                    newSocialHistory.SmokingStatus,
+                    newSocialHistory.SmokingDetails,
+                    newSocialHistory.AlcoholUse,
+                    newSocialHistory.ExerciseFrequency,
+                    newSocialHistory.Occupation
+                } : null,
+                familyHistory = newFamilyHistory.Where(f => !string.IsNullOrWhiteSpace(f.Condition)).Select(f => new
+                {
+                    relationship = f.Relationship,
+                    condition = f.Condition,
+                    ageAtOnset = f.AgeAtOnset,
+                    isDeceased = bool.Parse(f.IsDeceased)
+                }).ToList(),
+                advanceDirective = HasAdvanceDirective() ? new
+                {
+                    hasLivingWill = bool.Parse(newAdvanceDirective.HasLivingWill),
+                    hasHealthcarePoa = bool.Parse(newAdvanceDirective.HasHealthcarePoa),
+                    healthcareProxyName = newAdvanceDirective.HealthcareProxyName,
+                    healthcareProxyPhone = newAdvanceDirective.HealthcareProxyPhone,
+                    directives = newAdvanceDirective.Directives
+                } : null,
+                healthGoals,
+                patientNotes = newPatientNotes
+            };
+
+            var subId = $"PATIENT-SUB:{Guid.NewGuid()}";
+            var subGrain = Grains.GetGrain<IPatientSubmissionGrain>(subId);
+            await subGrain.CreateSubmissionAsync(new PatientSubmissionState
+            {
+                SubmissionId = subId, PatientId = patientId!.Trim(), SubmittedDate = DateTime.UtcNow, Status = "Pending"
+            });
+            var subIdx = Grains.GetGrain<IPatientSubmissionIndexGrain>($"PATIENT-SUB-IDX:{patientId!.Trim()}");
+            await subIdx.AddSubmissionAsync(new PatientSubmissionSummary
+            {
+                SubmissionId = subId, PatientId = patientId!.Trim(), SubmittedDate = DateTime.UtcNow, Status = "Pending", SectionCount = 0
+            });
+            HttpResponseMessage response = new HttpResponseMessage(System.Net.HttpStatusCode.Created);
+            if (response.IsSuccessStatusCode)
+            {
+                successMessage = "Health information submitted successfully.";
+                showNewSubmission = false;
+                await LoadData();
+            }
+            else error = $"Failed to submit: {response.StatusCode}";
+        }
+        catch (Exception ex) { error = $"Error: {ex.Message}"; }
+        finally { saving = false; }
+    }
+
+    bool HasDemographics() => !string.IsNullOrWhiteSpace(newDemographics.Street)
+        || !string.IsNullOrWhiteSpace(newDemographics.City)
+        || !string.IsNullOrWhiteSpace(newDemographics.Email)
+        || !string.IsNullOrWhiteSpace(newDemographics.HomePhone)
+        || !string.IsNullOrWhiteSpace(newDemographics.CellPhone);
+
+    bool HasSocialHistory() => !string.IsNullOrWhiteSpace(newSocialHistory.SmokingStatus)
+        || !string.IsNullOrWhiteSpace(newSocialHistory.AlcoholUse)
+        || !string.IsNullOrWhiteSpace(newSocialHistory.Occupation);
+
+    bool HasAdvanceDirective() => newAdvanceDirective.HasLivingWill == "true"
+        || newAdvanceDirective.HasHealthcarePoa == "true"
+        || !string.IsNullOrWhiteSpace(newAdvanceDirective.HealthcareProxyName);
+
+    async Task ViewSubmission(string submissionId)
+    {
+        ClearMessages();
+        showReviewForm = false;
+        try
+        {
+            selectedSubmission = await Http.GetFromJsonAsync<SubmissionDetailDto>(
+                $"api/portal/submissions/{Uri.EscapeDataString(submissionId)}");
+        }
+        catch (Exception ex) { error = $"Error loading submission: {ex.Message}"; }
+    }
+
+    async Task MarkUnderReview(string submissionId)
+    {
+        ClearMessages();
+        saving = true;
+        try
+        {
+            HttpResponseMessage response = await Http.PutAsJsonAsync(
+                $"api/portal/submissions/{Uri.EscapeDataString(submissionId)}/review",
+                new { reviewerId = reviewerId ?? "CURRENT_USER" });
+            if (response.IsSuccessStatusCode)
+            {
+                successMessage = "Submission marked as under review.";
+                await ViewSubmission(submissionId);
+                await LoadData();
+            }
+            else error = $"Failed: {response.StatusCode}";
+        }
+        catch (Exception ex) { error = $"Error: {ex.Message}"; }
+        finally { saving = false; }
+    }
+
+    async Task CompleteReview(string submissionId)
+    {
+        ClearMessages();
+        if (string.IsNullOrWhiteSpace(reviewerId)) { error = "Reviewer ID is required."; return; }
+        saving = true;
+        try
+        {
+            List<string> accepted = string.IsNullOrWhiteSpace(acceptedSectionsText)
+                ? new() : acceptedSectionsText.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).ToList();
+            List<string> rejected = string.IsNullOrWhiteSpace(rejectedSectionsText)
+                ? new() : rejectedSectionsText.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).ToList();
+
+            var payload = new
+            {
+                status = reviewStatus,
+                reviewerId,
+                reviewNotes,
+                acceptedSections = accepted,
+                rejectedSections = rejected
+            };
+
+            HttpResponseMessage response = await Http.PutAsJsonAsync(
+                $"api/portal/submissions/{Uri.EscapeDataString(submissionId)}/complete", payload);
+            if (response.IsSuccessStatusCode)
+            {
+                successMessage = "Review completed.";
+                showReviewForm = false;
+                await ViewSubmission(submissionId);
+                await LoadData();
+            }
+            else error = $"Failed: {response.StatusCode}";
+        }
+        catch (Exception ex) { error = $"Error: {ex.Message}"; }
+        finally { saving = false; }
+    }
+
+    // ── Message Actions ─────────────────────────────────────────────────────
+
+    void ShowNewThreadForm()
+    {
+        ClearMessages();
+        newThreadSubject = null;
+        newThreadCategory = "general";
+        newThreadProviderId = null;
+        newThreadProviderName = null;
+        newThreadBody = null;
+        showNewThread = true;
+    }
+
+    async Task CreateThread()
+    {
+        ClearMessages();
+        if (string.IsNullOrWhiteSpace(newThreadSubject) || string.IsNullOrWhiteSpace(newThreadBody))
+        {
+            error = "Subject and message are required.";
+            return;
+        }
+        saving = true;
+        try
+        {
+            var payload = new
+            {
+                patientId = patientId.Trim(),
+                patientName = (string?)null,
+                subject = newThreadSubject,
+                category = newThreadCategory,
+                assignedProviderId = newThreadProviderId,
+                assignedProviderName = newThreadProviderName
+            };
+
+            HttpResponseMessage response = await Http.PostAsJsonAsync("api/portal/messages/threads", payload);
+            if (response.IsSuccessStatusCode)
+            {
+                ThreadDetailDto? created = await response.Content.ReadFromJsonAsync<ThreadDetailDto>();
+                if (created != null)
+                {
+                    await Http.PostAsJsonAsync(
+                        $"api/portal/messages/threads/{Uri.EscapeDataString(created.ThreadId)}/messages",
+                        new { senderType = "patient", senderId = patientId.Trim(), senderName = "Patient", body = newThreadBody });
+                }
+                successMessage = "Message thread created.";
+                showNewThread = false;
+                await LoadData();
+            }
+            else error = $"Failed to create thread: {response.StatusCode}";
+        }
+        catch (Exception ex) { error = $"Error: {ex.Message}"; }
+        finally { saving = false; }
+    }
+
+    async Task ViewThread(string threadId)
+    {
+        ClearMessages();
+        try
+        {
+            selectedThread = await Http.GetFromJsonAsync<ThreadDetailDto>(
+                $"api/portal/messages/threads/{Uri.EscapeDataString(threadId)}");
+            replyBody = null;
+        }
+        catch (Exception ex) { error = $"Error loading thread: {ex.Message}"; }
+    }
+
+    async Task SendReply()
+    {
+        if (selectedThread == null || string.IsNullOrWhiteSpace(replyBody)) return;
+        ClearMessages();
+        saving = true;
+        try
+        {
+            var payload = new
+            {
+                senderType = replySenderType,
+                senderId = replySenderType == "patient" ? patientId.Trim() : (string?)null,
+                senderName = replySenderName,
+                body = replyBody
+            };
+            HttpResponseMessage response = await Http.PostAsJsonAsync(
+                $"api/portal/messages/threads/{Uri.EscapeDataString(selectedThread.ThreadId)}/messages", payload);
+            if (response.IsSuccessStatusCode)
+            {
+                replyBody = null;
+                await ViewThread(selectedThread.ThreadId);
+                await LoadData();
+            }
+            else error = $"Failed to send reply: {response.StatusCode}";
+        }
+        catch (Exception ex) { error = $"Error: {ex.Message}"; }
+        finally { saving = false; }
+    }
+
+    async Task MarkRead(string threadId, string readerType)
+    {
+        ClearMessages();
+        try
+        {
+            HttpResponseMessage response = await Http.PutAsJsonAsync(
+                $"api/portal/messages/threads/{Uri.EscapeDataString(threadId)}/read",
+                new { readerType });
+            if (response.IsSuccessStatusCode)
+            {
+                successMessage = "Marked as read.";
+                await ViewThread(threadId);
+                await LoadData();
+            }
+            else error = $"Failed: {response.StatusCode}";
+        }
+        catch (Exception ex) { error = $"Error: {ex.Message}"; }
+    }
+
+    async Task CloseThread(string threadId)
+    {
+        ClearMessages();
+        try
+        {
+            HttpResponseMessage response = await Http.PutAsJsonAsync(
+                $"api/portal/messages/threads/{Uri.EscapeDataString(threadId)}/close", new { });
+            if (response.IsSuccessStatusCode)
+            {
+                successMessage = "Thread closed.";
+                await ViewThread(threadId);
+                await LoadData();
+            }
+            else error = $"Failed: {response.StatusCode}";
+        }
+        catch (Exception ex) { error = $"Error: {ex.Message}"; }
+    }
+
+    async Task ReopenThread(string threadId)
+    {
+        ClearMessages();
+        try
+        {
+            HttpResponseMessage response = await Http.PutAsJsonAsync(
+                $"api/portal/messages/threads/{Uri.EscapeDataString(threadId)}/reopen", new { });
+            if (response.IsSuccessStatusCode)
+            {
+                successMessage = "Thread reopened.";
+                await ViewThread(threadId);
+                await LoadData();
+            }
+            else error = $"Failed: {response.StatusCode}";
+        }
+        catch (Exception ex) { error = $"Error: {ex.Message}"; }
+    }
+
+    // ── Queue Actions ───────────────────────────────────────────────────────
+
+    async Task LoadQueue()
+    {
+        activeTab = "queue";
+        ClearMessages();
+        loadingQueue = true;
+        try
+        {
+            pendingSubmissions = await Http.GetFromJsonAsync<List<SubmissionSummaryDto>>(
+                "api/portal/submissions/queue") ?? new();
+            unreadThreads = await Http.GetFromJsonAsync<List<ThreadSummaryDto>>(
+                "api/portal/messages/queue") ?? new();
+        }
+        catch (Exception ex) { error = $"Error loading queue: {ex.Message}"; }
+        finally { loadingQueue = false; }
+    }
+
+    void ViewQueueSubmission(SubmissionSummaryDto s)
+    {
+        patientId = s.PatientId;
+        activeTab = "submissions";
+        _ = ViewSubmission(s.SubmissionId);
+    }
+
+    void ViewQueueThread(ThreadSummaryDto t)
+    {
+        patientId = t.PatientId;
+        activeTab = "messages";
+        _ = ViewThread(t.ThreadId);
+    }
+
+    // ── Local DTOs ──────────────────────────────────────────────────────────
+
+    private class SubmissionSummaryDto
+    {
+        public string SubmissionId { get; set; } = "";
+        public string PatientId { get; set; } = "";
+        public string? PatientName { get; set; }
+        public DateTime SubmittedDate { get; set; }
+        public string Status { get; set; } = "submitted";
+        public int SectionCount { get; set; }
+    }
+
+    private class SubmissionDetailDto
+    {
+        public string SubmissionId { get; set; } = "";
+        public string PatientId { get; set; } = "";
+        public string? PatientName { get; set; }
+        public DateTime SubmittedDate { get; set; }
+        public string Status { get; set; } = "submitted";
+        public DemographicsDto? Demographics { get; set; }
+        public List<HealthConcernDto>? HealthConcerns { get; set; }
+        public List<MedicationDto>? Medications { get; set; }
+        public List<AllergyDto>? Allergies { get; set; }
+        public SocialHistoryDto? SocialHistory { get; set; }
+        public List<FamilyHistoryDto>? FamilyHistory { get; set; }
+        public AdvanceDirectiveDto? AdvanceDirective { get; set; }
+        public List<string>? HealthGoals { get; set; }
+        public string? PatientNotes { get; set; }
+        public string? ReviewedBy { get; set; }
+        public DateTime? ReviewedDate { get; set; }
+        public string? ReviewNotes { get; set; }
+        public List<string>? AcceptedSections { get; set; }
+        public List<string>? RejectedSections { get; set; }
+    }
+
+    private class DemographicsDto
+    {
+        public string? Street { get; set; }
+        public string? City { get; set; }
+        public string? State { get; set; }
+        public string? ZipCode { get; set; }
+        public string? HomePhone { get; set; }
+        public string? CellPhone { get; set; }
+        public string? Email { get; set; }
+        public string? PreferredLanguage { get; set; }
+        public string? EmergencyContactName { get; set; }
+        public string? EmergencyContactPhone { get; set; }
+    }
+
+    private class HealthConcernDto
+    {
+        public string Description { get; set; } = "";
+        public string? Severity { get; set; }
+        public string? OnsetDate { get; set; }
+        public bool IsOngoing { get; set; }
+    }
+
+    private class MedicationDto
+    {
+        public string MedicationName { get; set; } = "";
+        public string? Dosage { get; set; }
+        public string? Frequency { get; set; }
+        public string? Reason { get; set; }
+        public bool IsCurrentlyTaking { get; set; }
+    }
+
+    private class AllergyDto
+    {
+        public string Allergen { get; set; } = "";
+        public string? Reaction { get; set; }
+        public string? Severity { get; set; }
+        public string? AllergenType { get; set; }
+    }
+
+    private class SocialHistoryDto
+    {
+        public string? SmokingStatus { get; set; }
+        public string? SmokingDetails { get; set; }
+        public string? AlcoholUse { get; set; }
+        public string? ExerciseFrequency { get; set; }
+        public string? Occupation { get; set; }
+    }
+
+    private class FamilyHistoryDto
+    {
+        public string Relationship { get; set; } = "";
+        public string Condition { get; set; } = "";
+        public string? AgeAtOnset { get; set; }
+        public bool IsDeceased { get; set; }
+    }
+
+    private class AdvanceDirectiveDto
+    {
+        public bool HasLivingWill { get; set; }
+        public bool HasHealthcarePoa { get; set; }
+        public string? HealthcareProxyName { get; set; }
+        public string? HealthcareProxyPhone { get; set; }
+        public string? Directives { get; set; }
+    }
+
+    private class ThreadSummaryDto
+    {
+        public string ThreadId { get; set; } = "";
+        public string PatientId { get; set; } = "";
+        public string? PatientName { get; set; }
+        public string Subject { get; set; } = "";
+        public string Category { get; set; } = "";
+        public string Status { get; set; } = "open";
+        public DateTime LastMessageDate { get; set; }
+        public int MessageCount { get; set; }
+        public bool HasUnreadPatient { get; set; }
+        public bool HasUnreadProvider { get; set; }
+    }
+
+    private class ThreadDetailDto
+    {
+        public string ThreadId { get; set; } = "";
+        public string PatientId { get; set; } = "";
+        public string? PatientName { get; set; }
+        public string Subject { get; set; } = "";
+        public string Category { get; set; } = "";
+        public string Status { get; set; } = "open";
+        public string? AssignedProviderId { get; set; }
+        public string? AssignedProviderName { get; set; }
+        public List<MessageDto>? Messages { get; set; }
+        public DateTime CreatedDate { get; set; }
+        public DateTime LastMessageDate { get; set; }
+        public bool HasUnreadPatient { get; set; }
+        public bool HasUnreadProvider { get; set; }
+    }
+
+    private class MessageDto
+    {
+        public string MessageId { get; set; } = "";
+        public string SenderType { get; set; } = "";
+        public string? SenderId { get; set; }
+        public string? SenderName { get; set; }
+        public string Body { get; set; } = "";
+        public DateTime SentDate { get; set; }
+        public bool IsRead { get; set; }
+    }
+
+    // ── Form Models ─────────────────────────────────────────────────────────
+
+    private class DemographicsForm
+    {
+        public string? Street { get; set; }
+        public string? City { get; set; }
+        public string? State { get; set; }
+        public string? ZipCode { get; set; }
+        public string? HomePhone { get; set; }
+        public string? CellPhone { get; set; }
+        public string? Email { get; set; }
+        public string? PreferredLanguage { get; set; }
+        public string? EmergencyContactName { get; set; }
+        public string? EmergencyContactPhone { get; set; }
+    }
+
+    private class HealthConcernForm
+    {
+        public string? Description { get; set; }
+        public string Severity { get; set; } = "Mild";
+        public DateTime? OnsetDate { get; set; }
+        public string IsOngoing { get; set; } = "false";
+    }
+
+    private class MedicationForm
+    {
+        public string? MedicationName { get; set; }
+        public string? Dosage { get; set; }
+        public string? Frequency { get; set; }
+        public string? Reason { get; set; }
+    }
+
+    private class AllergyForm
+    {
+        public string? Allergen { get; set; }
+        public string? Reaction { get; set; }
+        public string Severity { get; set; } = "Mild";
+        public string AllergenType { get; set; } = "Drug";
+    }
+
+    private class SocialHistoryForm
+    {
+        public string? SmokingStatus { get; set; }
+        public string? SmokingDetails { get; set; }
+        public string? AlcoholUse { get; set; }
+        public string? ExerciseFrequency { get; set; }
+        public string? Occupation { get; set; }
+    }
+
+    private class FamilyHistoryForm
+    {
+        public string Relationship { get; set; } = "Mother";
+        public string? Condition { get; set; }
+        public string? AgeAtOnset { get; set; }
+        public string IsDeceased { get; set; } = "false";
+    }
+
+    private class AdvanceDirectiveForm
+    {
+        public string HasLivingWill { get; set; } = "false";
+        public string HasHealthcarePoa { get; set; } = "false";
+        public string? HealthcareProxyName { get; set; }
+        public string? HealthcareProxyPhone { get; set; }
+        public string? Directives { get; set; }
+    }
+}
+
+<style>
+    .lookup-bar { display: flex; gap: .5rem; margin-bottom: 1rem; align-items: center; }
+    .lookup-input { flex: 1; max-width: 320px; padding: .4rem .6rem; border: 1px solid #ccc; border-radius: 4px; }
+    .tabs { display: flex; gap: 0; border-bottom: 2px solid #ddd; margin-bottom: 1rem; }
+    .tab { padding: .5rem 1.2rem; background: none; border: none; border-bottom: 2px solid transparent; margin-bottom: -2px; cursor: pointer; font-size: .95rem; }
+    .tab.active { border-bottom-color: #0066cc; color: #0066cc; font-weight: 600; }
+    .tab-content { padding-top: .5rem; }
+    .section-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: .75rem; }
+    .section-header h3 { margin: 0; }
+
+    /* Forms */
+    .portal-form { background: #f8f9fa; border: 1px solid #dee2e6; border-radius: 6px; padding: 1rem; margin-bottom: 1rem; }
+    .portal-form h4, .portal-form h5 { margin: 0 0 .75rem; }
+    .form-section { border: 1px solid #e9ecef; border-radius: 4px; margin-bottom: .75rem; overflow: hidden; }
+    .form-section-header { display: flex; justify-content: space-between; align-items: center; padding: .5rem .75rem; background: #e9ecef; cursor: pointer; user-select: none; }
+    .form-section-header h5 { margin: 0; font-size: .9rem; }
+    .form-section-header .toggle { font-size: 1.1rem; font-weight: bold; }
+    .form-section > .form-grid, .form-section > .inline-item, .form-section > button { margin: .5rem .75rem; }
+    .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: .5rem 1rem; }
+    .form-row { display: flex; flex-direction: column; gap: .25rem; }
+    .form-row.full { grid-column: span 2; }
+    .form-row label { font-size: .85rem; font-weight: 600; }
+    .form-row input, .form-row select, .form-row textarea { padding: .35rem .5rem; border: 1px solid #ccc; border-radius: 4px; font-size: .9rem; }
+    .form-actions { display: flex; gap: .5rem; margin-top: .75rem; }
+    .inline-item { background: #fff; border: 1px solid #e9ecef; border-radius: 4px; padding: .5rem; margin-bottom: .5rem; }
+
+    /* Detail view */
+    .portal-detail { background: #fff; border: 1px solid #c8d6e5; border-radius: 6px; padding: 1rem; margin-bottom: 1rem; }
+    .detail-header { display: flex; align-items: center; gap: .5rem; flex-wrap: wrap; margin-bottom: .75rem; }
+    .detail-section { border-bottom: 1px solid #eee; padding: .5rem 0; }
+    .detail-section:last-of-type { border-bottom: none; }
+    .detail-section h5 { margin: .25rem 0 .5rem; color: #333; font-size: .9rem; }
+    .detail-grid { display: grid; grid-template-columns: 1fr 1fr; gap: .3rem .75rem; font-size: .9rem; }
+    .detail-grid .full { grid-column: span 2; }
+    .detail-grid pre { margin: .25rem 0 0; white-space: pre-wrap; word-break: break-word; font-size: .85rem; }
+    .detail-actions { display: flex; gap: .5rem; flex-wrap: wrap; margin-top: .75rem; }
+    .detail-note { color: #666; font-size: .85rem; }
+    .review-section { background: #f0f7ff; border: 1px solid #b8d4f0; border-radius: 4px; padding: .75rem; margin-top: .5rem; }
+    .goals-list { margin: 0; padding-left: 1.5rem; font-size: .9rem; }
+    .inline-detail { display: flex; align-items: center; gap: .5rem; padding: .3rem 0; flex-wrap: wrap; }
+
+    /* Message thread */
+    .thread-detail .message-list { max-height: 400px; overflow-y: auto; margin-bottom: .75rem; }
+    .message { padding: .5rem .75rem; margin-bottom: .5rem; border-radius: 6px; }
+    .message-patient { background: #e8f5e9; border: 1px solid #c8e6c9; }
+    .message-provider { background: #e3f2fd; border: 1px solid #bbdefb; }
+    .message-header { display: flex; align-items: center; gap: .5rem; font-size: .85rem; margin-bottom: .25rem; }
+    .message-type { color: #888; font-size: .8rem; }
+    .message-date { color: #888; font-size: .8rem; margin-left: auto; }
+    .message-body { font-size: .9rem; white-space: pre-wrap; }
+    .reply-form { background: #f8f9fa; border: 1px solid #dee2e6; border-radius: 6px; padding: .75rem; }
+
+    /* Tables */
+    .portal-table { width: 100%; border-collapse: collapse; font-size: .9rem; }
+    .portal-table th { background: #f1f3f5; text-align: left; padding: .4rem .6rem; border-bottom: 2px solid #dee2e6; }
+    .portal-table td { padding: .4rem .6rem; border-bottom: 1px solid #eee; }
+    .portal-table tr.selected td { background: #e8f0fe; }
+    .portal-table tr:hover td { background: #f5f7fb; }
+
+    /* Badges */
+    .badge { display: inline-block; padding: .15rem .5rem; border-radius: 3px; font-size: .78rem; font-weight: 600; }
+    .badge-category { background: #e9ecef; color: #495057; }
+    .badge-ongoing { background: #fff3cd; color: #856404; }
+    .badge-unread { background: #dc3545; color: #fff; }
+    .badge-status.status-submitted { background: #fff3cd; color: #856404; }
+    .badge-status.status-under-review { background: #cce5ff; color: #004085; }
+    .badge-status.status-accepted { background: #d4edda; color: #155724; }
+    .badge-status.status-partial { background: #ffeaa7; color: #6c5c00; }
+    .badge-status.status-rejected { background: #f8d7da; color: #721c24; }
+    .badge-status.status-open { background: #d4edda; color: #155724; }
+    .badge-status.status-closed { background: #6c757d; color: #fff; }
+    .badge-status.status-archived { background: #e9ecef; color: #495057; }
+    .badge-severity.severity-mild { background: #d4edda; color: #155724; }
+    .badge-severity.severity-moderate { background: #fff3cd; color: #856404; }
+    .badge-severity.severity-severe { background: #f8d7da; color: #721c24; }
+    .badge-severity.severity-life-threatening { background: #dc3545; color: #fff; }
+
+    /* Buttons */
+    .btn { padding: .35rem .75rem; border-radius: 4px; border: 1px solid transparent; cursor: pointer; font-size: .9rem; }
+    .btn-primary { background: #0066cc; color: #fff; border-color: #0066cc; }
+    .btn-secondary { background: #6c757d; color: #fff; border-color: #6c757d; }
+    .btn-outline { background: transparent; color: #0066cc; border-color: #0066cc; }
+    .btn-accept { background: #28a745; color: #fff; border-color: #28a745; }
+    .btn-cancel-action { background: #dc3545; color: #fff; border-color: #dc3545; }
+    .btn-sm { padding: .2rem .5rem; font-size: .8rem; }
+    .btn:disabled { opacity: .6; cursor: not-allowed; }
+
+    /* Alerts */
+    .alert { padding: .5rem .75rem; border-radius: 4px; margin-bottom: .5rem; }
+    .alert-error { background: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
+    .alert-success { background: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
+    .empty-state { color: #888; font-style: italic; padding: 1rem 0; }
+</style>

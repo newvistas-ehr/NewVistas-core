@@ -1,0 +1,345 @@
+@page "/lexicon"
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+@rendermode InteractiveServer
+@using NewVistas.BlazorWeb.Services
+@using NewVistas.Abstractions.GrainInterfaces
+@using NewVistas.Abstractions.GrainStates
+@inject OrleansGrainService Grains
+
+<PageTitle>Lexicon Utility — Clinical Terminology</PageTitle>
+
+<h2>Lexicon Utility</h2>
+<p class="subtitle">VistA Lexicon / Clinical Terminology Search — SNOMED CT, ICD-10, CPT, LOINC</p>
+
+<div class="tabs">
+    <button class="@TabClass("search")" @onclick='() => SetTab("search")'>Search</button>
+    <button class="@TabClass("lookup")" @onclick='() => SetTab("lookup")'>Code Lookup</button>
+    <button class="@TabClass("status")" @onclick='() => SetTab("status")'>Status</button>
+</div>
+
+@if (!string.IsNullOrEmpty(error))
+{
+    <div class="error">@error</div>
+}
+@if (!string.IsNullOrEmpty(success))
+{
+    <div class="success">@success</div>
+}
+
+@* ── Search Tab ───────────────────────────────────────────────────────────── *@
+@if (activeTab == "search")
+{
+    <div class="toolbar">
+        <input @bind="searchText" placeholder="Search term (e.g. diabetes, chest pain)" class="input-wide" />
+        <select @bind="searchSystem" class="input-select">
+            <option value="">All Systems</option>
+            <option value="SNOMED">SNOMED CT</option>
+            <option value="ICD10">ICD-10-CM</option>
+            <option value="CPT">CPT</option>
+            <option value="LOINC">LOINC</option>
+        </select>
+        <label class="slider-label">
+            Max: @maxResults
+            <input type="range" min="5" max="100" step="5" @bind="maxResults" class="slider" />
+        </label>
+        <button @onclick="SearchTerms" disabled="@loading">Search</button>
+    </div>
+
+    @if (loading) { <p>Loading...</p> }
+
+    @if (searchResults is not null)
+    {
+        <h3>Results (@searchResults.Count found)</h3>
+
+        @if (searchResults.Count == 0)
+        {
+            <p class="empty-msg">No matching terms found.</p>
+        }
+        else
+        {
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Code</th>
+                        <th>System</th>
+                        <th>Designation</th>
+                        <th>FSN</th>
+                        <th>Active</th>
+                        <th>Semantic Type</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (LexiconEntry entry in searchResults)
+                    {
+                        <tr>
+                            <td><code>@entry.Code</code></td>
+                            <td><span class="badge @SystemBadge(entry.System)">@entry.System</span></td>
+                            <td>@entry.Designation</td>
+                            <td>@(entry.FullySpecifiedName ?? "—")</td>
+                            <td>
+                                @if (entry.IsActive)
+                                {
+                                    <span class="badge badge-active">Active</span>
+                                }
+                                else
+                                {
+                                    <span class="badge badge-inactive">Inactive</span>
+                                }
+                            </td>
+                            <td>@(entry.SemanticType ?? "—")</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        }
+    }
+}
+
+@* ── Code Lookup Tab ──────────────────────────────────────────────────────── *@
+@if (activeTab == "lookup")
+{
+    <div class="toolbar">
+        <select @bind="lookupSystem" class="input-select">
+            <option value="SNOMED">SNOMED CT</option>
+            <option value="ICD10">ICD-10-CM</option>
+            <option value="CPT">CPT</option>
+            <option value="LOINC">LOINC</option>
+        </select>
+        <input @bind="lookupCode" placeholder="Code (e.g. 73211009, I10, 99213)" class="input-id" />
+        <button @onclick="LookupCode" disabled="@loading">Lookup</button>
+    </div>
+
+    @if (loading) { <p>Loading...</p> }
+
+    @if (lookupResult is not null)
+    {
+        <div class="detail-card">
+            <h3>@lookupResult.Designation</h3>
+            <div class="detail-grid">
+                <label>Code</label>
+                <span><code>@lookupResult.Code</code></span>
+
+                <label>System</label>
+                <span><span class="badge @SystemBadge(lookupResult.System)">@lookupResult.System</span></span>
+
+                <label>Designation</label>
+                <span>@lookupResult.Designation</span>
+
+                <label>Fully Specified Name</label>
+                <span>@(lookupResult.FullySpecifiedName ?? "—")</span>
+
+                <label>Active</label>
+                <span>
+                    @if (lookupResult.IsActive)
+                    {
+                        <span class="badge badge-active">Active</span>
+                    }
+                    else
+                    {
+                        <span class="badge badge-inactive">Inactive</span>
+                    }
+                </span>
+
+                <label>Semantic Type</label>
+                <span>@(lookupResult.SemanticType ?? "—")</span>
+
+                @if (lookupResult.ParentCodes is not null && lookupResult.ParentCodes.Count > 0)
+                {
+                    <label>Parent Codes</label>
+                    <span>@string.Join(", ", lookupResult.ParentCodes)</span>
+                }
+
+                @if (lookupResult.Synonyms is not null && lookupResult.Synonyms.Count > 0)
+                {
+                    <label>Synonyms</label>
+                    <span>@string.Join("; ", lookupResult.Synonyms)</span>
+                }
+            </div>
+        </div>
+    }
+}
+
+@* ── Status Tab ───────────────────────────────────────────────────────────── *@
+@if (activeTab == "status")
+{
+    <div class="toolbar">
+        <button @onclick="LoadStatus" disabled="@loading">Refresh Status</button>
+        <button @onclick="SeedDemo" disabled="@loading" class="btn-demo">Seed Demo Data</button>
+    </div>
+
+    @if (loading) { <p>Loading...</p> }
+
+    @if (statusResult is not null)
+    {
+        <div class="detail-card">
+            <h3>Lexicon Index Status</h3>
+            <div class="detail-grid">
+                <label>Total Entries</label>
+                <span>@statusResult.TotalEntries</span>
+
+                <label>SNOMED CT</label>
+                <span>@statusResult.SnomedCount</span>
+
+                <label>ICD-10-CM</label>
+                <span>@statusResult.Icd10Count</span>
+
+                <label>CPT</label>
+                <span>@statusResult.CptCount</span>
+
+                <label>LOINC</label>
+                <span>@statusResult.LoincCount</span>
+
+                <label>Last Updated</label>
+                <span>@(statusResult.LastUpdated?.ToLocalTime().ToString("MM/dd/yyyy HH:mm") ?? "—")</span>
+            </div>
+        </div>
+    }
+}
+
+<style>
+    .subtitle { color: #666; margin-top: -0.5rem; margin-bottom: 1rem; font-size: 0.9rem; }
+    .tabs { display: flex; gap: 0.25rem; margin-bottom: 1rem; }
+    .tabs button { padding: 0.4rem 1rem; border: 1px solid #ccc; background: #f5f5f5; cursor: pointer; border-radius: 4px 4px 0 0; }
+    .tabs button.active { background: white; border-bottom-color: white; font-weight: bold; }
+    .tabs button:disabled { opacity: 0.5; cursor: not-allowed; }
+    .toolbar { display: flex; gap: 0.5rem; align-items: center; margin-bottom: 1rem; flex-wrap: wrap; }
+    .input-id { width: 220px; padding: 0.3rem 0.5rem; }
+    .input-wide { flex: 1; min-width: 200px; padding: 0.3rem 0.5rem; }
+    .input-select { padding: 0.3rem 0.5rem; min-width: 140px; }
+    .slider-label { display: flex; align-items: center; gap: 0.3rem; font-size: 0.85rem; color: #4a5568; }
+    .slider { width: 80px; }
+    .error { color: darkred; background: #fff0f0; border: 1px solid #fcc; padding: 0.5rem; margin-bottom: 1rem; border-radius: 4px; }
+    .success { color: darkgreen; background: #f0fff0; border: 1px solid #cfc; padding: 0.5rem; margin-bottom: 1rem; border-radius: 4px; }
+    .data-table { width: 100%; border-collapse: collapse; font-size: 0.88rem; }
+    .data-table th { background: #2c5282; color: white; padding: 0.4rem 0.6rem; text-align: left; }
+    .data-table td { padding: 0.35rem 0.6rem; border-bottom: 1px solid #e2e8f0; }
+    .data-table tr:hover td { background: #ebf8ff; }
+    .badge { display: inline-block; padding: 0.15rem 0.45rem; border-radius: 3px; font-size: 0.78rem; font-weight: bold; }
+    .badge-snomed { background: #805ad5; color: white; }
+    .badge-icd10 { background: #dd6b20; color: white; }
+    .badge-cpt { background: #2c5282; color: white; }
+    .badge-loinc { background: #38a169; color: white; }
+    .badge-other { background: #a0aec0; color: white; }
+    .badge-active { background: #c6f6d5; color: #22543d; }
+    .badge-inactive { background: #fed7d7; color: #742a2a; }
+    .btn-demo { background: #e9d8fd; border-color: #b794f4; }
+    .empty-msg { color: #718096; font-style: italic; }
+    .detail-card { max-width: 700px; background: #f7fafc; border: 1px solid #e2e8f0; border-radius: 4px; padding: 1.5rem; }
+    .detail-grid { display: grid; grid-template-columns: 170px 1fr; gap: 0.5rem; align-items: center; }
+    .detail-grid label { font-weight: 500; color: #4a5568; }
+    code { background: #edf2f7; padding: 0.1rem 0.3rem; border-radius: 3px; font-size: 0.85rem; }
+</style>
+
+@code {
+    string activeTab = "search";
+    bool loading;
+    string? error;
+    string? success;
+
+    // Search
+    string searchText = string.Empty;
+    string searchSystem = string.Empty;
+    int maxResults = 25;
+    List<LexiconEntry>? searchResults;
+
+    // Lookup
+    string lookupSystem = "SNOMED";
+    string lookupCode = string.Empty;
+    LexiconDetail? lookupResult;
+
+    // Status
+    LexiconStatus? statusResult;
+
+    string TabClass(string tab) => activeTab == tab ? "active" : string.Empty;
+
+    void SetTab(string tab) { activeTab = tab; error = null; success = null; }
+
+    string SystemBadge(string sys) => sys.ToUpperInvariant() switch
+    {
+        "SNOMED" or "SNOMED CT" => "badge-snomed",
+        "ICD10" or "ICD-10" or "ICD-10-CM" => "badge-icd10",
+        "CPT" => "badge-cpt",
+        "LOINC" => "badge-loinc",
+        _ => "badge-other"
+    };
+
+    private ILexiconSearchGrain GetSearchGrain() => Grains.GetGrain<ILexiconSearchGrain>("LEX-INDEX");
+
+    async Task SearchTerms()
+    {
+        if (string.IsNullOrWhiteSpace(searchText)) { error = "Enter a search term."; return; }
+        error = null; loading = true; searchResults = null;
+        try
+        {
+            var grain = GetSearchGrain();
+            var results = await grain.SearchAsync(searchText.Trim(), string.IsNullOrEmpty(searchSystem) ? null : searchSystem, maxResults);
+            searchResults = results.Select(r => new LexiconEntry(r.Code, r.CodingSystem, r.Designation, r.FullySpecifiedName, r.IsActive, r.SemanticType)).ToList();
+        }
+        catch (Exception ex) { error = ex.Message; }
+        finally { loading = false; }
+    }
+
+    async Task LookupCode()
+    {
+        if (string.IsNullOrWhiteSpace(lookupCode)) { error = "Enter a code."; return; }
+        error = null; loading = true; lookupResult = null;
+        try
+        {
+            var termGrain = Grains.GetGrain<ILexiconTermGrain>($"LEX:{lookupSystem}:{lookupCode.Trim()}");
+            var term = await termGrain.GetTermAsync();
+            if (term != null && !string.IsNullOrEmpty(term.Code))
+            {
+                lookupResult = new LexiconDetail(term.Code, term.CodingSystem, term.Designation,
+                    term.FullySpecifiedName, term.IsActive, term.SemanticType, null, term.Synonyms);
+            }
+            else
+            {
+                var indexResult = await GetSearchGrain().LookupCodeAsync(lookupCode.Trim(), lookupSystem);
+                if (indexResult != null)
+                    lookupResult = new LexiconDetail(indexResult.Code, indexResult.CodingSystem, indexResult.Designation,
+                        indexResult.FullySpecifiedName, indexResult.IsActive, indexResult.SemanticType, null, null);
+                else
+                    error = "Code not found.";
+            }
+        }
+        catch (Exception ex) { error = ex.Message; }
+        finally { loading = false; }
+    }
+
+    async Task LoadStatus()
+    {
+        error = null; loading = true;
+        try
+        {
+            var grain = GetSearchGrain();
+            var status = await grain.GetStatusAsync();
+            statusResult = new LexiconStatus(status.TotalTerms, status.SnomedCount, status.Icd10Count, status.CptCount, status.LoincCount, status.LastLoadedDate);
+        }
+        catch (Exception ex) { error = ex.Message; }
+        finally { loading = false; }
+    }
+
+    async Task SeedDemo()
+    {
+        error = null; success = null; loading = true;
+        try
+        {
+            var grain = GetSearchGrain();
+            await grain.SeedDemoDataAsync();
+            success = "Demo data seeded successfully.";
+            await LoadStatus();
+        }
+        catch (Exception ex) { error = ex.Message; }
+        finally { loading = false; }
+    }
+
+    record LexiconEntry(string Code, string System, string Designation,
+        string? FullySpecifiedName, bool IsActive, string? SemanticType);
+
+    record LexiconDetail(string Code, string System, string Designation,
+        string? FullySpecifiedName, bool IsActive, string? SemanticType,
+        List<string>? ParentCodes, List<string>? Synonyms);
+
+    record LexiconStatus(int TotalEntries, int SnomedCount, int Icd10Count,
+        int CptCount, int LoincCount, DateTime? LastUpdated);
+}

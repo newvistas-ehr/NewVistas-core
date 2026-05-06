@@ -1,0 +1,421 @@
+@page "/geriatrics"
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+@rendermode InteractiveServer
+@using NewVistas.BlazorWeb.Services
+@using NewVistas.Abstractions.GrainInterfaces
+@using NewVistas.Abstractions.GrainStates
+@inject OrleansGrainService Grains
+
+<PageTitle>Geriatrics & Extended Care</PageTitle>
+
+<h2>Geriatrics &amp; Extended Care</h2>
+<p class="subtitle">Community Living Center census, GEC/MDS assessments — VistA GEC File #25.1</p>
+
+@if (error != null)
+{
+    <div class="alert-error">@error</div>
+}
+
+<div class="tab-bar">
+    <button class="@TabClass(1)" @onclick="() => SetTab(1)">CLC Census</button>
+    <button class="@TabClass(2)" @onclick="() => SetTab(2)">Assessments</button>
+    <button class="@TabClass(3)" @onclick="() => SetTab(3)">Dashboard</button>
+</div>
+
+<!-- ── Tab 1: CLC Census ─────────────────────────────────────────────────── -->
+@if (activeTab == 1)
+{
+    <div class="panel">
+        <div class="filter-bar">
+            <button class="@CensusFilterClass("all")" @onclick='() => SetCensusFilter("all")'>All Active</button>
+            <button class="@CensusFilterClass("skilled")" @onclick='() => SetCensusFilter("skilled")'>Skilled Nursing</button>
+            <button class="@CensusFilterClass("hospice")" @onclick='() => SetCensusFilter("hospice")'>Hospice</button>
+            <button class="@CensusFilterClass("rehab")" @onclick='() => SetCensusFilter("rehab")'>Sub-Acute Rehab</button>
+            <button class="@CensusFilterClass("dementia")" @onclick='() => SetCensusFilter("dementia")'>Dementia Care</button>
+            <button class="@CensusFilterClass("discharge")" @onclick='() => SetCensusFilter("discharge")'>Upcoming Discharges</button>
+        </div>
+
+        @if (loadingCensus)
+        {
+            <p>Loading census...</p>
+        }
+        else if (census.Count == 0)
+        {
+            <p class="empty-state">No admissions found for the selected filter.</p>
+        }
+        else
+        {
+            <table>
+                <thead>
+                    <tr>
+                        <th>Patient</th>
+                        <th>Ward / Bed</th>
+                        <th>Level of Care</th>
+                        <th>Attending</th>
+                        <th>Admit Date</th>
+                        <th>Ant. Discharge</th>
+                        <th>Status</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (CLCAdmissionIndexEntry a in census)
+                    {
+                        <tr class="@(IsDischargeImminient(a) ? "row-warning" : "")">
+                            <td>@a.PatientName</td>
+                            <td>@a.Ward — @a.BedRoom</td>
+                            <td><span class="badge @LOCBadgeClass(a.LevelOfCare)">@FormatLOC(a.LevelOfCare)</span></td>
+                            <td>@a.AttendingPhysician</td>
+                            <td>@a.AdmitDate.ToLocalTime().ToString("MM/dd/yyyy")</td>
+                            <td class="@(IsDischargeImminient(a) ? "overdue-text" : "")">
+                                @(a.AnticipatedDischargeDate.HasValue ? a.AnticipatedDischargeDate.Value.ToLocalTime().ToString("MM/dd/yyyy") : "—")
+                            </td>
+                            <td><span class="badge @AdmitStatusBadgeClass(a.Status)">@a.Status</span></td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        }
+    </div>
+}
+
+<!-- ── Tab 2: Assessments ────────────────────────────────────────────────── -->
+@if (activeTab == 2)
+{
+    <div class="panel">
+        <div class="search-bar">
+            <input type="text" @bind="assessmentPatientId" placeholder="Patient ID" class="input-field" />
+            <button class="btn-primary" @onclick="LoadAssessments">Search Assessments</button>
+        </div>
+
+        @if (loadingAssessments)
+        {
+            <p>Loading assessments...</p>
+        }
+        else if (assessments.Count == 0 && assessmentPatientId.Length > 0)
+        {
+            <p class="empty-state">No assessments found for this patient.</p>
+        }
+        else if (assessments.Count > 0)
+        {
+            <table>
+                <thead>
+                    <tr>
+                        <th>Patient</th>
+                        <th>Assessment Type</th>
+                        <th>Date</th>
+                        <th>Level of Care</th>
+                        <th>ADL Score</th>
+                        <th>RUG Category</th>
+                        <th>Status</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (GECAssessmentIndexEntry a in assessments)
+                    {
+                        <tr>
+                            <td>@a.PatientName</td>
+                            <td>@a.AssessmentType</td>
+                            <td>@a.AssessmentDate.ToLocalTime().ToString("MM/dd/yyyy")</td>
+                            <td><span class="badge @LOCBadgeClass(a.LevelOfCare)">@FormatLOC(a.LevelOfCare)</span></td>
+                            <td class="@ADLScoreClass(a.ADLTotalScore)">@a.ADLTotalScore / 28</td>
+                            <td>@FormatRUG(a.RUGCategory)</td>
+                            <td><span class="badge @AssessStatusBadge(a.Status)">@a.Status</span></td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        }
+    </div>
+}
+
+<!-- ── Tab 3: Dashboard ──────────────────────────────────────────────────── -->
+@if (activeTab == 3)
+{
+    <div class="panel">
+        @if (loadingDashboard)
+        {
+            <p>Loading dashboard...</p>
+        }
+        else if (dashboard != null)
+        {
+            <div class="dashboard-grid">
+                <div class="stat-card">
+                    <div class="stat-value">@dashboard.TotalCensusCurrent</div>
+                    <div class="stat-label">Total Census</div>
+                </div>
+                <div class="stat-card success">
+                    <div class="stat-value">@dashboard.ActivePatients</div>
+                    <div class="stat-label">Active Patients</div>
+                </div>
+                <div class="stat-card info">
+                    <div class="stat-value">@dashboard.OnLeave</div>
+                    <div class="stat-label">On Leave</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value">@dashboard.SkilledNursing</div>
+                    <div class="stat-label">Skilled Nursing</div>
+                </div>
+                <div class="stat-card warning">
+                    <div class="stat-value">@dashboard.Hospice</div>
+                    <div class="stat-label">Hospice</div>
+                </div>
+                <div class="stat-card info">
+                    <div class="stat-value">@dashboard.Rehabilitation</div>
+                    <div class="stat-label">Sub-Acute Rehab</div>
+                </div>
+                <div class="stat-card info">
+                    <div class="stat-value">@dashboard.DementiaCare</div>
+                    <div class="stat-label">Dementia Care</div>
+                </div>
+                <div class="stat-card warning">
+                    <div class="stat-value">@dashboard.AnticipatedDischargesNext7Days</div>
+                    <div class="stat-label">Discharges (7 days)</div>
+                </div>
+            </div>
+        }
+    </div>
+}
+
+@code {
+    private int activeTab = 3;
+    private string censusFilter = "all";
+    private string assessmentPatientId = string.Empty;
+    private string? error;
+
+    private bool loadingCensus = false;
+    private bool loadingAssessments = false;
+    private bool loadingDashboard = false;
+
+    private List<CLCAdmissionIndexEntry> census = new();
+    private List<GECAssessmentIndexEntry> assessments = new();
+    private DashboardData? dashboard;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadDashboard();
+    }
+
+    private async Task SetTab(int tab)
+    {
+        activeTab = tab;
+        if (tab == 1 && census.Count == 0) await LoadCensus();
+        if (tab == 3) await LoadDashboard();
+    }
+
+    private string TabClass(int tab) => tab == activeTab ? "tab-btn active" : "tab-btn";
+    private string CensusFilterClass(string f) => f == censusFilter ? "filter-btn active" : "filter-btn";
+
+    private async Task SetCensusFilter(string filter)
+    {
+        censusFilter = filter;
+        await LoadCensus();
+    }
+
+    private async Task LoadCensus()
+    {
+        loadingCensus = true;
+        error = null;
+        try
+        {
+            var indexGrain = Grains.GetGrain<ICLCAdmissionIndexGrain>("CLC-ADMIT-IDX");
+            var entries = censusFilter switch
+            {
+                "skilled" => await indexGrain.GetAdmissionsByLevelOfCareAsync(NewVistas.Abstractions.GrainStates.GECLevelOfCare.SkilledNursing),
+                "hospice" => await indexGrain.GetAdmissionsByLevelOfCareAsync(NewVistas.Abstractions.GrainStates.GECLevelOfCare.Hospice),
+                "rehab" => await indexGrain.GetAdmissionsByLevelOfCareAsync(NewVistas.Abstractions.GrainStates.GECLevelOfCare.SubAcuteRehabilitation),
+                "dementia" => await indexGrain.GetAdmissionsByLevelOfCareAsync(NewVistas.Abstractions.GrainStates.GECLevelOfCare.DementiaCare),
+                "discharge" => await indexGrain.GetAnticipatedDischargesAsync(7),
+                _ => await indexGrain.GetActiveCensusAsync()
+            };
+            census = entries.Select(e => new CLCAdmissionIndexEntry
+            {
+                AdmissionId = e.AdmissionId, PatientId = e.PatientId, PatientName = e.PatientName,
+                AdmitDate = e.AdmitDate, LevelOfCare = (GECLevelOfCare)(int)e.LevelOfCare,
+                Status = (CLCAdmissionStatus)(int)e.Status, Ward = e.Ward, BedRoom = e.BedRoom,
+                AttendingPhysician = e.AttendingPhysician, AnticipatedDischargeDate = e.AnticipatedDischargeDate
+            }).ToList();
+        }
+        catch
+        {
+            error = "Failed to load CLC census.";
+        }
+        finally { loadingCensus = false; }
+    }
+
+    private async Task LoadAssessments()
+    {
+        if (string.IsNullOrWhiteSpace(assessmentPatientId)) return;
+        loadingAssessments = true;
+        error = null;
+        try
+        {
+            var indexGrain = Grains.GetGrain<IGECAssessmentIndexGrain>($"GEC-ASSESS-IDX:{assessmentPatientId.Trim()}");
+            var entries = await indexGrain.GetAllAssessmentsAsync();
+            assessments = entries.Select(e => new GECAssessmentIndexEntry
+            {
+                AssessmentId = e.AssessmentId, PatientId = e.PatientId, PatientName = e.PatientName,
+                AssessmentType = (GECAssessmentType)(int)e.AssessmentType, AssessmentDate = e.AssessmentDate,
+                Status = (GECAssessmentStatus)(int)e.Status, RUGCategory = (GECRUGCategory)(int)e.RUGCategory,
+                ADLTotalScore = e.ADLTotalScore, LevelOfCare = (GECLevelOfCare)(int)e.LevelOfCare
+            }).ToList();
+        }
+        catch
+        {
+            error = "Failed to load assessments.";
+        }
+        finally { loadingAssessments = false; }
+    }
+
+    private async Task LoadDashboard()
+    {
+        loadingDashboard = true;
+        error = null;
+        try
+        {
+            var indexGrain = Grains.GetGrain<ICLCAdmissionIndexGrain>("CLC-ADMIT-IDX");
+            var all = await indexGrain.GetActiveCensusAsync();
+            var upcoming = await indexGrain.GetAnticipatedDischargesAsync(7);
+            dashboard = new DashboardData
+            {
+                TotalCensusCurrent = all.Count,
+                ActivePatients = all.Count(a => a.Status == CLCAdmissionStatus.Active),
+                OnLeave = all.Count(a => a.Status == CLCAdmissionStatus.OnLeave),
+                SkilledNursing = all.Count(a => a.LevelOfCare == GECLevelOfCare.SkilledNursing),
+                Hospice = all.Count(a => a.LevelOfCare == GECLevelOfCare.Hospice),
+                Rehabilitation = all.Count(a => a.LevelOfCare == GECLevelOfCare.SubAcuteRehabilitation),
+                DementiaCare = all.Count(a => a.LevelOfCare == GECLevelOfCare.DementiaCare),
+                AnticipatedDischargesNext7Days = upcoming.Count
+            };
+        }
+        catch
+        {
+            error = "Failed to load dashboard.";
+        }
+        finally { loadingDashboard = false; }
+    }
+
+    private bool IsDischargeImminient(CLCAdmissionIndexEntry a) =>
+        a.AnticipatedDischargeDate.HasValue && a.AnticipatedDischargeDate.Value <= DateTime.UtcNow.AddDays(3);
+
+    private string FormatLOC(GECLevelOfCare loc) => loc switch
+    {
+        GECLevelOfCare.SkilledNursing => "Skilled",
+        GECLevelOfCare.SubAcuteRehabilitation => "Sub-Acute Rehab",
+        GECLevelOfCare.DementiaCare => "Dementia",
+        GECLevelOfCare.LongTermCare => "Long-Term",
+        GECLevelOfCare.Hospice => "Hospice",
+        GECLevelOfCare.Respite => "Respite",
+        GECLevelOfCare.Palliative => "Palliative",
+        _ => loc.ToString()
+    };
+
+    private string FormatRUG(GECRUGCategory rug) => rug == GECRUGCategory.NotAssigned ? "—" : rug.ToString();
+
+    private string LOCBadgeClass(GECLevelOfCare loc) => loc switch
+    {
+        GECLevelOfCare.Hospice => "danger",
+        GECLevelOfCare.SkilledNursing => "warning",
+        GECLevelOfCare.SubAcuteRehabilitation => "info",
+        _ => "secondary"
+    };
+
+    private string AdmitStatusBadgeClass(CLCAdmissionStatus s) => s switch
+    {
+        CLCAdmissionStatus.Active => "success",
+        CLCAdmissionStatus.OnLeave => "warning",
+        CLCAdmissionStatus.Discharged => "secondary",
+        CLCAdmissionStatus.Deceased => "danger",
+        _ => "secondary"
+    };
+
+    private string AssessStatusBadge(GECAssessmentStatus s) => s switch
+    {
+        GECAssessmentStatus.Submitted => "success",
+        GECAssessmentStatus.Completed => "info",
+        _ => "secondary"
+    };
+
+    private string ADLScoreClass(int score) => score >= 20 ? "overdue-text" : score >= 12 ? "warning-text" : "";
+
+    // ── Response DTOs ──────────────────────────────────────────────────────────
+
+    private class CLCAdmissionIndexEntry
+    {
+        public string AdmissionId { get; set; } = string.Empty;
+        public string PatientId { get; set; } = string.Empty;
+        public string PatientName { get; set; } = string.Empty;
+        public DateTime AdmitDate { get; set; }
+        public GECLevelOfCare LevelOfCare { get; set; }
+        public CLCAdmissionStatus Status { get; set; }
+        public string Ward { get; set; } = string.Empty;
+        public string BedRoom { get; set; } = string.Empty;
+        public string AttendingPhysician { get; set; } = string.Empty;
+        public DateTime? AnticipatedDischargeDate { get; set; }
+    }
+
+    private class GECAssessmentIndexEntry
+    {
+        public string AssessmentId { get; set; } = string.Empty;
+        public string PatientId { get; set; } = string.Empty;
+        public string PatientName { get; set; } = string.Empty;
+        public GECAssessmentType AssessmentType { get; set; }
+        public DateTime AssessmentDate { get; set; }
+        public GECAssessmentStatus Status { get; set; }
+        public GECRUGCategory RUGCategory { get; set; }
+        public int ADLTotalScore { get; set; }
+        public GECLevelOfCare LevelOfCare { get; set; }
+    }
+
+    private class DashboardData
+    {
+        public int TotalCensusCurrent { get; set; }
+        public int ActivePatients { get; set; }
+        public int OnLeave { get; set; }
+        public int SkilledNursing { get; set; }
+        public int Hospice { get; set; }
+        public int Rehabilitation { get; set; }
+        public int DementiaCare { get; set; }
+        public int AnticipatedDischargesNext7Days { get; set; }
+    }
+
+    // Enums are imported from NewVistas.Abstractions.GrainStates via @using directive
+}
+
+<style>
+    .subtitle { color: #666; margin-top: -0.5rem; margin-bottom: 1rem; }
+    .tab-bar { display: flex; gap: 0.5rem; margin-bottom: 1rem; flex-wrap: wrap; }
+    .tab-btn { padding: 0.5rem 1rem; border: 1px solid #ccc; background: #f5f5f5; cursor: pointer; border-radius: 4px; }
+    .tab-btn.active { background: #1976d2; color: white; border-color: #1976d2; }
+    .filter-bar { display: flex; gap: 0.5rem; margin-bottom: 1rem; flex-wrap: wrap; }
+    .filter-btn { padding: 0.4rem 0.8rem; border: 1px solid #ccc; background: #f9f9f9; cursor: pointer; border-radius: 4px; font-size: 0.875rem; }
+    .filter-btn.active { background: #e3f2fd; border-color: #1976d2; color: #1976d2; font-weight: bold; }
+    .search-bar { display: flex; gap: 0.75rem; margin-bottom: 1rem; align-items: center; }
+    .input-field { padding: 0.4rem 0.75rem; border: 1px solid #ccc; border-radius: 4px; font-size: 0.9rem; min-width: 200px; }
+    .btn-primary { padding: 0.4rem 1rem; background: #1976d2; color: white; border: none; border-radius: 4px; cursor: pointer; }
+    .panel { background: white; border: 1px solid #e0e0e0; border-radius: 6px; padding: 1.5rem; }
+    table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
+    th { background: #f5f5f5; padding: 0.6rem 0.8rem; text-align: left; border-bottom: 2px solid #ddd; }
+    td { padding: 0.5rem 0.8rem; border-bottom: 1px solid #eee; }
+    .row-warning td { background-color: #fffde7; }
+    .badge { padding: 2px 8px; border-radius: 12px; font-size: 0.75rem; font-weight: bold; }
+    .badge.success { background: #e8f5e9; color: #2e7d32; }
+    .badge.warning { background: #fff8e1; color: #f57f17; }
+    .badge.danger { background: #ffebee; color: #c62828; }
+    .badge.info { background: #e3f2fd; color: #1565c0; }
+    .badge.secondary { background: #f5f5f5; color: #616161; }
+    .overdue-text { color: #c62828; font-weight: bold; }
+    .warning-text { color: #f57f17; }
+    .empty-state { color: #888; font-style: italic; padding: 2rem 0; text-align: center; }
+    .alert-error { background: #ffebee; border: 1px solid #ef9a9a; color: #c62828; padding: 0.75rem 1rem; border-radius: 4px; margin-bottom: 1rem; }
+    .dashboard-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 1rem; }
+    .stat-card { background: #f9f9f9; border: 1px solid #e0e0e0; border-radius: 8px; padding: 1.5rem 1rem; text-align: center; }
+    .stat-card.success { border-color: #a5d6a7; background: #e8f5e9; }
+    .stat-card.warning { border-color: #f9a825; background: #fff8e1; }
+    .stat-card.danger { border-color: #ef9a9a; background: #ffebee; }
+    .stat-card.info { border-color: #90caf9; background: #e3f2fd; }
+    .stat-value { font-size: 2rem; font-weight: bold; color: #1976d2; }
+    .stat-card.success .stat-value { color: #2e7d32; }
+    .stat-card.warning .stat-value { color: #f57f17; }
+    .stat-card.danger .stat-value { color: #c62828; }
+    .stat-label { font-size: 0.875rem; color: #555; margin-top: 0.25rem; }
+</style>

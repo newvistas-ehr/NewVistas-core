@@ -1,0 +1,110 @@
+<UserControl x:Class="NewVistas.WpfDelphiUI.Views.OrdersView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="clr-namespace:NewVistas.WpfDelphiUI.ViewModels"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             mc:Ignorable="d"
+             d:DataContext="{d:DesignInstance vm:OrdersViewModel}"
+             Background="White">
+
+    <DockPanel>
+        <Border DockPanel.Dock="Top" Style="{StaticResource CprsPanelHeader}">
+            <DockPanel>
+                <TextBlock Text="Orders" Style="{StaticResource CprsPanelHeaderText}"/>
+                <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" HorizontalAlignment="Right">
+                    <Button Content="History" Margin="4,0" Padding="8,2"
+                            Command="{Binding ToggleHistoryCommand}"/>
+                    <Button Content="New Order" Margin="4,0" Padding="8,2"
+                            Command="{Binding TogglePlaceFormCommand}"/>
+                </StackPanel>
+            </DockPanel>
+        </Border>
+
+        <TextBlock DockPanel.Dock="Top" Text="{Binding ErrorText}"
+                   Style="{StaticResource ErrorText}"
+                   Visibility="{Binding ErrorText, Converter={StaticResource NullToVis}}"/>
+
+        <!-- Place Order Form -->
+        <Border DockPanel.Dock="Top" Background="#F0F0F0" BorderBrush="#C0C0C0" BorderThickness="0,0,0,1"
+                Padding="8" Visibility="{Binding ShowPlaceForm, Converter={StaticResource BoolToVis}}">
+            <StackPanel>
+                <StackPanel Orientation="Horizontal" Margin="0,2">
+                    <TextBlock Text="Type:" Width="55" VerticalAlignment="Center"/>
+                    <ComboBox ItemsSource="{Binding OrderTypes}" SelectedItem="{Binding NewOrderType}" Width="120" Margin="0,0,8,0"/>
+                    <TextBlock Text="Priority:" Width="55" VerticalAlignment="Center"/>
+                    <ComboBox ItemsSource="{Binding Priorities}" SelectedItem="{Binding NewPriority}" Width="100"/>
+                </StackPanel>
+                <TextBlock Text="Order Text:" Margin="0,4,0,2"/>
+                <TextBox Text="{Binding NewOrderText, UpdateSourceTrigger=PropertyChanged}"
+                         AcceptsReturn="True" Height="50" TextWrapping="Wrap"/>
+                <StackPanel Orientation="Horizontal" Margin="0,4,0,0">
+                    <Button Content="Place Order" Padding="16,2" Margin="0,0,4,0"
+                            Command="{Binding PlaceOrderCommand}"/>
+                    <Button Content="Cancel" Padding="16,2"
+                            Command="{Binding TogglePlaceFormCommand}"/>
+                </StackPanel>
+            </StackPanel>
+        </Border>
+
+        <!-- History panel -->
+        <Border DockPanel.Dock="Bottom" Background="#F0F0F0" BorderBrush="#C0C0C0" BorderThickness="0,1,0,0"
+                Padding="8" Visibility="{Binding ShowHistory, Converter={StaticResource BoolToVis}}">
+            <DockPanel>
+                <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="0,0,0,4">
+                    <TextBlock Text="From:" VerticalAlignment="Center" Margin="0,0,4,0"/>
+                    <DatePicker SelectedDate="{Binding HistoryFrom}" Width="140" Margin="0,0,12,0"/>
+                    <TextBlock Text="To:" VerticalAlignment="Center" Margin="0,0,4,0"/>
+                    <DatePicker SelectedDate="{Binding HistoryTo}" Width="140" Margin="0,0,12,0"/>
+                    <Button Content="Load History" Padding="12,2"
+                            Command="{Binding LoadHistoryCommand}"/>
+                </StackPanel>
+                <ListView ItemsSource="{Binding HistoryOrders}" BorderThickness="0">
+                    <ListView.View>
+                        <GridView>
+                            <GridViewColumn Header="Order"      Width="280"
+                                            DisplayMemberBinding="{Binding OrderText}"/>
+                            <GridViewColumn Header="Status"     Width="90"
+                                            DisplayMemberBinding="{Binding Status}"/>
+                            <GridViewColumn Header="Service"    Width="100"
+                                            DisplayMemberBinding="{Binding Service}"/>
+                            <GridViewColumn Header="Ordered By" Width="140"
+                                            DisplayMemberBinding="{Binding OrderedBy}"/>
+                            <GridViewColumn Header="Date"       Width="100"
+                                            DisplayMemberBinding="{Binding OrderDate}"/>
+                        </GridView>
+                    </ListView.View>
+                </ListView>
+            </DockPanel>
+        </Border>
+
+        <!-- Action buttons for selected order -->
+        <Border DockPanel.Dock="Bottom" Background="#F0F0F0" Padding="4"
+                Visibility="{Binding SelectedOrder, Converter={StaticResource NullToVis}}">
+            <StackPanel Orientation="Horizontal">
+                <Button Content="Sign Order" Padding="12,2" Margin="0,0,4,0"
+                        Command="{Binding SignOrderCommand}"/>
+                <Button Content="Discontinue" Padding="12,2" Foreground="#800000"
+                        Command="{Binding DiscontinueOrderCommand}"/>
+            </StackPanel>
+        </Border>
+
+        <ListView ItemsSource="{Binding Orders}" SelectedItem="{Binding SelectedOrder}"
+                  BorderThickness="0">
+            <ListView.View>
+                <GridView>
+                    <GridViewColumn Header="Order"       Width="320"
+                                    DisplayMemberBinding="{Binding OrderText}"/>
+                    <GridViewColumn Header="Status"      Width="90"
+                                    DisplayMemberBinding="{Binding Status}"/>
+                    <GridViewColumn Header="Service"     Width="120"
+                                    DisplayMemberBinding="{Binding Service}"/>
+                    <GridViewColumn Header="Ordered By"  Width="160"
+                                    DisplayMemberBinding="{Binding OrderedBy}"/>
+                    <GridViewColumn Header="Date"        Width="100"
+                                    DisplayMemberBinding="{Binding OrderDate}"/>
+                </GridView>
+            </ListView.View>
+        </ListView>
+    </DockPanel>
+</UserControl>

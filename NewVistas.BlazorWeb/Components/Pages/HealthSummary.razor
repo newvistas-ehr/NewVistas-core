@@ -1,0 +1,736 @@
+@page "/health-summary"
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+@rendermode InteractiveServer
+@using NewVistas.BlazorWeb.Services
+@using NewVistas.Abstractions.GrainInterfaces
+@using NewVistas.Abstractions.GrainStates
+@inject OrleansGrainService Grains
+
+<PageTitle>Health Summary — NewVistas</PageTitle>
+
+<div class="page-container">
+    <div class="page-header">
+        <h2>Health Summary</h2>
+        <p class="page-subtitle">VistA File #142 — Configurable Patient Health Summary Reports</p>
+    </div>
+
+    <div class="patient-bar">
+        <label>Patient ID</label>
+        <input @bind="patientId" placeholder="Enter patient ID" class="patient-input" />
+        <button @onclick="LoadPatientData" class="btn-primary" disabled="@(string.IsNullOrWhiteSpace(patientId) || loading)">
+            Load
+        </button>
+    </div>
+
+    @if (error != null)
+    {
+        <div class="error-alert">@error</div>
+    }
+
+    <div class="tab-bar">
+        <button class="tab-btn @(activeTab == "generate" ? "active" : "")" @onclick='() => activeTab = "generate"'>Generate Summary</button>
+        <button class="tab-btn @(activeTab == "history" ? "active" : "")" @onclick='() => activeTab = "history"'>Summary History</button>
+        <button class="tab-btn @(activeTab == "types" ? "active" : "")" @onclick='() => activeTab = "types"'>Summary Types</button>
+    </div>
+
+    @if (loading)
+    {
+        <div class="loading">Loading...</div>
+    }
+    else
+    {
+        <!-- Generate Summary Tab -->
+        @if (activeTab == "generate")
+        {
+            <div class="tab-content">
+                <div class="section-card">
+                    <h3>Generate Health Summary</h3>
+                    <p class="hint">Select a template and provider to generate a new health summary for the patient.</p>
+
+                    <div class="form-grid">
+                        <div class="form-group">
+                            <label>Summary Type Template</label>
+                            <select @bind="genTypeId" class="form-control">
+                                <option value="">— Select template —</option>
+                                @foreach (var t in activeTypes)
+                                {
+                                    <option value="@t.TypeId">@t.Name (@t.ComponentCount components)</option>
+                                }
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label>Requested By (Provider ID)</label>
+                            <input @bind="genProviderId" class="form-control" placeholder="e.g., PROV-001" />
+                        </div>
+                        <div class="form-group">
+                            <label>Provider Name</label>
+                            <input @bind="genProviderName" class="form-control" placeholder="e.g., Dr. Smith" />
+                        </div>
+                    </div>
+
+                    <button @onclick="GenerateSummary" class="btn-primary"
+                            disabled="@(string.IsNullOrWhiteSpace(patientId) || string.IsNullOrWhiteSpace(genTypeId) || string.IsNullOrWhiteSpace(genProviderId) || generating)">
+                        @(generating ? "Generating..." : "Generate Summary")
+                    </button>
+                </div>
+
+                @if (currentReport != null)
+                {
+                    <div class="section-card report-card">
+                        <div class="report-header">
+                            <h3>@currentReport.TypeName</h3>
+                            <div class="report-meta">
+                                <span>Generated: @currentReport.GeneratedDate.ToString("MM/dd/yyyy HH:mm")</span>
+                                <span>By: @currentReport.GeneratedByName</span>
+                                <span>Patient: @currentReport.PatientId</span>
+                            </div>
+                        </div>
+
+                        @foreach (var rptSection in currentReport.Sections)
+                        {
+                            <div class="report-section">
+                                <h4 class="section-title">@rptSection.SectionHeader</h4>
+                                @if (rptSection.ContentLines.Count == 0)
+                                {
+                                    <p class="no-data">No data found for this section.</p>
+                                }
+                                else
+                                {
+                                    <ul class="section-lines">
+                                        @foreach (var line in rptSection.ContentLines)
+                                        {
+                                            <li>@line</li>
+                                        }
+                                    </ul>
+                                }
+                            </div>
+                        }
+                    </div>
+                }
+            </div>
+        }
+
+        <!-- Summary History Tab -->
+        @if (activeTab == "history")
+        {
+            <div class="tab-content">
+                <div class="section-card">
+                    <div class="card-header-row">
+                        <h3>Summary History</h3>
+                        <div class="filter-row">
+                            <label>Filter by Type:</label>
+                            <select @bind="historyTypeFilter" @bind:after="FilterHistory" class="form-control-sm">
+                                <option value="">All Types</option>
+                                @foreach (var t in activeTypes)
+                                {
+                                    <option value="@t.TypeId">@t.Name</option>
+                                }
+                            </select>
+                        </div>
+                    </div>
+
+                    @if (historyEntries.Count == 0)
+                    {
+                        <p class="no-data">No summaries have been generated for this patient.</p>
+                    }
+                    else
+                    {
+                        <table class="data-table">
+                            <thead>
+                                <tr>
+                                    <th>Generated</th>
+                                    <th>Template</th>
+                                    <th>Requested By</th>
+                                    <th>Sections</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var entry in historyEntries)
+                                {
+                                    <tr>
+                                        <td>@entry.GeneratedDate.ToString("MM/dd/yyyy HH:mm")</td>
+                                        <td>@entry.TypeName</td>
+                                        <td>@entry.GeneratedByName</td>
+                                        <td>@entry.SectionCount</td>
+                                        <td>
+                                            <button @onclick="() => ViewReport(entry.ReportId)" class="btn-sm">View</button>
+                                        </td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    }
+                </div>
+
+                @if (viewedReport != null)
+                {
+                    <div class="section-card report-card">
+                        <div class="report-header">
+                            <h3>@viewedReport.TypeName</h3>
+                            <div class="report-meta">
+                                <span>Generated: @viewedReport.GeneratedDate.ToString("MM/dd/yyyy HH:mm")</span>
+                                <span>By: @viewedReport.GeneratedByName</span>
+                            </div>
+                        </div>
+                        @foreach (var rptSection in viewedReport.Sections)
+                        {
+                            <div class="report-section">
+                                <h4 class="section-title">@rptSection.SectionHeader</h4>
+                                @if (rptSection.ContentLines.Count == 0)
+                                {
+                                    <p class="no-data">No data found for this section.</p>
+                                }
+                                else
+                                {
+                                    <ul class="section-lines">
+                                        @foreach (var line in rptSection.ContentLines)
+                                        {
+                                            <li>@line</li>
+                                        }
+                                    </ul>
+                                }
+                            </div>
+                        }
+                    </div>
+                }
+            </div>
+        }
+
+        <!-- Summary Types Tab -->
+        @if (activeTab == "types")
+        {
+            <div class="tab-content">
+                <div class="section-card">
+                    <div class="card-header-row">
+                        <h3>Summary Type Templates</h3>
+                        <button @onclick="() => showTypeForm = true" class="btn-primary">+ New Type</button>
+                    </div>
+
+                    @if (allTypes.Count == 0)
+                    {
+                        <p class="no-data">No health summary types have been defined.</p>
+                    }
+                    else
+                    {
+                        <table class="data-table">
+                            <thead>
+                                <tr>
+                                    <th>Name</th>
+                                    <th>Description</th>
+                                    <th>Status</th>
+                                    <th>Components</th>
+                                    <th>Created</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var t in allTypes)
+                                {
+                                    <tr>
+                                        <td>@t.Name</td>
+                                        <td>@(t.Description ?? "—")</td>
+                                        <td><span class="badge @(t.Status.ToString() == "Active" ? "badge-active" : "badge-inactive")">@t.Status</span></td>
+                                        <td>@t.ComponentCount</td>
+                                        <td>@t.CreatedDate.ToString("MM/dd/yyyy")</td>
+                                        <td>
+                                            <button @onclick="() => ManageComponents(t.TypeId)" class="btn-sm">Components</button>
+                                        </td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    }
+                </div>
+
+                @if (showTypeForm)
+                {
+                    <div class="section-card">
+                        <h3>Create New Summary Type</h3>
+                        <div class="form-grid">
+                            <div class="form-group">
+                                <label>Name <span class="required">*</span></label>
+                                <input @bind="newTypeName" class="form-control" placeholder="e.g., CPRS Summary" />
+                            </div>
+                            <div class="form-group">
+                                <label>Description</label>
+                                <input @bind="newTypeDescription" class="form-control" placeholder="Optional description" />
+                            </div>
+                            <div class="form-group">
+                                <label>Created By (Provider ID) <span class="required">*</span></label>
+                                <input @bind="newTypeCreatorId" class="form-control" placeholder="e.g., PROV-001" />
+                            </div>
+                            <div class="form-group">
+                                <label>Creator Name <span class="required">*</span></label>
+                                <input @bind="newTypeCreatorName" class="form-control" placeholder="e.g., Dr. Smith" />
+                            </div>
+                        </div>
+                        <div class="form-actions">
+                            <button @onclick="CreateType" class="btn-primary"
+                                    disabled="@(string.IsNullOrWhiteSpace(newTypeName) || string.IsNullOrWhiteSpace(newTypeCreatorId))">
+                                Create
+                            </button>
+                            <button @onclick="() => showTypeForm = false" class="btn-secondary">Cancel</button>
+                        </div>
+                    </div>
+                }
+
+                @if (managingTypeId != null)
+                {
+                    <div class="section-card">
+                        <div class="card-header-row">
+                            <h3>Components — @managingTypeName</h3>
+                            <button @onclick="() => managingTypeId = null" class="btn-secondary">Close</button>
+                        </div>
+
+                        @if (managingComponents.Count == 0)
+                        {
+                            <p class="no-data">No components configured. Add components below.</p>
+                        }
+                        else
+                        {
+                            <table class="data-table">
+                                <thead>
+                                    <tr>
+                                        <th>Component</th>
+                                        <th>Enabled</th>
+                                        <th>Order</th>
+                                        <th>Max</th>
+                                        <th>Days Back</th>
+                                        <th>Custom Header</th>
+                                        <th>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @foreach (var c in managingComponents.OrderBy(x => x.DisplayOrder))
+                                    {
+                                        <tr>
+                                            <td>@c.ComponentType</td>
+                                            <td>@(c.IsEnabled ? "Yes" : "No")</td>
+                                            <td>@c.DisplayOrder</td>
+                                            <td>@(c.MaxOccurrences == 0 ? "All" : c.MaxOccurrences.ToString())</td>
+                                            <td>@(c.DaysBack == 0 ? "All Time" : $"{c.DaysBack}d")</td>
+                                            <td>@(c.SectionHeader ?? "—")</td>
+                                            <td>
+                                                <button @onclick="() => RemoveComponent(c.ComponentType)" class="btn-sm btn-danger">Remove</button>
+                                            </td>
+                                        </tr>
+                                    }
+                                </tbody>
+                            </table>
+                        }
+
+                        <h4 class="sub-section-title">Add Component</h4>
+                        <div class="form-grid-compact">
+                            <div class="form-group">
+                                <label>Component Type</label>
+                                <select @bind="newCompType" class="form-control">
+                                    @foreach (var ct in Enum.GetValues<ComponentTypeOption>())
+                                    {
+                                        <option value="@ct">@ct</option>
+                                    }
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label>Display Order</label>
+                                <input type="number" @bind="newCompOrder" class="form-control-sm" />
+                            </div>
+                            <div class="form-group">
+                                <label>Max Occurrences (0=all)</label>
+                                <input type="number" @bind="newCompMax" class="form-control-sm" />
+                            </div>
+                            <div class="form-group">
+                                <label>Days Back (0=all)</label>
+                                <input type="number" @bind="newCompDaysBack" class="form-control-sm" />
+                            </div>
+                            <div class="form-group">
+                                <label>Custom Header (optional)</label>
+                                <input @bind="newCompHeader" class="form-control" />
+                            </div>
+                        </div>
+                        <button @onclick="AddComponent" class="btn-primary">Add Component</button>
+                    </div>
+                }
+            </div>
+        }
+    }
+</div>
+
+<style>
+    .page-container { max-width: 1100px; margin: 0 auto; padding: 1rem; }
+    .page-header { margin-bottom: 1rem; }
+    .page-header h2 { margin: 0; font-size: 1.6rem; }
+    .page-subtitle { color: #666; margin: 0.2rem 0 0; font-size: 0.9rem; }
+    .patient-bar { display: flex; align-items: center; gap: 0.75rem; margin-bottom: 1rem; background: #f8f8f8; padding: 0.75rem; border-radius: 6px; }
+    .patient-input { flex: 1; max-width: 320px; padding: 0.4rem 0.6rem; border: 1px solid #ccc; border-radius: 4px; }
+    .tab-bar { display: flex; gap: 0.5rem; margin-bottom: 1rem; }
+    .tab-btn { padding: 0.5rem 1.2rem; border: 1px solid #ccc; background: #f5f5f5; border-radius: 4px; cursor: pointer; }
+    .tab-btn.active { background: #1565c0; color: white; border-color: #1565c0; }
+    .tab-content { display: flex; flex-direction: column; gap: 1rem; }
+    .section-card { background: white; border: 1px solid #ddd; border-radius: 6px; padding: 1.25rem; }
+    .card-header-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; }
+    .card-header-row h3 { margin: 0; }
+    .filter-row { display: flex; align-items: center; gap: 0.5rem; font-size: 0.9rem; }
+    .form-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 1rem; margin-bottom: 1rem; }
+    .form-grid-compact { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 0.75rem; margin: 0.75rem 0; }
+    .form-group { display: flex; flex-direction: column; gap: 0.3rem; }
+    .form-group label { font-size: 0.85rem; font-weight: 600; color: #333; }
+    .form-control { padding: 0.4rem 0.6rem; border: 1px solid #ccc; border-radius: 4px; font-size: 0.9rem; }
+    .form-control-sm { padding: 0.3rem 0.5rem; border: 1px solid #ccc; border-radius: 4px; font-size: 0.85rem; width: 100%; }
+    .form-actions { display: flex; gap: 0.5rem; margin-top: 0.75rem; }
+    .hint { color: #666; font-size: 0.9rem; margin-bottom: 1rem; }
+    .data-table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
+    .data-table th { background: #f0f0f0; padding: 0.5rem 0.75rem; text-align: left; font-weight: 600; border-bottom: 2px solid #ddd; }
+    .data-table td { padding: 0.45rem 0.75rem; border-bottom: 1px solid #eee; vertical-align: middle; }
+    .data-table tr:hover td { background: #fafafa; }
+    .badge { padding: 0.2rem 0.6rem; border-radius: 12px; font-size: 0.8rem; font-weight: 600; }
+    .badge-active { background: #e8f5e9; color: #2e7d32; }
+    .badge-inactive { background: #fce4ec; color: #c62828; }
+    .btn-primary { padding: 0.45rem 1rem; background: #1565c0; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 0.9rem; }
+    .btn-primary:hover:not(:disabled) { background: #0d47a1; }
+    .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
+    .btn-secondary { padding: 0.45rem 1rem; background: #6c757d; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 0.9rem; }
+    .btn-secondary:hover { background: #545b62; }
+    .btn-sm { padding: 0.25rem 0.65rem; font-size: 0.8rem; background: #1565c0; color: white; border: none; border-radius: 3px; cursor: pointer; }
+    .btn-sm:hover { background: #0d47a1; }
+    .btn-danger { background: #c62828; }
+    .btn-danger:hover { background: #b71c1c; }
+    .error-alert { background: #ffebee; color: #c62828; padding: 0.75rem 1rem; border-radius: 4px; margin-bottom: 1rem; border: 1px solid #ffcdd2; }
+    .loading { padding: 2rem; text-align: center; color: #666; }
+    .no-data { color: #888; font-style: italic; padding: 0.5rem 0; }
+    .required { color: #c62828; }
+    .report-card { border-left: 4px solid #1565c0; }
+    .report-header { margin-bottom: 1rem; padding-bottom: 0.75rem; border-bottom: 1px solid #eee; }
+    .report-header h3 { margin: 0 0 0.4rem; font-size: 1.2rem; }
+    .report-meta { display: flex; gap: 1.5rem; font-size: 0.85rem; color: #666; }
+    .report-section { margin-bottom: 1rem; padding-bottom: 0.75rem; border-bottom: 1px solid #f0f0f0; }
+    .report-section:last-child { border-bottom: none; margin-bottom: 0; }
+    .section-title { font-size: 0.95rem; font-weight: 700; color: #1565c0; margin: 0 0 0.5rem; text-transform: uppercase; letter-spacing: 0.05em; }
+    .section-lines { margin: 0; padding-left: 1.25rem; }
+    .section-lines li { margin-bottom: 0.2rem; font-size: 0.875rem; color: #333; }
+    .sub-section-title { font-size: 1rem; font-weight: 600; margin: 1rem 0 0.5rem; color: #444; }
+</style>
+
+@code {
+    // ── Component types enum for form binding ──
+    private enum ComponentTypeOption
+    {
+        Demographics = 0, ActiveProblems = 1, Allergies = 2,
+        CurrentMedications = 3, InpatientMedications = 4, VitalSigns = 5,
+        LabResults = 6, Radiology = 7, Consults = 8,
+        ClinicalNotes = 9, Appointments = 10, Immunizations = 11,
+        ClinicalReminders = 12, HealthFactors = 13, SurgicalProcedures = 14,
+        ServiceConnectedConditions = 15, MentalHealth = 16, Dietetics = 17
+    }
+
+    private string patientId = string.Empty;
+    private string activeTab = "generate";
+    private bool loading;
+    private bool generating;
+    private string? error;
+
+    // ── Generate tab ──
+    private string genTypeId = string.Empty;
+    private string genProviderId = string.Empty;
+    private string genProviderName = string.Empty;
+    private HealthSummaryReport? currentReport;
+
+    // ── History tab ──
+    private List<HealthSummaryIndexEntryDto> historyEntries = new();
+    private string historyTypeFilter = string.Empty;
+    private HealthSummaryReport? viewedReport;
+
+    // ── Types tab ──
+    private List<HealthSummaryTypeIndexEntryDto> allTypes = new();
+    private List<HealthSummaryTypeIndexEntryDto> activeTypes = new();
+    private bool showTypeForm;
+    private string newTypeName = string.Empty;
+    private string? newTypeDescription;
+    private string newTypeCreatorId = string.Empty;
+    private string newTypeCreatorName = string.Empty;
+
+    // ── Component management ──
+    private string? managingTypeId;
+    private string managingTypeName = string.Empty;
+    private List<ComponentConfigDto> managingComponents = new();
+    private ComponentTypeOption newCompType = ComponentTypeOption.ActiveProblems;
+    private int newCompOrder;
+    private int newCompMax = 10;
+    private int newCompDaysBack;
+    private string? newCompHeader;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadTypes();
+    }
+
+    private async Task LoadTypes()
+    {
+        try
+        {
+            var typeIndex = Grains.GetGrain<IHealthSummaryTypeIndexGrain>("HS-TYPE-IDX");
+            var entries = await typeIndex.GetAllAsync();
+            allTypes = entries.Select(e => new HealthSummaryTypeIndexEntryDto
+            {
+                TypeId = e.TypeId, Name = e.Name, Description = e.Description,
+                Status = e.Status == HealthSummaryTypeStatus.Active ? "Active" : "Inactive", ComponentCount = e.ComponentCount,
+                CreatedDate = e.CreatedDate
+            }).ToList();
+            activeTypes = allTypes.Where(t => t.Status == "Active").ToList();
+        }
+        catch (Exception ex)
+        {
+            error = $"Error loading types: {ex.Message}";
+        }
+    }
+
+    private async Task LoadPatientData()
+    {
+        if (string.IsNullOrWhiteSpace(patientId)) return;
+        loading = true;
+        error = null;
+        try
+        {
+            var workflow = Grains.GetGrain<IPatientWorkflowGrain>(patientId.Trim());
+            var entries = await workflow.GetHealthSummaryListAsync();
+            historyEntries = entries.Select(MapIndexEntry).ToList();
+            viewedReport = null;
+            currentReport = null;
+        }
+        catch (Exception ex)
+        {
+            error = $"Error loading data: {ex.Message}";
+        }
+        finally { loading = false; }
+    }
+
+    private async Task GenerateSummary()
+    {
+        if (string.IsNullOrWhiteSpace(patientId) || string.IsNullOrWhiteSpace(genTypeId)) return;
+        generating = true;
+        error = null;
+        try
+        {
+            var workflow = Grains.GetGrain<IPatientWorkflowGrain>(patientId.Trim());
+            string reportId = await workflow.GenerateHealthSummaryAsync(genTypeId, genProviderId, genProviderName);
+            var state = await workflow.GetHealthSummaryAsync(reportId);
+            currentReport = MapReport(state);
+
+            var entries = await workflow.GetHealthSummaryListAsync();
+            historyEntries = entries.Select(MapIndexEntry).ToList();
+        }
+        catch (Exception ex)
+        {
+            error = $"Error generating summary: {ex.Message}";
+        }
+        finally { generating = false; }
+    }
+
+    private async Task FilterHistory()
+    {
+        if (string.IsNullOrWhiteSpace(patientId)) return;
+        try
+        {
+            var workflow = Grains.GetGrain<IPatientWorkflowGrain>(patientId.Trim());
+            var entries = string.IsNullOrWhiteSpace(historyTypeFilter)
+                ? await workflow.GetHealthSummaryListAsync()
+                : await workflow.GetHealthSummaryByTypeAsync(historyTypeFilter);
+            historyEntries = entries.Select(MapIndexEntry).ToList();
+            viewedReport = null;
+        }
+        catch (Exception ex)
+        {
+            error = $"Error filtering history: {ex.Message}";
+        }
+    }
+
+    private async Task ViewReport(string reportId)
+    {
+        try
+        {
+            var workflow = Grains.GetGrain<IPatientWorkflowGrain>(patientId.Trim());
+            var state = await workflow.GetHealthSummaryAsync(reportId);
+            viewedReport = MapReport(state);
+        }
+        catch (Exception ex)
+        {
+            error = $"Error loading report: {ex.Message}";
+        }
+    }
+
+    private async Task CreateType()
+    {
+        if (string.IsNullOrWhiteSpace(newTypeName)) return;
+        try
+        {
+            string typeId = Guid.NewGuid().ToString();
+            var typeGrain = Grains.GetGrain<IHealthSummaryTypeGrain>($"HS-TYPE:{typeId}");
+            await typeGrain.CreateAsync(typeId, newTypeName, newTypeDescription, newTypeCreatorId, newTypeCreatorName);
+            var typeIndex = Grains.GetGrain<IHealthSummaryTypeIndexGrain>("HS-TYPE-IDX");
+            await typeIndex.UpsertEntryAsync(new HealthSummaryTypeIndexEntry
+            {
+                TypeId = typeId, Name = newTypeName, Description = newTypeDescription,
+                Status = HealthSummaryTypeStatus.Active, ComponentCount = 0, CreatedDate = DateTime.UtcNow
+            });
+            newTypeName = string.Empty;
+            newTypeDescription = null;
+            newTypeCreatorId = string.Empty;
+            newTypeCreatorName = string.Empty;
+            showTypeForm = false;
+            await LoadTypes();
+        }
+        catch (Exception ex)
+        {
+            error = $"Error creating type: {ex.Message}";
+        }
+    }
+
+    private async Task ManageComponents(string typeId)
+    {
+        managingTypeId = typeId;
+        managingTypeName = allTypes.FirstOrDefault(t => t.TypeId == typeId)?.Name ?? typeId;
+        newCompOrder = managingComponents.Count * 10;
+        try
+        {
+            var typeGrain = Grains.GetGrain<IHealthSummaryTypeGrain>($"HS-TYPE:{typeId}");
+            var state = await typeGrain.GetAsync();
+            managingComponents = state.Components.Select(c => new ComponentConfigDto
+            {
+                ComponentType = (ComponentTypeOption)(int)c.ComponentType,
+                IsEnabled = c.IsEnabled, DisplayOrder = c.DisplayOrder,
+                MaxOccurrences = c.MaxOccurrences, DaysBack = c.DaysBack,
+                SectionHeader = c.SectionHeader
+            }).ToList();
+        }
+        catch (Exception ex)
+        {
+            error = $"Error loading components: {ex.Message}";
+        }
+    }
+
+    private async Task AddComponent()
+    {
+        if (managingTypeId == null) return;
+        try
+        {
+            var typeGrain = Grains.GetGrain<IHealthSummaryTypeGrain>($"HS-TYPE:{managingTypeId}");
+            await typeGrain.AddOrUpdateComponentAsync(new HealthSummaryComponentConfig
+            {
+                ComponentType = (HealthSummaryComponentType)(int)newCompType,
+                IsEnabled = true, DisplayOrder = newCompOrder,
+                MaxOccurrences = newCompMax, DaysBack = newCompDaysBack,
+                SectionHeader = string.IsNullOrWhiteSpace(newCompHeader) ? null : newCompHeader
+            });
+            newCompOrder += 10;
+            newCompHeader = null;
+            await ManageComponents(managingTypeId);
+            await LoadTypes();
+        }
+        catch (Exception ex)
+        {
+            error = $"Error adding component: {ex.Message}";
+        }
+    }
+
+    private async Task RemoveComponent(ComponentTypeOption componentType)
+    {
+        if (managingTypeId == null) return;
+        try
+        {
+            var typeGrain = Grains.GetGrain<IHealthSummaryTypeGrain>($"HS-TYPE:{managingTypeId}");
+            await typeGrain.RemoveComponentAsync((HealthSummaryComponentType)(int)componentType);
+            await ManageComponents(managingTypeId);
+            await LoadTypes();
+        }
+        catch (Exception ex)
+        {
+            error = $"Error removing component: {ex.Message}";
+        }
+    }
+
+    private static HealthSummaryIndexEntryDto MapIndexEntry(HealthSummaryIndexEntry e) => new()
+    {
+        ReportId = e.ReportId, PatientId = e.PatientId, TypeId = e.TypeId,
+        TypeName = e.TypeName, GeneratedDate = e.GeneratedDate,
+        GeneratedById = e.GeneratedById, GeneratedByName = e.GeneratedByName,
+        SectionCount = e.SectionCount
+    };
+
+    private static HealthSummaryReport MapReport(HealthSummaryState s) => new()
+    {
+        ReportId = s.ReportId, PatientId = s.PatientId, TypeId = s.TypeId,
+        TypeName = s.TypeName, GeneratedDate = s.GeneratedDate,
+        GeneratedById = s.GeneratedById, GeneratedByName = s.GeneratedByName,
+        Sections = s.Sections.Select(sec => new SectionDto
+        {
+            ComponentType = (int)sec.ComponentType, SectionHeader = sec.SectionHeader,
+            ContentLines = sec.ContentLines, EntryCount = sec.EntryCount
+        }).ToList()
+    };
+
+    // ── Local DTOs ──────────────────────────────────────────────────────────────
+
+    private class HealthSummaryTypeIndexEntryDto
+    {
+        public string TypeId { get; set; } = string.Empty;
+        public string Name { get; set; } = string.Empty;
+        public string? Description { get; set; }
+        public string Status { get; set; } = "Active";
+        public int ComponentCount { get; set; }
+        public DateTime CreatedDate { get; set; }
+    }
+
+    private class HealthSummaryTypeStateDto
+    {
+        public string TypeId { get; set; } = string.Empty;
+        public string Name { get; set; } = string.Empty;
+        public List<ComponentConfigDto> Components { get; set; } = new();
+    }
+
+    private class ComponentConfigDto
+    {
+        public ComponentTypeOption ComponentType { get; set; }
+        public bool IsEnabled { get; set; }
+        public int DisplayOrder { get; set; }
+        public int MaxOccurrences { get; set; }
+        public int DaysBack { get; set; }
+        public string? SectionHeader { get; set; }
+    }
+
+    private class HealthSummaryIndexEntryDto
+    {
+        public string ReportId { get; set; } = string.Empty;
+        public string PatientId { get; set; } = string.Empty;
+        public string TypeId { get; set; } = string.Empty;
+        public string TypeName { get; set; } = string.Empty;
+        public DateTime GeneratedDate { get; set; }
+        public string GeneratedById { get; set; } = string.Empty;
+        public string GeneratedByName { get; set; } = string.Empty;
+        public int SectionCount { get; set; }
+    }
+
+    private class HealthSummaryReport
+    {
+        public string ReportId { get; set; } = string.Empty;
+        public string PatientId { get; set; } = string.Empty;
+        public string TypeId { get; set; } = string.Empty;
+        public string TypeName { get; set; } = string.Empty;
+        public DateTime GeneratedDate { get; set; }
+        public string GeneratedById { get; set; } = string.Empty;
+        public string GeneratedByName { get; set; } = string.Empty;
+        public List<SectionDto> Sections { get; set; } = new();
+    }
+
+    private class SectionDto
+    {
+        public int ComponentType { get; set; }
+        public string SectionHeader { get; set; } = string.Empty;
+        public List<string> ContentLines { get; set; } = new();
+        public int EntryCount { get; set; }
+    }
+
+    private class GenerateResponseDto
+    {
+        public string? ReportId { get; set; }
+    }
+}

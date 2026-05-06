@@ -1,0 +1,406 @@
+@page "/interaction-blocking"
+@attribute [Authorize]
+@rendermode InteractiveServer
+@using Microsoft.AspNetCore.Authorization
+@using NewVistas.BlazorWeb.Services
+@using NewVistas.Abstractions.GrainInterfaces
+@using NewVistas.Abstractions.GrainStates
+@inject OrleansGrainService Grains
+
+<PageTitle>Drug Interaction Blocking</PageTitle>
+<h1>Drug Interaction Blocking</h1>
+
+<div class="lookup-bar">
+    <label>Patient ID:</label>
+    <input type="text" @bind="patientId" @bind:event="oninput" @onkeydown="HandleKeyDown"
+           placeholder="Enter patient ID" />
+    <button class="btn btn-primary" @onclick="Load"
+            disabled="@(string.IsNullOrWhiteSpace(patientId) || loading)">
+        @(loading ? "Loading..." : "Load")
+    </button>
+    <button class="btn btn-secondary" @onclick="ShowScreenForm"
+            disabled="@(string.IsNullOrWhiteSpace(patientId))">
+        + Screen Rx
+    </button>
+</div>
+
+@if (error != null) { <div class="alert alert-error">@error</div> }
+@if (successMsg != null) { <div class="alert alert-success">@successMsg</div> }
+
+@* ── Screen Rx Form ──────────────────────────────────────────────── *@
+@if (showForm)
+{
+    <div class="entry-form">
+        <h3>Screen Prescription for Drug Interactions</h3>
+        <div class="form-grid">
+            <div class="form-field">
+                <label>Prescription ID *</label>
+                <input type="text" @bind="f_prescriptionId" />
+            </div>
+            <div class="form-field">
+                <label>Drug Name *</label>
+                <input type="text" @bind="f_drugName" />
+            </div>
+            <div class="form-field">
+                <label>New Drug Ingredient IEN</label>
+                <input type="text" @bind="f_newIngredientIen" />
+            </div>
+            <div class="form-field">
+                <label>New Drug Ingredient Name</label>
+                <input type="text" @bind="f_newIngredientName" />
+            </div>
+            <div class="form-field">
+                <label>Existing Med Ingredient IEN</label>
+                <input type="text" @bind="f_existingIngredientIen" />
+            </div>
+            <div class="form-field">
+                <label>Existing Med Ingredient Name</label>
+                <input type="text" @bind="f_existingIngredientName" />
+            </div>
+            <div class="form-field">
+                <label>Screened By</label>
+                <input type="text" @bind="f_screenedBy" placeholder="Pharmacist ID" />
+            </div>
+        </div>
+        <div class="form-actions">
+            <button class="btn btn-primary" @onclick="SubmitScreen" disabled="@saving">
+                @(saving ? "Screening..." : "Run Screen")
+            </button>
+            <button class="btn btn-secondary" @onclick="() => showForm = false">Cancel</button>
+        </div>
+    </div>
+}
+
+@* ── Tabs ────────────────────────────────────────────────────────── *@
+@if (allScreenings != null)
+{
+    <div class="tab-bar">
+        <button class="tab @(activeTab == "all" ? "tab-active" : "")"
+                @onclick='() => activeTab = "all"'>All (@allScreenings.Count)</button>
+        <button class="tab @(activeTab == "blocked" ? "tab-active" : "")"
+                @onclick='() => activeTab = "blocked"'>Blocked (@blockedScreenings.Count)</button>
+        @if (selectedScreening != null)
+        {
+            <button class="tab @(activeTab == "detail" ? "tab-active" : "")"
+                    @onclick='() => activeTab = "detail"'>Detail</button>
+        }
+    </div>
+
+    @if (activeTab == "all" || activeTab == "blocked")
+    {
+        List<InteractionScreeningIndexEntry> displayList = activeTab == "blocked" ? blockedScreenings : allScreenings;
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>Date</th>
+                    <th>Drug</th>
+                    <th>Rx ID</th>
+                    <th>Status</th>
+                    <th>Blocking</th>
+                    <th>Total</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (InteractionScreeningIndexEntry s in displayList)
+                {
+                    <tr class="@(s.Status == InteractionScreeningStatus.BlockedPendingOverride ? "row-alert" : "")">
+                        <td>@(s.ScreenedDate?.ToString("MM/dd/yyyy HH:mm") ?? "—")</td>
+                        <td>@s.DrugName</td>
+                        <td>@s.PrescriptionId</td>
+                        <td><span class="status-badge status-@s.Status.ToString().ToLower()">@FormatStatus(s.Status)</span></td>
+                        <td class="@(s.BlockingCount > 0 ? "text-danger" : "")">@s.BlockingCount</td>
+                        <td>@s.TotalInteractionCount</td>
+                        <td><button class="btn btn-sm" @onclick="() => ViewDetail(s.ScreeningId)">View</button></td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+        @if (displayList.Count == 0)
+        {
+            <p class="empty-state">@(activeTab == "blocked" ? "No prescriptions are currently blocked." : "No screenings recorded.")</p>
+        }
+    }
+
+    @if (activeTab == "detail" && selectedScreening != null)
+    {
+        <div class="detail-panel">
+            <h3>Interaction Screening: @selectedScreening.DrugName</h3>
+            <div class="detail-grid">
+                <div><strong>Screening ID:</strong> @selectedScreening.ScreeningId</div>
+                <div><strong>Prescription:</strong> @selectedScreening.PrescriptionId</div>
+                <div><strong>Drug:</strong> @selectedScreening.DrugName</div>
+                <div><strong>Status:</strong> <span class="status-badge status-@selectedScreening.Status.ToString().ToLower()">@FormatStatus(selectedScreening.Status)</span></div>
+                <div><strong>Interactions:</strong> @selectedScreening.TotalInteractionCount total, @selectedScreening.BlockingCount blocking, @selectedScreening.OverriddenCount overridden</div>
+                <div><strong>Screened:</strong> @(selectedScreening.ScreenedDate?.ToString("MM/dd/yyyy HH:mm") ?? "—") by @(selectedScreening.ScreenedBy ?? "System")</div>
+            </div>
+
+            @if (selectedScreening.Findings.Count > 0)
+            {
+                <h4>Interaction Findings</h4>
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>#</th>
+                            <th>New Drug Ingredient</th>
+                            <th>Existing Drug Ingredient</th>
+                            <th>Severity</th>
+                            <th>Description</th>
+                            <th>Blocking</th>
+                            <th>Action</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @for (int i = 0; i < selectedScreening.Findings.Count; i++)
+                        {
+                            InteractionFinding f = selectedScreening.Findings[i];
+                            int idx = i;
+                            <tr class="@GetFindingRowClass(f)">
+                                <td>@(i + 1)</td>
+                                <td>@f.Drug1IngredientName</td>
+                                <td>@f.Drug2IngredientName</td>
+                                <td><span class="severity-badge severity-@f.Severity.ToString().ToLower()">@f.Severity</span></td>
+                                <td>@f.Description</td>
+                                <td>
+                                    @if (f.IsBlocking && f.IsOverridden)
+                                    {
+                                        <span title="@f.OverrideReason">Overridden by @f.OverriddenBy</span>
+                                    }
+                                    else if (f.IsBlocking)
+                                    {
+                                        <span class="text-danger">BLOCKED</span>
+                                    }
+                                    else
+                                    {
+                                        <span>Warning</span>
+                                    }
+                                </td>
+                                <td>
+                                    @if (f.IsBlocking && !f.IsOverridden)
+                                    {
+                                        <button class="btn btn-sm btn-warning" @onclick="() => ShowOverrideForm(idx)">Override</button>
+                                    }
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            }
+            else
+            {
+                <p class="empty-state">No drug interactions found — prescription is cleared.</p>
+            }
+
+            @if (showOverrideForm)
+            {
+                <div class="entry-form" style="margin-top: 1rem;">
+                    <h4>Override Blocking Interaction #@(overrideIndex + 1)</h4>
+                    <div class="form-grid">
+                        <div class="form-field">
+                            <label>Pharmacist ID *</label>
+                            <input type="text" @bind="o_pharmacistId" />
+                        </div>
+                        <div class="form-field full-width">
+                            <label>Clinical Reason *</label>
+                            <textarea @bind="o_reason" rows="3"></textarea>
+                        </div>
+                    </div>
+                    <div class="form-actions">
+                        <button class="btn btn-warning" @onclick="SubmitOverride" disabled="@saving">
+                            @(saving ? "Saving..." : "Submit Override")
+                        </button>
+                        <button class="btn btn-secondary" @onclick="() => showOverrideForm = false">Cancel</button>
+                    </div>
+                </div>
+            }
+
+            @if (selectedScreening.Notes != null)
+            {
+                <div class="notes-section">
+                    <h4>Notes</h4>
+                    <pre>@selectedScreening.Notes</pre>
+                </div>
+            }
+        </div>
+    }
+}
+
+@code {
+    [SupplyParameterFromQuery] public string? patientId { get; set; }
+
+    private List<InteractionScreeningIndexEntry>? allScreenings;
+    private List<InteractionScreeningIndexEntry> blockedScreenings = new();
+    private InteractionScreeningState? selectedScreening;
+    private bool loading, saving, showForm, showOverrideForm;
+    private string? error, successMsg;
+    private string activeTab = "all";
+
+    // Screen form
+    private string f_prescriptionId = string.Empty, f_drugName = string.Empty;
+    private string f_newIngredientIen = string.Empty, f_newIngredientName = string.Empty;
+    private string f_existingIngredientIen = string.Empty, f_existingIngredientName = string.Empty;
+    private string f_screenedBy = string.Empty;
+
+    // Override form
+    private int overrideIndex;
+    private string o_pharmacistId = string.Empty, o_reason = string.Empty;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (!string.IsNullOrWhiteSpace(patientId)) await Load();
+    }
+
+    private async Task HandleKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter") await Load();
+    }
+
+    private async Task Load()
+    {
+        if (string.IsNullOrWhiteSpace(patientId)) return;
+        loading = true; error = null; successMsg = null;
+        try
+        {
+            IPatientWorkflowGrain wf = Grains.GetGrain<IPatientWorkflowGrain>(patientId.Trim());
+            allScreenings = await wf.GetInteractionScreeningsAsync();
+            blockedScreenings = allScreenings.Where(s => s.Status == InteractionScreeningStatus.BlockedPendingOverride).ToList();
+        }
+        catch (Exception ex) { error = ex.Message; }
+        finally { loading = false; }
+    }
+
+    private void ShowScreenForm()
+    {
+        showForm = true;
+        f_prescriptionId = f_drugName = f_newIngredientIen = f_newIngredientName = string.Empty;
+        f_existingIngredientIen = f_existingIngredientName = f_screenedBy = string.Empty;
+    }
+
+    private async Task SubmitScreen()
+    {
+        if (string.IsNullOrWhiteSpace(f_prescriptionId) || string.IsNullOrWhiteSpace(f_drugName))
+        { error = "Prescription ID and Drug Name are required."; return; }
+
+        saving = true; error = null;
+        try
+        {
+            List<DrugIngredient> newIngredients = new();
+            if (!string.IsNullOrWhiteSpace(f_newIngredientIen))
+                newIngredients.Add(new DrugIngredient { IngredientIen = f_newIngredientIen.Trim(), Name = f_newIngredientName.Trim() });
+
+            List<DrugIngredient> existingIngredients = new();
+            if (!string.IsNullOrWhiteSpace(f_existingIngredientIen))
+                existingIngredients.Add(new DrugIngredient { IngredientIen = f_existingIngredientIen.Trim(), Name = f_existingIngredientName.Trim() });
+
+            IPatientWorkflowGrain wf = Grains.GetGrain<IPatientWorkflowGrain>(patientId!.Trim());
+            string screeningId = await wf.ScreenPrescriptionForInteractionsAsync(
+                f_prescriptionId.Trim(), f_drugName.Trim(),
+                newIngredients, existingIngredients,
+                string.IsNullOrWhiteSpace(f_screenedBy) ? null : f_screenedBy.Trim());
+
+            showForm = false;
+            successMsg = $"Screening completed: {screeningId}";
+            await Load();
+            await ViewDetail(screeningId);
+        }
+        catch (Exception ex) { error = $"Error: {ex.Message}"; }
+        finally { saving = false; }
+    }
+
+    private async Task ViewDetail(string screeningId)
+    {
+        try
+        {
+            IPatientWorkflowGrain wf = Grains.GetGrain<IPatientWorkflowGrain>(patientId!.Trim());
+            selectedScreening = await wf.GetInteractionScreeningAsync(screeningId);
+            activeTab = "detail";
+            showOverrideForm = false;
+        }
+        catch (Exception ex) { error = ex.Message; }
+    }
+
+    private void ShowOverrideForm(int idx)
+    {
+        overrideIndex = idx;
+        o_pharmacistId = o_reason = string.Empty;
+        showOverrideForm = true;
+    }
+
+    private async Task SubmitOverride()
+    {
+        if (string.IsNullOrWhiteSpace(o_pharmacistId) || string.IsNullOrWhiteSpace(o_reason))
+        { error = "Pharmacist ID and clinical reason are required."; return; }
+
+        saving = true; error = null;
+        try
+        {
+            IPatientWorkflowGrain wf = Grains.GetGrain<IPatientWorkflowGrain>(patientId!.Trim());
+            await wf.OverrideInteractionBlockAsync(selectedScreening!.ScreeningId, overrideIndex, o_pharmacistId.Trim(), o_reason.Trim());
+            showOverrideForm = false;
+            successMsg = $"Override submitted for interaction #{overrideIndex + 1}.";
+            await Load();
+            await ViewDetail(selectedScreening.ScreeningId);
+        }
+        catch (Exception ex) { error = $"Error: {ex.Message}"; }
+        finally { saving = false; }
+    }
+
+    private static string FormatStatus(InteractionScreeningStatus s) => s switch
+    {
+        InteractionScreeningStatus.NotScreened => "Not Screened",
+        InteractionScreeningStatus.Cleared => "Cleared",
+        InteractionScreeningStatus.BlockedPendingOverride => "Blocked",
+        InteractionScreeningStatus.OverriddenByPharmacist => "Overridden",
+        _ => s.ToString()
+    };
+
+    private static string GetFindingRowClass(InteractionFinding f) =>
+        f.IsBlocking && !f.IsOverridden ? "row-alert"
+        : f.IsBlocking && f.IsOverridden ? "row-override"
+        : f.Severity >= InteractionSeverity.Moderate ? "row-warning" : "";
+}
+
+<style>
+    .lookup-bar { display: flex; gap: .5rem; align-items: center; margin-bottom: 1rem; flex-wrap: wrap; }
+    .lookup-bar input { padding: .4rem .6rem; border: 1px solid #555; border-radius: 4px; background: #1e1e1e; color: #ddd; min-width: 220px; }
+    .alert { padding: .6rem 1rem; border-radius: 4px; margin-bottom: .75rem; }
+    .alert-error { background: #3c1111; border: 1px solid #e74c3c; color: #e74c3c; }
+    .alert-success { background: #0f2e0f; border: 1px solid #27ae60; color: #27ae60; }
+    .btn { padding: .4rem .8rem; border: 1px solid #555; border-radius: 4px; cursor: pointer; background: #2d2d2d; color: #ddd; }
+    .btn:disabled { opacity: .5; cursor: not-allowed; }
+    .btn-primary { background: #1a5276; border-color: #2980b9; }
+    .btn-secondary { background: #333; }
+    .btn-warning { background: #7d6608; border-color: #f1c40f; }
+    .btn-sm { padding: .2rem .5rem; font-size: .85rem; }
+    .tab-bar { display: flex; gap: 2px; margin-bottom: 1rem; border-bottom: 2px solid #444; }
+    .tab { padding: .5rem 1rem; background: #1e1e1e; border: 1px solid #444; border-bottom: none; border-radius: 4px 4px 0 0; cursor: pointer; color: #aaa; }
+    .tab-active { background: #2d2d2d; color: #fff; border-color: #2980b9; }
+    .data-table { width: 100%; border-collapse: collapse; margin-bottom: 1rem; }
+    .data-table th { background: #1a1a2e; padding: .5rem; text-align: left; border-bottom: 2px solid #444; font-size: .85rem; color: #aaa; }
+    .data-table td { padding: .4rem .5rem; border-bottom: 1px solid #333; font-size: .85rem; }
+    .data-table tr:hover { background: #2a2a3e; }
+    .row-alert { background: #3c1111 !important; }
+    .row-warning { background: #3c3211 !important; }
+    .row-override { background: #2a2a0a !important; }
+    .text-danger { color: #e74c3c; font-weight: bold; }
+    .status-badge { padding: .15rem .4rem; border-radius: 3px; font-size: .8rem; font-weight: 600; }
+    .status-badge.status-notscreened { background: #555; color: #ccc; }
+    .status-badge.status-cleared { background: #1e6e3e; color: #fff; }
+    .status-badge.status-blockedpendingoverride { background: #8b1a1a; color: #fff; }
+    .status-badge.status-overriddenbypharmacist { background: #6e4b1e; color: #fff; }
+    .severity-badge { padding: .15rem .4rem; border-radius: 3px; font-size: .8rem; font-weight: 600; }
+    .severity-badge.severity-minor { background: #2a4a2a; color: #8f8; }
+    .severity-badge.severity-moderate { background: #4a4a1a; color: #ff8; }
+    .severity-badge.severity-significant { background: #6e3a1a; color: #fa8; }
+    .severity-badge.severity-contraindicated { background: #6e1a1a; color: #f88; }
+    .entry-form { background: #1e1e2e; border: 1px solid #444; border-radius: 6px; padding: 1rem; margin-bottom: 1rem; }
+    .form-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: .75rem; }
+    .form-field label { display: block; font-size: .8rem; color: #aaa; margin-bottom: .2rem; }
+    .form-field input, .form-field select, .form-field textarea { width: 100%; padding: .35rem .5rem; background: #1a1a1a; border: 1px solid #555; border-radius: 4px; color: #ddd; }
+    .form-field.full-width { grid-column: 1 / -1; }
+    .form-actions { display: flex; gap: .5rem; margin-top: .75rem; }
+    .detail-panel { background: #1e1e2e; border: 1px solid #444; border-radius: 6px; padding: 1rem; }
+    .detail-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: .4rem; margin-bottom: 1rem; }
+    .notes-section pre { background: #1a1a1a; padding: .75rem; border-radius: 4px; white-space: pre-wrap; color: #ccc; }
+    .empty-state { color: #888; font-style: italic; padding: 2rem; text-align: center; }
+</style>

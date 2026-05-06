@@ -1,0 +1,168 @@
+@page "/ar-aging"
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+@rendermode InteractiveServer
+@using NewVistas.BlazorWeb.Services
+@using NewVistas.Abstractions.GrainInterfaces
+@using NewVistas.Abstractions.GrainStates
+@inject OrleansGrainService Grains
+
+<PageTitle>AR Aging &amp; Financial Reporting</PageTitle>
+
+<h3>AR Aging &amp; Financial Reporting</h3>
+<p class="text-muted">PRCA AR Aging Analysis &amp; Revenue Cycle Metrics (RCRP*.m)</p>
+
+<div class="mb-3 d-flex gap-2">
+    <input class="form-control" style="max-width:260px" placeholder="Patient ID" @bind="patientId" @bind:event="oninput" />
+    <button class="btn btn-primary" @onclick="GenerateReport" disabled="@loading">Generate Report</button>
+    <button class="btn btn-outline-secondary" @onclick="LoadDemo" disabled="@loading">Load Demo</button>
+</div>
+
+@if (error != null) { <div class="alert alert-danger">@error</div> }
+
+<ul class="nav nav-tabs mb-3">
+    <li class="nav-item"><button class="nav-link @(tab == "metrics" ? "active" : "")" @onclick='() => tab = "metrics"'>Revenue Metrics</button></li>
+    <li class="nav-item"><button class="nav-link @(tab == "aging" ? "active" : "")" @onclick='() => tab = "aging"'>Aging Buckets</button></li>
+    <li class="nav-item"><button class="nav-link @(tab == "accounts" ? "active" : "")" @onclick='() => tab = "accounts"'>Account Details</button></li>
+</ul>
+
+@* ─── Revenue Metrics ──────────────────────────────────────────────────── *@
+@if (tab == "metrics" && metrics != null)
+{
+    <div class="row g-3 mb-4">
+        <div class="col-md-3"><div class="card text-center"><div class="card-body"><h5 class="card-title text-primary">@metrics.TotalARBalance.ToString("C")</h5><p class="card-text text-muted">Total AR Balance</p></div></div></div>
+        <div class="col-md-3"><div class="card text-center"><div class="card-body"><h5 class="card-title text-success">@metrics.CollectionRate.ToString("P1")</h5><p class="card-text text-muted">Collection Rate</p></div></div></div>
+        <div class="col-md-3"><div class="card text-center"><div class="card-body"><h5 class="card-title text-info">@metrics.AverageDaysOutstanding</h5><p class="card-text text-muted">Avg Days Outstanding</p></div></div></div>
+        <div class="col-md-3"><div class="card text-center"><div class="card-body"><h5 class="card-title text-secondary">@metrics.TotalActiveAccounts</h5><p class="card-text text-muted">Active Accounts</p></div></div></div>
+    </div>
+    <div class="row g-3 mb-4">
+        <div class="col-md-3"><div class="card text-center"><div class="card-body"><h6 class="text-success">@metrics.TotalPaymentsReceived.ToString("C")</h6><p class="card-text text-muted small">Total Payments</p></div></div></div>
+        <div class="col-md-3"><div class="card text-center"><div class="card-body"><h6>@metrics.TotalNewCharges.ToString("C")</h6><p class="card-text text-muted small">Total Charges</p></div></div></div>
+        <div class="col-md-3"><div class="card text-center"><div class="card-body"><h6 class="text-warning">@metrics.DelinquentAccountCount (@metrics.DelinquentBalance.ToString("C"))</h6><p class="card-text text-muted small">Delinquent</p></div></div></div>
+        <div class="col-md-3"><div class="card text-center"><div class="card-body"><h6 class="text-danger">@metrics.InCollectionCount (@metrics.InCollectionBalance.ToString("C"))</h6><p class="card-text text-muted small">In Collection</p></div></div></div>
+    </div>
+    <p class="text-muted small">Report generated: @metrics.ReportDate.ToString("yyyy-MM-dd HH:mm:ss UTC")</p>
+}
+
+@* ─── Aging Buckets ────────────────────────────────────────────────────── *@
+@if (tab == "aging" && buckets != null && buckets.Count > 0)
+{
+    <table class="table table-bordered">
+        <thead class="table-light">
+            <tr><th>Aging Bucket</th><th class="text-end">Accounts</th><th class="text-end">Balance</th><th class="text-end">% of Total</th><th></th></tr>
+        </thead>
+        <tbody>
+            @foreach (var b in buckets)
+            {
+                <tr>
+                    <td><strong>@b.Label</strong></td>
+                    <td class="text-end">@b.AccountCount</td>
+                    <td class="text-end">@b.TotalBalance.ToString("C")</td>
+                    <td class="text-end">@b.PercentOfTotal.ToString("P1")</td>
+                    <td><button class="btn btn-sm btn-outline-primary" @onclick="() => DrillIntoBucket(b.Bucket)">Details</button></td>
+                </tr>
+            }
+        </tbody>
+        <tfoot class="table-secondary">
+            <tr>
+                <td><strong>Total</strong></td>
+                <td class="text-end"><strong>@buckets.Sum(b => b.AccountCount)</strong></td>
+                <td class="text-end"><strong>@buckets.Sum(b => b.TotalBalance).ToString("C")</strong></td>
+                <td></td><td></td>
+            </tr>
+        </tfoot>
+    </table>
+}
+
+@* ─── Account Details ──────────────────────────────────────────────────── *@
+@if (tab == "accounts" && report != null && report.AccountDetails.Count > 0)
+{
+    @if (selectedBucket.HasValue) { <p>Showing accounts in <strong>@selectedBucket</strong> bucket. <button class="btn btn-link btn-sm" @onclick="() => { selectedBucket = null; }">Show All</button></p> }
+
+    <table class="table table-sm table-striped">
+        <thead><tr><th>Account ID</th><th>Category</th><th>Status</th><th class="text-end">Original</th><th class="text-end">Balance</th><th class="text-end">Days</th><th>Bucket</th></tr></thead>
+        <tbody>
+            @foreach (var a in filteredAccounts)
+            {
+                <tr>
+                    <td class="font-monospace small">@a.ARAccountId[..Math.Min(12, a.ARAccountId.Length)]...</td>
+                    <td>@a.Category</td>
+                    <td><span class="badge @AccountStatusBadge(a.Status)">@a.Status</span></td>
+                    <td class="text-end">@a.OriginalAmount.ToString("C")</td>
+                    <td class="text-end">@a.CurrentBalance.ToString("C")</td>
+                    <td class="text-end">@a.DaysOutstanding</td>
+                    <td>@BucketLabel(a.Bucket)</td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+else if (tab == "accounts" && !loading)
+{
+    <p class="text-muted">No report generated. Click "Generate Report" to create an AR aging snapshot.</p>
+}
+
+@code {
+    private string patientId = string.Empty;
+    private string tab = "metrics";
+    private bool loading;
+    private string? error;
+    private ARAgingReportState? report;
+    private List<AgingBucketSummary>? buckets;
+    private RevenueCycleMetrics? metrics;
+    private AgingBucket? selectedBucket;
+
+    private IEnumerable<AgingAccountDetail> filteredAccounts =>
+        report?.AccountDetails.Where(a => !selectedBucket.HasValue || a.Bucket == selectedBucket.Value) ?? Enumerable.Empty<AgingAccountDetail>();
+
+    private async Task GenerateReport()
+    {
+        if (string.IsNullOrWhiteSpace(patientId)) return;
+        loading = true; error = null;
+        try
+        {
+            IPatientWorkflowGrain wf = Grains.GetGrain<IPatientWorkflowGrain>(patientId.Trim());
+            report = await wf.GenerateARAgingReportAsync(null, null);
+            buckets = report.BucketSummaries;
+            metrics = report.Metrics;
+        }
+        catch (Exception ex) { error = ex.Message; }
+        finally { loading = false; }
+    }
+
+    private void DrillIntoBucket(AgingBucket bucket) { selectedBucket = bucket; tab = "accounts"; }
+
+    private async Task LoadDemo()
+    {
+        if (string.IsNullOrWhiteSpace(patientId)) return;
+        loading = true; error = null;
+        try
+        {
+            IPatientWorkflowGrain wf = Grains.GetGrain<IPatientWorkflowGrain>(patientId.Trim());
+            await wf.CreateARAccountAsync(null, "CopayOutpatient", 50m, DateTime.UtcNow.AddDays(15));
+            await wf.CreateARAccountAsync(null, "CopayPharmacy", 24m, DateTime.UtcNow.AddDays(-15));
+            await wf.CreateARAccountAsync(null, "CopayInpatient", 200m, DateTime.UtcNow.AddDays(-45));
+            await wf.CreateARAccountAsync(null, "CopayOutpatient", 35m, DateTime.UtcNow.AddDays(-80));
+            await wf.CreateARAccountAsync(null, "MedicareDeductible", 150m, DateTime.UtcNow.AddDays(-120));
+            report = await wf.GenerateARAgingReportAsync("DEMO", "Demo User");
+            buckets = report.BucketSummaries;
+            metrics = report.Metrics;
+        }
+        catch (Exception ex) { error = ex.Message; }
+        finally { loading = false; }
+    }
+
+    private string BucketLabel(AgingBucket b) => b switch
+    {
+        AgingBucket.Current => "0-30", AgingBucket.ThirtyOneToSixty => "31-60",
+        AgingBucket.SixtyOneToNinety => "61-90", AgingBucket.NinetyOneToOneTwenty => "91-120",
+        AgingBucket.OverOneTwenty => "121+", _ => "—",
+    };
+
+    private string AccountStatusBadge(ARAccountStatus s) => s switch
+    {
+        ARAccountStatus.Active => "bg-primary", ARAccountStatus.Paid => "bg-success",
+        ARAccountStatus.InCollection => "bg-danger", ARAccountStatus.TreasuryOffset => "bg-dark",
+        ARAccountStatus.OnPaymentPlan => "bg-info", ARAccountStatus.Waived => "bg-secondary",
+        _ => "bg-secondary",
+    };
+}

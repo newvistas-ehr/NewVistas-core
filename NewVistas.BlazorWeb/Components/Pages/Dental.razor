@@ -1,0 +1,693 @@
+@page "/dental"
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+@rendermode InteractiveServer
+@using NewVistas.BlazorWeb.Services
+@using NewVistas.Abstractions.GrainInterfaces
+@using NewVistas.Abstractions.GrainStates
+@inject OrleansGrainService Grains
+
+<PageTitle>Dental</PageTitle>
+
+<div class="dn-container">
+    <div class="dn-header">
+        <h2>Dental — VistA File #228</h2>
+        <div class="patient-lookup">
+            <input class="form-control" placeholder="Patient ID" @bind="patientId" @onkeyup="@(async e => { if (e.Key == "Enter") await LoadPatient(); })" />
+            <button class="btn btn-primary" @onclick="LoadPatient" disabled="@loading">Load</button>
+        </div>
+    </div>
+
+    @if (error != null)
+    {
+        <div class="alert alert-danger">@error</div>
+    }
+
+    @if (loading)
+    {
+        <div class="loading-spinner">Loading…</div>
+    }
+
+    @if (loaded && dentalRecord != null)
+    {
+        <div class="patient-summary">
+            <div class="summary-card">
+                <span class="label">Eligibility</span>
+                <span class="value @EligibilityClass(dentalRecord.EligibilityStatus.ToString())">
+                    @dentalRecord.EligibilityStatus
+                </span>
+            </div>
+            <div class="summary-card">
+                <span class="label">Periodontal Status</span>
+                <span class="value">@FormatPerioStatus(dentalRecord.PeriodontalStatus.ToString())</span>
+            </div>
+            <div class="summary-card">
+                <span class="label">Last Exam</span>
+                <span class="value">@(dentalRecord.LastExamDate?.ToString("MM/dd/yyyy") ?? "—")</span>
+            </div>
+            <div class="summary-card">
+                <span class="label">Primary Dentist</span>
+                <span class="value">@(dentalRecord.PrimaryDentistName ?? "Not assigned")</span>
+            </div>
+            <div class="summary-card">
+                <span class="label">Remaining Teeth</span>
+                <span class="value">@(dentalRecord.RemainingTeethCount?.ToString() ?? "—")</span>
+            </div>
+        </div>
+
+        <div class="tab-bar">
+            <button class="tab-btn @(activeTab == "record" ? "active" : "")"
+                    @onclick='() => activeTab = "record"'>Dental Record</button>
+            <button class="tab-btn @(activeTab == "treatments" ? "active" : "")"
+                    @onclick='() => { activeTab = "treatments"; }'>Treatment History</button>
+            <button class="tab-btn @(activeTab == "new-treatment" ? "active" : "")"
+                    @onclick='() => activeTab = "new-treatment"'>New Treatment</button>
+        </div>
+
+        @if (activeTab == "record")
+        {
+            <div class="tab-content">
+                <div class="section-grid">
+                    <div class="section-card">
+                        <h4>Eligibility</h4>
+                        <dl class="data-list">
+                            <dt>Status</dt>
+                            <dd>@dentalRecord.EligibilityStatus</dd>
+                            <dt>Basis Code</dt>
+                            <dd>@(dentalRecord.EligibilityBasisCode ?? "—")</dd>
+                            <dt>Basis Description</dt>
+                            <dd>@(dentalRecord.EligibilityBasisDescription ?? "—")</dd>
+                        </dl>
+                        <div class="form-row mt-2">
+                            <select class="form-control" @bind="editEligibilityStatus">
+                                @foreach (string s in eligibilityStatuses)
+                                {
+                                    <option value="@s">@s</option>
+                                }
+                            </select>
+                            <input class="form-control" placeholder="Basis code (e.g. SC, POW)" @bind="editEligibilityCode" />
+                            <input class="form-control" placeholder="Basis description" @bind="editEligibilityDesc" />
+                            <button class="btn btn-sm btn-secondary" @onclick="SaveEligibility">Save</button>
+                        </div>
+                    </div>
+
+                    <div class="section-card">
+                        <h4>Clinical Status</h4>
+                        <dl class="data-list">
+                            <dt>Periodontal</dt>
+                            <dd>@FormatPerioStatus(dentalRecord.PeriodontalStatus.ToString())</dd>
+                            <dt>Prosthetic Status</dt>
+                            <dd>@(dentalRecord.ProstheticStatus ?? "—")</dd>
+                            <dt>Fluoride</dt>
+                            <dd>@(dentalRecord.OnFluoride ? "Yes" : "No")</dd>
+                            <dt>Clinical Notes</dt>
+                            <dd>@(dentalRecord.ClinicalNotes ?? "—")</dd>
+                        </dl>
+                        <div class="form-row mt-2">
+                            <select class="form-control" @bind="editPerioStatus">
+                                @foreach (string s in perioStatuses)
+                                {
+                                    <option value="@s">@FormatPerioStatus(s)</option>
+                                }
+                            </select>
+                            <input class="form-control" placeholder="Prosthetic status" @bind="editProstheticStatus" />
+                            <input class="form-control" type="number" placeholder="Remaining teeth" @bind="editRemainingTeeth" />
+                            <label class="form-check-label me-2">
+                                <input type="checkbox" @bind="editOnFluoride" /> On Fluoride
+                            </label>
+                            <textarea class="form-control" rows="2" placeholder="Clinical notes" @bind="editClinicalNotes"></textarea>
+                            <button class="btn btn-sm btn-secondary" @onclick="SaveClinicalStatus">Save</button>
+                        </div>
+                    </div>
+
+                    <div class="section-card">
+                        <h4>Visit Dates</h4>
+                        <dl class="data-list">
+                            <dt>Last Exam</dt>
+                            <dd>@(dentalRecord.LastExamDate?.ToString("MM/dd/yyyy") ?? "—")</dd>
+                            <dt>Last X-Ray</dt>
+                            <dd>@(dentalRecord.LastXRayDate?.ToString("MM/dd/yyyy") ?? "—")</dd>
+                            <dt>Last Cleaning</dt>
+                            <dd>@(dentalRecord.LastCleaningDate?.ToString("MM/dd/yyyy") ?? "—")</dd>
+                        </dl>
+                        <div class="form-row mt-2">
+                            <label>Last Exam Date</label>
+                            <input type="date" class="form-control" @bind="editLastExamDate" />
+                            <label>Last X-Ray Date</label>
+                            <input type="date" class="form-control" @bind="editLastXRayDate" />
+                            <label>Last Cleaning Date</label>
+                            <input type="date" class="form-control" @bind="editLastCleaningDate" />
+                            <button class="btn btn-sm btn-secondary" @onclick="SaveVisitDates">Save</button>
+                        </div>
+                    </div>
+
+                    <div class="section-card">
+                        <h4>Primary Dentist</h4>
+                        <dl class="data-list">
+                            <dt>Dentist ID</dt>
+                            <dd>@(dentalRecord.PrimaryDentistId ?? "—")</dd>
+                            <dt>Name</dt>
+                            <dd>@(dentalRecord.PrimaryDentistName ?? "Not assigned")</dd>
+                        </dl>
+                        <div class="form-row mt-2">
+                            <input class="form-control" placeholder="Dentist ID" @bind="editDentistId" />
+                            <input class="form-control" placeholder="Dentist name" @bind="editDentistName" />
+                            <button class="btn btn-sm btn-secondary" @onclick="SavePrimaryDentist">Save</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        }
+
+        @if (activeTab == "treatments")
+        {
+            <div class="tab-content">
+                <div class="filter-bar">
+                    <label>Filter by status:</label>
+                    <select class="form-control form-control-sm" @bind="txStatusFilter" @bind:after="ApplyStatusFilter">
+                        <option value="">All</option>
+                        @foreach (string s in treatmentStatuses)
+                        {
+                            <option value="@s">@s</option>
+                        }
+                    </select>
+                </div>
+
+                @if (treatments.Count == 0)
+                {
+                    <p class="no-data">No treatment records found.</p>
+                }
+                else
+                {
+                    <table class="dn-table">
+                        <thead>
+                            <tr>
+                                <th>Date</th>
+                                <th>CDT Code</th>
+                                <th>Description</th>
+                                <th>Category</th>
+                                <th>Teeth</th>
+                                <th>Provider</th>
+                                <th>Status</th>
+                                <th>Charge</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (DentalTreatmentIndexEntry tx in treatments)
+                            {
+                                <tr class="@StatusRowClass(tx.Status.ToString())">
+                                    <td>@tx.TreatmentDate.ToString("MM/dd/yyyy")</td>
+                                    <td><code>@tx.ProcedureCode</code></td>
+                                    <td>@tx.ProcedureDescription</td>
+                                    <td>@tx.ProcedureCategory</td>
+                                    <td>@(tx.ToothNumbers ?? "—")</td>
+                                    <td>@tx.ProviderName</td>
+                                    <td><span class="badge badge-@tx.Status.ToString().ToLower()">@tx.Status</span></td>
+                                    <td>@(tx.ChargeAmount?.ToString("C") ?? "—")</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                }
+            </div>
+        }
+
+        @if (activeTab == "new-treatment")
+        {
+            <div class="tab-content">
+                <h4>Record New Treatment</h4>
+                @if (txError != null)
+                {
+                    <div class="alert alert-danger">@txError</div>
+                }
+                @if (txSuccess)
+                {
+                    <div class="alert alert-success">Treatment recorded successfully.</div>
+                }
+                <div class="form-grid">
+                    <div class="form-group">
+                        <label>Treatment Date *</label>
+                        <input type="date" class="form-control" @bind="newTx.TreatmentDate" />
+                    </div>
+                    <div class="form-group">
+                        <label>ADA CDT Code *</label>
+                        <input class="form-control" placeholder="e.g. D2140" @bind="newTx.ProcedureCode" />
+                    </div>
+                    <div class="form-group">
+                        <label>Procedure Description *</label>
+                        <input class="form-control" placeholder="Description" @bind="newTx.ProcedureDescription" />
+                    </div>
+                    <div class="form-group">
+                        <label>Category *</label>
+                        <select class="form-control" @bind="newTx.ProcedureCategory">
+                            @foreach (string s in procedureCategories)
+                            {
+                                <option value="@s">@s</option>
+                            }
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Tooth Numbers (comma-separated)</label>
+                        <input class="form-control" placeholder="e.g. 14,15" @bind="newTxToothNumbers" />
+                    </div>
+                    <div class="form-group">
+                        <label>Surfaces (comma-separated)</label>
+                        <input class="form-control" placeholder="e.g. M,O,D" @bind="newTxSurfaces" />
+                    </div>
+                    <div class="form-group">
+                        <label>Provider ID *</label>
+                        <input class="form-control" placeholder="Provider ID" @bind="newTx.ProviderId" />
+                    </div>
+                    <div class="form-group">
+                        <label>Provider Name *</label>
+                        <input class="form-control" placeholder="Provider name" @bind="newTx.ProviderName" />
+                    </div>
+                    <div class="form-group">
+                        <label>Location ID</label>
+                        <input class="form-control" placeholder="Location ID" @bind="newTx.LocationId" />
+                    </div>
+                    <div class="form-group">
+                        <label>Location Name</label>
+                        <input class="form-control" placeholder="Location name" @bind="newTx.LocationName" />
+                    </div>
+                    <div class="form-group">
+                        <label>Diagnosis Code (ICD-10)</label>
+                        <input class="form-control" placeholder="e.g. K02.51" @bind="newTx.DiagnosisCode" />
+                    </div>
+                    <div class="form-group">
+                        <label>Anesthesia Type</label>
+                        <input class="form-control" placeholder="e.g. Local, Nitrous Oxide, None" @bind="newTx.AnesthesiaType" />
+                    </div>
+                    <div class="form-group">
+                        <label>Charge Amount</label>
+                        <input type="number" step="0.01" class="form-control" placeholder="0.00" @bind="newTx.ChargeAmount" />
+                    </div>
+                    <div class="form-group form-group--wide">
+                        <label>Notes</label>
+                        <textarea class="form-control" rows="3" @bind="newTx.Notes"></textarea>
+                    </div>
+                </div>
+                <div class="form-actions">
+                    <button class="btn btn-primary" @onclick="RecordTreatment" disabled="@saving">
+                        @(saving ? "Saving…" : "Record Treatment")
+                    </button>
+                    <button class="btn btn-secondary" @onclick="ResetTreatmentForm">Clear</button>
+                </div>
+            </div>
+        }
+    }
+</div>
+
+<style>
+    .dn-container { padding: 1rem; font-family: 'Segoe UI', sans-serif; }
+    .dn-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; }
+    .dn-header h2 { margin: 0; font-size: 1.4rem; color: #1a3c5e; }
+    .patient-lookup { display: flex; gap: .5rem; }
+    .patient-lookup .form-control { width: 220px; }
+    .loading-spinner { text-align: center; padding: 2rem; color: #666; }
+
+    .patient-summary { display: flex; gap: 1rem; flex-wrap: wrap; margin-bottom: 1rem; }
+    .summary-card { background: #f8f9fa; border: 1px solid #dee2e6; border-radius: 6px; padding: .6rem 1rem; min-width: 140px; }
+    .summary-card .label { display: block; font-size: .7rem; color: #666; text-transform: uppercase; }
+    .summary-card .value { display: block; font-size: 1rem; font-weight: 600; color: #1a3c5e; }
+    .value.eligible { color: #28a745; }
+    .value.limited  { color: #fd7e14; }
+    .value.ineligible { color: #dc3545; }
+
+    .tab-bar { display: flex; border-bottom: 2px solid #dee2e6; margin-bottom: 1rem; }
+    .tab-btn { background: none; border: none; padding: .5rem 1rem; cursor: pointer; color: #555; font-size: .9rem; }
+    .tab-btn.active { border-bottom: 2px solid #1a3c5e; color: #1a3c5e; font-weight: 600; margin-bottom: -2px; }
+    .tab-content { padding: .5rem 0; }
+
+    .section-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 1rem; }
+    .section-card { background: #fff; border: 1px solid #dee2e6; border-radius: 6px; padding: 1rem; }
+    .section-card h4 { margin: 0 0 .75rem; font-size: 1rem; color: #1a3c5e; border-bottom: 1px solid #eee; padding-bottom: .5rem; }
+
+    .data-list { display: grid; grid-template-columns: auto 1fr; gap: .2rem .75rem; font-size: .85rem; margin: 0 0 .5rem; }
+    .data-list dt { color: #666; font-weight: 500; }
+    .data-list dd { margin: 0; color: #222; }
+
+    .form-row { display: flex; flex-direction: column; gap: .4rem; }
+    .form-row .form-control { font-size: .85rem; }
+    .form-row .btn { align-self: flex-start; }
+
+    .filter-bar { display: flex; align-items: center; gap: .75rem; margin-bottom: .75rem; font-size: .85rem; }
+    .filter-bar .form-control-sm { width: 160px; }
+
+    .dn-table { width: 100%; border-collapse: collapse; font-size: .85rem; }
+    .dn-table th { background: #1a3c5e; color: #fff; padding: .5rem .75rem; text-align: left; font-weight: 500; }
+    .dn-table td { padding: .45rem .75rem; border-bottom: 1px solid #eee; }
+    .dn-table tr:hover td { background: #f5f8fb; }
+    .dn-table tr.completed td { opacity: .7; }
+    .dn-table tr.cancelled td { opacity: .5; text-decoration: line-through; }
+
+    .badge { padding: .2rem .5rem; border-radius: 4px; font-size: .75rem; font-weight: 600; }
+    .badge-planned     { background: #cfe2ff; color: #084298; }
+    .badge-inprogress  { background: #fff3cd; color: #664d03; }
+    .badge-completed   { background: #d1e7dd; color: #0a3622; }
+    .badge-referred    { background: #e2d9f3; color: #432874; }
+    .badge-cancelled   { background: #f8d7da; color: #842029; }
+
+    .no-data { text-align: center; color: #888; padding: 2rem 0; }
+
+    .form-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: .75rem; margin-bottom: 1rem; }
+    .form-group { display: flex; flex-direction: column; gap: .25rem; }
+    .form-group label { font-size: .8rem; font-weight: 500; color: #444; }
+    .form-group .form-control { font-size: .85rem; }
+    .form-group--wide { grid-column: 1 / -1; }
+    .form-actions { display: flex; gap: .75rem; }
+    .mt-2 { margin-top: .5rem; }
+    .me-2 { margin-right: .5rem; }
+</style>
+
+@code {
+    // ─── State ────────────────────────────────────────────────────────────────
+
+    private string patientId   = string.Empty;
+    private bool   loaded      = false;
+    private bool   loading     = false;
+    private bool   saving      = false;
+    private string? error      = null;
+    private string  activeTab  = "record";
+
+    private DentalPatientState? dentalRecord;
+    private List<DentalTreatmentIndexEntry> treatments  = new();
+    private string txStatusFilter = string.Empty;
+
+    // Eligibility edit fields
+    private string editEligibilityStatus = "Unknown";
+    private string editEligibilityCode   = string.Empty;
+    private string editEligibilityDesc   = string.Empty;
+
+    // Clinical status edit fields
+    private string  editPerioStatus      = "Healthy";
+    private string  editProstheticStatus = string.Empty;
+    private int?    editRemainingTeeth;
+    private bool    editOnFluoride;
+    private string  editClinicalNotes    = string.Empty;
+
+    // Visit dates edit fields
+    private DateTime? editLastExamDate;
+    private DateTime? editLastXRayDate;
+    private DateTime? editLastCleaningDate;
+
+    // Dentist edit fields
+    private string editDentistId   = string.Empty;
+    private string editDentistName = string.Empty;
+
+    // New treatment form
+    private NewTreatmentForm newTx      = new();
+    private string   newTxToothNumbers = string.Empty;
+    private string   newTxSurfaces     = string.Empty;
+    private string?  txError;
+    private bool     txSuccess;
+
+    // ─── Option lists ─────────────────────────────────────────────────────────
+
+    private static readonly string[] eligibilityStatuses =
+        ["Unknown", "Eligible", "Limited", "Ineligible"];
+
+    private static readonly string[] perioStatuses =
+    [
+        "Healthy", "GingivitisLocalized", "GingivitisGeneralized",
+        "PeriodontitisLightLocalized", "PeriodontitisLightGeneralized",
+        "PeriodontitisModerateLocalized", "PeriodontitisModerateGeneralized",
+        "PeriodontitisSevereLocalized", "PeriodontitisSevereGeneralized", "Edentulous"
+    ];
+
+    private static readonly string[] treatmentStatuses =
+        ["Planned", "InProgress", "Completed", "Referred", "Cancelled"];
+
+    private static readonly string[] procedureCategories =
+    [
+        "Diagnostic", "Preventive", "Restorative", "Endodontic", "Periodontic",
+        "Prosthodontic", "Implant", "OralSurgery", "Orthodontic", "Adjunctive"
+    ];
+
+    // ─── Load ─────────────────────────────────────────────────────────────────
+
+    private async Task LoadPatient()
+    {
+        string pid = patientId.Trim();
+        if (string.IsNullOrEmpty(pid)) return;
+
+        loading = true;
+        error   = null;
+        loaded  = false;
+
+        try
+        {
+            var workflow = Grains.GetGrain<IPatientWorkflowGrain>(pid);
+            dentalRecord = await workflow.GetDentalPatientAsync();
+            treatments = await workflow.GetDentalTreatmentsAsync();
+
+            SyncEditFields();
+            loaded = true;
+        }
+        catch (Exception ex)
+        {
+            error = $"Error loading patient: {ex.Message}";
+        }
+        finally
+        {
+            loading = false;
+        }
+    }
+
+    private void SyncEditFields()
+    {
+        if (dentalRecord == null) return;
+        editEligibilityStatus = dentalRecord.EligibilityStatus.ToString();
+        editEligibilityCode   = dentalRecord.EligibilityBasisCode ?? string.Empty;
+        editEligibilityDesc   = dentalRecord.EligibilityBasisDescription ?? string.Empty;
+        editPerioStatus       = dentalRecord.PeriodontalStatus.ToString();
+        editProstheticStatus  = dentalRecord.ProstheticStatus ?? string.Empty;
+        editRemainingTeeth    = dentalRecord.RemainingTeethCount;
+        editOnFluoride        = dentalRecord.OnFluoride;
+        editClinicalNotes     = dentalRecord.ClinicalNotes ?? string.Empty;
+        editLastExamDate      = dentalRecord.LastExamDate;
+        editLastXRayDate      = dentalRecord.LastXRayDate;
+        editLastCleaningDate  = dentalRecord.LastCleaningDate;
+        editDentistId         = dentalRecord.PrimaryDentistId ?? string.Empty;
+        editDentistName       = dentalRecord.PrimaryDentistName ?? string.Empty;
+    }
+
+    // ─── Save eligibility ─────────────────────────────────────────────────────
+
+    private async Task SaveEligibility()
+    {
+        try
+        {
+            var workflow = Grains.GetGrain<IPatientWorkflowGrain>(patientId.Trim());
+            await workflow.UpdateDentalEligibilityAsync(
+                Enum.Parse<DentalEligibilityStatus>(editEligibilityStatus),
+                NullIfEmpty(editEligibilityCode),
+                NullIfEmpty(editEligibilityDesc));
+            await LoadPatient();
+        }
+        catch (Exception ex)
+        {
+            error = $"Error saving eligibility: {ex.Message}";
+        }
+    }
+
+    // ─── Save clinical status ─────────────────────────────────────────────────
+
+    private async Task SaveClinicalStatus()
+    {
+        try
+        {
+            var workflow = Grains.GetGrain<IPatientWorkflowGrain>(patientId.Trim());
+            await workflow.UpdateDentalClinicalStatusAsync(
+                Enum.Parse<DentalPeriodontalStatus>(editPerioStatus),
+                NullIfEmpty(editProstheticStatus),
+                editRemainingTeeth,
+                editOnFluoride,
+                NullIfEmpty(editClinicalNotes));
+            await LoadPatient();
+        }
+        catch (Exception ex)
+        {
+            error = $"Error saving clinical status: {ex.Message}";
+        }
+    }
+
+    // ─── Save visit dates ─────────────────────────────────────────────────────
+
+    private async Task SaveVisitDates()
+    {
+        try
+        {
+            var workflow = Grains.GetGrain<IPatientWorkflowGrain>(patientId.Trim());
+            await workflow.RecordDentalVisitDatesAsync(editLastExamDate, editLastXRayDate, editLastCleaningDate);
+            await LoadPatient();
+        }
+        catch (Exception ex)
+        {
+            error = $"Error saving visit dates: {ex.Message}";
+        }
+    }
+
+    // ─── Save primary dentist ─────────────────────────────────────────────────
+
+    private async Task SavePrimaryDentist()
+    {
+        if (string.IsNullOrWhiteSpace(editDentistId) || string.IsNullOrWhiteSpace(editDentistName))
+        {
+            error = "Dentist ID and name are required.";
+            return;
+        }
+        try
+        {
+            var workflow = Grains.GetGrain<IPatientWorkflowGrain>(patientId.Trim());
+            await workflow.SetPrimaryDentistAsync(editDentistId, editDentistName);
+            await LoadPatient();
+        }
+        catch (Exception ex)
+        {
+            error = $"Error saving primary dentist: {ex.Message}";
+        }
+    }
+
+    // ─── Filter treatments ────────────────────────────────────────────────────
+
+    private async Task ApplyStatusFilter()
+    {
+        try
+        {
+            var workflow = Grains.GetGrain<IPatientWorkflowGrain>(patientId.Trim());
+            if (string.IsNullOrEmpty(txStatusFilter))
+                treatments = await workflow.GetDentalTreatmentsAsync();
+            else
+                treatments = await workflow.GetDentalTreatmentsByStatusAsync(
+                    Enum.Parse<DentalTreatmentStatus>(txStatusFilter));
+        }
+        catch (Exception ex)
+        {
+            error = $"Error filtering treatments: {ex.Message}";
+        }
+    }
+
+    // ─── Record new treatment ─────────────────────────────────────────────────
+
+    private async Task RecordTreatment()
+    {
+        txError   = null;
+        txSuccess = false;
+
+        if (string.IsNullOrWhiteSpace(newTx.ProcedureCode) ||
+            string.IsNullOrWhiteSpace(newTx.ProcedureDescription) ||
+            string.IsNullOrWhiteSpace(newTx.ProviderId) ||
+            string.IsNullOrWhiteSpace(newTx.ProviderName))
+        {
+            txError = "CDT code, description, provider ID, and provider name are required.";
+            return;
+        }
+
+        saving = true;
+        try
+        {
+            List<int>    teeth    = ParseInts(newTxToothNumbers);
+            List<string> surfaces = ParseStrings(newTxSurfaces);
+
+            var workflow = Grains.GetGrain<IPatientWorkflowGrain>(patientId.Trim());
+            await workflow.RecordDentalTreatmentAsync(
+                newTx.TreatmentDate,
+                newTx.ProcedureCode,
+                newTx.ProcedureDescription,
+                Enum.Parse<DentalProcedureCategory>(newTx.ProcedureCategory),
+                teeth,
+                surfaces,
+                newTx.ProviderId,
+                newTx.ProviderName,
+                NullIfEmpty(newTx.LocationId),
+                NullIfEmpty(newTx.LocationName),
+                NullIfEmpty(newTx.DiagnosisCode),
+                NullIfEmpty(newTx.AnesthesiaType),
+                newTx.ChargeAmount,
+                NullIfEmpty(newTx.Notes));
+
+            txSuccess = true;
+            ResetTreatmentForm();
+            await LoadPatient();
+        }
+        catch (Exception ex)
+        {
+            txError = $"Error recording treatment: {ex.Message}";
+        }
+        finally
+        {
+            saving = false;
+        }
+    }
+
+    private void ResetTreatmentForm()
+    {
+        newTx             = new();
+        newTxToothNumbers = string.Empty;
+        newTxSurfaces     = string.Empty;
+        txError           = null;
+        txSuccess         = false;
+    }
+
+    // ─── Helpers ──────────────────────────────────────────────────────────────
+
+    private static string? NullIfEmpty(string? s)
+        => string.IsNullOrWhiteSpace(s) ? null : s;
+
+    private static List<int> ParseInts(string raw)
+        => raw.Split(',', StringSplitOptions.RemoveEmptyEntries)
+              .Select(s => int.TryParse(s.Trim(), out int n) ? n : -1)
+              .Where(n => n > 0)
+              .ToList();
+
+    private static List<string> ParseStrings(string raw)
+        => raw.Split(',', StringSplitOptions.RemoveEmptyEntries)
+              .Select(s => s.Trim().ToUpperInvariant())
+              .Where(s => !string.IsNullOrEmpty(s))
+              .ToList();
+
+    private static string EligibilityClass(string status) => status switch
+    {
+        "Eligible"   => "eligible",
+        "Limited"    => "limited",
+        "Ineligible" => "ineligible",
+        _            => string.Empty,
+    };
+
+    private static string StatusRowClass(string status) => status switch
+    {
+        "Completed" => "completed",
+        "Cancelled" => "cancelled",
+        _           => string.Empty,
+    };
+
+    private static string FormatPerioStatus(string raw) => raw switch
+    {
+        "GingivitisLocalized"              => "Gingivitis – Localized",
+        "GingivitisGeneralized"            => "Gingivitis – Generalized",
+        "PeriodontitisLightLocalized"      => "Periodontitis – Light, Localized",
+        "PeriodontitisLightGeneralized"    => "Periodontitis – Light, Generalized",
+        "PeriodontitisModerateLocalized"   => "Periodontitis – Moderate, Localized",
+        "PeriodontitisModerateGeneralized" => "Periodontitis – Moderate, Generalized",
+        "PeriodontitisSevereLocalized"     => "Periodontitis – Severe, Localized",
+        "PeriodontitisSevereGeneralized"   => "Periodontitis – Severe, Generalized",
+        "Edentulous"                       => "Edentulous (No natural teeth)",
+        _                                  => raw,
+    };
+
+    private class NewTreatmentForm
+    {
+        public DateTime TreatmentDate      { get; set; } = DateTime.Today;
+        public string ProcedureCode        { get; set; } = string.Empty;
+        public string ProcedureDescription { get; set; } = string.Empty;
+        public string ProcedureCategory    { get; set; } = "Diagnostic";
+        public string ProviderId           { get; set; } = string.Empty;
+        public string ProviderName         { get; set; } = string.Empty;
+        public string? LocationId          { get; set; }
+        public string? LocationName        { get; set; }
+        public string? DiagnosisCode       { get; set; }
+        public string? AnesthesiaType      { get; set; }
+        public decimal? ChargeAmount       { get; set; }
+        public string? Notes               { get; set; }
+    }
+}

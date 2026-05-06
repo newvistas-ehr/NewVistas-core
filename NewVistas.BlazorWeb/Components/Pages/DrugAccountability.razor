@@ -1,0 +1,407 @@
+@page "/drugaccountability"
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+@rendermode InteractiveServer
+@using NewVistas.BlazorWeb.Services
+@using NewVistas.Abstractions.GrainInterfaces
+@using NewVistas.Abstractions.GrainStates
+@inject OrleansGrainService Grains
+
+<PageTitle>Drug Accountability (PSA)</PageTitle>
+
+<h2>Drug Accountability — Inventory Management</h2>
+<p class="subtitle">VistA File #58.8 / #58.81 — per-location drug inventory tracking</p>
+
+<div class="toolbar">
+    <input @bind="locationId" placeholder="Location ID (e.g. VAULT-001)" class="input-id" />
+    <button @onclick="LoadLocation" disabled="@loading">Load Location</button>
+    <button @onclick="LoadDemo" disabled="@loading" class="btn-demo">Load Demo Data</button>
+</div>
+
+@if (!string.IsNullOrEmpty(error))
+{
+    <div class="error">@error</div>
+}
+
+@if (loading)
+{
+    <p>Loading…</p>
+}
+
+@if (drugs is not null)
+{
+    <h3>Drugs at @locationId</h3>
+
+    <div class="filter-bar">
+        <label><input type="checkbox" @bind="showLowStockOnly" /> Low stock only</label>
+        <label><input type="checkbox" @bind="showControlledOnly" /> Controlled only</label>
+    </div>
+
+    <table class="data-table">
+        <thead>
+            <tr>
+                <th>Drug Name</th>
+                <th>Balance</th>
+                <th>Unit</th>
+                <th>Type</th>
+                <th>Reorder</th>
+                <th>Status</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (DrugSummary d in FilteredDrugs)
+            {
+                <tr class="@(selectedDrugId == d.DrugId ? "selected-row" : "")"
+                    @onclick="() => SelectDrug(d.DrugId)">
+                    <td>@d.DrugName</td>
+                    <td>@d.CurrentBalance</td>
+                    <td>@d.UnitOfMeasure</td>
+                    <td>
+                        @if (d.IsControlled)
+                        {
+                            <span class="badge badge-controlled">DEA</span>
+                        }
+                        else
+                        {
+                            <span class="badge badge-normal">RX</span>
+                        }
+                    </td>
+                    <td>@(d.ReorderPoint?.ToString() ?? "—")</td>
+                    <td>
+                        @if (d.IsLowStock)
+                        {
+                            <span class="badge badge-low">LOW STOCK</span>
+                        }
+                        else
+                        {
+                            <span class="badge badge-ok">OK</span>
+                        }
+                    </td>
+                    <td>
+                        <button @onclick:stopPropagation="true" @onclick="() => OpenReceive(d.DrugId)" class="btn-sm btn-receive">Receive</button>
+                        <button @onclick:stopPropagation="true" @onclick="() => OpenDispense(d.DrugId)" class="btn-sm btn-dispense">Dispense</button>
+                        <button @onclick:stopPropagation="true" @onclick="() => OpenWaste(d.DrugId)" class="btn-sm btn-waste">Waste</button>
+                        <button @onclick:stopPropagation="true" @onclick="() => OpenInventory(d.DrugId)" class="btn-sm btn-inventory">Count</button>
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+
+@if (selectedDrugId is not null && detail is not null)
+{
+    <div class="detail-panel">
+        <h3>@detail.DrugName — Transaction History</h3>
+        <p>
+            Balance: <strong>@detail.CurrentBalance @detail.UnitOfMeasure</strong>
+            @if (detail.IsControlled) { <span class="badge badge-controlled">CONTROLLED</span> }
+            @if (detail.IsVaultControlled) { <span class="badge badge-vault">VAULT</span> }
+        </p>
+        @if (history is not null && history.Count > 0)
+        {
+            <table class="data-table history-table">
+                <thead>
+                    <tr>
+                        <th>Date</th>
+                        <th>Type</th>
+                        <th>Qty</th>
+                        <th>Before</th>
+                        <th>After</th>
+                        <th>User</th>
+                        <th>Patient</th>
+                        <th>Notes</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (TxnRow t in history)
+                    {
+                        <tr>
+                            <td>@t.TransactionDate.ToLocalTime().ToString("MM/dd HH:mm")</td>
+                            <td><span class="badge @TxnBadge(t.TransactionType)">@t.TransactionType</span></td>
+                            <td class="@(t.Quantity < 0 ? "qty-negative" : "qty-positive")">@t.Quantity.ToString("+0.##;-0.##")</td>
+                            <td>@t.BalanceBefore</td>
+                            <td>@t.BalanceAfter</td>
+                            <td>@(t.UserName ?? t.UserId ?? "—")</td>
+                            <td>@(t.PatientId ?? "—")</td>
+                            <td>@(t.WitnessName is not null ? $"Witness: {t.WitnessName}" : t.Notes ?? "—")</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        }
+        else
+        {
+            <p>No transactions recorded yet.</p>
+        }
+    </div>
+}
+
+@if (showReceivePanel)
+{
+    <div class="action-panel">
+        <h4>Receive Stock — @actionDrugId</h4>
+        <label>Quantity: <input type="number" @bind="actionQty" min="0.01" step="0.01" /></label>
+        <label>Lot#: <input @bind="actionLot" /></label>
+        <label>User: <input @bind="actionUser" /></label>
+        <label>Notes: <input @bind="actionNotes" /></label>
+        <button @onclick="SubmitReceive">Submit</button>
+        <button @onclick="CloseAction">Cancel</button>
+        @if (!string.IsNullOrEmpty(actionError)) { <span class="error">@actionError</span> }
+    </div>
+}
+
+@if (showDispensePanel)
+{
+    <div class="action-panel">
+        <h4>Dispense to Patient — @actionDrugId</h4>
+        <label>Quantity: <input type="number" @bind="actionQty" min="0.01" step="0.01" /></label>
+        <label>Patient ID: <input @bind="actionPatientId" /></label>
+        <label>Prescription ID: <input @bind="actionRxId" /></label>
+        <label>User: <input @bind="actionUser" /></label>
+        <button @onclick="SubmitDispense">Submit</button>
+        <button @onclick="CloseAction">Cancel</button>
+        @if (!string.IsNullOrEmpty(actionError)) { <span class="error">@actionError</span> }
+    </div>
+}
+
+@if (showWastePanel)
+{
+    <div class="action-panel">
+        <h4>Record Waste — @actionDrugId</h4>
+        <label>Quantity: <input type="number" @bind="actionQty" min="0.01" step="0.01" /></label>
+        <label>Reason: <input @bind="actionNotes" /></label>
+        <label>Witness ID: <input @bind="actionWitnessId" /></label>
+        <label>Witness Name: <input @bind="actionWitnessName" /></label>
+        <label>User: <input @bind="actionUser" /></label>
+        <button @onclick="SubmitWaste">Submit</button>
+        <button @onclick="CloseAction">Cancel</button>
+        @if (!string.IsNullOrEmpty(actionError)) { <span class="error">@actionError</span> }
+    </div>
+}
+
+@if (showInventoryPanel)
+{
+    <div class="action-panel">
+        <h4>Physical Inventory Count — @actionDrugId</h4>
+        @if (detail is not null)
+        {
+            <p>System balance: <strong>@detail.CurrentBalance</strong></p>
+        }
+        <label>Counted Qty: <input type="number" @bind="actionQty" min="0" step="0.01" /></label>
+        <label>User: <input @bind="actionUser" /></label>
+        <label>Notes: <input @bind="actionNotes" /></label>
+        <button @onclick="SubmitInventory">Submit</button>
+        <button @onclick="CloseAction">Cancel</button>
+        @if (!string.IsNullOrEmpty(actionError)) { <span class="error">@actionError</span> }
+    </div>
+}
+
+@code {
+    string locationId = string.Empty;
+    bool loading;
+    string? error;
+
+    List<DrugSummary>? drugs;
+    bool showLowStockOnly;
+    bool showControlledOnly;
+
+    string? selectedDrugId;
+    DrugDetailResult? detail;
+    List<TxnRow>? history;
+
+    // Action panels
+    bool showReceivePanel;
+    bool showDispensePanel;
+    bool showWastePanel;
+    bool showInventoryPanel;
+    string? actionDrugId;
+    decimal actionQty;
+    string actionUser = string.Empty;
+    string? actionLot;
+    string? actionNotes;
+    string? actionPatientId;
+    string? actionRxId;
+    string? actionWitnessId;
+    string? actionWitnessName;
+    string? actionError;
+
+    IEnumerable<DrugSummary> FilteredDrugs =>
+        (drugs ?? Enumerable.Empty<DrugSummary>())
+        .Where(d => (!showLowStockOnly || d.IsLowStock) && (!showControlledOnly || d.IsControlled));
+
+    private IDrugAccountabilityLocationGrain GetLocGrain() =>
+        Grains.GetGrain<IDrugAccountabilityLocationGrain>($"DA-LOC:{locationId.Trim()}");
+
+    private IDrugAccountabilityGrain GetDaGrain(string drugId) =>
+        Grains.GetGrain<IDrugAccountabilityGrain>($"DA:{locationId.Trim()}:{drugId}");
+
+    async Task LoadLocation()
+    {
+        if (string.IsNullOrWhiteSpace(locationId)) return;
+        loading = true; error = null;
+        try
+        {
+            List<DrugBalanceSummary> entries = await GetLocGrain().GetAllDrugsAsync();
+            drugs = entries.Select(e => new DrugSummary(
+                e.DrugId, e.DrugName, e.CurrentBalance, e.UnitOfMeasure,
+                e.IsControlled, e.ReorderPoint, e.Ndc,
+                e.ReorderPoint.HasValue && e.CurrentBalance <= e.ReorderPoint.Value)).ToList();
+            selectedDrugId = null; detail = null; history = null;
+        }
+        catch (Exception ex)
+        {
+            error = ex.Message;
+        }
+        finally { loading = false; }
+    }
+
+    async Task LoadDemo()
+    {
+        loading = true; error = null;
+        error = "Demo load is only available when running the API server.";
+        locationId = "VAULT-001";
+        loading = false;
+    }
+
+    async Task SelectDrug(string drugId)
+    {
+        selectedDrugId = drugId;
+        error = null;
+        try
+        {
+            DrugAccountabilityState state = await GetDaGrain(drugId).GetStateAsync();
+            detail = new DrugDetailResult(state.DrugId, state.DrugName, state.LocationId, state.LocationName,
+                state.Ndc, state.IsControlled, state.IsVaultControlled, state.CurrentBalance,
+                state.UnitOfMeasure, state.ReorderPoint, state.LastInventoryDate, state.Transactions.Count);
+            List<DrugAccountabilityTransaction> txns = await GetDaGrain(drugId).GetTransactionHistoryAsync();
+            history = txns.Select(t => new TxnRow(t.TransactionId, t.TransactionType, t.Quantity,
+                t.BalanceBefore, t.BalanceAfter, t.TransactionDate, t.LotNumber,
+                t.UserId, t.UserName, t.PatientId, t.PrescriptionId, t.DestinationLocationId,
+                t.WitnessId, t.WitnessName, t.Notes)).ToList();
+        }
+        catch (Exception ex) { error = ex.Message; }
+    }
+
+    void OpenReceive(string drugId) { CloseAction(); actionDrugId = drugId; showReceivePanel = true; }
+    void OpenDispense(string drugId) { CloseAction(); actionDrugId = drugId; showDispensePanel = true; }
+    void OpenWaste(string drugId) { CloseAction(); actionDrugId = drugId; showWastePanel = true; }
+    void OpenInventory(string drugId) { CloseAction(); actionDrugId = drugId; showInventoryPanel = true; _ = SelectDrug(drugId); }
+
+    void CloseAction()
+    {
+        showReceivePanel = showDispensePanel = showWastePanel = showInventoryPanel = false;
+        actionDrugId = null; actionLot = null; actionNotes = null;
+        actionPatientId = null; actionRxId = null; actionWitnessId = null; actionWitnessName = null;
+        actionQty = 0; actionUser = string.Empty; actionError = null;
+    }
+
+    async Task SubmitReceive()
+    {
+        actionError = null;
+        try
+        {
+            await GetDaGrain(actionDrugId!).ReceiveStockAsync(actionQty, actionLot, null, actionUser, actionUser, actionNotes);
+            CloseAction(); await LoadLocation(); if (selectedDrugId is not null) await SelectDrug(selectedDrugId);
+        }
+        catch (Exception ex) { actionError = ex.Message; }
+    }
+
+    async Task SubmitDispense()
+    {
+        actionError = null;
+        try
+        {
+            await GetDaGrain(actionDrugId!).DispenseToPatientAsync(actionQty, actionPatientId, actionRxId, actionUser, actionUser);
+            CloseAction(); await LoadLocation(); if (selectedDrugId is not null) await SelectDrug(selectedDrugId);
+        }
+        catch (Exception ex) { actionError = ex.Message; }
+    }
+
+    async Task SubmitWaste()
+    {
+        actionError = null;
+        try
+        {
+            await GetDaGrain(actionDrugId!).RecordWasteAsync(actionQty, actionWitnessId, actionWitnessName, actionUser, actionUser, actionNotes);
+            CloseAction(); await LoadLocation(); if (selectedDrugId is not null) await SelectDrug(selectedDrugId);
+        }
+        catch (Exception ex) { actionError = ex.Message; }
+    }
+
+    async Task SubmitInventory()
+    {
+        actionError = null;
+        try
+        {
+            await GetDaGrain(actionDrugId!).RecordInventoryCountAsync(actionQty, actionUser, actionUser, actionNotes);
+            CloseAction(); await LoadLocation(); if (selectedDrugId is not null) await SelectDrug(selectedDrugId);
+        }
+        catch (Exception ex) { actionError = ex.Message; }
+    }
+
+    string TxnBadge(string type) => type switch
+    {
+        "RECEIPT" => "badge-receipt",
+        "DISPENSE" => "badge-dispense",
+        "RETURN" => "badge-return",
+        "WASTE" => "badge-waste",
+        "TRANSFER" => "badge-transfer",
+        "ADJUSTMENT" or "INVENTORY_COUNT" => "badge-adjust",
+        _ => "badge-normal"
+    };
+
+    record DrugSummary(string DrugId, string DrugName, decimal CurrentBalance,
+        string UnitOfMeasure, bool IsControlled, decimal? ReorderPoint, string? Ndc, bool IsLowStock);
+
+    record DrugDetailResult(string DrugId, string DrugName, string LocationId, string LocationName,
+        string? Ndc, bool IsControlled, bool IsVaultControlled, decimal CurrentBalance,
+        string UnitOfMeasure, decimal? ReorderPoint, DateTime? LastInventoryDate, int TransactionCount);
+
+    record TxnRow(string TransactionId, string TransactionType, decimal Quantity,
+        decimal BalanceBefore, decimal BalanceAfter, DateTime TransactionDate,
+        string? LotNumber, string? UserId, string? UserName, string? PatientId,
+        string? PrescriptionId, string? DestinationLocationId, string? WitnessId,
+        string? WitnessName, string? Notes);
+}
+
+<style>
+    .subtitle { color: #888; margin-top: -8px; font-size: 0.9em; }
+    .toolbar { display: flex; gap: 8px; margin: 16px 0; align-items: center; }
+    .input-id { padding: 6px; border: 1px solid #ccc; border-radius: 4px; width: 260px; }
+    button { padding: 6px 14px; border: 1px solid #555; border-radius: 4px; cursor: pointer; background: #eee; }
+    button:hover:not(:disabled) { background: #ddd; }
+    button:disabled { opacity: .5; cursor: not-allowed; }
+    .btn-demo { background: #d0eaff; }
+    .filter-bar { display: flex; gap: 20px; margin-bottom: 10px; }
+    .data-table { width: 100%; border-collapse: collapse; font-size: 0.88em; margin-top: 10px; }
+    .data-table th { background: #444; color: #fff; padding: 6px 10px; text-align: left; }
+    .data-table td { padding: 5px 10px; border-bottom: 1px solid #eee; }
+    .data-table tr:hover { background: #f7f7f7; cursor: pointer; }
+    .selected-row td { background: #e0f0ff !important; }
+    .history-table { margin-top: 8px; }
+    .badge { padding: 2px 8px; border-radius: 10px; font-size: 0.78em; font-weight: bold; }
+    .badge-controlled { background: #ffd700; color: #000; }
+    .badge-vault { background: #c44; color: #fff; }
+    .badge-normal { background: #aaa; color: #fff; }
+    .badge-low { background: #f44; color: #fff; }
+    .badge-ok { background: #4a4; color: #fff; }
+    .badge-receipt { background: #4a4; color: #fff; }
+    .badge-dispense { background: #46b; color: #fff; }
+    .badge-return { background: #888; color: #fff; }
+    .badge-waste { background: #c44; color: #fff; }
+    .badge-transfer { background: #a64; color: #fff; }
+    .badge-adjust { background: #c8a; color: #fff; }
+    .qty-positive { color: #2a7a2a; font-weight: bold; }
+    .qty-negative { color: #c44; font-weight: bold; }
+    .btn-sm { padding: 2px 7px; font-size: 0.78em; margin-right: 2px; }
+    .btn-receive { background: #d0ffd0; }
+    .btn-dispense { background: #d0e4ff; }
+    .btn-waste { background: #ffd0d0; }
+    .btn-inventory { background: #fff0c0; }
+    .detail-panel { margin-top: 24px; padding: 16px; background: #f9f9f9; border: 1px solid #ddd; border-radius: 6px; }
+    .action-panel { margin-top: 16px; padding: 16px; background: #fffbe6; border: 1px solid #e0c060; border-radius: 6px; display: flex; flex-direction: column; gap: 8px; max-width: 420px; }
+    .action-panel label { display: flex; gap: 10px; align-items: center; }
+    .action-panel input { flex: 1; padding: 4px; border: 1px solid #ccc; border-radius: 3px; }
+    .error { color: #c00; margin: 8px 0; }
+</style>

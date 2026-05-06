@@ -1,0 +1,159 @@
+<UserControl x:Class="NewVistas.Wpf_UI.Views.OrdersView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <ScrollViewer VerticalScrollBarVisibility="Auto">
+        <StackPanel Margin="24">
+            <TextBlock Style="{StaticResource PageTitle}" Text="Orders"/>
+            <TextBlock Style="{StaticResource ErrorText}" Text="{Binding Error}"
+                       Visibility="{Binding Error, Converter={StaticResource NullToVisibility}}"/>
+
+            <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+                <TextBlock Style="{StaticResource FieldLabel}" Text="Filter:" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                <ComboBox ItemsSource="{Binding FilterOptions}" SelectedItem="{Binding StatusFilter}"
+                          Width="220" Margin="0,0,8,0"/>
+                <Button Content="Load Orders" Style="{StaticResource PrimaryButton}"
+                        Command="{Binding LoadCommand}" Margin="0,0,8,0"/>
+                <Button Content="+ New Order" Style="{StaticResource SecondaryButton}"
+                        Command="{Binding TogglePlaceFormCommand}" Margin="0,0,8,0"/>
+                <Button Content="Order Sets" Style="{StaticResource SecondaryButton}"
+                        Command="{Binding ToggleOrderSetsCommand}" Margin="0,0,8,0"/>
+                <Button Content="Show History" Style="{StaticResource SecondaryButton}"
+                        Command="{Binding ToggleHistoryCommand}" Margin="0,0,8,0"/>
+                <ProgressBar IsIndeterminate="True" Width="120" Height="20"
+                             Visibility="{Binding IsLoading, Converter={StaticResource BoolToVisibility}}"/>
+            </StackPanel>
+
+            <!-- Place Order form -->
+            <Border Style="{StaticResource FormPanel}"
+                    Visibility="{Binding ShowPlaceForm, Converter={StaticResource BoolToVisibility}}">
+                <StackPanel>
+                    <TextBlock Style="{StaticResource SectionHeader}" Text="Place Order"/>
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+                        <StackPanel Grid.Column="0" Margin="0,0,16,0" Width="260">
+                            <TextBlock Style="{StaticResource FieldLabel}" Text="Order Type"/>
+                            <ComboBox ItemsSource="{Binding OrderTypes}" SelectedItem="{Binding NewOrderType}" HorizontalAlignment="Left" Width="200"/>
+                            <TextBlock Style="{StaticResource FieldLabel}" Text="Priority"/>
+                            <ComboBox ItemsSource="{Binding PriorityOptions}" SelectedItem="{Binding NewPriority}" HorizontalAlignment="Left" Width="160"/>
+                            <TextBlock Style="{StaticResource FieldLabel}" Text="Clinic / Location"/>
+                            <ComboBox ItemsSource="{Binding Clinics}" SelectedItem="{Binding SelectedClinic}"
+                                      DisplayMemberPath="Name" HorizontalAlignment="Left" Width="240"/>
+                        </StackPanel>
+                        <StackPanel Grid.Column="1">
+                            <TextBlock Style="{StaticResource FieldLabel}" Text="Order Text / Details"/>
+                            <TextBox Text="{Binding NewOrderText, UpdateSourceTrigger=PropertyChanged}"
+                                     AcceptsReturn="True" Height="60" VerticalScrollBarVisibility="Auto"/>
+                            <TextBlock Style="{StaticResource FieldLabel}" Text="Instructions (optional)"/>
+                            <TextBox Text="{Binding NewInstructions, UpdateSourceTrigger=PropertyChanged}"
+                                     AcceptsReturn="True" Height="40" VerticalScrollBarVisibility="Auto"/>
+                        </StackPanel>
+                    </Grid>
+                    <StackPanel Orientation="Horizontal" Margin="0,12,0,0">
+                        <Button Content="Place Order" Style="{StaticResource PrimaryButton}"
+                                Command="{Binding PlaceOrderCommand}" Margin="0,0,8,0"/>
+                        <Button Content="Cancel" Style="{StaticResource SecondaryButton}"
+                                Command="{Binding TogglePlaceFormCommand}"/>
+                    </StackPanel>
+                </StackPanel>
+            </Border>
+
+            <!-- Order Sets panel -->
+            <Border Style="{StaticResource FormPanel}"
+                    Visibility="{Binding ShowOrderSets, Converter={StaticResource BoolToVisibility}}">
+                <StackPanel>
+                    <TextBlock Style="{StaticResource SectionHeader}" Text="Order Sets"/>
+                    <TextBlock FontSize="12" Foreground="#555" Margin="0,0,0,8"
+                               Text="Select an order set template to execute all orders at once."/>
+                    <DataGrid ItemsSource="{Binding OrderSetList}" SelectedItem="{Binding SelectedOrderSet}"
+                              AutoGenerateColumns="False" IsReadOnly="True" MaxHeight="200"
+                              HeadersVisibility="Column" GridLinesVisibility="Horizontal"
+                              SelectionChanged="OrderSetSelectionChanged">
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Header="Name" Binding="{Binding Name}" Width="*"/>
+                            <DataGridTextColumn Header="Category" Binding="{Binding Category}" Width="120"/>
+                            <DataGridTextColumn Header="Service" Binding="{Binding ServiceSection}" Width="120"/>
+                            <DataGridTextColumn Header="Items" Binding="{Binding ItemCount}" Width="60"/>
+                        </DataGrid.Columns>
+                    </DataGrid>
+
+                    <StackPanel Visibility="{Binding SelectedOrderSetDetail, Converter={StaticResource NullToVisibility}}"
+                                Margin="0,12,0,0">
+                        <TextBlock FontWeight="Bold" FontSize="14" Text="{Binding SelectedOrderSetDetail.Name}"/>
+                        <TextBlock FontSize="12" Foreground="#555" Text="{Binding SelectedOrderSetDetail.Description}" Margin="0,4,0,8"/>
+                        <DataGrid ItemsSource="{Binding SelectedOrderSetDetail.Items}" AutoGenerateColumns="False"
+                                  IsReadOnly="True" MaxHeight="200" HeadersVisibility="Column" GridLinesVisibility="Horizontal">
+                            <DataGrid.Columns>
+                                <DataGridTextColumn Header="#" Binding="{Binding Sequence}" Width="40"/>
+                                <DataGridTextColumn Header="Order" Binding="{Binding OrderableItem}" Width="*"/>
+                                <DataGridTextColumn Header="Type" Binding="{Binding OrderType}" Width="100"/>
+                                <DataGridTextColumn Header="Urgency" Binding="{Binding Urgency}" Width="80"/>
+                            </DataGrid.Columns>
+                        </DataGrid>
+                        <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
+                            <Button Content="Execute Order Set" Style="{StaticResource PrimaryButton}"
+                                    Command="{Binding ExecuteOrderSetCommand}" Margin="0,0,8,0"/>
+                            <Button Content="Close" Style="{StaticResource SecondaryButton}"
+                                    Command="{Binding ToggleOrderSetsCommand}"/>
+                        </StackPanel>
+                    </StackPanel>
+                </StackPanel>
+            </Border>
+
+            <!-- Orders grid -->
+            <DataGrid ItemsSource="{Binding Orders}" SelectedItem="{Binding SelectedOrder}"
+                      AutoGenerateColumns="False" IsReadOnly="True"
+                      HeadersVisibility="Column" GridLinesVisibility="Horizontal">
+                <DataGrid.Columns>
+                    <DataGridTextColumn Header="Type" Binding="{Binding OrderType}" Width="120"/>
+                    <DataGridTextColumn Header="Text" Binding="{Binding OrderText}" Width="*"/>
+                    <DataGridTextColumn Header="Status" Binding="{Binding Status}" Width="100"/>
+                    <DataGridTextColumn Header="Priority" Binding="{Binding Priority}" Width="80"/>
+                    <DataGridTextColumn Header="Start" Binding="{Binding StartDate, StringFormat=d}" Width="100"/>
+                    <DataGridTextColumn Header="Ordered By" Binding="{Binding OrderingProviderName}" Width="160"/>
+                </DataGrid.Columns>
+            </DataGrid>
+
+            <StackPanel Orientation="Horizontal" Margin="0,8,0,0"
+                        Visibility="{Binding SelectedOrder, Converter={StaticResource NullToVisibility}}">
+                <Button Content="Sign" Style="{StaticResource PrimaryButton}"
+                        Command="{Binding SignOrderCommand}" Margin="0,0,8,0"/>
+                <Button Content="Discontinue" Style="{StaticResource DangerButton}"
+                        Command="{Binding DiscontinueOrderCommand}"/>
+            </StackPanel>
+
+            <!-- History panel -->
+            <Border Style="{StaticResource FormPanel}"
+                    Visibility="{Binding ShowHistory, Converter={StaticResource BoolToVisibility}}">
+                <StackPanel>
+                    <TextBlock Style="{StaticResource SectionHeader}" Text="Order History"/>
+                    <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+                        <StackPanel Margin="0,0,16,0">
+                            <TextBlock Style="{StaticResource FieldLabel}" Text="From"/>
+                            <DatePicker SelectedDate="{Binding HistoryFrom}" Width="160"/>
+                        </StackPanel>
+                        <StackPanel Margin="0,0,16,0">
+                            <TextBlock Style="{StaticResource FieldLabel}" Text="To"/>
+                            <DatePicker SelectedDate="{Binding HistoryTo}" Width="160"/>
+                        </StackPanel>
+                        <Button Content="Load History" Style="{StaticResource PrimaryButton}"
+                                Command="{Binding LoadHistoryCommand}" VerticalAlignment="Bottom"/>
+                    </StackPanel>
+                    <DataGrid ItemsSource="{Binding HistoryOrders}" AutoGenerateColumns="False"
+                              IsReadOnly="True" MaxHeight="300"
+                              HeadersVisibility="Column" GridLinesVisibility="Horizontal">
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Header="Order" Binding="{Binding OrderText}" Width="*"/>
+                            <DataGridTextColumn Header="Type" Binding="{Binding OrderType}" Width="120"/>
+                            <DataGridTextColumn Header="Status" Binding="{Binding Status}" Width="100"/>
+                            <DataGridTextColumn Header="Start" Binding="{Binding StartDate, StringFormat=g}" Width="160"/>
+                            <DataGridTextColumn Header="Provider" Binding="{Binding ProviderName}" Width="160"/>
+                        </DataGrid.Columns>
+                    </DataGrid>
+                </StackPanel>
+            </Border>
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>

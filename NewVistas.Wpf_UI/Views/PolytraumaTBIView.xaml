@@ -1,0 +1,27 @@
+<UserControl x:Class="NewVistas.Wpf_UI.Views.PolytraumaTBIView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <ScrollViewer VerticalScrollBarVisibility="Auto">
+        <StackPanel Margin="24">
+            <TextBlock Style="{StaticResource PageTitle}" Text="Polytrauma / TBI"/>
+            <TextBlock Style="{StaticResource ErrorText}" Text="{Binding Error}"
+                       Visibility="{Binding Error, Converter={StaticResource NullToVisibility}}"/>
+            <StackPanel Orientation="Horizontal" Margin="0,0,0,12">
+                <Button Content="Load Registry" Style="{StaticResource PrimaryButton}"
+                        Command="{Binding LoadCommand}" Margin="0,0,8,0"/>
+                <ProgressBar IsIndeterminate="True" Width="120" Height="20"
+                             Visibility="{Binding IsLoading, Converter={StaticResource BoolToVisibility}}"/>
+            </StackPanel>
+            <DataGrid ItemsSource="{Binding Patients}" AutoGenerateColumns="False">
+                <DataGrid.Columns>
+                    <DataGridTextColumn Header="Patient Name" Binding="{Binding PatientName}" Width="*"/>
+                    <DataGridTextColumn Header="Status" Binding="{Binding Status}" Width="110"/>
+                    <DataGridTextColumn Header="TBI Severity" Binding="{Binding TBISeverity}" Width="120"/>
+                    <DataGridTextColumn Header="ISS Score" Binding="{Binding ISSScore}" Width="90"/>
+                    <DataGridTextColumn Header="Trauma Mechanism" Binding="{Binding TraumaMechanism}" Width="160"/>
+                    <DataGridTextColumn Header="Enrollment Date" Binding="{Binding EnrollmentDate, StringFormat=d}" Width="130"/>
+                </DataGrid.Columns>
+            </DataGrid>
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>

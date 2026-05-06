@@ -1,0 +1,1246 @@
+@page "/ifcap"
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+@rendermode InteractiveServer
+@using NewVistas.BlazorWeb.Services
+@using NewVistas.Abstractions.GrainInterfaces
+@using NewVistas.Abstractions.GrainStates
+@inject OrleansGrainService Grains
+
+<PageTitle>IFCAP — Procurement</PageTitle>
+
+<div class="ifcap-container">
+    <div class="ifcap-header">
+        <h2>Integrated Funds Distribution, Control Point Activity &amp; Procurement</h2>
+    </div>
+
+    @if (error != null)
+    {
+        <div class="alert-danger">@error</div>
+    }
+
+    <div class="ifcap-tabs">
+        <button class="tab-btn @(activeTab == "cp" ? "active" : "")" @onclick='async () => { activeTab = "cp"; await LoadControlPoints(); }'>Control Points</button>
+        <button class="tab-btn @(activeTab == "pr" ? "active" : "")" @onclick='() => activeTab = "pr"'>Purchase Requests</button>
+        <button class="tab-btn @(activeTab == "po" ? "active" : "")" @onclick='async () => { activeTab = "po"; await LoadPurchaseOrders(); }'>Purchase Orders</button>
+        <button class="tab-btn @(activeTab == "vendor" ? "active" : "")" @onclick='async () => { activeTab = "vendor"; await LoadVendors(); }'>Vendors</button>
+        <button class="tab-btn @(activeTab == "site" ? "active" : "")" @onclick='async () => { activeTab = "site"; await LoadSiteParams(); }'>Site Parameters</button>
+    </div>
+
+    <!-- ─── Control Points Tab ───────────────────────────────────────────────── -->
+    @if (activeTab == "cp")
+    {
+        <div class="tab-panel">
+            <h3>Control Points</h3>
+
+            <div class="form-row">
+                <input class="form-control" type="number" placeholder="Fiscal Year" @bind="cpFiscalYearFilter" />
+                <button class="btn btn-primary" @onclick="LoadControlPoints">Load</button>
+            </div>
+
+            @if (controlPoints == null || controlPoints.Count == 0)
+            {
+                <p class="text-muted">No control points found.</p>
+            }
+            else
+            {
+                <table class="table ifcap-table">
+                    <thead>
+                        <tr>
+                            <th>Name</th>
+                            <th>FY</th>
+                            <th>Budget Code</th>
+                            <th>Remaining</th>
+                            <th>Status</th>
+                            <th></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var cp in controlPoints)
+                        {
+                            <tr class="@(selectedCpId == cp.ControlPointId ? "selected-row" : "")">
+                                <td>@cp.Name</td>
+                                <td>@cp.FiscalYear</td>
+                                <td>—</td>
+                                <td>@cp.RemainingBalance.ToString("C")</td>
+                                <td><span class="badge @CpStatusBadge(cp.Status.ToString())">@cp.Status</span></td>
+                                <td><button class="btn btn-sm btn-outline-primary" @onclick="() => SelectControlPoint(cp.ControlPointId)">Details</button></td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            }
+
+            <!-- CP Detail Panel -->
+            @if (selectedCpId != null && selectedCp != null)
+            {
+                <div class="detail-panel">
+                    <h4>@selectedCp.Name</h4>
+                    <div class="detail-grid">
+                        <div><strong>Status:</strong> <span class="badge @CpStatusBadge(selectedCp.Status.ToString())">@selectedCp.Status</span></div>
+                        <div><strong>Facility:</strong> @selectedCp.FacilityId</div>
+                        <div><strong>Service:</strong> @selectedCp.ServiceId</div>
+                        <div><strong>Fiscal Year:</strong> @selectedCp.FiscalYear</div>
+                        <div><strong>Budget Code:</strong> @selectedCp.BudgetCode</div>
+                        <div><strong>Officer:</strong> @selectedCp.ControlPointOfficerName</div>
+                        <div><strong>Allocated:</strong> @selectedCp.AllocatedAmount.ToString("C")</div>
+                        <div><strong>Obligated:</strong> @selectedCp.ObligatedAmount.ToString("C")</div>
+                        <div><strong>Expended:</strong> @selectedCp.ExpendedAmount.ToString("C")</div>
+                        <div><strong>Remaining:</strong> @selectedCp.RemainingBalance.ToString("C")</div>
+                    </div>
+
+                    <!-- Allocate Funds -->
+                    <div class="action-section">
+                        <h5>Allocate Additional Funds</h5>
+                        <div class="form-row">
+                            <input class="form-control" type="number" step="0.01" placeholder="Amount ($)" @bind="allocateAmount" />
+                            <input class="form-control" placeholder="Authorized By User ID" @bind="allocateUserId" />
+                            <button class="btn btn-success" @onclick="SubmitAllocateFunds">Allocate</button>
+                        </div>
+                        @if (allocateMsg != null) { <span class="form-msg">@allocateMsg</span> }
+                    </div>
+
+                    <!-- Pending Requests sub-table -->
+                    @if (cpPendingRequests != null && cpPendingRequests.Count > 0)
+                    {
+                        <div class="action-section">
+                            <h5>Pending Requests</h5>
+                            <table class="table ifcap-table">
+                                <thead>
+                                    <tr><th>Requestor</th><th>Priority</th><th>Est. Cost</th><th>Status</th><th>Date</th></tr>
+                                </thead>
+                                <tbody>
+                                    @foreach (var pr in cpPendingRequests)
+                                    {
+                                        <tr>
+                                            <td>@pr.RequestorName</td>
+                                            <td>@pr.Priority</td>
+                                            <td>@pr.EstimatedCost.ToString("C")</td>
+                                            <td><span class="badge @PrStatusBadge(pr.Status.ToString())">@pr.Status</span></td>
+                                            <td>@pr.RequestDate.ToString("MM/dd/yyyy")</td>
+                                        </tr>
+                                    }
+                                </tbody>
+                            </table>
+                        </div>
+                    }
+                </div>
+            }
+
+            <!-- Create CP form -->
+            <button class="btn btn-success btn-sm" style="margin-top:1rem;" @onclick='() => showCreateCp = !showCreateCp'>+ New Control Point</button>
+            @if (showCreateCp)
+            {
+                <div class="form-panel">
+                    <h4>Create Control Point</h4>
+                    <div class="form-row">
+                        <input class="form-control" placeholder="Name" @bind="newCpName" />
+                        <input class="form-control" placeholder="Facility ID" @bind="newCpFacilityId" />
+                        <input class="form-control" placeholder="Service ID" @bind="newCpServiceId" />
+                    </div>
+                    <div class="form-row">
+                        <input class="form-control" type="number" placeholder="Fiscal Year" @bind="newCpFiscalYear" />
+                        <input class="form-control" placeholder="Budget Code" @bind="newCpBudgetCode" />
+                        <input class="form-control" type="number" step="0.01" placeholder="Allocated Amount ($)" @bind="newCpAllocated" />
+                    </div>
+                    <div class="form-row">
+                        <input class="form-control" placeholder="Officer User ID" @bind="newCpOfficerId" />
+                        <input class="form-control" placeholder="Officer Name" @bind="newCpOfficerName" />
+                    </div>
+                    <button class="btn btn-primary" @onclick="CreateControlPoint">Create</button>
+                    @if (createCpMsg != null) { <span class="form-msg">@createCpMsg</span> }
+                </div>
+            }
+        </div>
+    }
+
+    <!-- ─── Purchase Requests Tab ──────────────────────────────────────────────── -->
+    @if (activeTab == "pr")
+    {
+        <div class="tab-panel">
+            <h3>Purchase Requests (VA Form 2237)</h3>
+
+            <div class="form-row">
+                <select class="form-control" @bind="selectedPrCpId" @bind:after="LoadPrForCp">
+                    <option value="">-- Select Control Point --</option>
+                    @if (controlPoints != null)
+                    {
+                        @foreach (var cp in controlPoints)
+                        {
+                            <option value="@cp.ControlPointId">@cp.Name (FY@cp.FiscalYear)</option>
+                        }
+                    }
+                </select>
+                <button class="btn btn-primary" @onclick="LoadControlPointsForPr">Load CPs</button>
+            </div>
+
+            @if (!string.IsNullOrEmpty(selectedPrCpId) && cpRequests != null)
+            {
+                @if (cpRequests.Count == 0)
+                {
+                    <p class="text-muted">No purchase requests for this control point.</p>
+                }
+                else
+                {
+                    <table class="table ifcap-table">
+                        <thead>
+                            <tr>
+                                <th>Requestor</th>
+                                <th>Priority</th>
+                                <th>Est. Cost</th>
+                                <th>Status</th>
+                                <th>Date</th>
+                                <th></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var pr in cpRequests)
+                            {
+                                <tr>
+                                    <td>@pr.RequestorName</td>
+                                    <td>@pr.Priority</td>
+                                    <td>@pr.EstimatedCost.ToString("C")</td>
+                                    <td><span class="badge @PrStatusBadge(pr.Status.ToString())">@pr.Status</span></td>
+                                    <td>@pr.RequestDate.ToString("MM/dd/yyyy")</td>
+                                    <td>
+                                        @if (pr.Status == PurchaseRequestStatus.Draft)
+                                        {
+                                            <button class="btn btn-sm btn-primary" @onclick='() => TogglePrSubmitPanel(pr.RequestId)'>Submit</button>
+                                        }
+                                        @if (pr.Status == PurchaseRequestStatus.Submitted)
+                                        {
+                                            <button class="btn btn-sm btn-success" @onclick='() => TogglePrApprovePanel(pr.RequestId)'>Approve</button>
+                                            <button class="btn btn-sm btn-danger" @onclick='() => TogglePrRejectPanel(pr.RequestId)'>Reject</button>
+                                        }
+                                        @if (pr.Status == PurchaseRequestStatus.Draft || pr.Status == PurchaseRequestStatus.Submitted)
+                                        {
+                                            <button class="btn btn-sm btn-warning" @onclick='() => TogglePrCancelPanel(pr.RequestId)'>Cancel</button>
+                                        }
+                                    </td>
+                                </tr>
+                                @if (prSubmitId == pr.RequestId)
+                                {
+                                    <tr><td colspan="6"><div class="form-panel">
+                                        <div class="form-row">
+                                            <input class="form-control" placeholder="Your User ID" @bind="prActionUserId" />
+                                            <button class="btn btn-primary" @onclick='() => SubmitPr(pr.RequestId)'>Confirm Submit</button>
+                                        </div>
+                                        @if (prActionMsg != null) { <span class="form-msg">@prActionMsg</span> }
+                                    </div></td></tr>
+                                }
+                                @if (prApproveId == pr.RequestId)
+                                {
+                                    <tr><td colspan="6"><div class="form-panel">
+                                        <div class="form-row">
+                                            <input class="form-control" placeholder="Approver User ID" @bind="prActionUserId" />
+                                            <input class="form-control" placeholder="Approver Name" @bind="prActionUserName" />
+                                            <button class="btn btn-success" @onclick='() => ApprovePr(pr.RequestId)'>Confirm Approve</button>
+                                        </div>
+                                        @if (prActionMsg != null) { <span class="form-msg">@prActionMsg</span> }
+                                    </div></td></tr>
+                                }
+                                @if (prRejectId == pr.RequestId || prCancelId == pr.RequestId)
+                                {
+                                    <tr><td colspan="6"><div class="form-panel">
+                                        <div class="form-row">
+                                            <input class="form-control" placeholder="User ID" @bind="prActionUserId" />
+                                            <input class="form-control" placeholder="Reason" @bind="prActionReason" />
+                                            @if (prRejectId == pr.RequestId)
+                                            {
+                                                <button class="btn btn-danger" @onclick='() => RejectPr(pr.RequestId)'>Confirm Reject</button>
+                                            }
+                                            else
+                                            {
+                                                <button class="btn btn-warning" @onclick='() => CancelPr(pr.RequestId)'>Confirm Cancel</button>
+                                            }
+                                        </div>
+                                        @if (prActionMsg != null) { <span class="form-msg">@prActionMsg</span> }
+                                    </div></td></tr>
+                                }
+                            }
+                        </tbody>
+                    </table>
+                }
+            }
+
+            <!-- Create 2237 form -->
+            @if (!string.IsNullOrEmpty(selectedPrCpId))
+            {
+                <button class="btn btn-success btn-sm" style="margin-top:1rem;" @onclick='() => showCreatePr = !showCreatePr'>+ New 2237 Request</button>
+                @if (showCreatePr)
+                {
+                    <div class="form-panel">
+                        <h4>Create VA Form 2237 (Purchase Request)</h4>
+                        <div class="form-row">
+                            <input class="form-control" placeholder="Requestor User ID" @bind="newPrRequestorId" />
+                            <input class="form-control" placeholder="Requestor Name" @bind="newPrRequestorName" />
+                            <input class="form-control" type="number" placeholder="Fiscal Year" @bind="newPrFiscalYear" />
+                        </div>
+                        <div class="form-row">
+                            <select class="form-control" @bind="newPrPriority">
+                                <option value="Routine">Routine</option>
+                                <option value="Urgent">Urgent</option>
+                                <option value="Emergency">Emergency</option>
+                            </select>
+                            <input class="form-control" type="date" @bind="newPrNeedByDate" />
+                            <input class="form-control" type="number" step="0.01" placeholder="Est. Cost ($)" @bind="newPrEstimatedCost" />
+                        </div>
+                        <div class="form-row">
+                            <input class="form-control" placeholder="Description" @bind="newPrDescription" />
+                        </div>
+                        <div class="form-row">
+                            <input class="form-control" placeholder="Justification" @bind="newPrJustification" />
+                        </div>
+                        <div class="form-row">
+                            <input class="form-control" placeholder="Preferred Vendor ID (optional)" @bind="newPrVendorId" />
+                            <input class="form-control" placeholder="Preferred Vendor Name (optional)" @bind="newPrVendorName" />
+                        </div>
+                        <div class="form-row">
+                            <input class="form-control" placeholder="Notes (optional)" @bind="newPrNotes" />
+                        </div>
+                        <h5 style="margin-top:0.5rem;">Line Items</h5>
+                        @foreach (var line in newPrLines)
+                        {
+                            <div class="form-row">
+                                <span style="color:#aaa;font-size:0.8rem;padding-top:0.4rem;">Line @line.LineNumber</span>
+                                <input class="form-control" placeholder="Description" @bind="line.ItemDescription" />
+                                <input class="form-control" type="number" step="1" placeholder="Qty" @bind="line.Quantity" />
+                                <input class="form-control" placeholder="Unit" @bind="line.UnitOfIssue" />
+                                <input class="form-control" type="number" step="0.01" placeholder="Unit Cost" @bind="line.UnitCost" />
+                            </div>
+                        }
+                        <button class="btn btn-sm btn-secondary" @onclick="AddPrLine">+ Add Line</button>
+                        <button class="btn btn-primary" style="margin-left:0.5rem;" @onclick="CreatePurchaseRequest">Submit Request</button>
+                        @if (createPrMsg != null) { <span class="form-msg">@createPrMsg</span> }
+                    </div>
+                }
+            }
+        </div>
+    }
+
+    <!-- ─── Purchase Orders Tab ────────────────────────────────────────────────── -->
+    @if (activeTab == "po")
+    {
+        <div class="tab-panel">
+            <h3>Purchase Orders</h3>
+
+            <!-- Open POs -->
+            <h4>Open / Partially Received</h4>
+            @if (openPOs == null || openPOs.Count == 0)
+            {
+                <p class="text-muted">No open purchase orders.</p>
+            }
+            else
+            {
+                <table class="table ifcap-table">
+                    <thead>
+                        <tr>
+                            <th>PO ID</th>
+                            <th>Vendor</th>
+                            <th>Total</th>
+                            <th>Received</th>
+                            <th>Status</th>
+                            <th>Issued</th>
+                            <th></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var po in openPOs)
+                        {
+                            <tr>
+                                <td>@po.PurchaseOrderId</td>
+                                <td>@po.VendorName</td>
+                                <td>@po.TotalAmount.ToString("C")</td>
+                                <td>@po.AmountReceived.ToString("C")</td>
+                                <td><span class="badge @PoStatusBadge(po.Status.ToString())">@po.Status</span></td>
+                                <td>@po.IssuedDate.ToString("MM/dd/yyyy")</td>
+                                <td>
+                                    <button class="btn btn-sm btn-success" @onclick='() => ToggleReceivePanel(po.PurchaseOrderId)'>Receive Goods</button>
+                                    <button class="btn btn-sm btn-danger" @onclick='() => ToggleCancelPoPanel(po.PurchaseOrderId)'>Cancel</button>
+                                </td>
+                            </tr>
+                            @if (receivingPoId == po.PurchaseOrderId)
+                            {
+                                <tr>
+                                    <td colspan="7">
+                                        <div class="form-panel">
+                                            <div class="form-row">
+                                                <input class="form-control" placeholder="Received By User ID" @bind="rrUserId" />
+                                                <input class="form-control" placeholder="Received By Name" @bind="rrUserName" />
+                                                <input class="form-control" placeholder="Notes (optional)" @bind="rrNotes" />
+                                            </div>
+                                            @foreach (var line in rrLines)
+                                            {
+                                                <div class="form-row">
+                                                    <span style="color:#aaa;font-size:0.8rem;padding-top:0.4rem;">Line @line.LineNumber</span>
+                                                    <input class="form-control" type="number" step="0.01" placeholder="Qty Received" @bind="line.QuantityReceived" />
+                                                    <input class="form-control" type="number" step="0.01" placeholder="Qty Accepted" @bind="line.QuantityAccepted" />
+                                                    <input class="form-control" placeholder="Condition (optional)" @bind="line.Condition" />
+                                                </div>
+                                            }
+                                            <button class="btn btn-success" @onclick='() => SubmitReceivingReport(po.PurchaseOrderId)'>Submit Receiving Report</button>
+                                            @if (rrMsg != null) { <span class="form-msg">@rrMsg</span> }
+                                        </div>
+                                    </td>
+                                </tr>
+                            }
+                            @if (cancelPoId == po.PurchaseOrderId)
+                            {
+                                <tr>
+                                    <td colspan="7">
+                                        <div class="form-panel">
+                                            <div class="form-row">
+                                                <input class="form-control" placeholder="User ID" @bind="cancelPoUserId" />
+                                                <input class="form-control" placeholder="Reason" @bind="cancelPoReason" />
+                                                <button class="btn btn-danger" @onclick='() => CancelPurchaseOrder(po.PurchaseOrderId)'>Confirm Cancel</button>
+                                            </div>
+                                            @if (cancelPoMsg != null) { <span class="form-msg">@cancelPoMsg</span> }
+                                        </div>
+                                    </td>
+                                </tr>
+                            }
+                        }
+                    </tbody>
+                </table>
+            }
+
+            <!-- All POs -->
+            <h4 style="margin-top:1.5rem;">All Purchase Orders</h4>
+            @if (allPOs == null || allPOs.Count == 0)
+            {
+                <p class="text-muted">No purchase orders on file.</p>
+            }
+            else
+            {
+                <table class="table ifcap-table">
+                    <thead>
+                        <tr>
+                            <th>PO ID</th>
+                            <th>Vendor</th>
+                            <th>Total</th>
+                            <th>Status</th>
+                            <th>Issued</th>
+                            <th></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var po in allPOs)
+                        {
+                            <tr>
+                                <td>@po.PurchaseOrderId</td>
+                                <td>@po.VendorName</td>
+                                <td>@po.TotalAmount.ToString("C")</td>
+                                <td><span class="badge @PoStatusBadge(po.Status.ToString())">@po.Status</span></td>
+                                <td>@po.IssuedDate.ToString("MM/dd/yyyy")</td>
+                                <td>
+                                    @if (po.Status == PurchaseOrderStatus.Received)
+                                    {
+                                        <button class="btn btn-sm btn-secondary" @onclick='() => ClosePoConfirm(po.PurchaseOrderId)'>Close</button>
+                                    }
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            }
+
+            <!-- Create PO from Approved PR -->
+            <button class="btn btn-success btn-sm" style="margin-top:1rem;" @onclick='() => showCreatePo = !showCreatePo'>+ Create Purchase Order</button>
+            @if (showCreatePo)
+            {
+                <div class="form-panel">
+                    <h4>Issue Purchase Order from Approved Request</h4>
+                    <div class="form-row">
+                        <input class="form-control" placeholder="Request ID (approved 2237)" @bind="newPoRequestId" />
+                        <input class="form-control" placeholder="Control Point ID" @bind="newPoControlPointId" />
+                    </div>
+                    <div class="form-row">
+                        <input class="form-control" placeholder="Vendor ID" @bind="newPoVendorId" />
+                        <input class="form-control" placeholder="Vendor Name" @bind="newPoVendorName" />
+                        <input class="form-control" placeholder="Vendor Address (optional)" @bind="newPoVendorAddress" />
+                    </div>
+                    <div class="form-row">
+                        <label>Required Delivery Date</label>
+                        <input class="form-control" type="date" @bind="newPoRequiredDelivery" />
+                        <input class="form-control" placeholder="Issued By User ID" @bind="newPoIssuedByUserId" />
+                        <input class="form-control" placeholder="Issued By Name" @bind="newPoIssuedByUserName" />
+                    </div>
+                    <h5 style="margin-top:0.5rem;">Line Items</h5>
+                    @foreach (var line in newPoLines)
+                    {
+                        <div class="form-row">
+                            <span style="color:#aaa;font-size:0.8rem;padding-top:0.4rem;">Line @line.LineNumber</span>
+                            <input class="form-control" placeholder="Description" @bind="line.ItemDescription" />
+                            <input class="form-control" type="number" step="1" placeholder="Qty" @bind="line.Quantity" />
+                            <input class="form-control" placeholder="Unit" @bind="line.UnitOfIssue" />
+                            <input class="form-control" type="number" step="0.01" placeholder="Unit Cost" @bind="line.UnitCost" />
+                        </div>
+                    }
+                    <button class="btn btn-sm btn-secondary" @onclick="AddPoLine">+ Add Line</button>
+                    <button class="btn btn-primary" style="margin-left:0.5rem;" @onclick="CreatePurchaseOrder">Issue PO</button>
+                    @if (createPoMsg != null) { <span class="form-msg">@createPoMsg</span> }
+                </div>
+            }
+        </div>
+    }
+
+    <!-- ─── Vendors Tab ─────────────────────────────────────────────────────────── -->
+    @if (activeTab == "vendor")
+    {
+        <div class="tab-panel">
+            <h3>Vendor Directory</h3>
+
+            <div class="form-row">
+                <input class="form-control" placeholder="Search name or vendor number" @bind="vendorSearch" />
+                <button class="btn btn-primary" @onclick="SearchVendors">Search</button>
+                <button class="btn btn-secondary" @onclick="LoadVendors">All</button>
+            </div>
+
+            @if (vendors == null || vendors.Count == 0)
+            {
+                <p class="text-muted">No vendors found.</p>
+            }
+            else
+            {
+                <table class="table ifcap-table">
+                    <thead>
+                        <tr>
+                            <th>Name</th>
+                            <th>Vendor #</th>
+                            <th>SB</th>
+                            <th>WO</th>
+                            <th>SDVO</th>
+                            <th>Status</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var v in vendors)
+                        {
+                            <tr>
+                                <td>@v.Name</td>
+                                <td>@v.VendorNumber</td>
+                                <td>@(v.IsSmallBusiness ? "✓" : "—")</td>
+                                <td>—</td>
+                                <td>@(v.IsVeteranOwned ? "✓" : "—")</td>
+                                <td><span class="badge @(v.IsActive ? "badge-success" : "badge-secondary")">@(v.IsActive ? "Active" : "Inactive")</span></td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            }
+
+            <button class="btn btn-success btn-sm" style="margin-top:1rem;" @onclick='() => showCreateVendor = !showCreateVendor'>+ New Vendor</button>
+            @if (showCreateVendor)
+            {
+                <div class="form-panel">
+                    <h4>Register Vendor</h4>
+                    <div class="form-row">
+                        <input class="form-control" placeholder="Vendor Name" @bind="newVendorName" />
+                        <input class="form-control" placeholder="Vendor Number" @bind="newVendorNumber" />
+                    </div>
+                    <div class="form-row">
+                        <input class="form-control" placeholder="Address" @bind="newVendorAddress" />
+                        <input class="form-control" placeholder="City" @bind="newVendorCity" />
+                        <input class="form-control" placeholder="State" @bind="newVendorState" />
+                        <input class="form-control" placeholder="ZIP" @bind="newVendorZip" />
+                    </div>
+                    <div class="form-row">
+                        <input class="form-control" placeholder="Phone (optional)" @bind="newVendorPhone" />
+                        <input class="form-control" placeholder="Email (optional)" @bind="newVendorEmail" />
+                        <input class="form-control" placeholder="Contact Name (optional)" @bind="newVendorContact" />
+                        <input class="form-control" placeholder="DUNS/SAM (optional)" @bind="newVendorDuns" />
+                    </div>
+                    <div class="form-row checkboxes">
+                        <label><input type="checkbox" @bind="newVendorSb" /> Small Business</label>
+                        <label><input type="checkbox" @bind="newVendorWo" /> Woman-Owned</label>
+                        <label><input type="checkbox" @bind="newVendorVo" /> Veteran-Owned (SDVO)</label>
+                    </div>
+                    <button class="btn btn-primary" @onclick="CreateVendor">Register</button>
+                    @if (createVendorMsg != null) { <span class="form-msg">@createVendorMsg</span> }
+                </div>
+            }
+        </div>
+    }
+
+    <!-- ─── Site Parameters Tab ────────────────────────────────────────────────── -->
+    @if (activeTab == "site")
+    {
+        <div class="tab-panel">
+            <h3>IFCAP Site Parameters</h3>
+
+            @if (siteParams != null)
+            {
+                <div class="detail-grid">
+                    <div><strong>Site Name:</strong> @siteParams.SiteName</div>
+                    <div><strong>Facility #:</strong> @siteParams.FacilityNumber</div>
+                    <div><strong>Fiscal Year:</strong> @siteParams.FiscalYear</div>
+                    <div><strong>Default Delivery Days:</strong> @siteParams.DefaultDeliveryDays</div>
+                    <div><strong>Auto-Approval:</strong> @(siteParams.IsAutoApprovalEnabled ? "Yes" : "No")</div>
+                    <div><strong>Auto-Approval Threshold:</strong> @siteParams.AutoApprovalThreshold.ToString("C")</div>
+                    <div><strong>PO Number Prefix:</strong> @siteParams.PONumberPrefix</div>
+                </div>
+            }
+
+            <div class="form-panel">
+                <h4>Update Site Parameters</h4>
+                <div class="form-row">
+                    <input class="form-control" placeholder="Site Name" @bind="spSiteName" />
+                    <input class="form-control" placeholder="Facility Number" @bind="spFacilityNumber" />
+                    <input class="form-control" type="number" placeholder="Fiscal Year" @bind="spFiscalYear" />
+                </div>
+                <div class="form-row">
+                    <input class="form-control" type="number" placeholder="Default Delivery Days" @bind="spDeliveryDays" />
+                    <input class="form-control" type="number" step="0.01" placeholder="Auto-Approval Threshold ($)" @bind="spAutoApprovalThreshold" />
+                    <input class="form-control" placeholder="PO Number Prefix" @bind="spPoPrefix" />
+                </div>
+                <div class="form-row checkboxes">
+                    <label><input type="checkbox" @bind="spAutoApproval" /> Auto-Approval Enabled</label>
+                </div>
+                <div class="form-row">
+                    <input class="form-control" placeholder="Updated By User ID" @bind="spUpdatedByUserId" />
+                </div>
+                <button class="btn btn-primary" @onclick="UpdateSiteParams">Update Parameters</button>
+                @if (siteParamsMsg != null) { <span class="form-msg">@siteParamsMsg</span> }
+            </div>
+        </div>
+    }
+</div>
+
+@code {
+    private string activeTab = "cp";
+    private string? error;
+
+    // ─── Control Points ────────────────────────────────────────────────────────
+
+    private List<CpIndexDto>? controlPoints;
+    private string? selectedCpId;
+    private CpDetailDto? selectedCp;
+    private List<PrIndexDto>? cpPendingRequests;
+    private int cpFiscalYearFilter = DateTime.Now.Year;
+    private bool showCreateCp;
+    private string newCpName = string.Empty;
+    private string newCpFacilityId = string.Empty;
+    private string newCpServiceId = string.Empty;
+    private int newCpFiscalYear = DateTime.Now.Year;
+    private string newCpBudgetCode = string.Empty;
+    private decimal newCpAllocated;
+    private string newCpOfficerId = string.Empty;
+    private string newCpOfficerName = string.Empty;
+    private string? createCpMsg;
+    private decimal allocateAmount;
+    private string allocateUserId = string.Empty;
+    private string? allocateMsg;
+
+    // ─── Purchase Requests ─────────────────────────────────────────────────────
+
+    private string selectedPrCpId = string.Empty;
+    private List<PrIndexDto>? cpRequests;
+    private bool showCreatePr;
+    private string newPrRequestorId = string.Empty;
+    private string newPrRequestorName = string.Empty;
+    private int newPrFiscalYear = DateTime.Now.Year;
+    private string newPrPriority = "Routine";
+    private DateTime? newPrNeedByDate;
+    private decimal newPrEstimatedCost;
+    private string newPrDescription = string.Empty;
+    private string newPrJustification = string.Empty;
+    private string? newPrVendorId;
+    private string? newPrVendorName;
+    private string? newPrNotes;
+    private List<PrLineForm> newPrLines = new() { new PrLineForm { LineNumber = 1 } };
+    private string? createPrMsg;
+    private string? prSubmitId;
+    private string? prApproveId;
+    private string? prRejectId;
+    private string? prCancelId;
+    private string prActionUserId = string.Empty;
+    private string prActionUserName = string.Empty;
+    private string prActionReason = string.Empty;
+    private string? prActionMsg;
+
+    // ─── Purchase Orders ──────────────────────────────────────────────────────
+
+    private List<PoIndexDto>? openPOs;
+    private List<PoIndexDto>? allPOs;
+    private bool showCreatePo;
+    private string newPoRequestId = string.Empty;
+    private string newPoControlPointId = string.Empty;
+    private string newPoVendorId = string.Empty;
+    private string newPoVendorName = string.Empty;
+    private string? newPoVendorAddress;
+    private DateTime newPoRequiredDelivery = DateTime.Today.AddDays(30);
+    private string newPoIssuedByUserId = string.Empty;
+    private string newPoIssuedByUserName = string.Empty;
+    private List<PrLineForm> newPoLines = new() { new PrLineForm { LineNumber = 1 } };
+    private string? createPoMsg;
+    private string? receivingPoId;
+    private List<RrLineForm> rrLines = new();
+    private string rrUserId = string.Empty;
+    private string rrUserName = string.Empty;
+    private string? rrNotes;
+    private string? rrMsg;
+    private string? cancelPoId;
+    private string cancelPoUserId = string.Empty;
+    private string cancelPoReason = string.Empty;
+    private string? cancelPoMsg;
+
+    // ─── Vendors ──────────────────────────────────────────────────────────────
+
+    private List<VendorIndexDto>? vendors;
+    private string vendorSearch = string.Empty;
+    private bool showCreateVendor;
+    private string newVendorName = string.Empty;
+    private string newVendorNumber = string.Empty;
+    private string newVendorAddress = string.Empty;
+    private string newVendorCity = string.Empty;
+    private string newVendorState = string.Empty;
+    private string newVendorZip = string.Empty;
+    private string? newVendorPhone;
+    private string? newVendorEmail;
+    private string? newVendorContact;
+    private string? newVendorDuns;
+    private bool newVendorSb;
+    private bool newVendorWo;
+    private bool newVendorVo;
+    private string? createVendorMsg;
+
+    // ─── Site Parameters ──────────────────────────────────────────────────────
+
+    private SiteParamsDto? siteParams;
+    private string spSiteName = string.Empty;
+    private string spFacilityNumber = string.Empty;
+    private int spFiscalYear = DateTime.Now.Year;
+    private int spDeliveryDays = 30;
+    private decimal spAutoApprovalThreshold;
+    private string spPoPrefix = string.Empty;
+    private bool spAutoApproval;
+    private string spUpdatedByUserId = string.Empty;
+    private string? siteParamsMsg;
+
+    // ─── Lifecycle ────────────────────────────────────────────────────────────
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadControlPoints();
+    }
+
+    private async Task LoadControlPoints()
+    {
+        error = null;
+        try
+        {
+            var cpIdx = Grains.GetGrain<IControlPointIndexGrain>("IFCAP-CP-IDX");
+            List<ControlPointIndexEntry> entries = cpFiscalYearFilter > 0
+                ? await cpIdx.GetByFiscalYearAsync(cpFiscalYearFilter)
+                : await cpIdx.GetAllAsync();
+            controlPoints = entries.Select(e => new CpIndexDto(
+                e.ControlPointId, e.Name, e.FacilityId,
+                e.FiscalYear, e.RemainingBalance, e.Status.ToString())).ToList();
+        }
+        catch (Exception ex) { error = $"Error loading control points: {ex.Message}"; }
+    }
+
+    private async Task SelectControlPoint(string cpId)
+    {
+        selectedCpId = cpId;
+        try
+        {
+            string grainKey = cpId.StartsWith("IFCAP-CP:") ? cpId : $"IFCAP-CP:{cpId}";
+            var cpGrain = Grains.GetGrain<IControlPointGrain>(grainKey);
+            ControlPointState s = await cpGrain.GetAsync();
+            selectedCp = new CpDetailDto(s.ControlPointId, s.Name, s.FacilityId, s.ServiceId,
+                s.FiscalYear, s.BudgetCode, s.Status.ToString(),
+                s.AllocatedAmount, s.ObligatedAmount, s.ExpendedAmount, s.RemainingBalance,
+                s.ControlPointOfficerId, s.ControlPointOfficerName,
+                s.RequestIds, s.CreatedDate, s.LastModifiedDate);
+            var prIdx = Grains.GetGrain<IPurchaseRequestIndexGrain>($"IFCAP-PR-IDX:{cpId}");
+            List<PurchaseRequestIndexEntry> pendingEntries = await prIdx.GetPendingAsync();
+            cpPendingRequests = pendingEntries.Select(MapPrIndex).ToList();
+        }
+        catch (Exception ex) { error = $"Error loading control point details: {ex.Message}"; }
+    }
+
+    private static PrIndexDto MapPrIndex(PurchaseRequestIndexEntry e) => new(
+        e.RequestId, e.ControlPointId, e.RequestorName,
+        e.EstimatedCost, e.Status,
+        e.Priority, e.RequestDate);
+
+    private async Task SubmitAllocateFunds()
+    {
+        allocateMsg = null;
+        if (selectedCpId == null) return;
+        try
+        {
+            string grainKey = selectedCpId.StartsWith("IFCAP-CP:") ? selectedCpId : $"IFCAP-CP:{selectedCpId}";
+            var cpGrain = Grains.GetGrain<IControlPointGrain>(grainKey);
+            await cpGrain.AllocateFundsAsync(allocateAmount, allocateUserId);
+            allocateMsg = "Funds allocated.";
+            await SelectControlPoint(selectedCpId);
+        }
+        catch (Exception ex) { allocateMsg = $"Error: {ex.Message}"; }
+    }
+
+    private async Task CreateControlPoint()
+    {
+        createCpMsg = null;
+        try
+        {
+            string cpId = Guid.NewGuid().ToString();
+            var cpGrain = Grains.GetGrain<IControlPointGrain>($"IFCAP-CP:{cpId}");
+            await cpGrain.CreateAsync(newCpName, newCpFacilityId, newCpServiceId,
+                newCpFiscalYear, newCpBudgetCode, newCpAllocated, newCpOfficerId, newCpOfficerName);
+            createCpMsg = "Control point created.";
+            showCreateCp = false;
+            await LoadControlPoints();
+        }
+        catch (Exception ex) { createCpMsg = $"Error: {ex.Message}"; }
+    }
+
+    // ─── Purchase Request actions ──────────────────────────────────────────────
+
+    private async Task LoadControlPointsForPr()
+    {
+        await LoadControlPoints();
+    }
+
+    private async Task LoadPrForCp()
+    {
+        if (string.IsNullOrEmpty(selectedPrCpId)) return;
+        try
+        {
+            var prIdx = Grains.GetGrain<IPurchaseRequestIndexGrain>($"IFCAP-PR-IDX:{selectedPrCpId}");
+            List<PurchaseRequestIndexEntry> entries = await prIdx.GetAllAsync();
+            cpRequests = entries.Select(MapPrIndex).ToList();
+        }
+        catch (Exception ex) { error = $"Error loading requests: {ex.Message}"; }
+    }
+
+    private void TogglePrSubmitPanel(string rid) { prSubmitId = prSubmitId == rid ? null : rid; prApproveId = null; prRejectId = null; prCancelId = null; prActionMsg = null; }
+    private void TogglePrApprovePanel(string rid) { prApproveId = prApproveId == rid ? null : rid; prSubmitId = null; prRejectId = null; prCancelId = null; prActionMsg = null; }
+    private void TogglePrRejectPanel(string rid) { prRejectId = prRejectId == rid ? null : rid; prSubmitId = null; prApproveId = null; prCancelId = null; prActionMsg = null; }
+    private void TogglePrCancelPanel(string rid) { prCancelId = prCancelId == rid ? null : rid; prSubmitId = null; prApproveId = null; prRejectId = null; prActionMsg = null; }
+
+    private async Task SubmitPr(string rid)
+    {
+        prActionMsg = null;
+        try
+        {
+            string grainKey = rid.StartsWith("IFCAP-PR:") ? rid : $"IFCAP-PR:{rid}";
+            var prGrain = Grains.GetGrain<IPurchaseRequestGrain>(grainKey);
+            await prGrain.SubmitAsync(prActionUserId);
+            prActionMsg = "Submitted."; prSubmitId = null; await LoadPrForCp();
+        }
+        catch (Exception ex) { prActionMsg = $"Error: {ex.Message}"; }
+    }
+
+    private async Task ApprovePr(string rid)
+    {
+        prActionMsg = null;
+        try
+        {
+            string grainKey = rid.StartsWith("IFCAP-PR:") ? rid : $"IFCAP-PR:{rid}";
+            var prGrain = Grains.GetGrain<IPurchaseRequestGrain>(grainKey);
+            await prGrain.ApproveAsync(prActionUserId, prActionUserName);
+            prActionMsg = "Approved."; prApproveId = null; await LoadPrForCp();
+        }
+        catch (Exception ex) { prActionMsg = $"Error: {ex.Message}"; }
+    }
+
+    private async Task RejectPr(string rid)
+    {
+        prActionMsg = null;
+        try
+        {
+            string grainKey = rid.StartsWith("IFCAP-PR:") ? rid : $"IFCAP-PR:{rid}";
+            var prGrain = Grains.GetGrain<IPurchaseRequestGrain>(grainKey);
+            await prGrain.RejectAsync(prActionUserId, prActionReason);
+            prActionMsg = "Rejected."; prRejectId = null; await LoadPrForCp();
+        }
+        catch (Exception ex) { prActionMsg = $"Error: {ex.Message}"; }
+    }
+
+    private async Task CancelPr(string rid)
+    {
+        prActionMsg = null;
+        try
+        {
+            string grainKey = rid.StartsWith("IFCAP-PR:") ? rid : $"IFCAP-PR:{rid}";
+            var prGrain = Grains.GetGrain<IPurchaseRequestGrain>(grainKey);
+            await prGrain.CancelAsync(prActionReason);
+            prActionMsg = "Cancelled."; prCancelId = null; await LoadPrForCp();
+        }
+        catch (Exception ex) { prActionMsg = $"Error: {ex.Message}"; }
+    }
+
+    private void AddPrLine() => newPrLines.Add(new PrLineForm { LineNumber = newPrLines.Count + 1 });
+
+    private async Task CreatePurchaseRequest()
+    {
+        createPrMsg = null;
+        try
+        {
+            string reqId = Guid.NewGuid().ToString();
+            var lineItems = newPrLines.Select(l => new PurchaseRequestLineItem(
+                l.LineNumber, l.ItemDescription, l.Quantity, l.UnitOfIssue, l.UnitCost,
+                l.Quantity * l.UnitCost, null, null, null)).ToList();
+            string cpKey = selectedPrCpId.StartsWith("IFCAP-CP:") ? selectedPrCpId : $"IFCAP-CP:{selectedPrCpId}";
+            var prGrain = Grains.GetGrain<IPurchaseRequestGrain>($"IFCAP-PR:{reqId}");
+            PurchaseRequestPriority priority = Enum.Parse<PurchaseRequestPriority>(newPrPriority);
+            await prGrain.CreateAsync(cpKey, newPrRequestorId, newPrRequestorName,
+                newPrFiscalYear, priority, newPrNeedByDate,
+                newPrDescription, newPrJustification, newPrEstimatedCost, lineItems,
+                newPrVendorId, newPrVendorName, newPrNotes);
+            createPrMsg = "Request created.";
+            showCreatePr = false;
+            newPrLines = new() { new PrLineForm { LineNumber = 1 } };
+            await LoadPrForCp();
+        }
+        catch (Exception ex) { createPrMsg = $"Error: {ex.Message}"; }
+    }
+
+    // ─── Purchase Order actions ────────────────────────────────────────────────
+
+    private async Task LoadPurchaseOrders()
+    {
+        error = null;
+        try
+        {
+            var poIdx = Grains.GetGrain<IPurchaseOrderIndexGrain>("IFCAP-PO-IDX");
+            List<PurchaseOrderIndexEntry> openEntries = await poIdx.GetOpenAsync();
+            openPOs = openEntries.Select(MapPoIndex).ToList();
+            List<PurchaseOrderIndexEntry> allEntries = await poIdx.GetAllAsync();
+            allPOs = allEntries.Select(MapPoIndex).ToList();
+        }
+        catch (Exception ex) { error = $"Error loading purchase orders: {ex.Message}"; }
+    }
+
+    private static PoIndexDto MapPoIndex(PurchaseOrderIndexEntry e) => new(
+        e.PurchaseOrderId, e.ControlPointId, e.VendorName,
+        e.TotalAmount, e.AmountReceived,
+        e.Status, e.IssuedDate, e.RequestId);
+
+    private async Task ToggleReceivePanel(string poId)
+    {
+        if (receivingPoId == poId) { receivingPoId = null; rrLines = new(); return; }
+        receivingPoId = poId;
+        cancelPoId = null;
+        rrMsg = null;
+        try
+        {
+            string grainKey = poId.StartsWith("IFCAP-PO:") ? poId : $"IFCAP-PO:{poId}";
+            var poGrain = Grains.GetGrain<IPurchaseOrderGrain>(grainKey);
+            PurchaseOrderState po = await poGrain.GetAsync();
+            rrLines = po.LineItems.Select(l => new RrLineForm { LineNumber = l.LineNumber }).ToList();
+        }
+        catch { rrLines = new() { new RrLineForm { LineNumber = 1 } }; }
+    }
+
+    private void ToggleCancelPoPanel(string poId)
+    {
+        cancelPoId = cancelPoId == poId ? null : poId;
+        receivingPoId = null;
+        cancelPoMsg = null;
+    }
+
+    private async Task SubmitReceivingReport(string poId)
+    {
+        rrMsg = null;
+        try
+        {
+            string rrId = Guid.NewGuid().ToString();
+            string poKey = poId.StartsWith("IFCAP-PO:") ? poId : $"IFCAP-PO:{poId}";
+            var poGrain = Grains.GetGrain<IPurchaseOrderGrain>(poKey);
+            PurchaseOrderState po = await poGrain.GetAsync();
+            var lineItems = rrLines.Select(l => new RrLineItem(
+                l.LineNumber, string.Empty, 0, l.QuantityReceived, l.QuantityAccepted, 0, 0, l.Condition)).ToList();
+            var rrGrain = Grains.GetGrain<IReceivingReportGrain>($"IFCAP-RR:{rrId}");
+            await rrGrain.CreateAsync(poKey, po.ControlPointId, rrUserId, rrUserName, lineItems, rrNotes);
+            var lineReceipts = rrLines.Select(l => (l.LineNumber, l.QuantityAccepted)).ToList();
+            await poGrain.RecordReceiptAsync(rrId, lineReceipts);
+            rrMsg = "Receiving report submitted.";
+            receivingPoId = null;
+            rrLines = new();
+            await LoadPurchaseOrders();
+        }
+        catch (Exception ex) { rrMsg = $"Error: {ex.Message}"; }
+    }
+
+    private async Task CancelPurchaseOrder(string poId)
+    {
+        cancelPoMsg = null;
+        try
+        {
+            string grainKey = poId.StartsWith("IFCAP-PO:") ? poId : $"IFCAP-PO:{poId}";
+            var poGrain = Grains.GetGrain<IPurchaseOrderGrain>(grainKey);
+            await poGrain.CancelAsync(cancelPoReason, cancelPoUserId);
+            cancelPoMsg = "Purchase order cancelled.";
+            cancelPoId = null;
+            await LoadPurchaseOrders();
+        }
+        catch (Exception ex) { cancelPoMsg = $"Error: {ex.Message}"; }
+    }
+
+    private async Task ClosePoConfirm(string poId)
+    {
+        try
+        {
+            string grainKey = poId.StartsWith("IFCAP-PO:") ? poId : $"IFCAP-PO:{poId}";
+            var poGrain = Grains.GetGrain<IPurchaseOrderGrain>(grainKey);
+            await poGrain.CloseAsync("SYSTEM");
+            await LoadPurchaseOrders();
+        }
+        catch (Exception ex) { error = $"Error closing PO: {ex.Message}"; }
+    }
+
+    private void AddPoLine() => newPoLines.Add(new PrLineForm { LineNumber = newPoLines.Count + 1 });
+
+    private async Task CreatePurchaseOrder()
+    {
+        createPoMsg = null;
+        try
+        {
+            string poId = Guid.NewGuid().ToString();
+            var lineItems = newPoLines.Select(l => new PoLineItem(
+                l.LineNumber, l.ItemDescription, l.Quantity, 0, l.UnitOfIssue, l.UnitCost,
+                l.Quantity * l.UnitCost, null, null)).ToList();
+            var poGrain = Grains.GetGrain<IPurchaseOrderGrain>($"IFCAP-PO:{poId}");
+            await poGrain.CreateAsync(newPoRequestId, newPoControlPointId,
+                newPoVendorId, newPoVendorName, newPoVendorAddress,
+                newPoRequiredDelivery, lineItems, newPoIssuedByUserId, newPoIssuedByUserName);
+            createPoMsg = "Purchase order issued.";
+            showCreatePo = false;
+            newPoLines = new() { new PrLineForm { LineNumber = 1 } };
+            await LoadPurchaseOrders();
+        }
+        catch (Exception ex) { createPoMsg = $"Error: {ex.Message}"; }
+    }
+
+    // ─── Vendor actions ───────────────────────────────────────────────────────
+
+    private async Task LoadVendors()
+    {
+        error = null;
+        try
+        {
+            var vendorIdx = Grains.GetGrain<IIfcapVendorIndexGrain>("IFCAP-VENDOR-IDX");
+            List<IfcapVendorIndexEntry> entries = await vendorIdx.GetAllAsync();
+            vendors = entries.Select(v => new VendorIndexDto(
+                v.VendorId, v.Name, v.VendorNumber,
+                v.IsActive, v.IsSmallBusiness, v.IsVeteranOwned)).ToList();
+        }
+        catch (Exception ex) { error = $"Error loading vendors: {ex.Message}"; }
+    }
+
+    private async Task SearchVendors()
+    {
+        error = null;
+        try
+        {
+            var vendorIdx = Grains.GetGrain<IIfcapVendorIndexGrain>("IFCAP-VENDOR-IDX");
+            List<IfcapVendorIndexEntry> entries = string.IsNullOrWhiteSpace(vendorSearch)
+                ? await vendorIdx.GetAllAsync()
+                : await vendorIdx.SearchAsync(vendorSearch);
+            vendors = entries.Select(v => new VendorIndexDto(
+                v.VendorId, v.Name, v.VendorNumber,
+                v.IsActive, v.IsSmallBusiness, v.IsVeteranOwned)).ToList();
+        }
+        catch (Exception ex) { error = $"Error searching vendors: {ex.Message}"; }
+    }
+
+    private async Task CreateVendor()
+    {
+        createVendorMsg = null;
+        try
+        {
+            string vendorId = Guid.NewGuid().ToString();
+            var vendorGrain = Grains.GetGrain<IIfcapVendorGrain>($"IFCAP-VENDOR:{vendorId}");
+            await vendorGrain.CreateAsync(newVendorName, newVendorNumber,
+                newVendorAddress, newVendorCity, newVendorState, newVendorZip,
+                newVendorPhone, null, newVendorEmail,
+                newVendorSb, newVendorWo, newVendorVo, newVendorDuns, newVendorContact);
+            createVendorMsg = "Vendor registered.";
+            showCreateVendor = false;
+            await LoadVendors();
+        }
+        catch (Exception ex) { createVendorMsg = $"Error: {ex.Message}"; }
+    }
+
+    // ─── Site Parameters ──────────────────────────────────────────────────────
+
+    private async Task LoadSiteParams()
+    {
+        error = null;
+        try
+        {
+            var spGrain = Grains.GetGrain<IIfcapSiteParametersGrain>("IFCAP-SITE-PARAMS");
+            IfcapSiteParametersState sp = await spGrain.GetAsync();
+            siteParams = new SiteParamsDto(sp.SiteId, sp.SiteName, sp.FacilityNumber,
+                sp.FiscalYear, sp.DefaultDeliveryDays,
+                sp.IsAutoApprovalEnabled, sp.AutoApprovalThreshold,
+                sp.PONumberPrefix, sp.IsActive, sp.UpdatedByUserId, sp.LastUpdatedDate);
+            if (siteParams != null)
+            {
+                spSiteName              = siteParams.SiteName ?? string.Empty;
+                spFacilityNumber        = siteParams.FacilityNumber ?? string.Empty;
+                spFiscalYear            = siteParams.FiscalYear;
+                spDeliveryDays          = siteParams.DefaultDeliveryDays;
+                spAutoApprovalThreshold = siteParams.AutoApprovalThreshold;
+                spPoPrefix              = siteParams.PONumberPrefix ?? string.Empty;
+                spAutoApproval          = siteParams.IsAutoApprovalEnabled;
+            }
+        }
+        catch (Exception ex) { error = $"Error loading site parameters: {ex.Message}"; }
+    }
+
+    private async Task UpdateSiteParams()
+    {
+        siteParamsMsg = null;
+        try
+        {
+            var spGrain = Grains.GetGrain<IIfcapSiteParametersGrain>("IFCAP-SITE-PARAMS");
+            await spGrain.UpdateAsync(spSiteName, spFacilityNumber, spFiscalYear,
+                spDeliveryDays, spAutoApproval, spAutoApprovalThreshold, spPoPrefix, spUpdatedByUserId);
+            siteParamsMsg = "Site parameters updated.";
+            await LoadSiteParams();
+        }
+        catch (Exception ex) { siteParamsMsg = $"Error: {ex.Message}"; }
+    }
+
+    // ─── Badge helpers ────────────────────────────────────────────────────────
+
+    private static string CpStatusBadge(string s) => s switch
+    {
+        "Active"    => "badge-success",
+        "Inactive"  => "badge-secondary",
+        "Suspended" => "badge-warning",
+        _           => "badge-secondary",
+    };
+
+    private static string PrStatusBadge(string s) => s switch
+    {
+        "Draft"     => "badge-secondary",
+        "Submitted" => "badge-warning",
+        "Approved"  => "badge-info",
+        "Funded"    => "badge-success",
+        "Cancelled" => "badge-secondary",
+        "Rejected"  => "badge-danger",
+        _           => "badge-secondary",
+    };
+
+    private static string PoStatusBadge(string s) => s switch
+    {
+        "Draft"             => "badge-secondary",
+        "Open"              => "badge-primary",
+        "PartiallyReceived" => "badge-warning",
+        "Received"          => "badge-info",
+        "Cancelled"         => "badge-secondary",
+        "Closed"            => "badge-success",
+        _                   => "badge-secondary",
+    };
+
+    // ─── Local form helpers ───────────────────────────────────────────────────
+
+    private class PrLineForm
+    {
+        public int LineNumber { get; set; }
+        public string ItemDescription { get; set; } = string.Empty;
+        public decimal Quantity { get; set; } = 1;
+        public string UnitOfIssue { get; set; } = "EA";
+        public decimal UnitCost { get; set; }
+    }
+
+    private class RrLineForm
+    {
+        public int LineNumber { get; set; }
+        public decimal QuantityReceived { get; set; }
+        public decimal QuantityAccepted { get; set; }
+        public string? Condition { get; set; }
+    }
+
+    // ─── Local DTOs ───────────────────────────────────────────────────────────
+
+    private record CpIndexDto(
+        string ControlPointId, string Name, string FacilityId,
+        int FiscalYear, decimal RemainingBalance, string Status);
+
+    private record CpDetailDto(
+        string ControlPointId, string Name, string FacilityId, string ServiceId,
+        int FiscalYear, string BudgetCode, string Status,
+        decimal AllocatedAmount, decimal ObligatedAmount, decimal ExpendedAmount, decimal RemainingBalance,
+        string ControlPointOfficerId, string ControlPointOfficerName,
+        List<string> RequestIds, DateTime CreatedDate, DateTime LastModifiedDate);
+
+    private record PrIndexDto(
+        string RequestId, string ControlPointId, string RequestorName,
+        decimal EstimatedCost, PurchaseRequestStatus Status,
+        PurchaseRequestPriority Priority, DateTime RequestDate);
+
+    private record PoIndexDto(
+        string PurchaseOrderId, string ControlPointId, string VendorName,
+        decimal TotalAmount, decimal AmountReceived,
+        PurchaseOrderStatus Status, DateTime IssuedDate, string RequestId);
+
+    private record PoDetailDto(
+        string PurchaseOrderId, string RequestId, string ControlPointId,
+        string VendorId, string VendorName, string? VendorAddress,
+        string Status, DateTime IssuedDate, DateTime RequiredDeliveryDate,
+        decimal TotalAmount, decimal AmountReceived,
+        List<PoLineDto> LineItems, List<string> ReceivingReportIds);
+
+    private record PoLineDto(
+        int LineNumber, string ItemDescription,
+        decimal Quantity, decimal QuantityReceived,
+        string UnitOfIssue, decimal UnitCost, decimal ExtendedCost);
+
+    private record VendorIndexDto(
+        string VendorId, string Name, string VendorNumber,
+        bool IsActive, bool IsSmallBusiness, bool IsVeteranOwned);
+
+    private record SiteParamsDto(
+        string SiteId, string? SiteName, string? FacilityNumber,
+        int FiscalYear, int DefaultDeliveryDays,
+        bool IsAutoApprovalEnabled, decimal AutoApprovalThreshold,
+        string? PONumberPrefix, bool IsActive,
+        string? UpdatedByUserId, DateTime? LastUpdatedDate);
+}
+
+<style>
+    .ifcap-container { padding: 1rem; font-family: 'Courier New', monospace; max-width: 1300px; }
+    .ifcap-header { margin-bottom: 1rem; }
+    .ifcap-header h2 { font-size: 1.1rem; color: #e0e0e0; }
+    .ifcap-tabs { display: flex; gap: 0; margin-bottom: 1rem; border-bottom: 2px solid #333; }
+    .tab-btn { padding: 0.4rem 1.2rem; background: transparent; border: none; color: #aaa; cursor: pointer; border-bottom: 2px solid transparent; margin-bottom: -2px; }
+    .tab-btn.active { color: #4fc3f7; border-bottom-color: #4fc3f7; }
+    .tab-panel { padding: 1rem 0; }
+    .ifcap-table { width: 100%; border-collapse: collapse; font-size: 0.875rem; }
+    .ifcap-table th { background: #1a1a2e; color: #aaa; padding: 0.4rem 0.6rem; text-align: left; }
+    .ifcap-table td { padding: 0.4rem 0.6rem; border-bottom: 1px solid #2a2a3e; }
+    .ifcap-table tr.selected-row td { background: #1a2a3a; }
+    .badge { padding: 0.2rem 0.5rem; border-radius: 3px; font-size: 0.75rem; font-weight: bold; }
+    .badge-primary { background: #1565c0; color: #fff; }
+    .badge-success { background: #2e7d32; color: #fff; }
+    .badge-info { background: #00838f; color: #fff; }
+    .badge-warning { background: #e65100; color: #fff; }
+    .badge-danger { background: #b71c1c; color: #fff; }
+    .badge-secondary { background: #424242; color: #ddd; }
+    .form-panel { background: #1a1a2e; padding: 1rem; border-radius: 4px; margin-top: 1rem; }
+    .form-row { display: flex; gap: 0.5rem; margin-bottom: 0.5rem; flex-wrap: wrap; align-items: flex-start; }
+    .form-row label { color: #aaa; font-size: 0.85rem; min-width: 100px; padding-top: 0.4rem; }
+    .form-row.checkboxes { gap: 1rem; align-items: center; }
+    .form-row.checkboxes label { min-width: auto; display: flex; gap: 0.3rem; align-items: center; cursor: pointer; color: #ccc; }
+    .form-control { background: #0d0d1a; color: #e0e0e0; border: 1px solid #333; padding: 0.3rem 0.5rem; border-radius: 3px; font-family: inherit; min-width: 140px; }
+    .btn { padding: 0.3rem 0.8rem; border: none; border-radius: 3px; cursor: pointer; font-size: 0.85rem; }
+    .btn-primary { background: #1565c0; color: #fff; }
+    .btn-success { background: #2e7d32; color: #fff; }
+    .btn-warning { background: #e65100; color: #fff; }
+    .btn-danger { background: #b71c1c; color: #fff; }
+    .btn-secondary { background: #424242; color: #ddd; }
+    .btn-outline-primary { background: transparent; border: 1px solid #1565c0; color: #4fc3f7; }
+    .btn-sm { padding: 0.2rem 0.5rem; font-size: 0.8rem; }
+    .form-msg { margin-left: 0.5rem; font-size: 0.85rem; color: #4fc3f7; }
+    .detail-panel { background: #0d1117; border: 1px solid #2a2a3e; border-radius: 4px; padding: 1rem; margin-top: 1rem; }
+    .detail-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 0.5rem; margin-bottom: 1rem; font-size: 0.875rem; color: #ccc; }
+    .action-section { margin-top: 1rem; padding-top: 0.75rem; border-top: 1px solid #2a2a3e; }
+    .action-section h5 { color: #aaa; font-size: 0.9rem; margin-bottom: 0.5rem; }
+    .alert-danger { background: #3d0000; color: #ff8a80; padding: 0.5rem 1rem; border-radius: 4px; margin-bottom: 1rem; }
+    .text-muted { color: #666; font-size: 0.875rem; }
+</style>

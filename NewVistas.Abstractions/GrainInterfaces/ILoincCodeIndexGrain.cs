@@ -1,0 +1,81 @@
+// Copyright 2026 Merrimack Valley Software Works, LLC. All rights reserved.
+using Orleans;
+
+namespace NewVistas.Abstractions.GrainInterfaces;
+
+/// <summary>
+/// LOINC Code Index Grain — singleton that holds the searchable catalog
+/// of all LOINC codes in memory for fast lookup without activating
+/// individual code grains.
+///
+/// Grain Key: "LOINC-INDEX" (singleton)
+///
+/// This mirrors how VistA cross-references WKLD CODE (File #64)
+/// and LABORATORY TEST (File #60) for fast LOINC-based lookup.
+/// </summary>
+public interface ILoincCodeIndexGrain : IGrainWithStringKey
+{
+    /// <summary>
+    /// Adds or updates a single LOINC code entry in the index.
+    /// </summary>
+    Task AddOrUpdateEntryAsync(GrainStates.LoincCodeIndexEntry entry);
+
+    /// <summary>
+    /// Bulk-loads LOINC code entries into the index.
+    /// Replaces any previously loaded entries.
+    /// </summary>
+    Task LoadCodesAsync(List<GrainStates.LoincCodeIndexEntry> entries);
+
+    /// <summary>
+    /// Looks up a single code. Returns null if not found.
+    /// </summary>
+    Task<GrainStates.LoincCodeIndexEntry?> GetCodeAsync(string code);
+
+    /// <summary>
+    /// Searches codes by text (component, short name, or long common name).
+    /// </summary>
+    Task<List<GrainStates.LoincCodeIndexEntry>> SearchAsync(
+        string searchText,
+        int maxResults);
+
+    /// <summary>
+    /// Returns all codes within a system (e.g., "Ser", "Bld", "Urine").
+    /// </summary>
+    Task<List<GrainStates.LoincCodeIndexEntry>> GetBySystemAsync(
+        string system,
+        int maxResults);
+
+    /// <summary>
+    /// Returns all active codes. If maxResults is 0, returns all.
+    /// </summary>
+    Task<List<GrainStates.LoincCodeIndexEntry>> GetActiveCodesAsync(int maxResults);
+
+    /// <summary>
+    /// Returns index load status and statistics.
+    /// </summary>
+    Task<LoincCodeIndexStatus> GetStatusAsync();
+
+    /// <summary>
+    /// Clears the index. Used before a reload.
+    /// </summary>
+    Task ClearAsync();
+}
+
+/// <summary>
+/// Status information for the LOINC code index.
+/// </summary>
+[GenerateSerializer]
+public class LoincCodeIndexStatus
+{
+    [Id(0)]
+    public bool IsLoaded { get; set; }
+
+    [Id(1)]
+    public DateTime? LastLoadedDate { get; set; }
+
+    [Id(2)]
+    public int TotalCodes { get; set; }
+
+    [Id(3)]
+    public int ActiveCodes { get; set; }
+}

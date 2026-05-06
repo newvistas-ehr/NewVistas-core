@@ -1,0 +1,41 @@
+<UserControl x:Class="NewVistas.Wpf_UI.Views.LabShippingView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <ScrollViewer VerticalScrollBarVisibility="Auto">
+        <StackPanel Margin="24">
+            <TextBlock Style="{StaticResource PageTitle}" Text="Lab Specimen Shipping"/>
+            <TextBlock Style="{StaticResource ErrorText}" Text="{Binding Error}"
+                       Visibility="{Binding Error, Converter={StaticResource NullToVisibility}}"/>
+            <TextBlock Foreground="Green" Text="{Binding ActionMessage}"
+                       Visibility="{Binding ActionMessage, Converter={StaticResource NullToVisibility}}" Margin="0,0,0,8"/>
+
+            <StackPanel Orientation="Horizontal" Margin="0,0,0,12">
+                <TextBox Text="{Binding ManifestIdInput, UpdateSourceTrigger=PropertyChanged}" Width="280" Margin="0,0,8,0"/>
+                <Button Content="Load Manifest" Style="{StaticResource PrimaryButton}"
+                        Command="{Binding LoadCommand}" Margin="0,0,8,0"/>
+                <ProgressBar IsIndeterminate="True" Width="120" Height="20"
+                             Visibility="{Binding IsLoading, Converter={StaticResource BoolToVisibility}}"/>
+            </StackPanel>
+
+            <DataGrid ItemsSource="{Binding Manifest.Specimens}" AutoGenerateColumns="False" IsReadOnly="True" Height="300"
+                      Visibility="{Binding Manifest, Converter={StaticResource NullToVisibility}}">
+                <DataGrid.Columns>
+                    <DataGridTextColumn Header="Specimen ID" Binding="{Binding SpecimenId}" Width="140"/>
+                    <DataGridTextColumn Header="Patient" Binding="{Binding PatientId}" Width="120"/>
+                    <DataGridTextColumn Header="Test" Binding="{Binding TestName}" Width="*"/>
+                    <DataGridTextColumn Header="LOINC" Binding="{Binding LoincCode}" Width="100"/>
+                    <DataGridTextColumn Header="Type" Binding="{Binding SpecimenType}" Width="100"/>
+                    <DataGridTextColumn Header="Collected" Binding="{Binding CollectionDate, StringFormat=g}" Width="140"/>
+                </DataGrid.Columns>
+            </DataGrid>
+
+            <StackPanel Orientation="Horizontal" Margin="0,8,0,0"
+                        Visibility="{Binding Manifest, Converter={StaticResource NullToVisibility}}">
+                <Button Content="Ship" Style="{StaticResource PrimaryButton}"
+                        Command="{Binding ShipManifestCommand}" Margin="0,0,8,0"/>
+                <Button Content="Mark Received" Style="{StaticResource SecondaryButton}"
+                        Command="{Binding MarkReceivedCommand}"/>
+            </StackPanel>
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>

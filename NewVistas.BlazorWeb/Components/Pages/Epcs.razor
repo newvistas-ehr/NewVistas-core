@@ -1,0 +1,923 @@
+﻿@* Copyright 2026 James Smyth. All rights reserved. *@
+@page "/epcs"
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+@rendermode InteractiveServer
+@using NewVistas.BlazorWeb.Services
+@using NewVistas.Abstractions.GrainInterfaces
+@using NewVistas.Abstractions.GrainStates
+@inject OrleansGrainService Grains
+
+<h3>Electronic Prescribing of Controlled Substances (EPCS)</h3>
+
+@if (!string.IsNullOrEmpty(error))
+{
+    <div class="alert alert-danger">@error</div>
+}
+
+@* ── Tab Bar ─────────────────────────────────────────────────────────── *@
+<ul class="nav nav-tabs mt-3">
+    <li class="nav-item"><a class="nav-link @(activeTab == 0 ? "active" : "")" @onclick="() => activeTab = 0">E-Prescriptions</a></li>
+    <li class="nav-item"><a class="nav-link @(activeTab == 1 ? "active" : "")" @onclick="() => activeTab = 1">Prescription Detail</a></li>
+    <li class="nav-item"><a class="nav-link @(activeTab == 2 ? "active" : "")" @onclick="async () => { activeTab = 2; await LoadProviders(); }">Provider Credentials</a></li>
+</ul>
+
+@* ── Tab 0: E-Prescriptions ──────────────────────────────────────────── *@
+@if (activeTab == 0)
+{
+    <div class="patient-bar">
+        <input type="text" @bind="patientId" placeholder="Patient ID" class="form-control d-inline-block" style="width:260px" />
+        <button class="btn btn-primary ms-2" @onclick="LoadPrescriptions" disabled="@loading">Load</button>
+        <button class="btn btn-success ms-2" @onclick="() => showCreateForm = !showCreateForm">New e-Rx</button>
+        <select class="form-select ms-2 d-inline-block" style="width:160px" @bind="statusFilter" @bind:after="LoadPrescriptions">
+            <option value="">All Statuses</option>
+            <option value="0">Draft</option>
+            <option value="1">Signed</option>
+            <option value="2">Transmitted</option>
+            <option value="3">Acknowledged</option>
+            <option value="4">Error</option>
+            <option value="5">Cancelled</option>
+        </select>
+    </div>
+
+    @if (showCreateForm)
+    {
+        <div class="card mt-3 p-3">
+            <h5>Create EPCS e-Prescription</h5>
+            <div class="row g-2">
+                <div class="col-md-3">
+                    <label>Transaction Type *</label>
+                    <select class="form-select" @bind="newRx.TransactionType">
+                        <option value="0">NewRx</option>
+                        <option value="1">RefillRequest</option>
+                        <option value="2">RefillResponse</option>
+                        <option value="3">CancelRx</option>
+                        <option value="4">CancelRxResponse</option>
+                        <option value="5">RxChangeRequest</option>
+                        <option value="6">RxChangeResponse</option>
+                        <option value="7">RxRenewalRequest</option>
+                        <option value="8">RxRenewalResponse</option>
+                    </select>
+                </div>
+                <div class="col-md-3"><label>Drug Name *</label><input type="text" class="form-control" @bind="newRx.DrugName" /></div>
+                <div class="col-md-3"><label>DEA Schedule *</label><input type="text" class="form-control" @bind="newRx.DeaSchedule" placeholder="II, III, IV, V" /></div>
+                <div class="col-md-3"><label>NDC</label><input type="text" class="form-control" @bind="newRx.Ndc" /></div>
+            </div>
+            <div class="row g-2 mt-2">
+                <div class="col-md-2"><label>Quantity *</label><input type="number" step="0.001" class="form-control" @bind="newRx.Quantity" /></div>
+                <div class="col-md-2"><label>Days Supply *</label><input type="number" class="form-control" @bind="newRx.DaysSupply" /></div>
+                <div class="col-md-2"><label>Refills Authorized</label><input type="number" class="form-control" @bind="newRx.RefillsAuthorized" /></div>
+                <div class="col-md-3"><label>Sig / Directions</label><input type="text" class="form-control" @bind="newRx.Sig" /></div>
+                <div class="col-md-3"><label>Diagnosis Code</label><input type="text" class="form-control" @bind="newRx.DiagnosisCode" /></div>
+            </div>
+            <div class="row g-2 mt-2">
+                <div class="col-md-3"><label>Prescriber NPI</label><input type="text" class="form-control" @bind="newRx.PrescriberNpi" /></div>
+                <div class="col-md-3"><label>Prescriber DEA</label><input type="text" class="form-control" @bind="newRx.PrescriberDea" /></div>
+                <div class="col-md-3"><label>Prescriber Name</label><input type="text" class="form-control" @bind="newRx.PrescriberName" /></div>
+                <div class="col-md-3"><label>Credential ID</label><input type="text" class="form-control" @bind="newRx.PrescriberCredentialId" /></div>
+            </div>
+            <div class="row g-2 mt-2">
+                <div class="col-md-3"><label>Prescription ID</label><input type="text" class="form-control" @bind="newRx.PrescriptionId" /></div>
+                <div class="col-md-3"><label>Pharmacy NCPDP ID</label><input type="text" class="form-control" @bind="newRx.PharmacyNcpdpId" /></div>
+                <div class="col-md-3"><label>Pharmacy Name</label><input type="text" class="form-control" @bind="newRx.PharmacyName" /></div>
+                <div class="col-md-3"><label>Pharmacy Address</label><input type="text" class="form-control" @bind="newRx.PharmacyAddress" /></div>
+            </div>
+            <button class="btn btn-primary mt-3" @onclick="CreatePrescription">Create e-Prescription</button>
+        </div>
+    }
+
+    @if (loading)
+    {
+        <div class="spinner-border mt-3" role="status"><span class="visually-hidden">Loading...</span></div>
+    }
+    else if (prescriptions != null)
+    {
+        <table class="table table-striped mt-3">
+            <thead>
+                <tr>
+                    <th>Drug</th>
+                    <th>Schedule</th>
+                    <th>Type</th>
+                    <th>Status</th>
+                    <th>Prescriber</th>
+                    <th>Signed</th>
+                    <th>Date</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var rx in prescriptions)
+                {
+                    <tr>
+                        <td>@rx.DrugName</td>
+                        <td>@rx.DeaSchedule</td>
+                        <td><span class="badge bg-info">@TxTypeName(rx.TransactionType)</span></td>
+                        <td><span class="badge @StatusBadge(rx.Status)">@StatusName(rx.Status)</span></td>
+                        <td>@rx.PrescriberName</td>
+                        <td>
+                            @if (rx.IsSigned)
+                            {
+                                <span class="badge bg-success">Signed</span>
+                            }
+                            else
+                            {
+                                <span class="badge bg-warning text-dark">Unsigned</span>
+                            }
+                        </td>
+                        <td>@rx.CreatedDate.ToString("MM/dd/yyyy")</td>
+                        <td>
+                            <button class="btn btn-sm btn-outline-primary" @onclick="() => SelectPrescription(rx.EpcsId)">View</button>
+                            @if (rx.Status == 0 && !rx.IsSigned)
+                            {
+                                <button class="btn btn-sm btn-outline-success ms-1" @onclick="() => ShowSignForm(rx.EpcsId)">Sign</button>
+                            }
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    }
+
+    @if (showSignForm)
+    {
+        <div class="card mt-3 p-3">
+            <h5>Sign e-Prescription: @signEpcsId</h5>
+            <div class="row g-2">
+                <div class="col-md-3">
+                    <label>2FA Method *</label>
+                    <select class="form-select" @bind="signReq.TwoFactorMethod">
+                        <option value="0">None</option>
+                        <option value="1">Hardware Token</option>
+                        <option value="2">Biometric</option>
+                        <option value="3">One-Time Password</option>
+                        <option value="4">Smart Card</option>
+                        <option value="5">Mobile Authenticator</option>
+                    </select>
+                </div>
+                <div class="col-md-3"><label>Certificate Thumbprint *</label><input type="text" class="form-control" @bind="signReq.CertificateThumbprint" /></div>
+                <div class="col-md-3"><label>Prescription Hash *</label><input type="text" class="form-control" @bind="signReq.PrescriptionHash" /></div>
+                <div class="col-md-3">
+                    <label>Valid</label>
+                    <select class="form-select" @bind="signReq.IsValid">
+                        <option value="true">Yes</option>
+                        <option value="false">No</option>
+                    </select>
+                </div>
+            </div>
+            <button class="btn btn-success mt-3" @onclick="SignPrescription">Sign with 2FA</button>
+            <button class="btn btn-secondary mt-3 ms-2" @onclick="() => showSignForm = false">Cancel</button>
+        </div>
+    }
+}
+
+@* ── Tab 1: Prescription Detail ──────────────────────────────────────── *@
+@if (activeTab == 1)
+{
+    <div class="mt-3">
+        @if (selectedRx == null)
+        {
+            <div class="alert alert-info">Select a prescription from the E-Prescriptions tab to view details.</div>
+        }
+        else
+        {
+            <h5>e-Prescription @selectedRx.EpcsId — <span class="badge @StatusBadge((int)selectedRx.Status)">@selectedRx.Status</span></h5>
+
+            @* Drug Information *@
+            <div class="card p-3 mb-3">
+                <h6>Drug Information</h6>
+                <div class="row">
+                    <div class="col-md-3"><strong>Drug Name:</strong> @selectedRx.DrugName</div>
+                    <div class="col-md-2"><strong>NDC:</strong> @selectedRx.Ndc</div>
+                    <div class="col-md-2"><strong>DEA Schedule:</strong> @selectedRx.DeaSchedule</div>
+                    <div class="col-md-2"><strong>Quantity:</strong> @selectedRx.Quantity</div>
+                    <div class="col-md-3"><strong>Transaction:</strong> @selectedRx.TransactionType</div>
+                </div>
+                <div class="row mt-2">
+                    <div class="col-md-3"><strong>Days Supply:</strong> @selectedRx.DaysSupply</div>
+                    <div class="col-md-3"><strong>Refills:</strong> @selectedRx.RefillsAuthorized</div>
+                    <div class="col-md-3"><strong>Sig:</strong> @selectedRx.Sig</div>
+                    <div class="col-md-3"><strong>Diagnosis:</strong> @selectedRx.DiagnosisCode</div>
+                </div>
+            </div>
+
+            @* Prescriber *@
+            <div class="card p-3 mb-3">
+                <h6>Prescriber</h6>
+                <div class="row">
+                    <div class="col-md-3"><strong>Name:</strong> @selectedRx.PrescriberName</div>
+                    <div class="col-md-3"><strong>NPI:</strong> @selectedRx.PrescriberNpi</div>
+                    <div class="col-md-3"><strong>DEA:</strong> @selectedRx.PrescriberDea</div>
+                    <div class="col-md-3"><strong>Credential ID:</strong> @selectedRx.PrescriberCredentialId</div>
+                </div>
+            </div>
+
+            @* Destination Pharmacy *@
+            @if (selectedRx.DestinationPharmacy != null)
+            {
+                <div class="card p-3 mb-3">
+                    <h6>Destination Pharmacy</h6>
+                    <div class="row">
+                        <div class="col-md-3"><strong>NCPDP ID:</strong> @selectedRx.DestinationPharmacy.NcpdpId</div>
+                        <div class="col-md-3"><strong>Name:</strong> @selectedRx.DestinationPharmacy.PharmacyName</div>
+                        <div class="col-md-3"><strong>Address:</strong> @selectedRx.DestinationPharmacy.Address</div>
+                        <div class="col-md-3"><strong>Phone:</strong> @selectedRx.DestinationPharmacy.Phone</div>
+                    </div>
+                </div>
+            }
+
+            @* Signature Record *@
+            <div class="card p-3 mb-3">
+                <h6>Digital Signature (21 CFR Part 1311.120)</h6>
+                @if (selectedRx.Signature != null)
+                {
+                    <div class="row">
+                        <div class="col-md-3"><strong>Hash:</strong> <code>@selectedRx.Signature.PrescriptionHash</code></div>
+                        <div class="col-md-3"><strong>Certificate:</strong> <code>@selectedRx.Signature.CertificateThumbprint</code></div>
+                        <div class="col-md-3"><strong>2FA Method:</strong> @TwoFactorName(selectedRx.Signature.TwoFactorMethod)</div>
+                        <div class="col-md-3"><strong>Valid:</strong>
+                            @if (selectedRx.Signature.IsValid)
+                            {
+                                <span class="badge bg-success">Valid</span>
+                            }
+                            else
+                            {
+                                <span class="badge bg-danger">Invalid</span>
+                            }
+                        </div>
+                    </div>
+                    <div class="row mt-2">
+                        <div class="col-md-3"><strong>Signing Time:</strong> @selectedRx.Signature.SigningTime.ToString("MM/dd/yyyy HH:mm")</div>
+                        <div class="col-md-3"><strong>2FA Verification:</strong> @selectedRx.Signature.TwoFactorVerificationTime.ToString("MM/dd/yyyy HH:mm")</div>
+                    </div>
+                }
+                else
+                {
+                    <div class="text-muted">Not yet signed.</div>
+                }
+            </div>
+
+            @* Transmission Info *@
+            <div class="card p-3 mb-3">
+                <h6>Transmission</h6>
+                <div class="row">
+                    <div class="col-md-3"><strong>Message ID:</strong> @selectedRx.TransmissionMessageId</div>
+                    <div class="col-md-3"><strong>Transmitted:</strong> @selectedRx.TransmittedDate?.ToString("MM/dd/yyyy HH:mm")</div>
+                    <div class="col-md-3"><strong>Acknowledged:</strong> @selectedRx.AcknowledgedDate?.ToString("MM/dd/yyyy HH:mm")</div>
+                    <div class="col-md-3"><strong>Error:</strong> @selectedRx.ErrorMessage</div>
+                </div>
+            </div>
+
+            @* Audit Trail *@
+            @if (selectedRx.AuditTrail != null && selectedRx.AuditTrail.Count > 0)
+            {
+                <div class="card p-3 mb-3">
+                    <h6>DEA Audit Trail (21 CFR Part 1311.150)</h6>
+                    <table class="table table-sm table-bordered">
+                        <thead class="table-light">
+                            <tr><th>Timestamp</th><th>Action</th><th>User</th><th>Details</th></tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var entry in selectedRx.AuditTrail)
+                            {
+                                <tr>
+                                    <td>@entry.Timestamp.ToString("MM/dd/yyyy HH:mm:ss")</td>
+                                    <td>@entry.Action</td>
+                                    <td>@entry.UserId</td>
+                                    <td>@entry.Details</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            }
+
+            <div class="mt-2">
+                @if (selectedRx.Status == 1)
+                {
+                    <button class="btn btn-primary btn-sm" @onclick="() => TransmitPrescription(selectedRx.EpcsId)">Transmit</button>
+                }
+                @if (selectedRx.Status == 2)
+                {
+                    <button class="btn btn-success btn-sm ms-1" @onclick="() => AcknowledgePrescription(selectedRx.EpcsId)">Acknowledge</button>
+                }
+                @if ((int)selectedRx.Status < 3)
+                {
+                    <button class="btn btn-danger btn-sm ms-1" @onclick="() => ShowCancelForm(selectedRx.EpcsId)">Cancel</button>
+                }
+            </div>
+
+            @if (showCancelForm)
+            {
+                <div class="card mt-3 p-3">
+                    <h5>Cancel e-Prescription: @cancelEpcsId</h5>
+                    <div class="row g-2">
+                        <div class="col-md-4"><label>User ID *</label><input type="text" class="form-control" @bind="cancelUserId" /></div>
+                        <div class="col-md-8"><label>Reason</label><input type="text" class="form-control" @bind="cancelReason" /></div>
+                    </div>
+                    <button class="btn btn-danger mt-3" @onclick="CancelPrescription">Confirm Cancel</button>
+                    <button class="btn btn-secondary mt-3 ms-2" @onclick="() => showCancelForm = false">Back</button>
+                </div>
+            }
+
+            <div class="mt-2 text-muted">
+                <small>Created: @selectedRx.CreatedDate.ToString("MM/dd/yyyy HH:mm") | Last Modified: @selectedRx.LastModifiedDate.ToString("MM/dd/yyyy HH:mm")</small>
+            </div>
+        }
+    </div>
+}
+
+@* ── Tab 2: Provider Credentials ─────────────────────────────────────── *@
+@if (activeTab == 2)
+{
+    <div class="mt-3">
+        <button class="btn btn-success btn-sm mb-2" @onclick="() => showProviderForm = !showProviderForm">Add / Edit Provider</button>
+
+        @if (showProviderForm)
+        {
+            <div class="card p-3 mb-3">
+                <h6>@(string.IsNullOrEmpty(newProvider.CredentialId) ? "New Provider Credential" : "Edit Provider Credential")</h6>
+                <div class="row g-2">
+                    <div class="col-md-3"><label>Credential ID *</label><input type="text" class="form-control" @bind="newProvider.CredentialId" /></div>
+                    <div class="col-md-3"><label>Provider ID *</label><input type="text" class="form-control" @bind="newProvider.ProviderId" /></div>
+                    <div class="col-md-3"><label>Provider Name *</label><input type="text" class="form-control" @bind="newProvider.ProviderName" /></div>
+                    <div class="col-md-3"><label>DEA Number</label><input type="text" class="form-control" @bind="newProvider.DeaNumber" /></div>
+                </div>
+                <div class="row g-2 mt-2">
+                    <div class="col-md-3"><label>NPI</label><input type="text" class="form-control" @bind="newProvider.Npi" /></div>
+                    <div class="col-md-3">
+                        <label>Identity Proofing Level *</label>
+                        <select class="form-select" @bind="newProvider.IdentityProofingLevel">
+                            <option value="0">Not Proofed</option>
+                            <option value="1">NIST Level 1</option>
+                            <option value="2">NIST Level 2</option>
+                        </select>
+                    </div>
+                    <div class="col-md-3"><label>Identity Proofing Date</label><input type="date" class="form-control" @bind="newProvider.IdentityProofingDate" /></div>
+                    <div class="col-md-3"><label>Certificate Thumbprint</label><input type="text" class="form-control" @bind="newProvider.CertificateThumbprint" /></div>
+                </div>
+                <div class="row g-2 mt-2">
+                    <div class="col-md-3"><label>Certificate Expiration</label><input type="date" class="form-control" @bind="newProvider.CertificateExpiration" /></div>
+                    <div class="col-md-9">
+                        <label>2FA Methods</label>
+                        <div class="d-flex flex-wrap gap-2 mt-1">
+                            <div class="form-check"><input class="form-check-input" type="checkbox" @bind="newProvider.TfHardwareToken" /><label class="form-check-label">Hardware Token</label></div>
+                            <div class="form-check"><input class="form-check-input" type="checkbox" @bind="newProvider.TfBiometric" /><label class="form-check-label">Biometric</label></div>
+                            <div class="form-check"><input class="form-check-input" type="checkbox" @bind="newProvider.TfOneTimePassword" /><label class="form-check-label">OTP</label></div>
+                            <div class="form-check"><input class="form-check-input" type="checkbox" @bind="newProvider.TfSmartCard" /><label class="form-check-label">Smart Card</label></div>
+                            <div class="form-check"><input class="form-check-input" type="checkbox" @bind="newProvider.TfMobileAuth" /><label class="form-check-label">Mobile Authenticator</label></div>
+                        </div>
+                    </div>
+                </div>
+                <button class="btn btn-primary mt-3" @onclick="SaveProvider">Save Credential</button>
+            </div>
+        }
+
+        @if (loadingProviders)
+        {
+            <div class="spinner-border mt-3" role="status"><span class="visually-hidden">Loading...</span></div>
+        }
+        else if (providers != null)
+        {
+            <table class="table table-striped mt-3">
+                <thead>
+                    <tr>
+                        <th>Name</th>
+                        <th>DEA #</th>
+                        <th>NPI</th>
+                        <th>Status</th>
+                        <th>ID Proofing</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var p in providers)
+                    {
+                        <tr>
+                            <td>@p.ProviderName</td>
+                            <td>@p.DeaNumber</td>
+                            <td>@p.ProviderId</td>
+                            <td><span class="badge @CredStatusBadge(p.CredentialStatus)">@CredStatusName(p.CredentialStatus)</span></td>
+                            <td>@IdProofingName(p.IdentityProofingLevel)</td>
+                            <td>
+                                <button class="btn btn-sm btn-outline-primary" @onclick="() => EditProvider(p)">Edit</button>
+                                @if (p.CredentialStatus == 0)
+                                {
+                                    <button class="btn btn-sm btn-outline-success ms-1" @onclick="() => ActivateProvider(p.CredentialId)">Activate</button>
+                                }
+                                @if (p.CredentialStatus == 1)
+                                {
+                                    <button class="btn btn-sm btn-outline-warning ms-1" @onclick="() => SuspendProvider(p.CredentialId)">Suspend</button>
+                                }
+                                @if (p.CredentialStatus != 3)
+                                {
+                                    <button class="btn btn-sm btn-outline-danger ms-1" @onclick="() => RevokeProvider(p.CredentialId)">Revoke</button>
+                                }
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        }
+    </div>
+}
+
+<style>
+    .patient-bar { display: flex; align-items: center; margin-top: 16px; flex-wrap: wrap; }
+    .badge { font-size: 0.8em; }
+</style>
+
+@code {
+    private string patientId = "";
+    private string? error;
+    private bool loading;
+    private bool loadingProviders;
+    private int activeTab;
+    private bool showCreateForm;
+    private bool showSignForm;
+    private bool showCancelForm;
+    private bool showProviderForm;
+    private string statusFilter = "";
+
+    private List<RxIndexDto>? prescriptions;
+    private RxDetailDto? selectedRx;
+    private string signEpcsId = "";
+    private string cancelEpcsId = "";
+    private string cancelUserId = "";
+    private string? cancelReason;
+
+    private List<ProviderIndexDto>? providers;
+
+    private NewRxForm newRx = new();
+    private SignForm signReq = new();
+    private ProviderForm newProvider = new();
+
+    private IPatientWorkflowGrain GetWorkflow() =>
+        Grains.GetGrain<IPatientWorkflowGrain>(patientId.Trim());
+
+    private IEpcsProviderIndexGrain GetProviderIndex() =>
+        Grains.GetGrain<IEpcsProviderIndexGrain>("EPCS-PROVIDER-IDX");
+
+    private IEpcsProviderCredentialGrain GetProviderGrain(string credentialId) =>
+        Grains.GetGrain<IEpcsProviderCredentialGrain>($"EPCS-PROVIDER:{credentialId}");
+
+    private static string Esc(string id) => Uri.EscapeDataString(id.Trim());
+
+    private static string TxTypeName(int txType) => txType switch
+    {
+        0 => "NewRx",
+        1 => "RefillReq",
+        2 => "RefillResp",
+        3 => "CancelRx",
+        4 => "CancelResp",
+        5 => "ChangeReq",
+        6 => "ChangeResp",
+        7 => "RenewalReq",
+        8 => "RenewalResp",
+        _ => "?"
+    };
+
+    private static string StatusName(int status) => status switch
+    {
+        0 => "Draft",
+        1 => "Signed",
+        2 => "Transmitted",
+        3 => "Acknowledged",
+        4 => "Error",
+        5 => "Cancelled",
+        _ => "Unknown"
+    };
+
+    private static string StatusBadge(int status) => status switch
+    {
+        0 => "bg-warning text-dark",
+        1 => "bg-info",
+        2 => "bg-primary",
+        3 => "bg-success",
+        4 => "bg-danger",
+        5 => "bg-secondary",
+        _ => "bg-secondary"
+    };
+
+    private static string TwoFactorName(int method) => method switch
+    {
+        0 => "None",
+        1 => "Hardware Token",
+        2 => "Biometric",
+        3 => "One-Time Password",
+        4 => "Smart Card",
+        5 => "Mobile Authenticator",
+        _ => "Unknown"
+    };
+
+    private static string CredStatusName(int status) => status switch
+    {
+        0 => "Pending",
+        1 => "Active",
+        2 => "Suspended",
+        3 => "Revoked",
+        4 => "Expired",
+        _ => "Unknown"
+    };
+
+    private static string CredStatusBadge(int status) => status switch
+    {
+        0 => "bg-warning text-dark",
+        1 => "bg-success",
+        2 => "bg-warning text-dark",
+        3 => "bg-danger",
+        4 => "bg-secondary",
+        _ => "bg-secondary"
+    };
+
+    private static string IdProofingName(int level) => level switch
+    {
+        0 => "Not Proofed",
+        1 => "NIST Level 1",
+        2 => "NIST Level 2",
+        _ => "Unknown"
+    };
+
+    private async Task LoadPrescriptions()
+    {
+        if (string.IsNullOrWhiteSpace(patientId)) return;
+        error = null;
+        loading = true;
+        try
+        {
+            List<EpcsPrescriptionIndexEntry> entries;
+            if (!string.IsNullOrEmpty(statusFilter) && int.TryParse(statusFilter, out int s))
+                entries = await GetWorkflow().GetEpcsPrescriptionsByStatusAsync((EpcsTransmissionStatus)s);
+            else
+                entries = await GetWorkflow().GetEpcsPrescriptionsAsync();
+            prescriptions = entries.Select(e => new RxIndexDto
+            {
+                EpcsId = e.EpcsId, PatientId = e.PatientId, TransactionType = (int)e.TransactionType,
+                Status = (int)e.Status, DrugName = e.DrugName, DeaSchedule = e.DeaSchedule,
+                PrescriberName = e.PrescriberName, CreatedDate = e.CreatedDate, IsSigned = e.IsSigned
+            }).ToList();
+        }
+        catch (Exception ex) { error = ex.Message; }
+        finally { loading = false; }
+    }
+
+    private async Task SelectPrescription(string epcsId)
+    {
+        if (string.IsNullOrWhiteSpace(epcsId)) return;
+        error = null;
+        try
+        {
+            EpcsPrescriptionState state = await GetWorkflow().GetEpcsPrescriptionAsync(epcsId);
+            selectedRx = new RxDetailDto
+            {
+                EpcsId = state.EpcsId, PatientId = state.PatientId, PrescriptionId = state.PrescriptionId,
+                TransactionType = (int)state.TransactionType, Status = (int)state.Status,
+                DrugName = state.DrugName, Ndc = state.Ndc, DeaSchedule = state.DeaSchedule,
+                Quantity = state.Quantity, DaysSupply = state.DaysSupply,
+                RefillsAuthorized = state.RefillsAuthorized, Sig = state.Sig,
+                DiagnosisCode = state.DiagnosisCode, PrescriberNpi = state.PrescriberNpi,
+                PrescriberDea = state.PrescriberDea, PrescriberName = state.PrescriberName,
+                PrescriberCredentialId = state.PrescriberCredentialId,
+                DestinationPharmacy = state.DestinationPharmacy != null ? new PharmacyDestDto
+                {
+                    NcpdpId = state.DestinationPharmacy.NcpdpId, PharmacyName = state.DestinationPharmacy.PharmacyName,
+                    Address = state.DestinationPharmacy.Address, Phone = state.DestinationPharmacy.Phone,
+                    Fax = state.DestinationPharmacy.Fax
+                } : null,
+                Signature = state.Signature != null ? new SignatureDto
+                {
+                    PrescriptionHash = state.Signature.PrescriptionHash, CertificateThumbprint = state.Signature.CertificateThumbprint,
+                    SigningTime = state.Signature.SigningTime, TwoFactorMethod = (int)state.Signature.TwoFactorMethod,
+                    TwoFactorVerificationTime = state.Signature.TwoFactorVerificationTime, IsValid = state.Signature.IsValid
+                } : null,
+                AuditTrail = state.AuditTrail.Select(a => new AuditEntryDto
+                {
+                    Timestamp = a.Timestamp, Action = a.Action, UserId = a.UserId, Details = a.Details
+                }).ToList(),
+                TransmissionMessageId = state.TransmissionMessageId, TransmittedDate = state.TransmittedDate,
+                AcknowledgedDate = state.AcknowledgedDate, ErrorMessage = state.ErrorMessage,
+                CreatedDate = state.CreatedDate, LastModifiedDate = state.LastModifiedDate
+            };
+            activeTab = 1;
+        }
+        catch (Exception ex) { error = ex.Message; }
+    }
+
+    private void ShowSignForm(string epcsId)
+    {
+        signEpcsId = epcsId;
+        signReq = new();
+        showSignForm = true;
+    }
+
+    private void ShowCancelForm(string epcsId)
+    {
+        cancelEpcsId = epcsId;
+        cancelUserId = "";
+        cancelReason = null;
+        showCancelForm = true;
+    }
+
+    private async Task CreatePrescription()
+    {
+        if (string.IsNullOrWhiteSpace(patientId)) return;
+        error = null;
+        try
+        {
+            EpcsPharmacyDestination? dest = null;
+            if (!string.IsNullOrEmpty(newRx.PharmacyNcpdpId))
+                dest = new EpcsPharmacyDestination { NcpdpId = newRx.PharmacyNcpdpId, PharmacyName = newRx.PharmacyName ?? "", Address = newRx.PharmacyAddress };
+
+            await GetWorkflow().CreateEpcsPrescriptionAsync(
+                string.IsNullOrEmpty(newRx.PrescriptionId) ? null : newRx.PrescriptionId,
+                (EpcsScriptTransactionType)newRx.TransactionType,
+                newRx.DrugName, string.IsNullOrEmpty(newRx.Ndc) ? null : newRx.Ndc, newRx.DeaSchedule,
+                newRx.Quantity, newRx.DaysSupply, newRx.RefillsAuthorized,
+                string.IsNullOrEmpty(newRx.Sig) ? null : newRx.Sig,
+                string.IsNullOrEmpty(newRx.DiagnosisCode) ? null : newRx.DiagnosisCode,
+                string.IsNullOrEmpty(newRx.PrescriberNpi) ? null : newRx.PrescriberNpi,
+                string.IsNullOrEmpty(newRx.PrescriberDea) ? null : newRx.PrescriberDea,
+                string.IsNullOrEmpty(newRx.PrescriberName) ? null : newRx.PrescriberName,
+                string.IsNullOrEmpty(newRx.PrescriberCredentialId) ? null : newRx.PrescriberCredentialId,
+                dest);
+            showCreateForm = false;
+            newRx = new();
+            await LoadPrescriptions();
+        }
+        catch (Exception ex) { error = ex.Message; }
+    }
+
+    private async Task SignPrescription()
+    {
+        if (string.IsNullOrWhiteSpace(signEpcsId)) return;
+        error = null;
+        try
+        {
+            DateTime now = DateTime.UtcNow;
+            await GetWorkflow().SignEpcsPrescriptionAsync(signEpcsId, new EpcsSignatureRecord
+            {
+                PrescriptionHash = signReq.PrescriptionHash,
+                CertificateThumbprint = signReq.CertificateThumbprint,
+                SigningTime = now,
+                TwoFactorMethod = (EpcsTwoFactorMethod)signReq.TwoFactorMethod,
+                TwoFactorVerificationTime = now,
+                IsValid = signReq.IsValid
+            });
+            showSignForm = false;
+            signReq = new();
+            await LoadPrescriptions();
+        }
+        catch (Exception ex) { error = ex.Message; }
+    }
+
+    private async Task TransmitPrescription(string epcsId)
+    {
+        error = null;
+        try
+        {
+            await GetWorkflow().TransmitEpcsPrescriptionAsync(epcsId, null);
+            await SelectPrescription(epcsId);
+        }
+        catch (Exception ex) { error = ex.Message; }
+    }
+
+    private async Task AcknowledgePrescription(string epcsId)
+    {
+        error = null;
+        try
+        {
+            await GetWorkflow().AcknowledgeEpcsPrescriptionAsync(epcsId);
+            await SelectPrescription(epcsId);
+        }
+        catch (Exception ex) { error = ex.Message; }
+    }
+
+    private async Task CancelPrescription()
+    {
+        if (string.IsNullOrWhiteSpace(cancelEpcsId)) return;
+        error = null;
+        try
+        {
+            await GetWorkflow().CancelEpcsPrescriptionAsync(cancelEpcsId, cancelUserId,
+                string.IsNullOrEmpty(cancelReason) ? null : cancelReason);
+            showCancelForm = false;
+            await SelectPrescription(cancelEpcsId);
+        }
+        catch (Exception ex) { error = ex.Message; }
+    }
+
+    private async Task LoadProviders()
+    {
+        error = null;
+        loadingProviders = true;
+        try
+        {
+            List<EpcsProviderIndexEntry> entries = await GetProviderIndex().GetAllAsync();
+            providers = entries.Select(e => new ProviderIndexDto
+            {
+                CredentialId = e.CredentialId, ProviderId = e.ProviderId,
+                ProviderName = e.ProviderName, DeaNumber = e.DeaNumber,
+                CredentialStatus = (int)e.CredentialStatus, IdentityProofingLevel = (int)e.IdentityProofingLevel
+            }).ToList();
+        }
+        catch (Exception ex) { error = ex.Message; }
+        finally { loadingProviders = false; }
+    }
+
+    private void EditProvider(ProviderIndexDto p)
+    {
+        newProvider = new ProviderForm
+        {
+            CredentialId = p.CredentialId,
+            ProviderId = p.ProviderId,
+            ProviderName = p.ProviderName,
+            DeaNumber = p.DeaNumber,
+            IdentityProofingLevel = (int)p.IdentityProofingLevel,
+        };
+        showProviderForm = true;
+    }
+
+    private async Task SaveProvider()
+    {
+        error = null;
+        try
+        {
+            List<EpcsTwoFactorMethod> methods = new();
+            if (newProvider.TfHardwareToken) methods.Add(EpcsTwoFactorMethod.HardwareToken);
+            if (newProvider.TfBiometric) methods.Add(EpcsTwoFactorMethod.Biometric);
+            if (newProvider.TfOneTimePassword) methods.Add(EpcsTwoFactorMethod.OneTimePassword);
+            if (newProvider.TfSmartCard) methods.Add(EpcsTwoFactorMethod.SmartCard);
+            if (newProvider.TfMobileAuth) methods.Add(EpcsTwoFactorMethod.MobileAuthenticator);
+
+            var grain = GetProviderGrain(newProvider.CredentialId);
+            await grain.SaveAsync(
+                newProvider.ProviderId, newProvider.ProviderName,
+                string.IsNullOrEmpty(newProvider.Npi) ? null : newProvider.Npi,
+                string.IsNullOrEmpty(newProvider.DeaNumber) ? null : newProvider.DeaNumber,
+                (IdentityProofingLevel)newProvider.IdentityProofingLevel,
+                newProvider.IdentityProofingDate,
+                methods.Count > 0 ? methods : null,
+                string.IsNullOrEmpty(newProvider.CertificateThumbprint) ? null : newProvider.CertificateThumbprint,
+                newProvider.CertificateExpiration);
+            showProviderForm = false;
+            newProvider = new();
+            await LoadProviders();
+        }
+        catch (Exception ex) { error = ex.Message; }
+    }
+
+    private async Task ActivateProvider(string credentialId)
+    {
+        error = null;
+        try { await GetProviderGrain(credentialId).ActivateAsync(); await LoadProviders(); }
+        catch (Exception ex) { error = ex.Message; }
+    }
+
+    private async Task SuspendProvider(string credentialId)
+    {
+        error = null;
+        try { await GetProviderGrain(credentialId).SuspendAsync(); await LoadProviders(); }
+        catch (Exception ex) { error = ex.Message; }
+    }
+
+    private async Task RevokeProvider(string credentialId)
+    {
+        error = null;
+        try { await GetProviderGrain(credentialId).RevokeAsync(); await LoadProviders(); }
+        catch (Exception ex) { error = ex.Message; }
+    }
+
+    // ── DTOs ────────────────────────────────────────────────────────────
+
+    class RxIndexDto
+    {
+        public string EpcsId { get; set; } = "";
+        public string PatientId { get; set; } = "";
+        public int TransactionType { get; set; }
+        public int Status { get; set; }
+        public string DrugName { get; set; } = "";
+        public string DeaSchedule { get; set; } = "";
+        public string? PrescriberName { get; set; }
+        public DateTime CreatedDate { get; set; }
+        public bool IsSigned { get; set; }
+    }
+
+    class RxDetailDto
+    {
+        public string EpcsId { get; set; } = "";
+        public string PatientId { get; set; } = "";
+        public string? PrescriptionId { get; set; }
+        public int TransactionType { get; set; }
+        public int Status { get; set; }
+        // Drug
+        public string DrugName { get; set; } = "";
+        public string? Ndc { get; set; }
+        public string DeaSchedule { get; set; } = "";
+        public decimal Quantity { get; set; }
+        public int DaysSupply { get; set; }
+        public int RefillsAuthorized { get; set; }
+        public string? Sig { get; set; }
+        public string? DiagnosisCode { get; set; }
+        // Prescriber
+        public string? PrescriberNpi { get; set; }
+        public string? PrescriberDea { get; set; }
+        public string? PrescriberName { get; set; }
+        public string? PrescriberCredentialId { get; set; }
+        // Destination
+        public PharmacyDestDto? DestinationPharmacy { get; set; }
+        // Signature
+        public SignatureDto? Signature { get; set; }
+        // Audit
+        public List<AuditEntryDto> AuditTrail { get; set; } = new();
+        // Transmission
+        public string? TransmissionMessageId { get; set; }
+        public DateTime? TransmittedDate { get; set; }
+        public DateTime? AcknowledgedDate { get; set; }
+        public string? ErrorMessage { get; set; }
+        // Timestamps
+        public DateTime CreatedDate { get; set; }
+        public DateTime LastModifiedDate { get; set; }
+    }
+
+    class PharmacyDestDto
+    {
+        public string NcpdpId { get; set; } = "";
+        public string PharmacyName { get; set; } = "";
+        public string? Address { get; set; }
+        public string? Phone { get; set; }
+        public string? Fax { get; set; }
+    }
+
+    class SignatureDto
+    {
+        public string PrescriptionHash { get; set; } = "";
+        public string CertificateThumbprint { get; set; } = "";
+        public DateTime SigningTime { get; set; }
+        public int TwoFactorMethod { get; set; }
+        public DateTime TwoFactorVerificationTime { get; set; }
+        public bool IsValid { get; set; }
+    }
+
+    class AuditEntryDto
+    {
+        public DateTime Timestamp { get; set; }
+        public string Action { get; set; } = "";
+        public string UserId { get; set; } = "";
+        public string? Details { get; set; }
+    }
+
+    class ProviderIndexDto
+    {
+        public string CredentialId { get; set; } = "";
+        public string ProviderId { get; set; } = "";
+        public string ProviderName { get; set; } = "";
+        public string? DeaNumber { get; set; }
+        public int CredentialStatus { get; set; }
+        public int IdentityProofingLevel { get; set; }
+    }
+
+    class NewRxForm
+    {
+        public int TransactionType { get; set; }
+        public string DrugName { get; set; } = "";
+        public string DeaSchedule { get; set; } = "";
+        public string? Ndc { get; set; }
+        public decimal Quantity { get; set; }
+        public int DaysSupply { get; set; }
+        public int RefillsAuthorized { get; set; }
+        public string? Sig { get; set; }
+        public string? DiagnosisCode { get; set; }
+        public string? PrescriberNpi { get; set; }
+        public string? PrescriberDea { get; set; }
+        public string? PrescriberName { get; set; }
+        public string? PrescriberCredentialId { get; set; }
+        public string? PrescriptionId { get; set; }
+        public string? PharmacyNcpdpId { get; set; }
+        public string? PharmacyName { get; set; }
+        public string? PharmacyAddress { get; set; }
+    }
+
+    class SignForm
+    {
+        public int TwoFactorMethod { get; set; } = 1;
+        public string CertificateThumbprint { get; set; } = "";
+        public string PrescriptionHash { get; set; } = "";
+        public bool IsValid { get; set; } = true;
+    }
+
+    class ProviderForm
+    {
+        public string CredentialId { get; set; } = "";
+        public string ProviderId { get; set; } = "";
+        public string ProviderName { get; set; } = "";
+        public string? Npi { get; set; }
+        public string? DeaNumber { get; set; }
+        public int IdentityProofingLevel { get; set; }
+        public DateTime? IdentityProofingDate { get; set; }
+        public string? CertificateThumbprint { get; set; }
+        public DateTime? CertificateExpiration { get; set; }
+        public bool TfHardwareToken { get; set; }
+        public bool TfBiometric { get; set; }
+        public bool TfOneTimePassword { get; set; }
+        public bool TfSmartCard { get; set; }
+        public bool TfMobileAuth { get; set; }
+    }
+}

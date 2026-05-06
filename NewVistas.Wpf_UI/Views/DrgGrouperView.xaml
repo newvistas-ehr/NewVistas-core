@@ -1,0 +1,41 @@
+<UserControl x:Class="NewVistas.Wpf_UI.Views.DrgGrouperView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <ScrollViewer VerticalScrollBarVisibility="Auto">
+        <StackPanel Margin="24">
+            <TextBlock Style="{StaticResource PageTitle}" Text="DRG Grouper"/>
+            <TextBlock Style="{StaticResource ErrorText}" Text="{Binding Error}"
+                       Visibility="{Binding Error, Converter={StaticResource NullToVisibility}}"/>
+
+            <StackPanel Orientation="Horizontal" Margin="0,0,0,12">
+                <Button Content="Refresh" Style="{StaticResource PrimaryButton}"
+                        Command="{Binding LoadCommand}" Margin="0,0,8,0"/>
+                <Button Content="Load Demo" Style="{StaticResource SecondaryButton}"
+                        Command="{Binding LoadDemoCommand}" Margin="0,0,8,0"/>
+                <ProgressBar IsIndeterminate="True" Width="120" Height="20"
+                             Visibility="{Binding IsLoading, Converter={StaticResource BoolToVisibility}}"/>
+            </StackPanel>
+
+            <DataGrid ItemsSource="{Binding Assignments}" SelectedItem="{Binding SelectedAssignment}" AutoGenerateColumns="False">
+                <DataGrid.Columns>
+                    <DataGridTextColumn Header="Admission ID" Binding="{Binding AdmissionId}" Width="140"/>
+                    <DataGridTextColumn Header="Patient" Binding="{Binding PatientName}" Width="160"/>
+                    <DataGridTextColumn Header="DRG Code" Binding="{Binding DrgCode}" Width="80"/>
+                    <DataGridTextColumn Header="Description" Binding="{Binding Description}" Width="*"/>
+                    <DataGridTextColumn Header="Weight" Binding="{Binding RelativeWeight, StringFormat=F4}" Width="80"/>
+                    <DataGridTextColumn Header="LOS" Binding="{Binding ActualLOS}" Width="60"/>
+                    <DataGridTextColumn Header="CC/MCC" Binding="{Binding CcMccLevel}" Width="80"/>
+                    <DataGridTextColumn Header="Status" Binding="{Binding Status}" Width="100"/>
+                </DataGrid.Columns>
+            </DataGrid>
+
+            <StackPanel Orientation="Horizontal" Margin="0,8,0,0"
+                        Visibility="{Binding SelectedAssignment, Converter={StaticResource NullToVisibility}}">
+                <Button Content="Review" Style="{StaticResource SecondaryButton}"
+                        Command="{Binding ReviewCommand}" Margin="0,0,8,0"/>
+                <Button Content="Finalize" Style="{StaticResource PrimaryButton}"
+                        Command="{Binding FinalizeCommand}"/>
+            </StackPanel>
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>

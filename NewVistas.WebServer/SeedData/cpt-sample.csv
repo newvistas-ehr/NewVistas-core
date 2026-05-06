@@ -1,0 +1,51 @@
+Code,ShortName,LongDescription,Category
+99201,Office/outpatient visit new patient,Office or other outpatient visit for the evaluation and management of a new patient,E&M
+99202,Office/outpatient visit new patient,Office or other outpatient visit for the evaluation and management of a new patient which requires a medically appropriate history and/or examination and straightforward medical decision making,E&M
+99203,Office/outpatient visit new patient,Office or other outpatient visit for the evaluation and management of a new patient which requires a medically appropriate history and/or examination and low level of medical decision making,E&M
+99204,Office/outpatient visit new patient,Office or other outpatient visit for the evaluation and management of a new patient which requires a medically appropriate history and/or examination and moderate level of medical decision making,E&M
+99205,Office/outpatient visit new patient,Office or other outpatient visit for the evaluation and management of a new patient which requires a medically appropriate history and/or examination and high level of medical decision making,E&M
+99211,Office/outpatient visit established,Office or other outpatient visit for the evaluation and management of an established patient that may not require the presence of a physician or other qualified health care professional,E&M
+99212,Office/outpatient visit established,Office or other outpatient visit for the evaluation and management of an established patient which requires a medically appropriate history and/or examination and straightforward medical decision making,E&M
+99213,Office/outpatient visit established,Office or other outpatient visit for the evaluation and management of an established patient which requires a medically appropriate history and/or examination and low level of medical decision making,E&M
+99214,Office/outpatient visit established,Office or other outpatient visit for the evaluation and management of an established patient which requires a medically appropriate history and/or examination and moderate level of medical decision making,E&M
+99215,Office/outpatient visit established,Office or other outpatient visit for the evaluation and management of an established patient which requires a medically appropriate history and/or examination and high level of medical decision making,E&M
+99221,Initial hospital care,Initial hospital care per day for the evaluation and management of a patient which requires a medically appropriate history and/or examination and straightforward or low level of medical decision making,E&M
+99222,Initial hospital care,Initial hospital care per day for the evaluation and management of a patient which requires a medically appropriate history and/or examination and moderate level of medical decision making,E&M
+99223,Initial hospital care,Initial hospital care per day for the evaluation and management of a patient which requires a medically appropriate history and/or examination and high level of medical decision making,E&M
+99231,Subsequent hospital care,Subsequent hospital care per day for the evaluation and management of a patient which requires a medically appropriate history and/or examination and straightforward or low level of medical decision making,E&M
+99232,Subsequent hospital care,Subsequent hospital care per day for the evaluation and management of a patient which requires a medically appropriate history and/or examination and moderate level of medical decision making,E&M
+99233,Subsequent hospital care,Subsequent hospital care per day for the evaluation and management of a patient which requires a medically appropriate history and/or examination and high level of medical decision making,E&M
+99281,Emergency department visit,Emergency department visit for the evaluation and management of a patient which requires a medically appropriate history and/or examination and straightforward medical decision making,E&M
+99282,Emergency department visit,Emergency department visit for the evaluation and management of a patient which requires a medically appropriate history and/or examination and low level of medical decision making,E&M
+99283,Emergency department visit,Emergency department visit for the evaluation and management of a patient which requires a medically appropriate history and/or examination and moderate level of medical decision making,E&M
+99284,Emergency department visit,Emergency department visit for the evaluation and management of a patient which requires a medically appropriate history and/or examination and moderate level of medical decision making high acuity,E&M
+99285,Emergency department visit,Emergency department visit for the evaluation and management of a patient which requires a medically appropriate history and/or examination and high level of medical decision making,E&M
+10060,Incision and drainage of abscess,Incision and drainage of abscess simple or single,Surgery
+10120,Incision and removal of foreign body,Incision and removal of foreign body subcutaneous tissues simple,Surgery
+10160,Puncture aspiration of abscess,Puncture aspiration of abscess hematoma bulla or cyst,Surgery
+11042,Debridement subcutaneous tissue,Debridement subcutaneous tissue including epidermis dermis and subcutaneous tissue first 20 sq cm or less,Surgery
+11102,Tangential biopsy of skin,Tangential biopsy of skin single lesion,Surgery
+12001,Simple repair superficial wounds,Simple repair of superficial wounds of scalp neck axillae external genitalia trunk and/or extremities 2.5 cm or less,Surgery
+17000,Destruction benign or premalignant lesion,Destruction benign or premalignant lesion any method first lesion,Surgery
+20610,Arthrocentesis aspiration and/or injection major joint,Arthrocentesis aspiration and/or injection of a major joint or bursa without ultrasound guidance,Surgery
+29125,Application of short arm splint,Application of short arm splint forearm to hand static,Surgery
+29515,Application of short leg splint,Application of short leg splint calf to foot,Surgery
+36415,Collection of venous blood by venipuncture,Collection of venous blood by venipuncture,Pathology
+36416,Collection of capillary blood specimen,Collection of capillary blood specimen eg finger heel ear stick,Pathology
+43239,Upper GI endoscopy with biopsy,Esophagogastroduodenoscopy flexible transoral with biopsy single or multiple,Surgery
+45378,Colonoscopy diagnostic,Colonoscopy flexible diagnostic including collection of specimen by brushing or washing when performed,Surgery
+45380,Colonoscopy with biopsy,Colonoscopy flexible with biopsy single or multiple,Surgery
+69210,Removal impacted cerumen,Removal impacted cerumen requiring instrumentation unilateral,Surgery
+71046,Chest X-ray 2 views,Radiologic examination chest 2 views,Radiology
+71250,CT chest without contrast,Computed tomography thorax without contrast material,Radiology
+72110,Lumbar spine X-ray complete,Radiologic examination lumbar spine complete including bending views minimum of 4 views,Radiology
+73030,Shoulder X-ray complete,Radiologic examination shoulder complete minimum of 2 views,Radiology
+73560,Knee X-ray 2 views,Radiologic examination knee 1 or 2 views,Radiology
+74177,CT abdomen and pelvis with contrast,Computed tomography abdomen and pelvis with contrast material,Radiology
+76856,Ultrasound pelvic complete,Ultrasound pelvic nonobstetric real time with image documentation complete,Radiology
+80048,Basic metabolic panel,Basic metabolic panel (calcium ionized glucose BUN creatinine sodium potassium chloride carbon dioxide),Pathology
+80053,Comprehensive metabolic panel,Comprehensive metabolic panel (albumin bilirubin calcium carbon dioxide chloride creatinine glucose phosphatase alkaline potassium sodium BUN AST ALT),Pathology
+85025,Complete blood count (CBC) with differential,Complete blood count (CBC) automated (Hgb Hct RBC WBC and platelet count) and automated differential WBC count,Pathology
+85610,Prothrombin time,Prothrombin time,Pathology
+93000,Electrocardiogram complete,Electrocardiogram routine ECG with at least 12 leads with interpretation and report,Medicine
+93306,Echocardiography transthoracic,Echocardiography transthoracic real-time with image documentation 2D with M-mode recording complete with spectral Doppler echocardiography and with color flow Doppler echocardiography,Medicine

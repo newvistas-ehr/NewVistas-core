@@ -1,0 +1,637 @@
+@page "/agent-cashier"
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+@rendermode InteractiveServer
+@using NewVistas.BlazorWeb.Services
+@using NewVistas.Abstractions.GrainInterfaces
+@using NewVistas.Abstractions.GrainStates
+@inject OrleansGrainService Grains
+
+<PageTitle>Agent Cashier</PageTitle>
+
+<div class="ac-container">
+    <div class="ac-header">
+        <h2>Agent Cashier</h2>
+    </div>
+
+    @if (error != null)
+    {
+        <div class="alert alert-danger">@error</div>
+    }
+
+    <div class="tab-bar">
+        <button class="tab-btn @(activeTab == "window" ? "active" : "")"
+                @onclick='() => activeTab = "window"'>Cashier Window</button>
+        <button class="tab-btn @(activeTab == "sessions" ? "active" : "")"
+                @onclick='() => SetTab("sessions")'>Sessions</button>
+    </div>
+
+    @* ── TAB: Cashier Window ───────────────────────────────────────────────── *@
+    @if (activeTab == "window")
+    {
+        <div class="tab-content">
+            <div class="window-columns">
+
+                @* Left: patient receipt history *@
+                <div class="col-patient">
+                    <h4>Patient Receipt History</h4>
+                    <div class="form-row mb-2">
+                        <input class="form-control" placeholder="Patient ID" @bind="patientId" />
+                        <button class="btn btn-primary" @onclick="LoadPatientReceipts">Load</button>
+                    </div>
+                    @if (patientReceipts.Count > 0)
+                    {
+                        <table class="ac-table">
+                            <thead>
+                                <tr>
+                                    <th>Receipt #</th>
+                                    <th>Amount</th>
+                                    <th>Method</th>
+                                    <th>Status</th>
+                                    <th>Date</th>
+                                    <th></th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (ReceiptIndexEntry r in patientReceipts)
+                                {
+                                    <tr>
+                                        <td>@r.ReceiptNumber</td>
+                                        <td>@r.Amount.ToString("C")</td>
+                                        <td>@r.PaymentMethod</td>
+                                        <td><span class="badge @BadgeClass(r.Status)">@r.Status</span></td>
+                                        <td>@r.ReceiptDate.ToShortDateString()</td>
+                                        <td>
+                                            @if (r.Status == "Issued")
+                                            {
+                                                <button class="btn btn-sm btn-outline-danger"
+                                                        @onclick="() => OpenVoidReceipt(r.ReceiptId, r.ReceiptNumber)">
+                                                    Void
+                                                </button>
+                                            }
+                                        </td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    }
+                    else if (patientLoaded)
+                    {
+                        <p class="text-muted">No receipts on file.</p>
+                    }
+
+                    @* Void panel *@
+                    @if (!string.IsNullOrEmpty(voidingReceiptId))
+                    {
+                        <div class="action-panel">
+                            <h5>Void Receipt @voidingReceiptNumber</h5>
+                            <input class="form-control mb-1" placeholder="Void Reason" @bind="voidReason" />
+                            <input class="form-control mb-1" placeholder="Your User ID" @bind="voidUserId" />
+                            @if (!string.IsNullOrEmpty(voidError)) { <div class="alert alert-danger">@voidError</div> }
+                            <button class="btn btn-danger" @onclick="SubmitVoid">Confirm Void</button>
+                            <button class="btn btn-secondary ms-2" @onclick="() => voidingReceiptId = null">Cancel</button>
+                        </div>
+                    }
+                </div>
+
+                @* Right: issue receipt form *@
+                <div class="col-issue">
+                    <h4>Issue Receipt</h4>
+                    <div class="form-group">
+                        <label>Receipt Number</label>
+                        <input class="form-control" placeholder="e.g. R-20260227-001" @bind="newReceipt.ReceiptNumber" />
+                    </div>
+                    <div class="form-group">
+                        <label>Patient ID</label>
+                        <input class="form-control" @bind="newReceipt.PatientId" />
+                    </div>
+                    <div class="form-group">
+                        <label>Patient Name</label>
+                        <input class="form-control" @bind="newReceipt.PatientName" />
+                    </div>
+                    <div class="form-group">
+                        <label>AR Account ID</label>
+                        <input class="form-control" placeholder="AR-ACCOUNT:{id}" @bind="newReceipt.ARAccountId" />
+                    </div>
+                    <div class="form-group">
+                        <label>Amount</label>
+                        <input type="number" class="form-control" @bind="newReceipt.Amount" />
+                    </div>
+                    <div class="form-group">
+                        <label>Payment Method</label>
+                        <select class="form-control" @bind="newReceipt.PaymentMethod">
+                            @foreach (string m in paymentMethods)
+                            {
+                                <option value="@m">@m</option>
+                            }
+                        </select>
+                    </div>
+                    @if (newReceipt.PaymentMethod == "Check" || newReceipt.PaymentMethod == "MoneyOrder")
+                    {
+                        <div class="form-group">
+                            <label>Check / MO Number</label>
+                            <input class="form-control" @bind="newReceipt.CheckNumber" />
+                        </div>
+                    }
+                    <div class="form-group">
+                        <label>Session ID</label>
+                        <input class="form-control" placeholder="Paste session ID from Sessions tab" @bind="newReceipt.SessionId" />
+                    </div>
+                    <div class="form-group">
+                        <label>Cashier ID</label>
+                        <input class="form-control" @bind="newReceipt.CashierId" />
+                    </div>
+                    <div class="form-group">
+                        <label>Cashier Name</label>
+                        <input class="form-control" @bind="newReceipt.CashierName" />
+                    </div>
+                    <div class="form-group">
+                        <label>Notes (optional)</label>
+                        <input class="form-control" @bind="newReceipt.Notes" />
+                    </div>
+                    @if (!string.IsNullOrEmpty(receiptFormError)) { <div class="alert alert-danger">@receiptFormError</div> }
+                    @if (!string.IsNullOrEmpty(receiptFormSuccess)) { <div class="alert alert-success">@receiptFormSuccess</div> }
+                    <button class="btn btn-success" @onclick="IssueReceipt">Issue Receipt</button>
+                </div>
+
+            </div>
+        </div>
+    }
+
+    @* ── TAB: Sessions ─────────────────────────────────────────────────────── *@
+    @if (activeTab == "sessions")
+    {
+        <div class="tab-content">
+            <div class="session-columns">
+
+                @* Left: open sessions *@
+                <div class="col-open-sessions">
+                    <h4>Open Sessions</h4>
+                    @if (openSessions.Count == 0)
+                    {
+                        <p class="text-muted">No open sessions.</p>
+                    }
+                    else
+                    {
+                        @foreach (SessionIndexEntry s in openSessions)
+                        {
+                            <div class="session-card">
+                                <div class="session-card-header">
+                                    <strong>@s.CashierName</strong>
+                                    <span class="badge badge-success ms-2">OPEN</span>
+                                </div>
+                                <div class="session-detail">Station: @s.StationId | @s.SessionDate.ToShortDateString()</div>
+                                <div class="session-detail">Total Collected: @s.TotalCollected.ToString("C")</div>
+                                <div class="session-id text-muted" style="font-size:.7rem">@s.SessionId</div>
+                                <div class="session-actions mt-2">
+                                    <button class="btn btn-sm btn-warning me-1"
+                                            @onclick="() => OpenClosePanel(s.SessionId)">
+                                        Close Session
+                                    </button>
+                                    <button class="btn btn-sm btn-secondary"
+                                            @onclick="() => OpenTurnInPanel(s.SessionId)">
+                                        Turn In
+                                    </button>
+                                </div>
+                            </div>
+                        }
+                    }
+
+                    @* Close session panel *@
+                    @if (!string.IsNullOrEmpty(closingSessionId))
+                    {
+                        <div class="action-panel">
+                            <h5>Close Session</h5>
+                            <input type="number" class="form-control mb-1" placeholder="Actual Balance" @bind="actualBalance" />
+                            <input class="form-control mb-1" placeholder="Notes (optional)" @bind="closeNotes" />
+                            @if (!string.IsNullOrEmpty(sessionActionError)) { <div class="alert alert-danger">@sessionActionError</div> }
+                            <button class="btn btn-warning" @onclick="SubmitClose">Close</button>
+                            <button class="btn btn-secondary ms-2" @onclick="() => closingSessionId = null">Cancel</button>
+                        </div>
+                    }
+
+                    @* Turn-in panel *@
+                    @if (!string.IsNullOrEmpty(turningInSessionId))
+                    {
+                        <div class="action-panel">
+                            <h5>Turn In to Fiscal</h5>
+                            <input type="number" class="form-control mb-1" placeholder="Turned In Amount" @bind="turnInAmount" />
+                            <input class="form-control mb-1" placeholder="Receiving Officer User ID" @bind="turnInToUserId" />
+                            <input class="form-control mb-1" placeholder="Turn-In Receipt # (optional)" @bind="turnInReceiptNumber" />
+                            @if (!string.IsNullOrEmpty(sessionActionError)) { <div class="alert alert-danger">@sessionActionError</div> }
+                            <button class="btn btn-secondary" @onclick="SubmitTurnIn">Submit Turn-In</button>
+                            <button class="btn btn-outline-secondary ms-2" @onclick="() => turningInSessionId = null">Cancel</button>
+                        </div>
+                    }
+                </div>
+
+                @* Right: all sessions + open new session *@
+                <div class="col-all-sessions">
+                    <h4>All Sessions</h4>
+                    @if (allSessions.Count > 0)
+                    {
+                        <table class="ac-table">
+                            <thead>
+                                <tr>
+                                    <th>Date</th>
+                                    <th>Cashier</th>
+                                    <th>Station</th>
+                                    <th>Total</th>
+                                    <th>Status</th>
+                                    <th>Turned In</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (SessionIndexEntry s in allSessions)
+                                {
+                                    <tr>
+                                        <td>@s.SessionDate.ToShortDateString()</td>
+                                        <td>@s.CashierName</td>
+                                        <td>@s.StationId</td>
+                                        <td>@s.TotalCollected.ToString("C")</td>
+                                        <td><span class="badge @BadgeClass(s.Status)">@s.Status</span></td>
+                                        <td>@(s.TurnedInDate.HasValue ? s.TurnedInDate.Value.ToShortDateString() : "—")</td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    }
+                    else
+                    {
+                        <p class="text-muted">No sessions on file.</p>
+                    }
+
+                    <div class="form-section mt-3">
+                        <h5>Open New Session</h5>
+                        <div class="form-group">
+                            <label>Station ID</label>
+                            <input class="form-control" placeholder="e.g. WIN-1" @bind="newSession.StationId" />
+                        </div>
+                        <div class="form-group">
+                            <label>Station Name</label>
+                            <input class="form-control" placeholder="e.g. Window 1" @bind="newSession.StationName" />
+                        </div>
+                        <div class="form-group">
+                            <label>Cashier ID</label>
+                            <input class="form-control" @bind="newSession.CashierId" />
+                        </div>
+                        <div class="form-group">
+                            <label>Cashier Name</label>
+                            <input class="form-control" @bind="newSession.CashierName" />
+                        </div>
+                        <div class="form-group">
+                            <label>Session Date</label>
+                            <input type="date" class="form-control" @bind="newSession.SessionDate" />
+                        </div>
+                        <div class="form-group">
+                            <label>Opening Balance</label>
+                            <input type="number" class="form-control" @bind="newSession.OpeningBalance" />
+                        </div>
+                        @if (!string.IsNullOrEmpty(sessionFormError)) { <div class="alert alert-danger">@sessionFormError</div> }
+                        @if (!string.IsNullOrEmpty(sessionFormSuccess)) { <div class="alert alert-success">@sessionFormSuccess</div> }
+                        <button class="btn btn-success" @onclick="OpenSession">Open Session</button>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    }
+</div>
+
+<style>
+    .ac-container { padding: 1rem; font-family: sans-serif; }
+    .ac-header { margin-bottom: 1rem; }
+    .tab-bar { display: flex; gap: .5rem; margin-bottom: 1rem; border-bottom: 2px solid #dee2e6; padding-bottom: .5rem; }
+    .tab-btn { background: none; border: 1px solid #dee2e6; border-radius: 4px 4px 0 0; padding: .4rem 1rem; cursor: pointer; }
+    .tab-btn.active { background: #0d6efd; color: #fff; border-color: #0d6efd; }
+    .tab-content { padding: 1rem; }
+    .window-columns { display: flex; gap: 2rem; flex-wrap: wrap; }
+    .col-patient { flex: 1; min-width: 320px; }
+    .col-issue { flex: 0 0 340px; }
+    .session-columns { display: flex; gap: 2rem; flex-wrap: wrap; }
+    .col-open-sessions { flex: 1; min-width: 280px; }
+    .col-all-sessions { flex: 2; min-width: 360px; }
+    .ac-table { width: 100%; border-collapse: collapse; margin-bottom: 1rem; font-size: .875rem; }
+    .ac-table th, .ac-table td { border: 1px solid #dee2e6; padding: .4rem .6rem; text-align: left; }
+    .ac-table th { background: #e9ecef; }
+    .badge { display: inline-block; padding: .25em .5em; border-radius: 4px; font-size: .75rem; }
+    .badge-success   { background: #198754; color: #fff; }
+    .badge-danger    { background: #dc3545; color: #fff; }
+    .badge-warning   { background: #ffc107; color: #000; }
+    .badge-secondary { background: #6c757d; color: #fff; }
+    .badge-info      { background: #0dcaf0; color: #000; }
+    .form-group { margin-bottom: .5rem; }
+    .form-group label { display: block; font-size: .8rem; margin-bottom: .2rem; }
+    .form-row { display: flex; gap: .5rem; flex-wrap: wrap; align-items: center; }
+    .form-section { background: #f8f9fa; border: 1px solid #dee2e6; border-radius: 4px; padding: 1rem; }
+    .action-panel { background: #fff3cd; border: 1px solid #ffc107; border-radius: 4px; padding: 1rem; margin-top: 1rem; }
+    .session-card { background: #f8f9fa; border: 1px solid #dee2e6; border-radius: 4px; padding: .75rem; margin-bottom: .75rem; }
+    .session-card-header { display: flex; align-items: center; }
+    .session-detail { font-size: .85rem; }
+    .session-id { word-break: break-all; }
+    .session-actions { display: flex; }
+    .ms-2 { margin-left: .5rem; }
+    .me-1 { margin-right: .25rem; }
+    .mt-2 { margin-top: .5rem; }
+    .mt-3 { margin-top: 1rem; }
+    .mb-1 { margin-bottom: .25rem; }
+    .mb-2 { margin-bottom: .5rem; }
+    .text-muted { color: #6c757d; }
+</style>
+
+@code {
+    // ── state ─────────────────────────────────────────────────────────────────
+    string activeTab = "window";
+    string? error;
+
+    // Window tab
+    string patientId = string.Empty;
+    bool patientLoaded;
+    List<ReceiptIndexEntry> patientReceipts = new();
+
+    // Void
+    string? voidingReceiptId;
+    string voidingReceiptNumber = string.Empty;
+    string voidReason = string.Empty;
+    string voidUserId = string.Empty;
+    string? voidError;
+
+    // Issue receipt
+    NewReceiptForm newReceipt = new();
+    string? receiptFormError;
+    string? receiptFormSuccess;
+
+    // Sessions tab
+    List<SessionIndexEntry> openSessions = new();
+    List<SessionIndexEntry> allSessions = new();
+
+    // Close session
+    string? closingSessionId;
+    decimal actualBalance;
+    string closeNotes = string.Empty;
+
+    // Turn-in
+    string? turningInSessionId;
+    decimal turnInAmount;
+    string turnInToUserId = string.Empty;
+    string turnInReceiptNumber = string.Empty;
+
+    string? sessionActionError;
+
+    // New session
+    NewSessionForm newSession = new();
+    string? sessionFormError;
+    string? sessionFormSuccess;
+
+    static readonly string[] paymentMethods = ["Cash", "Check", "MoneyOrder", "CreditCard", "WireTransfer"];
+
+    // ── helpers ───────────────────────────────────────────────────────────────
+
+    static string BadgeClass(string status) => status switch
+    {
+        "Issued"   => "badge-success",
+        "Voided"   => "badge-danger",
+        "TurnedIn" => "badge-secondary",
+        "Open"     => "badge-success",
+        "Closed"   => "badge-warning",
+        _          => "badge-secondary",
+    };
+
+    async Task SetTab(string tab)
+    {
+        activeTab = tab;
+        if (tab == "sessions") await LoadSessions();
+    }
+
+    // ── patient receipts ──────────────────────────────────────────────────────
+
+    async Task LoadPatientReceipts()
+    {
+        error = null;
+        if (string.IsNullOrWhiteSpace(patientId)) { error = "Enter a Patient ID."; return; }
+        try
+        {
+            var indexGrain = Grains.GetGrain<ICashierReceiptIndexGrain>($"CASHIER-RECEIPT-IDX:{patientId.Trim()}");
+            List<CashierReceiptIndexEntry> entries = await indexGrain.GetAllAsync();
+            patientReceipts = entries.Select(e => new ReceiptIndexEntry
+            {
+                ReceiptId = e.ReceiptId,
+                ReceiptNumber = e.ReceiptNumber,
+                PatientId = e.PatientId,
+                ARAccountId = e.ARAccountId,
+                Amount = e.Amount,
+                PaymentMethod = e.PaymentMethod,
+                Status = e.Status,
+                ReceiptDate = e.ReceiptDate,
+            }).ToList();
+            patientLoaded = true;
+        }
+        catch (Exception ex) { error = $"Error loading receipts: {ex.Message}"; }
+    }
+
+    void OpenVoidReceipt(string id, string number)
+    {
+        voidingReceiptId     = id;
+        voidingReceiptNumber = number;
+        voidReason           = string.Empty;
+        voidUserId           = string.Empty;
+        voidError            = null;
+    }
+
+    async Task SubmitVoid()
+    {
+        voidError = null;
+        if (string.IsNullOrWhiteSpace(voidReason)) { voidError = "Void reason is required."; return; }
+        try
+        {
+            string grainKey = voidingReceiptId!.StartsWith("CASHIER-RECEIPT:") ? voidingReceiptId : $"CASHIER-RECEIPT:{voidingReceiptId}";
+            var receiptGrain = Grains.GetGrain<ICashierReceiptGrain>(grainKey);
+            await receiptGrain.VoidAsync(voidReason, voidUserId);
+            voidingReceiptId = null;
+            await LoadPatientReceipts();
+        }
+        catch (Exception ex) { voidError = ex.Message; }
+    }
+
+    // ── issue receipt ─────────────────────────────────────────────────────────
+
+    async Task IssueReceipt()
+    {
+        receiptFormError = null; receiptFormSuccess = null;
+        if (string.IsNullOrWhiteSpace(newReceipt.ReceiptNumber) || string.IsNullOrWhiteSpace(newReceipt.SessionId))
+        {
+            receiptFormError = "Receipt number and session ID are required."; return;
+        }
+        try
+        {
+            string receiptId = Guid.NewGuid().ToString();
+            var receiptGrain = Grains.GetGrain<ICashierReceiptGrain>($"CASHIER-RECEIPT:{receiptId}");
+            CashierPaymentMethod method = Enum.TryParse<CashierPaymentMethod>(newReceipt.PaymentMethod, out var pm) ? pm : CashierPaymentMethod.Cash;
+            await receiptGrain.IssueAsync(
+                newReceipt.ReceiptNumber, newReceipt.PatientId, newReceipt.PatientName,
+                newReceipt.ARAccountId, newReceipt.Amount, method,
+                newReceipt.CashierId, newReceipt.CashierName, newReceipt.SessionId,
+                string.IsNullOrWhiteSpace(newReceipt.CheckNumber) ? null : newReceipt.CheckNumber,
+                newReceipt.Notes);
+            // Update receipt index for this patient
+            var indexGrain = Grains.GetGrain<ICashierReceiptIndexGrain>($"CASHIER-RECEIPT-IDX:{newReceipt.PatientId}");
+            await indexGrain.AddOrUpdateAsync(new CashierReceiptIndexEntry
+            {
+                ReceiptId = $"CASHIER-RECEIPT:{receiptId}",
+                ReceiptNumber = newReceipt.ReceiptNumber,
+                PatientId = newReceipt.PatientId,
+                ARAccountId = newReceipt.ARAccountId,
+                Amount = newReceipt.Amount,
+                PaymentMethod = newReceipt.PaymentMethod,
+                Status = "Issued",
+                ReceiptDate = DateTime.UtcNow,
+            });
+            receiptFormSuccess = "Receipt issued successfully.";
+            newReceipt = new NewReceiptForm();
+            if (patientLoaded) await LoadPatientReceipts();
+        }
+        catch (Exception ex) { receiptFormError = ex.Message; }
+    }
+
+    // ── sessions ──────────────────────────────────────────────────────────────
+
+    async Task LoadSessions()
+    {
+        try
+        {
+            var sessionIdx = Grains.GetGrain<ICashierSessionIndexGrain>("CASHIER-SESSION-IDX");
+            List<CashierSessionIndexEntry> allEntries = await sessionIdx.GetAllAsync();
+            List<CashierSessionIndexEntry> openEntries = await sessionIdx.GetOpenSessionsAsync();
+            allSessions = allEntries.Select(MapSession).ToList();
+            openSessions = openEntries.Select(MapSession).ToList();
+        }
+        catch (Exception ex) { error = $"Error loading sessions: {ex.Message}"; }
+    }
+
+    static SessionIndexEntry MapSession(CashierSessionIndexEntry s) => new()
+    {
+        SessionId = s.SessionId,
+        StationId = s.StationId,
+        CashierId = s.CashierId,
+        CashierName = s.CashierName,
+        SessionDate = s.SessionDate,
+        TotalCollected = s.TotalCollected,
+        Status = s.Status,
+        TurnedInDate = s.TurnedInDate,
+    };
+
+    void OpenClosePanel(string id) { closingSessionId = id; turningInSessionId = null; sessionActionError = null; }
+    void OpenTurnInPanel(string id) { turningInSessionId = id; closingSessionId = null; sessionActionError = null; }
+
+    async Task SubmitClose()
+    {
+        sessionActionError = null;
+        try
+        {
+            string grainKey = closingSessionId!.StartsWith("CASHIER-SESSION:") ? closingSessionId : $"CASHIER-SESSION:{closingSessionId}";
+            var sessionGrain = Grains.GetGrain<ICashierSessionGrain>(grainKey);
+            await sessionGrain.CloseAsync(actualBalance, string.IsNullOrWhiteSpace(closeNotes) ? null : closeNotes);
+            closingSessionId = null;
+            await LoadSessions();
+        }
+        catch (Exception ex) { sessionActionError = ex.Message; }
+    }
+
+    async Task SubmitTurnIn()
+    {
+        sessionActionError = null;
+        try
+        {
+            string grainKey = turningInSessionId!.StartsWith("CASHIER-SESSION:") ? turningInSessionId : $"CASHIER-SESSION:{turningInSessionId}";
+            var sessionGrain = Grains.GetGrain<ICashierSessionGrain>(grainKey);
+            await sessionGrain.TurnInAsync(turnInAmount, turnInToUserId,
+                string.IsNullOrWhiteSpace(turnInReceiptNumber) ? null : turnInReceiptNumber);
+            turningInSessionId = null;
+            await LoadSessions();
+        }
+        catch (Exception ex) { sessionActionError = ex.Message; }
+    }
+
+    async Task OpenSession()
+    {
+        sessionFormError = null; sessionFormSuccess = null;
+        if (string.IsNullOrWhiteSpace(newSession.StationId) || string.IsNullOrWhiteSpace(newSession.CashierId))
+        {
+            sessionFormError = "Station ID and Cashier ID are required."; return;
+        }
+        try
+        {
+            string sessionId = Guid.NewGuid().ToString();
+            var sessionGrain = Grains.GetGrain<ICashierSessionGrain>($"CASHIER-SESSION:{sessionId}");
+            await sessionGrain.OpenAsync(newSession.StationId, newSession.StationName,
+                newSession.CashierId, newSession.CashierName, newSession.SessionDate, newSession.OpeningBalance);
+            var sessionIdx = Grains.GetGrain<ICashierSessionIndexGrain>("CASHIER-SESSION-IDX");
+            await sessionIdx.AddOrUpdateAsync(new CashierSessionIndexEntry
+            {
+                SessionId = $"CASHIER-SESSION:{sessionId}",
+                StationId = newSession.StationId,
+                CashierId = newSession.CashierId,
+                CashierName = newSession.CashierName,
+                SessionDate = newSession.SessionDate,
+                TotalCollected = 0,
+                Status = "Open",
+            });
+            sessionFormSuccess = "Session opened.";
+            newSession = new NewSessionForm();
+            await LoadSessions();
+        }
+        catch (Exception ex) { sessionFormError = ex.Message; }
+    }
+
+    // ── DTOs ──────────────────────────────────────────────────────────────────
+
+    class ReceiptIndexEntry
+    {
+        public string ReceiptId { get; set; } = string.Empty;
+        public string ReceiptNumber { get; set; } = string.Empty;
+        public string PatientId { get; set; } = string.Empty;
+        public string ARAccountId { get; set; } = string.Empty;
+        public decimal Amount { get; set; }
+        public string PaymentMethod { get; set; } = string.Empty;
+        public string Status { get; set; } = string.Empty;
+        public DateTime ReceiptDate { get; set; }
+    }
+
+    class SessionIndexEntry
+    {
+        public string SessionId { get; set; } = string.Empty;
+        public string StationId { get; set; } = string.Empty;
+        public string CashierId { get; set; } = string.Empty;
+        public string CashierName { get; set; } = string.Empty;
+        public DateTime SessionDate { get; set; }
+        public decimal TotalCollected { get; set; }
+        public string Status { get; set; } = string.Empty;
+        public DateTime? TurnedInDate { get; set; }
+    }
+
+    // ── form models ───────────────────────────────────────────────────────────
+
+    class NewReceiptForm
+    {
+        public string ReceiptNumber { get; set; } = string.Empty;
+        public string PatientId { get; set; } = string.Empty;
+        public string PatientName { get; set; } = string.Empty;
+        public string ARAccountId { get; set; } = string.Empty;
+        public decimal Amount { get; set; }
+        public string PaymentMethod { get; set; } = "Cash";
+        public string? CheckNumber { get; set; }
+        public string SessionId { get; set; } = string.Empty;
+        public string CashierId { get; set; } = string.Empty;
+        public string CashierName { get; set; } = string.Empty;
+        public string? Notes { get; set; }
+    }
+
+    class NewSessionForm
+    {
+        public string StationId { get; set; } = string.Empty;
+        public string StationName { get; set; } = string.Empty;
+        public string CashierId { get; set; } = string.Empty;
+        public string CashierName { get; set; } = string.Empty;
+        public DateTime SessionDate { get; set; } = DateTime.Today;
+        public decimal OpeningBalance { get; set; }
+    }
+}

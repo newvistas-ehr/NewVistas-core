@@ -1,0 +1,564 @@
+@page "/prenatal"
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+@rendermode InteractiveServer
+@using NewVistas.BlazorWeb.Services
+@using NewVistas.Abstractions.GrainInterfaces
+@using NewVistas.Abstractions.GrainStates
+@inject OrleansGrainService Grains
+
+<h3>Prenatal / OB Care</h3>
+
+@if (!string.IsNullOrEmpty(error))
+{
+    <div class="alert alert-danger">@error</div>
+}
+
+<div class="patient-bar">
+    <input type="text" @bind="patientId" placeholder="Patient ID" class="form-control d-inline-block" style="width:260px" />
+    <button class="btn btn-primary ms-2" @onclick="LoadPregnancies" disabled="@loading">Load</button>
+    <button class="btn btn-success ms-2" @onclick="() => showCreateForm = !showCreateForm">New Pregnancy</button>
+</div>
+
+@* ── Tab Bar ─────────────────────────────────────────────────────────── *@
+<ul class="nav nav-tabs mt-3">
+    <li class="nav-item"><a class="nav-link @(activeTab == 0 ? "active" : "")" @onclick="() => activeTab = 0">Pregnancies</a></li>
+    <li class="nav-item"><a class="nav-link @(activeTab == 1 ? "active" : "")" @onclick="() => { activeTab = 1; }">Prenatal Visits</a></li>
+    <li class="nav-item"><a class="nav-link @(activeTab == 2 ? "active" : "")" @onclick="() => activeTab = 2">Delivery &amp; Postpartum</a></li>
+</ul>
+
+@* ── Tab 0: Pregnancies ──────────────────────────────────────────────── *@
+@if (activeTab == 0)
+{
+    @if (showCreateForm)
+    {
+        <div class="card mt-3 p-3">
+            <h5>New Pregnancy</h5>
+            <div class="row g-2">
+                <div class="col-md-3">
+                    <label>LMP</label>
+                    <input type="date" class="form-control" @bind="newPreg.Lmp" />
+                </div>
+                <div class="col-md-3">
+                    <label>EDD (LMP)</label>
+                    <input type="date" class="form-control" @bind="newPreg.EddByLmp" />
+                </div>
+                <div class="col-md-3">
+                    <label>EDD (Ultrasound)</label>
+                    <input type="date" class="form-control" @bind="newPreg.EddByUs" />
+                </div>
+                <div class="col-md-3">
+                    <label>Definitive EDD *</label>
+                    <input type="date" class="form-control" @bind="newPreg.DefinitiveEdd" />
+                </div>
+            </div>
+            <div class="row g-2 mt-2">
+                <div class="col-md-2"><label>Gravida</label><input type="number" class="form-control" @bind="newPreg.Gravida" /></div>
+                <div class="col-md-2"><label>Para</label><input type="number" class="form-control" @bind="newPreg.Para" /></div>
+                <div class="col-md-2"><label>Abortions</label><input type="number" class="form-control" @bind="newPreg.Abortions" /></div>
+                <div class="col-md-2"><label>Living</label><input type="number" class="form-control" @bind="newPreg.Living" /></div>
+                <div class="col-md-4">
+                    <label>Risk Level</label>
+                    <select class="form-select" @bind="newPreg.RiskLevel">
+                        <option value="0">Low</option>
+                        <option value="1">Moderate</option>
+                        <option value="2">High</option>
+                    </select>
+                </div>
+            </div>
+            <div class="row g-2 mt-2">
+                <div class="col-md-4"><label>Provider Name</label><input type="text" class="form-control" @bind="newPreg.ProviderName" /></div>
+                <div class="col-md-4"><label>Location</label><input type="text" class="form-control" @bind="newPreg.LocationName" /></div>
+                <div class="col-md-4"><label>Notes</label><input type="text" class="form-control" @bind="newPreg.Notes" /></div>
+            </div>
+            <button class="btn btn-primary mt-3" @onclick="SubmitPregnancy">Create Pregnancy</button>
+        </div>
+    }
+
+    @if (loading)
+    {
+        <div class="spinner-border mt-3" role="status"><span class="visually-hidden">Loading...</span></div>
+    }
+    else if (pregnancies != null)
+    {
+        <table class="table table-striped mt-3">
+            <thead>
+                <tr>
+                    <th>EDD</th>
+                    <th>G / P</th>
+                    <th>Risk</th>
+                    <th>Status</th>
+                    <th>Outcome</th>
+                    <th>Provider</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var p in pregnancies)
+                {
+                    <tr>
+                        <td>@p.DefinitiveEdd.ToString("MM/dd/yyyy")</td>
+                        <td>G@(p.Gravida)P@(p.Para)</td>
+                        <td><span class="badge @RiskBadge(p.RiskLevel)">@p.RiskLevel</span></td>
+                        <td><span class="badge @StatusBadge(p.Status)">@p.Status</span></td>
+                        <td>@p.Outcome</td>
+                        <td>@p.ProviderName</td>
+                        <td>
+                            <button class="btn btn-sm btn-outline-primary" @onclick="() => SelectPregnancy(p.PregnancyId)">View</button>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    }
+}
+
+@* ── Tab 1: Prenatal Visits (Flowsheet) ──────────────────────────────── *@
+@if (activeTab == 1)
+{
+    <div class="mt-3">
+        @if (selectedPregnancy == null)
+        {
+            <div class="alert alert-info">Select a pregnancy from the Pregnancies tab first, or enter a Pregnancy ID:</div>
+            <div class="input-group" style="max-width:500px">
+                <input type="text" class="form-control" @bind="manualPregnancyId" placeholder="Pregnancy ID" />
+                <button class="btn btn-primary" @onclick="() => SelectPregnancy(manualPregnancyId)">Load Visits</button>
+            </div>
+        }
+        else
+        {
+            <h5>Visits for @selectedPregnancy.PregnancyId (EDD: @selectedPregnancy.DefinitiveEdd.ToString("MM/dd/yyyy"))</h5>
+            <button class="btn btn-success btn-sm mb-2" @onclick="() => showVisitForm = !showVisitForm">Add Visit</button>
+
+            @if (showVisitForm)
+            {
+                <div class="card p-3 mb-3">
+                    <h6>New Prenatal Visit</h6>
+                    <div class="row g-2">
+                        <div class="col-md-3"><label>Visit Date *</label><input type="datetime-local" class="form-control" @bind="newVisit.VisitDate" /></div>
+                        <div class="col-md-2"><label>GA Weeks</label><input type="number" class="form-control" @bind="newVisit.GaWeeks" /></div>
+                        <div class="col-md-2"><label>GA Days</label><input type="number" class="form-control" @bind="newVisit.GaDays" /></div>
+                        <div class="col-md-2"><label>Weight (lbs)</label><input type="number" step="0.1" class="form-control" @bind="newVisit.Weight" /></div>
+                        <div class="col-md-3"><label>Provider</label><input type="text" class="form-control" @bind="newVisit.ProviderName" /></div>
+                    </div>
+                    <div class="row g-2 mt-2">
+                        <div class="col-md-2"><label>BP Systolic</label><input type="number" class="form-control" @bind="newVisit.BpSystolic" /></div>
+                        <div class="col-md-2"><label>BP Diastolic</label><input type="number" class="form-control" @bind="newVisit.BpDiastolic" /></div>
+                        <div class="col-md-2"><label>Fundal Ht (cm)</label><input type="number" step="0.1" class="form-control" @bind="newVisit.FundalHeight" /></div>
+                        <div class="col-md-2"><label>FHR (bpm)</label><input type="number" class="form-control" @bind="newVisit.Fhr" /></div>
+                        <div class="col-md-2">
+                            <label>Presentation</label>
+                            <select class="form-select" @bind="newVisit.Presentation">
+                                <option value="0">Unknown</option>
+                                <option value="1">Cephalic</option>
+                                <option value="2">Breech</option>
+                                <option value="3">Transverse</option>
+                                <option value="4">Oblique</option>
+                            </select>
+                        </div>
+                        <div class="col-md-2">
+                            <label>Fetal Movement</label>
+                            <select class="form-select" @bind="newVisit.FetalMovement">
+                                <option value="">N/A</option>
+                                <option value="true">Yes</option>
+                                <option value="false">No</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="row g-2 mt-2">
+                        <div class="col-md-2">
+                            <label>Urine Protein</label>
+                            <select class="form-select" @bind="newVisit.UrineProtein">
+                                <option value="">—</option>
+                                <option>Negative</option><option>Trace</option>
+                                <option>1+</option><option>2+</option><option>3+</option><option>4+</option>
+                            </select>
+                        </div>
+                        <div class="col-md-2">
+                            <label>Urine Glucose</label>
+                            <select class="form-select" @bind="newVisit.UrineGlucose">
+                                <option value="">—</option>
+                                <option>Negative</option><option>Trace</option>
+                                <option>1+</option><option>2+</option><option>3+</option><option>4+</option>
+                            </select>
+                        </div>
+                        <div class="col-md-2">
+                            <label>Edema</label>
+                            <select class="form-select" @bind="newVisit.Edema">
+                                <option value="">—</option>
+                                <option>None</option><option>Trace</option>
+                                <option>1+</option><option>2+</option><option>3+</option><option>4+</option>
+                            </select>
+                        </div>
+                        <div class="col-md-2"><label>Cervix (cm)</label><input type="number" step="0.5" class="form-control" @bind="newVisit.CervicalDilation" /></div>
+                        <div class="col-md-2"><label>Effacement %</label><input type="number" class="form-control" @bind="newVisit.Effacement" /></div>
+                        <div class="col-md-2"><label>Station</label><input type="number" class="form-control" @bind="newVisit.Station" /></div>
+                    </div>
+                    <div class="row g-2 mt-2">
+                        <div class="col-md-4"><label>Next Visit</label><input type="date" class="form-control" @bind="newVisit.NextVisitDate" /></div>
+                        <div class="col-md-8"><label>Notes</label><input type="text" class="form-control" @bind="newVisit.Notes" /></div>
+                    </div>
+                    <button class="btn btn-primary mt-2" @onclick="SubmitVisit">Save Visit</button>
+                </div>
+            }
+
+            @if (visits != null && visits.Count > 0)
+            {
+                <table class="table table-sm table-bordered">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Date</th>
+                            <th>GA</th>
+                            <th>Wt (lbs)</th>
+                            <th>FH (cm)</th>
+                            <th>FHR (bpm)</th>
+                            <th>Provider</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var v in visits)
+                        {
+                            <tr>
+                                <td>@v.VisitDate.ToString("MM/dd/yyyy")</td>
+                                <td>@(v.GestationalAgeWeeks)w @(v.GestationalAgeDays)d</td>
+                                <td>@v.Weight</td>
+                                <td>@v.FundalHeightCm</td>
+                                <td>@v.FetalHeartRate</td>
+                                <td>@v.ProviderName</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            }
+            else
+            {
+                <p class="text-muted mt-2">No prenatal visits recorded yet.</p>
+            }
+        }
+    </div>
+}
+
+@* ── Tab 2: Delivery & Postpartum ────────────────────────────────────── *@
+@if (activeTab == 2)
+{
+    <div class="mt-3">
+        @if (selectedPregnancyDetail == null)
+        {
+            <div class="alert alert-info">Select a pregnancy from the Pregnancies tab to view delivery and postpartum details.</div>
+        }
+        else
+        {
+            <h5>Pregnancy @selectedPregnancyDetail.PregnancyId — @selectedPregnancyDetail.Status</h5>
+
+            @if (selectedPregnancyDetail.Delivery != null)
+            {
+                <div class="card p-3 mb-3">
+                    <h6>Delivery Record</h6>
+                    <div class="row">
+                        <div class="col-md-3"><strong>Date:</strong> @selectedPregnancyDetail.Delivery.DeliveryDate?.ToString("MM/dd/yyyy HH:mm")</div>
+                        <div class="col-md-3"><strong>Method:</strong> @selectedPregnancyDetail.Delivery.DeliveryMethod</div>
+                        <div class="col-md-3"><strong>GA at Delivery:</strong> @selectedPregnancyDetail.Delivery.GestationalAgeAtDeliveryWeeks weeks</div>
+                        <div class="col-md-3"><strong>Birth Weight:</strong> @(selectedPregnancyDetail.Delivery.BirthWeightGrams)g</div>
+                    </div>
+                    <div class="row mt-2">
+                        <div class="col-md-3"><strong>Apgar 1m:</strong> @selectedPregnancyDetail.Delivery.Apgar1Min</div>
+                        <div class="col-md-3"><strong>Apgar 5m:</strong> @selectedPregnancyDetail.Delivery.Apgar5Min</div>
+                        <div class="col-md-3"><strong>Presentation:</strong> @selectedPregnancyDetail.Delivery.Presentation</div>
+                        <div class="col-md-3"><strong>Infant Sex:</strong> @selectedPregnancyDetail.Delivery.InfantSex</div>
+                    </div>
+                    @if (!string.IsNullOrEmpty(selectedPregnancyDetail.Delivery.Complications))
+                    {
+                        <div class="mt-2"><strong>Complications:</strong> @selectedPregnancyDetail.Delivery.Complications</div>
+                    }
+                    @if (!string.IsNullOrEmpty(selectedPregnancyDetail.Delivery.Notes))
+                    {
+                        <div class="mt-1"><strong>Notes:</strong> @selectedPregnancyDetail.Delivery.Notes</div>
+                    }
+                </div>
+            }
+            else
+            {
+                <p class="text-muted">No delivery recorded yet.</p>
+            }
+
+            @if (selectedPregnancyDetail.Postpartum != null)
+            {
+                <div class="card p-3">
+                    <h6>Postpartum Follow-Up</h6>
+                    <div class="row">
+                        <div class="col-md-3"><strong>Visit Date:</strong> @selectedPregnancyDetail.Postpartum.PostpartumVisitDate?.ToString("MM/dd/yyyy")</div>
+                        <div class="col-md-3"><strong>Breastfeeding:</strong> @selectedPregnancyDetail.Postpartum.BreastfeedingStatus</div>
+                        <div class="col-md-3"><strong>Contraception:</strong> @selectedPregnancyDetail.Postpartum.ContraceptiveMethod</div>
+                        <div class="col-md-3"><strong>EPDS Score:</strong> @selectedPregnancyDetail.Postpartum.EpdsScore</div>
+                    </div>
+                    @if (!string.IsNullOrEmpty(selectedPregnancyDetail.Postpartum.Complications))
+                    {
+                        <div class="mt-2"><strong>Complications:</strong> @selectedPregnancyDetail.Postpartum.Complications</div>
+                    }
+                </div>
+            }
+            else
+            {
+                <p class="text-muted">No postpartum data recorded yet.</p>
+            }
+        }
+    </div>
+}
+
+<style>
+    .patient-bar { display: flex; align-items: center; margin-top: 16px; }
+    .badge { font-size: 0.8em; }
+</style>
+
+@code {
+    private string patientId = "";
+    private string? error;
+    private bool loading;
+    private int activeTab;
+    private bool showCreateForm;
+    private bool showVisitForm;
+    private string manualPregnancyId = "";
+
+    private List<PregnancyDto>? pregnancies;
+    private PregnancyDto? selectedPregnancy;
+    private PregnancyDetailDto? selectedPregnancyDetail;
+    private List<VisitDto>? visits;
+
+    private NewPregnancyForm newPreg = new();
+    private NewVisitForm newVisit = new();
+
+    private static string Esc(string id) => Uri.EscapeDataString(id.Trim());
+
+    private string RiskBadge(int riskLevel) => riskLevel switch
+    {
+        0 => "bg-success",
+        1 => "bg-warning text-dark",
+        2 => "bg-danger",
+        _ => "bg-secondary"
+    };
+
+    private string StatusBadge(int status) => status switch
+    {
+        0 => "bg-primary",
+        1 => "bg-success",
+        6 => "bg-info",
+        7 => "bg-secondary",
+        _ => "bg-warning text-dark"
+    };
+
+    private IPatientWorkflowGrain GetWorkflow() => Grains.GetGrain<IPatientWorkflowGrain>(patientId!.Trim());
+
+    private async Task LoadPregnancies()
+    {
+        if (string.IsNullOrWhiteSpace(patientId)) return;
+        error = null;
+        loading = true;
+        try
+        {
+            var workflow = GetWorkflow();
+            var entries = await workflow.GetPregnanciesAsync();
+            pregnancies = entries.Select(e => new PregnancyDto
+            {
+                PregnancyId = e.PregnancyId, PatientId = e.PatientId, Status = (int)e.Status,
+                DefinitiveEdd = e.DefinitiveEdd, Gravida = e.Gravida, Para = e.Para,
+                RiskLevel = (int)e.RiskLevel, Outcome = (int)e.Outcome,
+                ProviderName = e.ProviderName, CreatedDate = e.CreatedDate
+            }).ToList();
+        }
+        catch (Exception ex) { error = ex.Message; }
+        finally { loading = false; }
+    }
+
+    private async Task SelectPregnancy(string pregId)
+    {
+        if (string.IsNullOrWhiteSpace(pregId)) return;
+        error = null;
+        try
+        {
+            selectedPregnancy = pregnancies?.FirstOrDefault(p => p.PregnancyId == pregId)
+                ?? new PregnancyDto { PregnancyId = pregId };
+            var workflow = GetWorkflow();
+            var state = await workflow.GetPregnancyAsync(pregId);
+            selectedPregnancyDetail = new PregnancyDetailDto
+            {
+                PregnancyId = state.PregnancyId, PatientId = state.PatientId, Status = (int)state.Status,
+                LastMenstrualPeriod = state.LastMenstrualPeriod, DefinitiveEdd = state.DefinitiveEdd,
+                Gravida = state.Gravida, Para = state.Para, Abortions = state.Abortions, Living = state.Living,
+                RiskLevel = (int)state.RiskLevel, RiskFactors = state.RiskFactors, Outcome = (int)state.Outcome,
+                Notes = state.Notes
+            };
+            var visitEntries = await workflow.GetPrenatalVisitsAsync(pregId);
+            visits = visitEntries.Select(v => new VisitDto
+            {
+                VisitId = v.VisitId, PregnancyId = v.PregnancyId, VisitDate = v.VisitDate,
+                GestationalAgeWeeks = v.GestationalAgeWeeks, GestationalAgeDays = v.GestationalAgeDays,
+                FetalHeartRate = v.FetalHeartRate, FundalHeightCm = v.FundalHeightCm,
+                Weight = v.Weight, ProviderName = v.ProviderName
+            }).ToList();
+            activeTab = 1;
+        }
+        catch (Exception ex) { error = ex.Message; }
+    }
+
+    private async Task SubmitPregnancy()
+    {
+        if (string.IsNullOrWhiteSpace(patientId)) return;
+        error = null;
+        try
+        {
+            var workflow = GetWorkflow();
+            await workflow.CreatePregnancyAsync(
+                newPreg.Lmp, newPreg.EddByLmp, newPreg.EddByUs,
+                newPreg.DefinitiveEdd ?? DateTime.Today.AddDays(280),
+                newPreg.Gravida, newPreg.Para, newPreg.Abortions, newPreg.Living,
+                (PregnancyRiskLevel)newPreg.RiskLevel, null,
+                null, newPreg.ProviderName, null, newPreg.LocationName, newPreg.Notes);
+            showCreateForm = false;
+            newPreg = new();
+            await LoadPregnancies();
+        }
+        catch (Exception ex) { error = ex.Message; }
+    }
+
+    private async Task SubmitVisit()
+    {
+        if (selectedPregnancy == null) return;
+        error = null;
+        try
+        {
+            bool? fetalMov = string.IsNullOrEmpty(newVisit.FetalMovement)
+                ? null : bool.Parse(newVisit.FetalMovement);
+            var workflow = GetWorkflow();
+            await workflow.CreatePrenatalVisitAsync(
+                selectedPregnancy.PregnancyId,
+                newVisit.VisitDate ?? DateTime.Now,
+                newVisit.GaWeeks, newVisit.GaDays,
+                newVisit.Weight, newVisit.BpSystolic, newVisit.BpDiastolic,
+                newVisit.FundalHeight, newVisit.Fhr,
+                (FetalPresentation)newVisit.Presentation, fetalMov,
+                string.IsNullOrEmpty(newVisit.UrineProtein) ? null : newVisit.UrineProtein,
+                string.IsNullOrEmpty(newVisit.UrineGlucose) ? null : newVisit.UrineGlucose,
+                string.IsNullOrEmpty(newVisit.Edema) ? null : newVisit.Edema,
+                newVisit.CervicalDilation, newVisit.Effacement, newVisit.Station,
+                null, newVisit.ProviderName,
+                string.IsNullOrEmpty(newVisit.Notes) ? null : newVisit.Notes,
+                newVisit.NextVisitDate);
+            showVisitForm = false;
+            newVisit = new();
+            await SelectPregnancy(selectedPregnancy.PregnancyId);
+        }
+        catch (Exception ex) { error = ex.Message; }
+    }
+
+    // ── DTOs ────────────────────────────────────────────────────────────
+    class PregnancyDto
+    {
+        public string PregnancyId { get; set; } = "";
+        public string PatientId { get; set; } = "";
+        public int Status { get; set; }
+        public DateTime DefinitiveEdd { get; set; }
+        public int Gravida { get; set; }
+        public int Para { get; set; }
+        public int RiskLevel { get; set; }
+        public int Outcome { get; set; }
+        public string? ProviderName { get; set; }
+        public DateTime CreatedDate { get; set; }
+    }
+
+    class PregnancyDetailDto
+    {
+        public string PregnancyId { get; set; } = "";
+        public string PatientId { get; set; } = "";
+        public int Status { get; set; }
+        public DateTime? LastMenstrualPeriod { get; set; }
+        public DateTime DefinitiveEdd { get; set; }
+        public int Gravida { get; set; }
+        public int Para { get; set; }
+        public int Abortions { get; set; }
+        public int Living { get; set; }
+        public int RiskLevel { get; set; }
+        public List<string>? RiskFactors { get; set; }
+        public int Outcome { get; set; }
+        public DeliveryDto? Delivery { get; set; }
+        public PostpartumDto? Postpartum { get; set; }
+        public string? Notes { get; set; }
+    }
+
+    class DeliveryDto
+    {
+        public DateTime? DeliveryDate { get; set; }
+        public int DeliveryMethod { get; set; }
+        public int? GestationalAgeAtDeliveryWeeks { get; set; }
+        public int? BirthWeightGrams { get; set; }
+        public int? Apgar1Min { get; set; }
+        public int? Apgar5Min { get; set; }
+        public int Presentation { get; set; }
+        public string? AnesthesiaType { get; set; }
+        public string? PerinealStatus { get; set; }
+        public int? EstimatedBloodLossMl { get; set; }
+        public string? InfantSex { get; set; }
+        public string? Complications { get; set; }
+        public string? Notes { get; set; }
+    }
+
+    class PostpartumDto
+    {
+        public DateTime? PostpartumVisitDate { get; set; }
+        public string? BreastfeedingStatus { get; set; }
+        public string? ContraceptiveMethod { get; set; }
+        public string? DepressionScreeningResult { get; set; }
+        public int? EpdsScore { get; set; }
+        public string? Complications { get; set; }
+    }
+
+    class VisitDto
+    {
+        public string VisitId { get; set; } = "";
+        public string PregnancyId { get; set; } = "";
+        public DateTime VisitDate { get; set; }
+        public int GestationalAgeWeeks { get; set; }
+        public int GestationalAgeDays { get; set; }
+        public int? FetalHeartRate { get; set; }
+        public decimal? FundalHeightCm { get; set; }
+        public decimal? Weight { get; set; }
+        public string? ProviderName { get; set; }
+    }
+
+    class NewPregnancyForm
+    {
+        public DateTime? Lmp { get; set; }
+        public DateTime? EddByLmp { get; set; }
+        public DateTime? EddByUs { get; set; }
+        public DateTime? DefinitiveEdd { get; set; }
+        public int Gravida { get; set; } = 1;
+        public int Para { get; set; }
+        public int Abortions { get; set; }
+        public int Living { get; set; }
+        public int RiskLevel { get; set; }
+        public string? ProviderName { get; set; }
+        public string? LocationName { get; set; }
+        public string? Notes { get; set; }
+    }
+
+    class NewVisitForm
+    {
+        public DateTime? VisitDate { get; set; }
+        public int GaWeeks { get; set; }
+        public int GaDays { get; set; }
+        public decimal? Weight { get; set; }
+        public int? BpSystolic { get; set; }
+        public int? BpDiastolic { get; set; }
+        public decimal? FundalHeight { get; set; }
+        public int? Fhr { get; set; }
+        public int Presentation { get; set; }
+        public string? FetalMovement { get; set; }
+        public string? UrineProtein { get; set; }
+        public string? UrineGlucose { get; set; }
+        public string? Edema { get; set; }
+        public decimal? CervicalDilation { get; set; }
+        public int? Effacement { get; set; }
+        public int? Station { get; set; }
+        public string? ProviderName { get; set; }
+        public string? Notes { get; set; }
+        public DateTime? NextVisitDate { get; set; }
+    }
+}

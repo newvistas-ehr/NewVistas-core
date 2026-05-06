@@ -1,0 +1,254 @@
+<UserControl x:Class="NewVistas.Wpf_UI.Views.PatientEditView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <ScrollViewer VerticalScrollBarVisibility="Auto">
+        <StackPanel Margin="24" MaxWidth="800">
+            <TextBlock Style="{StaticResource PageTitle}" Text="Edit Patient"/>
+
+            <!-- Error / Success -->
+            <TextBlock Style="{StaticResource ErrorText}" Text="{Binding Error}"
+                       Visibility="{Binding Error, Converter={StaticResource NullToVisibility}}"/>
+            <TextBlock Foreground="#2e7d32" FontSize="13" Margin="0,0,0,8"
+                       Text="{Binding SuccessMessage}"
+                       Visibility="{Binding SuccessMessage, Converter={StaticResource NullToVisibility}}"/>
+
+            <!-- Load Button -->
+            <StackPanel Orientation="Horizontal" Margin="0,0,0,12">
+                <Button Content="Load Patient" Style="{StaticResource PrimaryButton}"
+                        Command="{Binding LoadCommand}" Margin="0,0,8,0"/>
+                <ProgressBar IsIndeterminate="True" Width="120" Height="20"
+                             Visibility="{Binding IsLoading, Converter={StaticResource BoolToVisibility}}"/>
+            </StackPanel>
+
+            <!-- Patient Banner -->
+            <Border Background="#eef3f9" BorderBrush="#c5d3e3" BorderThickness="1" CornerRadius="4"
+                    Padding="12" Margin="0,0,0,12"
+                    Visibility="{Binding Patient, Converter={StaticResource NullToVisibility}}">
+                <StackPanel>
+                    <TextBlock FontSize="18" FontWeight="Bold" Foreground="#003f72" Text="{Binding Patient.Name}"/>
+                    <StackPanel Orientation="Horizontal" Margin="0,4,0,0">
+                        <TextBlock FontSize="12" Foreground="#555" Text="ID: "/>
+                        <TextBlock FontSize="12" Foreground="#555" Text="{Binding Patient.PatientId}" Margin="0,0,16,0"/>
+                        <TextBlock FontSize="12" Foreground="#555" Text="Sex: "/>
+                        <TextBlock FontSize="12" Foreground="#555" Text="{Binding Patient.Sex}" Margin="0,0,16,0"/>
+                        <TextBlock FontSize="12" Foreground="#555" Text="DOB: "/>
+                        <TextBlock FontSize="12" Foreground="#555" Text="{Binding Patient.DateOfBirth, StringFormat=d}"/>
+                    </StackPanel>
+                </StackPanel>
+            </Border>
+
+            <!-- Tab Control -->
+            <TabControl SelectedIndex="{Binding SelectedTabIndex}"
+                        Visibility="{Binding Patient, Converter={StaticResource NullToVisibility}}">
+
+                <!-- Demographics Tab -->
+                <TabItem Header="Demographics">
+                    <StackPanel Margin="12">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                            </Grid.RowDefinitions>
+
+                            <StackPanel Grid.Row="0" Grid.Column="0" Margin="0,0,12,8">
+                                <TextBlock Style="{StaticResource FieldLabel}" Text="Name (LAST,FIRST MI) *"/>
+                                <TextBox Text="{Binding EditName, UpdateSourceTrigger=PropertyChanged}"/>
+                            </StackPanel>
+                            <StackPanel Grid.Row="0" Grid.Column="1" Margin="0,0,0,8">
+                                <TextBlock Style="{StaticResource FieldLabel}" Text="Sex *"/>
+                                <ComboBox ItemsSource="{Binding SexOptions}" SelectedItem="{Binding EditSex}"/>
+                            </StackPanel>
+
+                            <StackPanel Grid.Row="1" Grid.Column="0" Margin="0,0,12,8">
+                                <TextBlock Style="{StaticResource FieldLabel}" Text="Date of Birth"/>
+                                <DatePicker SelectedDate="{Binding EditDob}"/>
+                            </StackPanel>
+                            <StackPanel Grid.Row="1" Grid.Column="1" Margin="0,0,0,8">
+                                <TextBlock Style="{StaticResource FieldLabel}" Text="SSN"/>
+                                <TextBox Text="{Binding EditSsn, UpdateSourceTrigger=PropertyChanged}"/>
+                            </StackPanel>
+
+                            <StackPanel Grid.Row="2" Grid.Column="0" Margin="0,0,12,8">
+                                <TextBlock Style="{StaticResource FieldLabel}" Text="Marital Status"/>
+                                <ComboBox ItemsSource="{Binding MaritalStatusOptions}" SelectedItem="{Binding EditMaritalStatus}"/>
+                            </StackPanel>
+                        </Grid>
+
+                        <Button Content="Save Demographics" Style="{StaticResource PrimaryButton}"
+                                Command="{Binding SaveDemographicsCommand}" HorizontalAlignment="Left" Margin="0,8,0,0"/>
+                    </StackPanel>
+                </TabItem>
+
+                <!-- Address Tab -->
+                <TabItem Header="Address">
+                    <StackPanel Margin="12">
+                        <TextBlock Style="{StaticResource FieldLabel}" Text="Street Address 1"/>
+                        <TextBox Text="{Binding EditAddress1, UpdateSourceTrigger=PropertyChanged}" Margin="0,0,0,8"/>
+                        <TextBlock Style="{StaticResource FieldLabel}" Text="Street Address 2"/>
+                        <TextBox Text="{Binding EditAddress2, UpdateSourceTrigger=PropertyChanged}" Margin="0,0,0,8"/>
+                        <TextBlock Style="{StaticResource FieldLabel}" Text="Street Address 3"/>
+                        <TextBox Text="{Binding EditAddress3, UpdateSourceTrigger=PropertyChanged}" Margin="0,0,0,8"/>
+
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="100"/>
+                                <ColumnDefinition Width="120"/>
+                            </Grid.ColumnDefinitions>
+                            <StackPanel Grid.Column="0" Margin="0,0,12,0">
+                                <TextBlock Style="{StaticResource FieldLabel}" Text="City"/>
+                                <TextBox Text="{Binding EditCity, UpdateSourceTrigger=PropertyChanged}"/>
+                            </StackPanel>
+                            <StackPanel Grid.Column="1" Margin="0,0,12,0">
+                                <TextBlock Style="{StaticResource FieldLabel}" Text="State"/>
+                                <TextBox Text="{Binding EditState, UpdateSourceTrigger=PropertyChanged}"/>
+                            </StackPanel>
+                            <StackPanel Grid.Column="2">
+                                <TextBlock Style="{StaticResource FieldLabel}" Text="Zip Code"/>
+                                <TextBox Text="{Binding EditZip, UpdateSourceTrigger=PropertyChanged}"/>
+                            </StackPanel>
+                        </Grid>
+
+                        <Button Content="Save Address" Style="{StaticResource PrimaryButton}"
+                                Command="{Binding SaveAddressCommand}" HorizontalAlignment="Left" Margin="0,12,0,0"/>
+                    </StackPanel>
+                </TabItem>
+
+                <!-- Contact Tab -->
+                <TabItem Header="Contact">
+                    <StackPanel Margin="12">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+                            <StackPanel Grid.Column="0" Margin="0,0,12,8">
+                                <TextBlock Style="{StaticResource FieldLabel}" Text="Phone (Residence)"/>
+                                <TextBox Text="{Binding EditPhoneRes, UpdateSourceTrigger=PropertyChanged}"/>
+                            </StackPanel>
+                            <StackPanel Grid.Column="1" Margin="0,0,0,8">
+                                <TextBlock Style="{StaticResource FieldLabel}" Text="Phone (Work)"/>
+                                <TextBox Text="{Binding EditPhoneWork, UpdateSourceTrigger=PropertyChanged}"/>
+                            </StackPanel>
+                        </Grid>
+
+                        <TextBlock Style="{StaticResource FieldLabel}" Text="Email"/>
+                        <TextBox Text="{Binding EditEmail, UpdateSourceTrigger=PropertyChanged}" Margin="0,0,0,8"/>
+
+                        <Button Content="Save Contact Info" Style="{StaticResource PrimaryButton}"
+                                Command="{Binding SaveContactCommand}" HorizontalAlignment="Left" Margin="0,8,0,0"/>
+                    </StackPanel>
+                </TabItem>
+
+                <!-- Emergency Contact Tab -->
+                <TabItem Header="Emergency Contact">
+                    <StackPanel Margin="12">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+                            <StackPanel Grid.Column="0" Margin="0,0,12,8">
+                                <TextBlock Style="{StaticResource FieldLabel}" Text="Contact Name"/>
+                                <TextBox Text="{Binding EditEmergencyName, UpdateSourceTrigger=PropertyChanged}"/>
+                            </StackPanel>
+                            <StackPanel Grid.Column="1" Margin="0,0,0,8">
+                                <TextBlock Style="{StaticResource FieldLabel}" Text="Relationship"/>
+                                <TextBox Text="{Binding EditEmergencyRelationship, UpdateSourceTrigger=PropertyChanged}"/>
+                            </StackPanel>
+                        </Grid>
+
+                        <TextBlock Style="{StaticResource FieldLabel}" Text="Phone"/>
+                        <TextBox Text="{Binding EditEmergencyPhone, UpdateSourceTrigger=PropertyChanged}"
+                                 Width="300" HorizontalAlignment="Left" Margin="0,0,0,8"/>
+
+                        <Button Content="Save Emergency Contact" Style="{StaticResource PrimaryButton}"
+                                Command="{Binding SaveEmergencyContactCommand}" HorizontalAlignment="Left" Margin="0,8,0,0"/>
+                    </StackPanel>
+                </TabItem>
+
+                <!-- Veteran / Military Tab -->
+                <TabItem Header="Veteran / Military">
+                    <StackPanel Margin="12">
+                        <TextBlock Style="{StaticResource SectionHeader}" Text="Veteran Information"/>
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                            </Grid.RowDefinitions>
+
+                            <StackPanel Grid.Row="0" Grid.Column="0" Margin="0,0,12,8">
+                                <TextBlock Style="{StaticResource FieldLabel}" Text="Veteran"/>
+                                <ComboBox ItemsSource="{Binding YesNoOptions}" SelectedItem="{Binding EditVeteran}"/>
+                            </StackPanel>
+                            <StackPanel Grid.Row="0" Grid.Column="1" Margin="0,0,0,8">
+                                <TextBlock Style="{StaticResource FieldLabel}" Text="SC %"/>
+                                <TextBox Text="{Binding EditScPercent, UpdateSourceTrigger=PropertyChanged}"/>
+                            </StackPanel>
+
+                            <StackPanel Grid.Row="1" Grid.Column="0" Margin="0,0,12,8">
+                                <TextBlock Style="{StaticResource FieldLabel}" Text="Eligibility Code"/>
+                                <TextBox Text="{Binding EditEligibility, UpdateSourceTrigger=PropertyChanged}"/>
+                            </StackPanel>
+                            <StackPanel Grid.Row="1" Grid.Column="1" Margin="0,0,0,8">
+                                <TextBlock Style="{StaticResource FieldLabel}" Text="Primary Eligibility"/>
+                                <TextBox Text="{Binding EditPrimaryEligibility, UpdateSourceTrigger=PropertyChanged}"/>
+                            </StackPanel>
+                        </Grid>
+
+                        <Button Content="Save Veteran Info" Style="{StaticResource PrimaryButton}"
+                                Command="{Binding SaveVeteranInfoCommand}" HorizontalAlignment="Left" Margin="0,8,0,16"/>
+
+                        <TextBlock Style="{StaticResource SectionHeader}" Text="Military Service"/>
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                            </Grid.RowDefinitions>
+
+                            <StackPanel Grid.Row="0" Grid.Column="0" Margin="0,0,12,8">
+                                <TextBlock Style="{StaticResource FieldLabel}" Text="Service Entry Date"/>
+                                <DatePicker SelectedDate="{Binding EditServiceEntry}"/>
+                            </StackPanel>
+                            <StackPanel Grid.Row="0" Grid.Column="1" Margin="0,0,0,8">
+                                <TextBlock Style="{StaticResource FieldLabel}" Text="Separation Date"/>
+                                <DatePicker SelectedDate="{Binding EditServiceSeparation}"/>
+                            </StackPanel>
+
+                            <StackPanel Grid.Row="1" Grid.Column="0" Margin="0,0,12,8">
+                                <TextBlock Style="{StaticResource FieldLabel}" Text="Branch"/>
+                                <ComboBox ItemsSource="{Binding BranchOptions}" SelectedItem="{Binding EditBranch}"/>
+                            </StackPanel>
+                            <StackPanel Grid.Row="1" Grid.Column="1" Margin="0,0,0,8">
+                                <TextBlock Style="{StaticResource FieldLabel}" Text="Discharge Type"/>
+                                <ComboBox ItemsSource="{Binding DischargeOptions}" SelectedItem="{Binding EditDischargeType}"/>
+                            </StackPanel>
+
+                            <StackPanel Grid.Row="2" Grid.Column="0" Margin="0,0,12,8">
+                                <TextBlock Style="{StaticResource FieldLabel}" Text="Prisoner of War"/>
+                                <ComboBox ItemsSource="{Binding YesNoOptions}" SelectedItem="{Binding EditPow}"/>
+                            </StackPanel>
+                        </Grid>
+
+                        <Button Content="Save Military Service" Style="{StaticResource PrimaryButton}"
+                                Command="{Binding SaveMilitaryServiceCommand}" HorizontalAlignment="Left" Margin="0,8,0,0"/>
+                    </StackPanel>
+                </TabItem>
+            </TabControl>
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>

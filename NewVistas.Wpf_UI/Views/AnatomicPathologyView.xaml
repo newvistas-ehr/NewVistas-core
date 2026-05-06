@@ -1,0 +1,27 @@
+<UserControl x:Class="NewVistas.Wpf_UI.Views.AnatomicPathologyView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <ScrollViewer VerticalScrollBarVisibility="Auto">
+        <StackPanel Margin="24">
+            <TextBlock Style="{StaticResource PageTitle}" Text="Anatomic Pathology"/>
+            <TextBlock Style="{StaticResource ErrorText}" Text="{Binding Error}"
+                       Visibility="{Binding Error, Converter={StaticResource NullToVisibility}}"/>
+            <StackPanel Orientation="Horizontal" Margin="0,0,0,12">
+                <Button Content="Load Cases" Style="{StaticResource PrimaryButton}"
+                        Command="{Binding LoadCommand}" Margin="0,0,8,0"/>
+                <ProgressBar IsIndeterminate="True" Width="120" Height="20"
+                             Visibility="{Binding IsLoading, Converter={StaticResource BoolToVisibility}}"/>
+            </StackPanel>
+            <DataGrid ItemsSource="{Binding Cases}" SelectedItem="{Binding SelectedCase}" AutoGenerateColumns="False">
+                <DataGrid.Columns>
+                    <DataGridTextColumn Header="Case ID" Binding="{Binding CaseId}" Width="160"/>
+                    <DataGridTextColumn Header="Type" Binding="{Binding CaseType}" Width="120"/>
+                    <DataGridTextColumn Header="Status" Binding="{Binding Status}" Width="120"/>
+                    <DataGridTextColumn Header="Received" Binding="{Binding ReceivedDate, StringFormat=d}" Width="110"/>
+                    <DataGridTextColumn Header="Pathologist" Binding="{Binding PathologistName}" Width="*"/>
+                    <DataGridTextColumn Header="Diagnosis" Binding="{Binding PreliminaryDiagnosis}" Width="*"/>
+                </DataGrid.Columns>
+            </DataGrid>
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>

@@ -1,0 +1,519 @@
+@page "/lab-shipping"
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+@rendermode InteractiveServer
+@using NewVistas.BlazorWeb.Services
+@using NewVistas.Abstractions.GrainInterfaces
+@using NewVistas.Abstractions.GrainStates
+@inject OrleansGrainService Grains
+
+<PageTitle>Lab Shipping — LA</PageTitle>
+
+<h2>Lab Specimen Shipping</h2>
+<p class="subtitle">VistA File #62.8 / #62.9 — shipping manifests and reference lab configuration</p>
+
+<div class="tabs">
+    <button class="@TabClass("manifests")" @onclick='() => SetTab("manifests")'>Manifest Lookup</button>
+    <button class="@TabClass("create")" @onclick='() => SetTab("create")'>Create Manifest</button>
+    <button class="@TabClass("configs")" @onclick='() => SetTab("configs")'>Shipping Configs</button>
+</div>
+
+@if (!string.IsNullOrEmpty(error))
+{
+    <div class="error">@error</div>
+}
+
+@if (!string.IsNullOrEmpty(successMsg))
+{
+    <div class="success">@successMsg</div>
+}
+
+@* ── Tab 1: Manifest Lookup ──────────────────────────────────── *@
+@if (activeTab == "manifests")
+{
+    <div class="toolbar">
+        <input @bind="manifestIdInput" placeholder="Manifest ID (e.g. DEMO-MAN-001)" class="input-id" />
+        <button @onclick="LoadManifest" disabled="@loading">Load Manifest</button>
+        <button @onclick="LoadDemo" disabled="@loading" class="btn-demo">Load Demo Data</button>
+    </div>
+
+    @if (loading) { <p class="loading-msg">Loading...</p> }
+
+    @if (manifest is not null)
+    {
+        <div class="detail-panel">
+            <h3>Manifest: @manifest.ManifestId</h3>
+            <div class="info-grid">
+                <div class="info-item"><span class="label">Destination:</span> @manifest.DestinationLab</div>
+                <div class="info-item"><span class="label">Config ID:</span> @manifest.ShippingConfigId</div>
+                <div class="info-item">
+                    <span class="label">Status:</span>
+                    <span class="badge @StatusBadge(manifest.Status.ToString())">@manifest.Status</span>
+                </div>
+                <div class="info-item"><span class="label">Method:</span> @(manifest.ShippingMethod ?? "—")</div>
+                <div class="info-item"><span class="label">Conditions:</span> @(manifest.ShippingConditions ?? "—")</div>
+                <div class="info-item"><span class="label">Container:</span> @(manifest.ContainerType ?? "—")</div>
+                <div class="info-item"><span class="label">Created:</span> @manifest.CreatedDate.ToLocalTime().ToString("MM/dd/yyyy HH:mm")</div>
+                <div class="info-item"><span class="label">Created By:</span> @(manifest.CreatedBy ?? "—")</div>
+                @if (manifest.TrackingNumber is not null)
+                {
+                    <div class="info-item"><span class="label">Tracking#:</span> @manifest.TrackingNumber</div>
+                }
+                @if (manifest.ShippedDate is not null)
+                {
+                    <div class="info-item"><span class="label">Shipped:</span> @manifest.ShippedDate.Value.ToLocalTime().ToString("MM/dd/yyyy HH:mm")</div>
+                }
+                @if (manifest.ReceivedDate is not null)
+                {
+                    <div class="info-item"><span class="label">Received:</span> @manifest.ReceivedDate.Value.ToLocalTime().ToString("MM/dd/yyyy HH:mm")</div>
+                }
+            </div>
+
+            <h4>Specimens (@manifest.Specimens.Count(s => !s.IsRemoved) active, @manifest.Specimens.Count(s => s.IsRemoved) removed)</h4>
+            @if (manifest.Specimens.Count > 0)
+            {
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>Specimen ID</th>
+                            <th>Patient</th>
+                            <th>Test</th>
+                            <th>LOINC</th>
+                            <th>Type</th>
+                            <th>Collected</th>
+                            <th>Status</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (ManifestSpecimen spec in manifest.Specimens)
+                        {
+                            <tr class="@(spec.IsRemoved ? "row-removed" : "")">
+                                <td>@spec.SpecimenId</td>
+                                <td>@spec.PatientId</td>
+                                <td>@spec.TestName</td>
+                                <td>@(spec.LoincCode ?? "—")</td>
+                                <td>@(spec.SpecimenType ?? "—")</td>
+                                <td>@(spec.CollectionDate?.ToLocalTime().ToString("MM/dd HH:mm") ?? "—")</td>
+                                <td>
+                                    @if (spec.IsRemoved)
+                                    {
+                                        <span class="badge badge-removed">REMOVED</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="badge badge-active">ACTIVE</span>
+                                    }
+                                </td>
+                                <td>
+                                    @if (!spec.IsRemoved && manifest.Status == ShippingManifestStatus.OPEN)
+                                    {
+                                        <button class="btn-sm btn-remove" @onclick="() => RemoveSpecimen(spec.SpecimenId)">Remove</button>
+                                    }
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            }
+            else
+            {
+                <p>No specimens on this manifest.</p>
+            }
+
+            @* Actions based on manifest status *@
+            @if (manifest.Status == ShippingManifestStatus.OPEN)
+            {
+                <div class="action-panel">
+                    <h4>Add Specimen</h4>
+                    <label>Specimen ID: <input @bind="addSpecId" /></label>
+                    <label>Patient ID: <input @bind="addSpecPatient" /></label>
+                    <label>Test Name: <input @bind="addSpecTest" /></label>
+                    <label>LOINC Code: <input @bind="addSpecLoinc" placeholder="(optional)" /></label>
+                    <label>Specimen Type: <input @bind="addSpecType" placeholder="(optional)" /></label>
+                    <button @onclick="SubmitAddSpecimen">Add Specimen</button>
+                </div>
+
+                <div class="action-panel">
+                    <h4>Ship Manifest</h4>
+                    <label>Tracking Number: <input @bind="shipTrackingNumber" placeholder="(optional)" /></label>
+                    <button @onclick="SubmitShip">Ship</button>
+                </div>
+
+                <div class="action-panel">
+                    <button class="btn-cancel" @onclick="SubmitCancel">Cancel Manifest</button>
+                </div>
+            }
+
+            @if (manifest.Status == ShippingManifestStatus.SHIPPED)
+            {
+                <div class="action-panel">
+                    <button @onclick="SubmitReceived">Mark as Received</button>
+                </div>
+            }
+        </div>
+    }
+}
+
+@* ── Tab 2: Create Manifest ──────────────────────────────────── *@
+@if (activeTab == "create")
+{
+    <div class="form-panel">
+        <h3>Create New Shipping Manifest</h3>
+        <label>Shipping Config ID: <input @bind="newConfigId" placeholder="e.g. QUEST-001" /></label>
+        <label>Destination Lab: <input @bind="newDestLab" /></label>
+        <label>Shipping Method: <input @bind="newShipMethod" placeholder="(optional)" /></label>
+        <label>Conditions: <input @bind="newConditions" placeholder="e.g. Ambient, Refrigerated" /></label>
+        <label>Container Type: <input @bind="newContainer" placeholder="(optional)" /></label>
+        <label>Created By: <input @bind="newCreatedBy" /></label>
+        <button @onclick="SubmitCreateManifest" disabled="@(string.IsNullOrWhiteSpace(newConfigId) || string.IsNullOrWhiteSpace(newDestLab))">Create</button>
+    </div>
+}
+
+@* ── Tab 3: Shipping Configs ──────────────────────────────────── *@
+@if (activeTab == "configs")
+{
+    <div class="toolbar">
+        <input @bind="configIdInput" placeholder="Config ID (e.g. QUEST-001)" class="input-id" />
+        <button @onclick="LoadConfig" disabled="@loading">Load Config</button>
+    </div>
+
+    @if (config is not null)
+    {
+        <div class="detail-panel">
+            <h3>Config: @config.ConfigId</h3>
+            <div class="info-grid">
+                <div class="info-item"><span class="label">Lab Name:</span> @config.LabName</div>
+                <div class="info-item"><span class="label">Address:</span> @(config.Address ?? "—")</div>
+                <div class="info-item"><span class="label">Phone:</span> @(config.Phone ?? "—")</div>
+                <div class="info-item"><span class="label">Default Method:</span> @(config.DefaultShippingMethod ?? "—")</div>
+                <div class="info-item"><span class="label">Default Conditions:</span> @(config.DefaultConditions ?? "—")</div>
+                <div class="info-item"><span class="label">Container:</span> @(config.DefaultContainerType ?? "—")</div>
+                <div class="info-item">
+                    <span class="label">Status:</span>
+                    @if (config.IsActive)
+                    {
+                        <span class="badge badge-active">ACTIVE</span>
+                    }
+                    else
+                    {
+                        <span class="badge badge-inactive">INACTIVE</span>
+                    }
+                </div>
+            </div>
+            @if (config.AcceptedTests.Count > 0)
+            {
+                <h4>Accepted Tests (LOINC)</h4>
+                <div class="test-list">
+                    @foreach (string test in config.AcceptedTests)
+                    {
+                        <span class="badge badge-test">@test</span>
+                    }
+                </div>
+            }
+        </div>
+    }
+
+    <div class="form-panel" style="margin-top: 20px;">
+        <h3>Update Shipping Config</h3>
+        <label>Config ID: <input @bind="updConfigId" /></label>
+        <label>Lab Name: <input @bind="updLabName" /></label>
+        <label>Address: <input @bind="updAddress" placeholder="(optional)" /></label>
+        <label>Phone: <input @bind="updPhone" placeholder="(optional)" /></label>
+        <label>Default Method: <input @bind="updMethod" placeholder="(optional)" /></label>
+        <label>Default Conditions: <input @bind="updConditions" placeholder="(optional)" /></label>
+        <label>Default Container: <input @bind="updContainer" placeholder="(optional)" /></label>
+        <label>Accepted Tests (comma-sep LOINC): <input @bind="updAcceptedTests" placeholder="e.g. 2951-2,2160-0" /></label>
+        <label>
+            <input type="checkbox" @bind="updIsActive" /> Active
+        </label>
+        <button @onclick="SubmitUpdateConfig" disabled="@(string.IsNullOrWhiteSpace(updConfigId) || string.IsNullOrWhiteSpace(updLabName))">Update</button>
+    </div>
+}
+
+@code {
+    string activeTab = "manifests";
+    bool loading;
+    string? error;
+    string? successMsg;
+
+    // Manifest lookup
+    string manifestIdInput = string.Empty;
+    ShippingManifestState? manifest;
+
+    // Add specimen
+    string addSpecId = string.Empty;
+    string addSpecPatient = string.Empty;
+    string addSpecTest = string.Empty;
+    string? addSpecLoinc;
+    string? addSpecType;
+
+    // Ship
+    string? shipTrackingNumber;
+
+    // Create manifest
+    string newConfigId = string.Empty;
+    string newDestLab = string.Empty;
+    string? newShipMethod;
+    string? newConditions;
+    string? newContainer;
+    string? newCreatedBy;
+
+    // Config lookup
+    string configIdInput = string.Empty;
+    ShippingConfigState? config;
+
+    // Update config
+    string updConfigId = string.Empty;
+    string updLabName = string.Empty;
+    string? updAddress;
+    string? updPhone;
+    string? updMethod;
+    string? updConditions;
+    string? updContainer;
+    string updAcceptedTests = string.Empty;
+    bool updIsActive = true;
+
+    string TabClass(string tab) => activeTab == tab ? "tab-btn active" : "tab-btn";
+
+    void SetTab(string tab) { activeTab = tab; error = null; successMsg = null; }
+
+    private IShippingManifestGrain GetManifestGrain(string id) =>
+        Grains.GetGrain<IShippingManifestGrain>($"LA-SHIP:{id.Trim()}");
+
+    private IShippingConfigGrain GetConfigGrain(string id) =>
+        Grains.GetGrain<IShippingConfigGrain>($"LA-SHIPCFG:{id.Trim()}");
+
+    string StatusBadge(string status) => status switch
+    {
+        "OPEN" => "badge-open",
+        "SHIPPED" => "badge-shipped",
+        "RECEIVED" => "badge-received",
+        "CANCELLED" => "badge-cancelled",
+        _ => "badge-inactive"
+    };
+
+    async Task LoadManifest()
+    {
+        if (string.IsNullOrWhiteSpace(manifestIdInput)) return;
+        loading = true; error = null; successMsg = null;
+        try
+        {
+            manifest = await GetManifestGrain(manifestIdInput).GetManifestAsync();
+        }
+        catch (Exception ex) { error = ex.Message; }
+        finally { loading = false; }
+    }
+
+    async Task SubmitAddSpecimen()
+    {
+        if (manifest is null || string.IsNullOrWhiteSpace(addSpecId)) return;
+        error = null; successMsg = null;
+        try
+        {
+            ManifestSpecimen spec = new()
+            {
+                SpecimenId = addSpecId, PatientId = addSpecPatient, TestName = addSpecTest,
+                LoincCode = addSpecLoinc, SpecimenType = addSpecType,
+                CollectionDate = DateTime.UtcNow, IsRemoved = false
+            };
+            await GetManifestGrain(manifest.ManifestId).AddSpecimenAsync(spec);
+            successMsg = $"Specimen {addSpecId} added.";
+            addSpecId = string.Empty; addSpecPatient = string.Empty; addSpecTest = string.Empty;
+            addSpecLoinc = null; addSpecType = null;
+            await LoadManifest();
+        }
+        catch (Exception ex) { error = ex.Message; }
+    }
+
+    async Task RemoveSpecimen(string specimenId)
+    {
+        if (manifest is null) return;
+        error = null; successMsg = null;
+        try
+        {
+            await GetManifestGrain(manifest.ManifestId).RemoveSpecimenAsync(specimenId);
+            successMsg = $"Specimen {specimenId} removed.";
+            await LoadManifest();
+        }
+        catch (Exception ex) { error = ex.Message; }
+    }
+
+    async Task SubmitShip()
+    {
+        if (manifest is null) return;
+        error = null; successMsg = null;
+        try
+        {
+            await GetManifestGrain(manifest.ManifestId).ShipManifestAsync(shipTrackingNumber);
+            successMsg = "Manifest shipped.";
+            shipTrackingNumber = null;
+            await LoadManifest();
+        }
+        catch (Exception ex) { error = ex.Message; }
+    }
+
+    async Task SubmitReceived()
+    {
+        if (manifest is null) return;
+        error = null; successMsg = null;
+        try
+        {
+            await GetManifestGrain(manifest.ManifestId).MarkReceivedAsync();
+            successMsg = "Manifest marked as received.";
+            await LoadManifest();
+        }
+        catch (Exception ex) { error = ex.Message; }
+    }
+
+    async Task SubmitCancel()
+    {
+        if (manifest is null) return;
+        error = null; successMsg = null;
+        try
+        {
+            await GetManifestGrain(manifest.ManifestId).CancelManifestAsync();
+            successMsg = "Manifest cancelled.";
+            await LoadManifest();
+        }
+        catch (Exception ex) { error = ex.Message; }
+    }
+
+    async Task SubmitCreateManifest()
+    {
+        if (string.IsNullOrWhiteSpace(newConfigId) || string.IsNullOrWhiteSpace(newDestLab)) return;
+        loading = true; error = null; successMsg = null;
+        try
+        {
+            string newId = Guid.NewGuid().ToString();
+            await GetManifestGrain(newId).CreateManifestAsync(
+                newConfigId, newDestLab, newShipMethod, newConditions, newContainer, newCreatedBy);
+            successMsg = $"Manifest created: {newId}";
+            manifestIdInput = newId;
+            activeTab = "manifests";
+            await LoadManifest();
+        }
+        catch (Exception ex) { error = ex.Message; }
+        finally { loading = false; }
+    }
+
+    async Task LoadConfig()
+    {
+        if (string.IsNullOrWhiteSpace(configIdInput)) return;
+        loading = true; error = null; successMsg = null;
+        try
+        {
+            config = await GetConfigGrain(configIdInput).GetConfigAsync();
+        }
+        catch (Exception ex) { error = ex.Message; }
+        finally { loading = false; }
+    }
+
+    async Task SubmitUpdateConfig()
+    {
+        if (string.IsNullOrWhiteSpace(updConfigId) || string.IsNullOrWhiteSpace(updLabName)) return;
+        error = null; successMsg = null;
+        try
+        {
+            List<string> tests = string.IsNullOrWhiteSpace(updAcceptedTests)
+                ? new()
+                : updAcceptedTests.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).ToList();
+            await GetConfigGrain(updConfigId).UpdateConfigAsync(
+                updLabName, updAddress, updPhone, updMethod, updConditions, updContainer, updIsActive, tests);
+            successMsg = $"Config {updConfigId} updated.";
+            configIdInput = updConfigId;
+            await LoadConfig();
+        }
+        catch (Exception ex) { error = ex.Message; }
+    }
+
+    async Task LoadDemo()
+    {
+        loading = true; error = null; successMsg = null;
+        try
+        {
+            // Create configs
+            await GetConfigGrain("QUEST-001").UpdateConfigAsync(
+                "Quest Diagnostics", "500 Plaza Dr, Secaucus NJ 07094", "800-222-0446",
+                "FedEx Priority Overnight", "Ambient", "Biohazard Bag", true,
+                new List<string> { "2951-2", "2160-0", "2345-7", "17861-6", "14979-9" });
+
+            await GetConfigGrain("LABCORP-001").UpdateConfigAsync(
+                "LabCorp", "531 S Spring St, Burlington NC 27215", "800-877-7530",
+                "FedEx Priority Overnight", "Refrigerated", "Insulated Box", true,
+                new List<string> { "14979-9", "5778-6", "2093-3", "2085-9", "2571-8" });
+
+            // Create manifests
+            IShippingManifestGrain m1 = GetManifestGrain("DEMO-MAN-001");
+            await m1.CreateManifestAsync("QUEST-001", "Quest Diagnostics", "FedEx Priority Overnight", "Ambient", "Biohazard Bag", "TECH-LAB-1");
+            await m1.AddSpecimenAsync(new ManifestSpecimen
+            {
+                SpecimenId = "SPEC-001", PatientId = "P-001", TestName = "TSH",
+                LoincCode = "14979-9", SpecimenType = "Serum", CollectionDate = DateTime.UtcNow.AddHours(-2)
+            });
+            await m1.AddSpecimenAsync(new ManifestSpecimen
+            {
+                SpecimenId = "SPEC-002", PatientId = "P-002", TestName = "BMP",
+                LoincCode = "2160-0", SpecimenType = "Serum", CollectionDate = DateTime.UtcNow.AddHours(-1)
+            });
+
+            IShippingManifestGrain m2 = GetManifestGrain("DEMO-MAN-002");
+            await m2.CreateManifestAsync("LABCORP-001", "LabCorp", "FedEx Priority Overnight", "Refrigerated", "Insulated Box", "TECH-LAB-2");
+            await m2.AddSpecimenAsync(new ManifestSpecimen
+            {
+                SpecimenId = "SPEC-003", PatientId = "P-003", TestName = "Lipid Panel",
+                LoincCode = "2093-3", SpecimenType = "Serum", CollectionDate = DateTime.UtcNow.AddDays(-1)
+            });
+            await m2.ShipManifestAsync("FDX-987654321");
+
+            successMsg = "Demo data loaded. Try manifest IDs: DEMO-MAN-001, DEMO-MAN-002 and config IDs: QUEST-001, LABCORP-001";
+            manifestIdInput = "DEMO-MAN-001";
+            await LoadManifest();
+        }
+        catch (Exception ex) { error = ex.Message; }
+        finally { loading = false; }
+    }
+}
+
+<style>
+    .subtitle { color: #888; margin-top: -8px; font-size: 0.9em; }
+    .tabs { display: flex; gap: 4px; margin: 16px 0 12px; }
+    .tab-btn { padding: 8px 18px; border: 1px solid #555; border-bottom: none; border-radius: 6px 6px 0 0; cursor: pointer; background: #333; color: #ccc; }
+    .tab-btn.active { background: #1a1a2e; color: #fff; font-weight: bold; border-color: #667; }
+    .toolbar { display: flex; gap: 8px; margin: 12px 0; align-items: center; }
+    .input-id { padding: 6px; border: 1px solid #555; border-radius: 4px; width: 300px; background: #1a1a2e; color: #eee; }
+    button { padding: 6px 14px; border: 1px solid #555; border-radius: 4px; cursor: pointer; background: #2a2a3e; color: #eee; }
+    button:hover:not(:disabled) { background: #3a3a5e; }
+    button:disabled { opacity: .5; cursor: not-allowed; }
+    .btn-demo { background: #1a3a5a; }
+    .btn-sm { padding: 2px 7px; font-size: 0.78em; }
+    .btn-remove { background: #4a1a1a; color: #faa; }
+    .btn-cancel { background: #5a2a2a; color: #fcc; }
+    .loading-msg { color: #aaa; }
+    .error { color: #f66; margin: 8px 0; padding: 8px; background: #3a1a1a; border-radius: 4px; }
+    .success { color: #6f6; margin: 8px 0; padding: 8px; background: #1a3a1a; border-radius: 4px; }
+    .detail-panel { margin-top: 16px; padding: 16px; background: #1a1a2e; border: 1px solid #444; border-radius: 6px; }
+    .info-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 8px; margin-bottom: 16px; }
+    .info-item { padding: 4px 0; color: #ccc; }
+    .info-item .label { color: #888; font-weight: bold; }
+    .data-table { width: 100%; border-collapse: collapse; font-size: 0.88em; margin-top: 10px; }
+    .data-table th { background: #2a2a4e; color: #ddd; padding: 6px 10px; text-align: left; }
+    .data-table td { padding: 5px 10px; border-bottom: 1px solid #333; color: #ccc; }
+    .data-table tr:hover { background: #252540; }
+    .row-removed td { opacity: 0.5; text-decoration: line-through; }
+    .badge { padding: 2px 8px; border-radius: 10px; font-size: 0.78em; font-weight: bold; }
+    .badge-open { background: #d80; color: #fff; }
+    .badge-shipped { background: #46b; color: #fff; }
+    .badge-received { background: #4a4; color: #fff; }
+    .badge-cancelled { background: #666; color: #fff; }
+    .badge-active { background: #4a4; color: #fff; }
+    .badge-inactive { background: #666; color: #fff; }
+    .badge-removed { background: #844; color: #fff; }
+    .badge-test { background: #2a4a6a; color: #cde; margin: 2px 4px; display: inline-block; }
+    .test-list { margin: 8px 0; }
+    .action-panel { margin-top: 16px; padding: 16px; background: #1e1e30; border: 1px solid #555; border-radius: 6px; display: flex; flex-direction: column; gap: 8px; max-width: 480px; }
+    .action-panel label { display: flex; gap: 10px; align-items: center; color: #ccc; }
+    .action-panel input { flex: 1; padding: 4px; border: 1px solid #555; border-radius: 3px; background: #1a1a2e; color: #eee; }
+    .form-panel { padding: 16px; background: #1a1a2e; border: 1px solid #444; border-radius: 6px; display: flex; flex-direction: column; gap: 10px; max-width: 520px; }
+    .form-panel label { display: flex; gap: 10px; align-items: center; color: #ccc; }
+    .form-panel input[type="text"], .form-panel input:not([type]) { flex: 1; padding: 4px; border: 1px solid #555; border-radius: 3px; background: #12122a; color: #eee; }
+</style>

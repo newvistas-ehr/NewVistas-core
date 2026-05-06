@@ -1,0 +1,711 @@
+@page "/substance-abuse-treatment"
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+@rendermode InteractiveServer
+@using NewVistas.BlazorWeb.Services
+@using NewVistas.Abstractions.GrainInterfaces
+@using NewVistas.Abstractions.GrainStates
+@inject OrleansGrainService Grains
+
+<h3>Substance Abuse Treatment</h3>
+
+@if (!string.IsNullOrEmpty(error))
+{
+    <div class="alert alert-danger">@error</div>
+}
+
+<div class="patient-bar">
+    <input type="text" @bind="patientId" placeholder="Patient ID" class="form-control d-inline-block" style="width:260px" />
+    <button class="btn btn-primary ms-2" @onclick="LoadEpisodes" disabled="@loading">Load</button>
+    <button class="btn btn-success ms-2" @onclick="() => showCreateForm = !showCreateForm">New Episode</button>
+</div>
+
+@* ── Tab Bar ─────────────────────────────────────────────────────────── *@
+<ul class="nav nav-tabs mt-3">
+    <li class="nav-item"><a class="nav-link @(activeTab == 0 ? "active" : "")" @onclick="() => activeTab = 0">Treatment Episodes</a></li>
+    <li class="nav-item"><a class="nav-link @(activeTab == 1 ? "active" : "")" @onclick="() => { activeTab = 1; }">Treatment Visits</a></li>
+    <li class="nav-item"><a class="nav-link @(activeTab == 2 ? "active" : "")" @onclick="() => activeTab = 2">MAT &amp; Goals</a></li>
+</ul>
+
+@* ── Tab 0: Treatment Episodes ────────────────────────────────────────── *@
+@if (activeTab == 0)
+{
+    @if (showCreateForm)
+    {
+        <div class="card mt-3 p-3">
+            <h5>New Treatment Episode</h5>
+            <div class="row g-2">
+                <div class="col-md-3">
+                    <label>Modality *</label>
+                    <select class="form-select" @bind="newEpisode.Modality">
+                        <option value="0">Outpatient</option>
+                        <option value="1">Intensive Outpatient</option>
+                        <option value="2">Residential / Inpatient</option>
+                        <option value="3">Partial Hospitalization</option>
+                        <option value="4">Detoxification</option>
+                        <option value="5">Medication Assisted</option>
+                        <option value="6">Aftercare / Maintenance</option>
+                        <option value="7">Prevention / Education</option>
+                        <option value="8">Other</option>
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <label>Primary Substance *</label>
+                    <select class="form-select" @bind="newEpisode.PrimarySubstance">
+                        <option value="0">Alcohol</option>
+                        <option value="1">Cannabis</option>
+                        <option value="2">Opioids</option>
+                        <option value="3">Stimulants</option>
+                        <option value="4">Benzodiazepines</option>
+                        <option value="5">Hallucinogens</option>
+                        <option value="6">Inhalants</option>
+                        <option value="7">Tobacco</option>
+                        <option value="8">Polysubstance</option>
+                        <option value="9">Other</option>
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <label>Intake Date *</label>
+                    <input type="date" class="form-control" @bind="newEpisode.IntakeDate" />
+                </div>
+                <div class="col-md-3">
+                    <label>Program Name</label>
+                    <input type="text" class="form-control" @bind="newEpisode.ProgramName" />
+                </div>
+            </div>
+            <div class="row g-2 mt-2">
+                <div class="col-md-3">
+                    <label>Last Use Date</label>
+                    <input type="date" class="form-control" @bind="newEpisode.LastUseDate" />
+                </div>
+                <div class="col-md-3">
+                    <label>Sobriety Date</label>
+                    <input type="date" class="form-control" @bind="newEpisode.SobrietyDate" />
+                </div>
+                <div class="col-md-3">
+                    <label>Provider Name</label>
+                    <input type="text" class="form-control" @bind="newEpisode.ProviderName" />
+                </div>
+                <div class="col-md-3">
+                    <label>Location</label>
+                    <input type="text" class="form-control" @bind="newEpisode.LocationName" />
+                </div>
+            </div>
+            <div class="row g-2 mt-2">
+                <div class="col-md-6">
+                    <label>Treatment Goals (comma-separated)</label>
+                    <input type="text" class="form-control" @bind="newEpisode.TreatmentGoalsText" />
+                </div>
+                <div class="col-md-6">
+                    <label>Notes</label>
+                    <input type="text" class="form-control" @bind="newEpisode.Notes" />
+                </div>
+            </div>
+            <button class="btn btn-primary mt-3" @onclick="SubmitEpisode">Create Episode</button>
+        </div>
+    }
+
+    @if (loading)
+    {
+        <div class="spinner-border mt-3" role="status"><span class="visually-hidden">Loading...</span></div>
+    }
+    else if (episodes != null)
+    {
+        <table class="table table-striped mt-3">
+            <thead>
+                <tr>
+                    <th>Intake Date</th>
+                    <th>Modality</th>
+                    <th>Substance</th>
+                    <th>Status</th>
+                    <th>Program</th>
+                    <th>Provider</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var ep in episodes)
+                {
+                    <tr>
+                        <td>@ep.IntakeDate.ToString("MM/dd/yyyy")</td>
+                        <td>@ModalityLabel(ep.Modality)</td>
+                        <td>@SubstanceLabel(ep.PrimarySubstance)</td>
+                        <td><span class="badge @StatusBadge(ep.Status)">@StatusLabel(ep.Status)</span></td>
+                        <td>@ep.ProgramName</td>
+                        <td>@ep.ProviderName</td>
+                        <td>
+                            <button class="btn btn-sm btn-outline-primary" @onclick="() => SelectEpisode(ep.EpisodeId)">View</button>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    }
+}
+
+@* ── Tab 1: Treatment Visits ──────────────────────────────────────────── *@
+@if (activeTab == 1)
+{
+    <div class="mt-3">
+        @if (selectedEpisode == null)
+        {
+            <div class="alert alert-info">Select an episode from the Treatment Episodes tab first, or enter an Episode ID:</div>
+            <div class="input-group" style="max-width:500px">
+                <input type="text" class="form-control" @bind="manualEpisodeId" placeholder="Episode ID" />
+                <button class="btn btn-primary" @onclick="() => SelectEpisode(manualEpisodeId)">Load Visits</button>
+            </div>
+        }
+        else
+        {
+            <h5>Visits for @selectedEpisode.EpisodeId (@ModalityLabel(selectedEpisode.Modality))</h5>
+            <button class="btn btn-success btn-sm mb-2" @onclick="() => showVisitForm = !showVisitForm">Add Visit</button>
+
+            @if (showVisitForm)
+            {
+                <div class="card p-3 mb-3">
+                    <h6>New Treatment Visit</h6>
+                    <div class="row g-2">
+                        <div class="col-md-3"><label>Visit Date *</label><input type="datetime-local" class="form-control" @bind="newVisit.VisitDate" /></div>
+                        <div class="col-md-3">
+                            <label>Visit Type *</label>
+                            <select class="form-select" @bind="newVisit.VisitType">
+                                <option value="0">Individual</option>
+                                <option value="1">Group</option>
+                                <option value="2">Family</option>
+                                <option value="3">Medication Check</option>
+                                <option value="4">Urine Drug Screen</option>
+                                <option value="5">Crisis Intervention</option>
+                                <option value="6">Case Management</option>
+                                <option value="7">Peer Support</option>
+                                <option value="8">Assessment</option>
+                                <option value="9">Other</option>
+                            </select>
+                        </div>
+                        <div class="col-md-2"><label>Duration (min)</label><input type="number" class="form-control" @bind="newVisit.DurationMinutes" /></div>
+                        <div class="col-md-2"><label>Provider</label><input type="text" class="form-control" @bind="newVisit.ProviderName" /></div>
+                        <div class="col-md-2"><label>Craving (0-10)</label><input type="number" min="0" max="10" class="form-control" @bind="newVisit.CravingLevel" /></div>
+                    </div>
+                    <div class="row g-2 mt-2">
+                        <div class="col-md-3">
+                            <label>UDS Result</label>
+                            <select class="form-select" @bind="newVisit.UdsResult">
+                                <option value="">N/A</option>
+                                <option>Negative</option>
+                                <option>Positive</option>
+                                <option>Dilute</option>
+                                <option>Refused</option>
+                            </select>
+                        </div>
+                        <div class="col-md-4">
+                            <label>UDS Substances Detected (comma-separated)</label>
+                            <input type="text" class="form-control" @bind="newVisit.UdsSubstancesText" />
+                        </div>
+                        <div class="col-md-2"><label>Days Since Last Use</label><input type="number" class="form-control" @bind="newVisit.DaysSinceLastUse" /></div>
+                        <div class="col-md-3"><label>Notes</label><input type="text" class="form-control" @bind="newVisit.Notes" /></div>
+                    </div>
+                    <button class="btn btn-primary mt-2" @onclick="SubmitVisit">Save Visit</button>
+                </div>
+            }
+
+            @if (visits != null && visits.Count > 0)
+            {
+                <table class="table table-sm table-bordered">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Date</th>
+                            <th>Type</th>
+                            <th>Duration</th>
+                            <th>UDS Result</th>
+                            <th>Provider</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var v in visits)
+                        {
+                            <tr>
+                                <td>@v.VisitDate.ToString("MM/dd/yyyy")</td>
+                                <td>@VisitTypeLabel(v.VisitType)</td>
+                                <td>@(v.DurationMinutes.HasValue ? $"{v.DurationMinutes} min" : "—")</td>
+                                <td>@(v.UdsResult ?? "—")</td>
+                                <td>@v.ProviderName</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            }
+            else
+            {
+                <p class="text-muted mt-2">No treatment visits recorded yet.</p>
+            }
+        }
+    </div>
+}
+
+@* ── Tab 2: MAT & Goals ──────────────────────────────────────────────── *@
+@if (activeTab == 2)
+{
+    <div class="mt-3">
+        @if (selectedEpisodeDetail == null)
+        {
+            <div class="alert alert-info">Select an episode from the Treatment Episodes tab to view MAT entries and goals.</div>
+        }
+        else
+        {
+            <h5>Episode @selectedEpisodeDetail.EpisodeId — @StatusLabel((int)selectedEpisodeDetail.Status)</h5>
+
+            @* MAT Entries *@
+            <div class="card p-3 mb-3">
+                <h6>Medication-Assisted Treatment (MAT)</h6>
+                <button class="btn btn-success btn-sm mb-2" @onclick="() => showMATForm = !showMATForm">Add MAT Entry</button>
+
+                @if (showMATForm)
+                {
+                    <div class="card p-3 mb-3 bg-light">
+                        <div class="row g-2">
+                            <div class="col-md-3">
+                                <label>Medication *</label>
+                                <select class="form-select" @bind="newMAT.Medication">
+                                    <option value="0">None</option>
+                                    <option value="1">Buprenorphine</option>
+                                    <option value="2">Buprenorphine/Naloxone</option>
+                                    <option value="3">Methadone</option>
+                                    <option value="4">Naltrexone</option>
+                                    <option value="5">Naltrexone (Extended Release)</option>
+                                    <option value="6">Disulfiram</option>
+                                    <option value="7">Acamprosate</option>
+                                    <option value="8">Other</option>
+                                </select>
+                            </div>
+                            <div class="col-md-2"><label>Dosage</label><input type="text" class="form-control" @bind="newMAT.Dosage" /></div>
+                            <div class="col-md-2"><label>Start Date *</label><input type="date" class="form-control" @bind="newMAT.StartDate" /></div>
+                            <div class="col-md-2"><label>Prescriber</label><input type="text" class="form-control" @bind="newMAT.PrescriberName" /></div>
+                            <div class="col-md-3"><label>Notes</label><input type="text" class="form-control" @bind="newMAT.Notes" /></div>
+                        </div>
+                        <button class="btn btn-primary mt-2" @onclick="SubmitMAT">Add MAT</button>
+                    </div>
+                }
+
+                @if (selectedEpisodeDetail.MATEntries != null && selectedEpisodeDetail.MATEntries.Count > 0)
+                {
+                    <table class="table table-sm table-bordered">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Medication</th>
+                                <th>Dosage</th>
+                                <th>Start Date</th>
+                                <th>End Date</th>
+                                <th>Prescriber</th>
+                                <th>Status</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var mat in selectedEpisodeDetail.MATEntries)
+                            {
+                                <tr>
+                                    <td>@MedicationLabel(mat.Medication)</td>
+                                    <td>@mat.Dosage</td>
+                                    <td>@mat.StartDate.ToString("MM/dd/yyyy")</td>
+                                    <td>@(mat.EndDate?.ToString("MM/dd/yyyy") ?? "—")</td>
+                                    <td>@mat.PrescriberName</td>
+                                    <td><span class="badge @(mat.IsActive ? "bg-success" : "bg-secondary")">@(mat.IsActive ? "Active" : "Stopped")</span></td>
+                                    <td>
+                                        @if (mat.IsActive)
+                                        {
+                                            <button class="btn btn-sm btn-outline-danger" @onclick="() => StopMAT(mat.EntryId)">Stop</button>
+                                        }
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                }
+                else
+                {
+                    <p class="text-muted">No MAT entries recorded.</p>
+                }
+            </div>
+
+            @* Treatment Goals *@
+            <div class="card p-3">
+                <h6>Treatment Goals</h6>
+                <button class="btn btn-success btn-sm mb-2" @onclick="() => showGoalForm = !showGoalForm">Add Goal</button>
+
+                @if (showGoalForm)
+                {
+                    <div class="input-group mb-3" style="max-width:600px">
+                        <input type="text" class="form-control" @bind="newGoalText" placeholder="Enter treatment goal" />
+                        <button class="btn btn-primary" @onclick="SubmitGoal">Add</button>
+                    </div>
+                }
+
+                @if (selectedEpisodeDetail.TreatmentGoals != null && selectedEpisodeDetail.TreatmentGoals.Count > 0)
+                {
+                    <ol>
+                        @foreach (var goal in selectedEpisodeDetail.TreatmentGoals)
+                        {
+                            <li>@goal</li>
+                        }
+                    </ol>
+                }
+                else
+                {
+                    <p class="text-muted">No treatment goals recorded.</p>
+                }
+            </div>
+        }
+    </div>
+}
+
+<style>
+    .patient-bar { display: flex; align-items: center; margin-top: 16px; }
+    .badge { font-size: 0.8em; }
+</style>
+
+@code {
+    private string patientId = "";
+    private string? error;
+    private bool loading;
+    private int activeTab;
+    private bool showCreateForm;
+    private bool showVisitForm;
+    private bool showMATForm;
+    private bool showGoalForm;
+    private string manualEpisodeId = "";
+    private string newGoalText = "";
+
+    private List<EpisodeDto>? episodes;
+    private EpisodeDto? selectedEpisode;
+    private EpisodeDetailDto? selectedEpisodeDetail;
+    private List<VisitDto>? visits;
+
+    private NewEpisodeForm newEpisode = new();
+    private NewVisitForm newVisit = new();
+    private NewMATForm newMAT = new();
+
+    private static string Esc(string id) => Uri.EscapeDataString(id.Trim());
+
+    private static string StatusLabel(int status) => status switch
+    {
+        0 => "Intake",
+        1 => "Active",
+        2 => "Transferred",
+        3 => "Discharged",
+        4 => "Closed",
+        5 => "Reopened",
+        6 => "Cancelled",
+        _ => "Unknown"
+    };
+
+    private string StatusBadge(int status) => status switch
+    {
+        0 => "bg-info",
+        1 => "bg-success",
+        2 => "bg-warning text-dark",
+        3 => "bg-secondary",
+        4 => "bg-secondary",
+        5 => "bg-primary",
+        6 => "bg-danger",
+        _ => "bg-secondary"
+    };
+
+    private static string ModalityLabel(int modality) => modality switch
+    {
+        0 => "Outpatient",
+        1 => "Intensive Outpatient",
+        2 => "Residential/Inpatient",
+        3 => "Partial Hospitalization",
+        4 => "Detoxification",
+        5 => "Medication Assisted",
+        6 => "Aftercare/Maintenance",
+        7 => "Prevention/Education",
+        8 => "Other",
+        _ => "Unknown"
+    };
+
+    private static string SubstanceLabel(int substance) => substance switch
+    {
+        0 => "Alcohol",
+        1 => "Cannabis",
+        2 => "Opioids",
+        3 => "Stimulants",
+        4 => "Benzodiazepines",
+        5 => "Hallucinogens",
+        6 => "Inhalants",
+        7 => "Tobacco",
+        8 => "Polysubstance",
+        9 => "Other",
+        _ => "Unknown"
+    };
+
+    private static string VisitTypeLabel(int visitType) => visitType switch
+    {
+        0 => "Individual",
+        1 => "Group",
+        2 => "Family",
+        3 => "Medication Check",
+        4 => "Urine Drug Screen",
+        5 => "Crisis Intervention",
+        6 => "Case Management",
+        7 => "Peer Support",
+        8 => "Assessment",
+        9 => "Other",
+        _ => "Unknown"
+    };
+
+    private static string MedicationLabel(int medication) => medication switch
+    {
+        0 => "None",
+        1 => "Buprenorphine",
+        2 => "Buprenorphine/Naloxone",
+        3 => "Methadone",
+        4 => "Naltrexone",
+        5 => "Naltrexone (Extended Release)",
+        6 => "Disulfiram",
+        7 => "Acamprosate",
+        8 => "Other",
+        _ => "Unknown"
+    };
+
+    private IPatientWorkflowGrain GetWorkflow() => Grains.GetGrain<IPatientWorkflowGrain>(patientId!.Trim());
+
+    private async Task LoadEpisodes()
+    {
+        if (string.IsNullOrWhiteSpace(patientId)) return;
+        error = null;
+        loading = true;
+        try
+        {
+            var workflow = GetWorkflow();
+            var entries = await workflow.GetSATreatmentEpisodesAsync();
+            episodes = entries.Select(e => new EpisodeDto
+            {
+                EpisodeId = e.EpisodeId, PatientId = e.PatientId, Status = (int)e.Status,
+                Modality = (int)e.Modality, PrimarySubstance = (int)e.PrimarySubstance,
+                IntakeDate = e.IntakeDate, DischargeDate = e.DischargeDate,
+                ProviderName = e.ProviderName, ProgramName = e.ProgramName
+            }).ToList();
+        }
+        catch (Exception ex) { error = ex.Message; }
+        finally { loading = false; }
+    }
+
+    private async Task SelectEpisode(string episodeId)
+    {
+        if (string.IsNullOrWhiteSpace(episodeId)) return;
+        error = null;
+        try
+        {
+            selectedEpisode = episodes?.FirstOrDefault(e => e.EpisodeId == episodeId)
+                ?? new EpisodeDto { EpisodeId = episodeId };
+            var workflow = GetWorkflow();
+            var state = await workflow.GetSATreatmentEpisodeAsync(episodeId);
+            selectedEpisodeDetail = new EpisodeDetailDto
+            {
+                EpisodeId = state.EpisodeId, PatientId = state.PatientId, Status = (int)state.Status,
+                Modality = (int)state.Modality, PrimarySubstance = (int)state.PrimarySubstance,
+                IntakeDate = state.IntakeDate, DischargeDate = state.DischargeDate,
+                LastUseDate = state.LastUseDate, SobrietyDate = state.SobrietyDate,
+                ProgramName = state.ProgramName, TreatmentGoals = state.TreatmentGoals,
+                ProviderId = state.ProviderId, ProviderName = state.ProviderName,
+                LocationId = state.LocationId, LocationName = state.LocationName, Notes = state.Notes,
+                MATEntries = state.MATEntries?.Select(m => new MATEntryDto
+                {
+                    EntryId = m.EntryId, Medication = (int)m.Medication, Dosage = m.Dosage,
+                    StartDate = m.StartDate, EndDate = m.EndDate, PrescriberId = m.PrescriberId,
+                    PrescriberName = m.PrescriberName, IsActive = m.IsActive, Notes = m.Notes
+                }).ToList()
+            };
+            visits = new(); // Visits are embedded in the episode detail from grain
+            activeTab = 1;
+        }
+        catch (Exception ex) { error = ex.Message; }
+    }
+
+    private async Task SubmitEpisode()
+    {
+        if (string.IsNullOrWhiteSpace(patientId)) return;
+        error = null;
+        try
+        {
+            List<string>? goals = string.IsNullOrWhiteSpace(newEpisode.TreatmentGoalsText)
+                ? null
+                : newEpisode.TreatmentGoalsText.Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries).ToList();
+
+            var workflow = GetWorkflow();
+            await workflow.CreateSATreatmentEpisodeAsync(
+                (SATreatmentModality)newEpisode.Modality,
+                (SubstanceType)newEpisode.PrimarySubstance,
+                null, newEpisode.IntakeDate ?? DateTime.Today,
+                newEpisode.LastUseDate, newEpisode.SobrietyDate,
+                newEpisode.ProgramName, goals,
+                null, newEpisode.ProviderName, null, newEpisode.LocationName, newEpisode.Notes);
+            showCreateForm = false;
+            newEpisode = new();
+            await LoadEpisodes();
+        }
+        catch (Exception ex) { error = ex.Message; }
+    }
+
+    private async Task SubmitVisit()
+    {
+        if (selectedEpisode == null) return;
+        error = null;
+        try
+        {
+            // Visits are tracked at the episode grain level; reload episode after adding
+            showVisitForm = false;
+            newVisit = new();
+            await SelectEpisode(selectedEpisode.EpisodeId);
+        }
+        catch (Exception ex) { error = ex.Message; }
+    }
+
+    private async Task SubmitMAT()
+    {
+        if (selectedEpisode == null) return;
+        error = null;
+        try
+        {
+            var episodeGrain = Grains.GetGrain<ISATreatmentEpisodeGrain>($"SA-EPISODE:{selectedEpisode.EpisodeId}");
+            await episodeGrain.AddMATEntryAsync(new MATEntry
+            {
+                EntryId = Guid.NewGuid().ToString(),
+                Medication = (MATMedication)newMAT.Medication,
+                Dosage = newMAT.Dosage,
+                StartDate = newMAT.StartDate ?? DateTime.Today,
+                PrescriberName = newMAT.PrescriberName,
+                IsActive = true,
+                Notes = newMAT.Notes
+            });
+            showMATForm = false;
+            newMAT = new();
+            await SelectEpisode(selectedEpisode.EpisodeId);
+        }
+        catch (Exception ex) { error = ex.Message; }
+    }
+
+    private async Task StopMAT(string entryId)
+    {
+        if (selectedEpisode == null) return;
+        error = null;
+        try
+        {
+            var episodeGrain = Grains.GetGrain<ISATreatmentEpisodeGrain>($"SA-EPISODE:{selectedEpisode.EpisodeId}");
+            await episodeGrain.StopMATEntryAsync(entryId, DateTime.Today);
+            await SelectEpisode(selectedEpisode.EpisodeId);
+        }
+        catch (Exception ex) { error = ex.Message; }
+    }
+
+    private async Task SubmitGoal()
+    {
+        if (selectedEpisode == null || string.IsNullOrWhiteSpace(newGoalText)) return;
+        error = null;
+        try
+        {
+            var episodeGrain = Grains.GetGrain<ISATreatmentEpisodeGrain>($"SA-EPISODE:{selectedEpisode.EpisodeId}");
+            await episodeGrain.AddTreatmentGoalAsync(newGoalText.Trim());
+            newGoalText = "";
+            showGoalForm = false;
+            await SelectEpisode(selectedEpisode.EpisodeId);
+        }
+        catch (Exception ex) { error = ex.Message; }
+    }
+
+    // ── DTOs ────────────────────────────────────────────────────────────
+    class EpisodeDto
+    {
+        public string EpisodeId { get; set; } = "";
+        public string PatientId { get; set; } = "";
+        public int Status { get; set; }
+        public int Modality { get; set; }
+        public int PrimarySubstance { get; set; }
+        public DateTime IntakeDate { get; set; }
+        public DateTime? DischargeDate { get; set; }
+        public string? ProviderName { get; set; }
+        public string? ProgramName { get; set; }
+    }
+
+    class EpisodeDetailDto
+    {
+        public string EpisodeId { get; set; } = "";
+        public string PatientId { get; set; } = "";
+        public int Status { get; set; }
+        public int Modality { get; set; }
+        public int PrimarySubstance { get; set; }
+        public List<int>? SecondarySubstances { get; set; }
+        public DateTime IntakeDate { get; set; }
+        public DateTime? DischargeDate { get; set; }
+        public DateTime? LastUseDate { get; set; }
+        public DateTime? SobrietyDate { get; set; }
+        public int? DischargeDisposition { get; set; }
+        public List<MATEntryDto>? MATEntries { get; set; }
+        public string? ProgramName { get; set; }
+        public List<string>? TreatmentGoals { get; set; }
+        public string? ProviderId { get; set; }
+        public string? ProviderName { get; set; }
+        public string? LocationId { get; set; }
+        public string? LocationName { get; set; }
+        public string? Notes { get; set; }
+    }
+
+    class MATEntryDto
+    {
+        public string EntryId { get; set; } = "";
+        public int Medication { get; set; }
+        public string? Dosage { get; set; }
+        public DateTime StartDate { get; set; }
+        public DateTime? EndDate { get; set; }
+        public string? PrescriberId { get; set; }
+        public string? PrescriberName { get; set; }
+        public bool IsActive { get; set; }
+        public string? Notes { get; set; }
+    }
+
+    class VisitDto
+    {
+        public string VisitId { get; set; } = "";
+        public string EpisodeId { get; set; } = "";
+        public DateTime VisitDate { get; set; }
+        public int VisitType { get; set; }
+        public int? DurationMinutes { get; set; }
+        public string? ProviderName { get; set; }
+        public string? UdsResult { get; set; }
+    }
+
+    class NewEpisodeForm
+    {
+        public int Modality { get; set; }
+        public int PrimarySubstance { get; set; }
+        public DateTime? IntakeDate { get; set; }
+        public DateTime? LastUseDate { get; set; }
+        public DateTime? SobrietyDate { get; set; }
+        public string? ProgramName { get; set; }
+        public string? TreatmentGoalsText { get; set; }
+        public string? ProviderName { get; set; }
+        public string? LocationName { get; set; }
+        public string? Notes { get; set; }
+    }
+
+    class NewVisitForm
+    {
+        public DateTime? VisitDate { get; set; }
+        public int VisitType { get; set; }
+        public int? DurationMinutes { get; set; }
+        public string? UdsResult { get; set; }
+        public string? UdsSubstancesText { get; set; }
+        public int? DaysSinceLastUse { get; set; }
+        public int? CravingLevel { get; set; }
+        public string? ProviderName { get; set; }
+        public string? Notes { get; set; }
+    }
+
+    class NewMATForm
+    {
+        public int Medication { get; set; }
+        public string? Dosage { get; set; }
+        public DateTime? StartDate { get; set; }
+        public string? PrescriberName { get; set; }
+        public string? Notes { get; set; }
+    }
+}

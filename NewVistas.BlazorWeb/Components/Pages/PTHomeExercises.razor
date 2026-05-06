@@ -1,0 +1,446 @@
+@page "/pt/hep"
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+@rendermode InteractiveServer
+@using NewVistas.BlazorWeb.Services
+@using NewVistas.PT.GrainInterfaces
+@using NewVistas.PT.GrainStates
+@using NewVistas.PT.Models
+@inject OrleansGrainService Grains
+@inject PatientContextService PatientContext
+@inject NavigationManager Nav
+
+<PageTitle>Home Exercise Program</PageTitle>
+
+<div class="page-header">
+    <button class="btn btn-back" @onclick='() => Nav.NavigateTo($"/pt?patientId={Uri.EscapeDataString(patientId ?? "")}")'>Back to PT Hub</button>
+    <h1>Home Exercise Program</h1>
+</div>
+
+<div class="lookup-bar">
+    <input type="text" @bind="patientId" @bind:event="oninput" @onkeydown="HandleKeyDown"
+           placeholder="Patient ID" class="lookup-input" />
+    <button @onclick="Load" disabled="@(string.IsNullOrWhiteSpace(patientId) || loading)" class="btn btn-primary">
+        @if (loading) { <span>Loading...</span> } else { <span>Load</span> }
+    </button>
+</div>
+
+@if (error != null) { <div class="alert alert-error">@error</div> }
+@if (successMessage != null) { <div class="alert alert-success">@successMessage</div> }
+
+@if (loaded)
+{
+    <div class="tab-bar">
+        <button class="tab @(activeTab == "program" ? "active" : "")" @onclick="LoadActiveProgram">Active Program</button>
+        <button class="tab @(activeTab == "prescribe" ? "active" : "")" @onclick='() => SetTab("prescribe")'>Prescribe Exercise</button>
+        <button class="tab @(activeTab == "log" ? "active" : "")" @onclick='() => SetTab("log")'>Completion Log</button>
+    </div>
+
+    @if (activeTab == "program")
+    {
+        @if (activePrescriptions != null && activePrescriptions.Count > 0)
+        {
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Exercise</th>
+                        <th>Category</th>
+                        <th>Body Group</th>
+                        <th>Frequency</th>
+                        <th>Sets/Reps</th>
+                        <th>Duration</th>
+                        <th>Prescribed By</th>
+                        <th>Date</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var rx in activePrescriptions)
+                    {
+                        <tr>
+                            <td class="exercise-name">
+                                <div>@rx.ExerciseName</div>
+                                @if (!string.IsNullOrWhiteSpace(rx.Instructions))
+                                {
+                                    <div class="exercise-instructions">@Truncate(rx.Instructions, 80)</div>
+                                }
+                            </td>
+                            <td>@rx.Category</td>
+                            <td>@FormatBodyGroup(rx.BodyGroup)</td>
+                            <td>@rx.Frequency</td>
+                            <td>@FormatSetsReps(rx)</td>
+                            <td>@FormatDuration(rx.DurationSeconds)</td>
+                            <td>@rx.PrescribedBy</td>
+                            <td class="date">@rx.PrescribedDate.ToString("MM/dd/yyyy")</td>
+                            <td>
+                                <button class="btn btn-sm btn-primary" @onclick="() => QuickLogCompletion(rx)">Log Done</button>
+                                <button class="btn btn-sm btn-danger" @onclick="() => DiscontinuePrescription(rx)">Stop</button>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        }
+        else
+        {
+            <div class="empty-state">No active home exercises. Use "Prescribe Exercise" to add one.</div>
+        }
+    }
+
+    @if (activeTab == "prescribe")
+    {
+        <div class="form-section">
+            <div class="form-grid">
+                <div class="form-row">
+                    <label>Exercise Name</label>
+                    <input type="text" @bind="rxName" placeholder="e.g., Quad Sets" class="form-input" />
+                </div>
+                <div class="form-row">
+                    <label>Instructions</label>
+                    <textarea @bind="rxInstructions" placeholder="Step-by-step instructions..." class="form-input" rows="3"></textarea>
+                </div>
+                <div class="form-row">
+                    <label>Category</label>
+                    <select @bind="rxCategory" class="form-input">
+                        <option value="@ExerciseCategory.Strengthening">Strengthening</option>
+                        <option value="@ExerciseCategory.Stretching">Stretching</option>
+                        <option value="@ExerciseCategory.Balance">Balance</option>
+                        <option value="@ExerciseCategory.Endurance">Endurance</option>
+                        <option value="@ExerciseCategory.Functional">Functional</option>
+                        <option value="@ExerciseCategory.Modality">Modality</option>
+                        <option value="@ExerciseCategory.Other">Other</option>
+                    </select>
+                </div>
+                <div class="form-row">
+                    <label>Body Group</label>
+                    <select @bind="rxBodyGroup" class="form-input">
+                        @foreach (var bg in allBodyGroups)
+                        {
+                            <option value="@bg">@FormatBodyGroup(bg)</option>
+                        }
+                    </select>
+                </div>
+                <div class="form-row">
+                    <label>Side</label>
+                    <select @bind="rxSide" class="form-input">
+                        <option value="@Laterality.Bilateral">Bilateral</option>
+                        <option value="@Laterality.Left">Left</option>
+                        <option value="@Laterality.Right">Right</option>
+                    </select>
+                </div>
+                <div class="form-row">
+                    <label>Frequency</label>
+                    <input type="text" @bind="rxFrequency" placeholder="e.g., 2x daily, 3x weekly" class="form-input" />
+                </div>
+                <div class="form-row">
+                    <label>Sets</label>
+                    <input type="number" @bind="rxSets" placeholder="e.g., 3" class="form-input" />
+                </div>
+                <div class="form-row">
+                    <label>Reps</label>
+                    <input type="number" @bind="rxReps" placeholder="e.g., 10" class="form-input" />
+                </div>
+                <div class="form-row">
+                    <label>Duration (seconds)</label>
+                    <input type="number" @bind="rxDuration" placeholder="For time-based exercises" class="form-input" />
+                </div>
+                <div class="form-row">
+                    <label>Prescribed By</label>
+                    <input type="text" @bind="rxPrescribedBy" placeholder="Therapist name" class="form-input" />
+                </div>
+                <div class="form-row">
+                    <label>Notes</label>
+                    <textarea @bind="rxNotes" placeholder="Additional notes..." class="form-input" rows="2"></textarea>
+                </div>
+            </div>
+            <div class="form-actions">
+                <button @onclick="SubmitPrescription" disabled="@submitting" class="btn btn-primary">
+                    @(submitting ? "Saving..." : "Prescribe")
+                </button>
+            </div>
+        </div>
+    }
+
+    @if (activeTab == "log")
+    {
+        <div class="form-section">
+            <div class="log-filters">
+                <div class="form-row">
+                    <label>From</label>
+                    <input type="datetime-local" @bind="logFrom" class="form-input" />
+                </div>
+                <div class="form-row">
+                    <label>To</label>
+                    <input type="datetime-local" @bind="logTo" class="form-input" />
+                </div>
+                <div class="form-actions">
+                    <button @onclick="LoadCompletionLogs" disabled="@logLoading" class="btn btn-primary">
+                        @(logLoading ? "Loading..." : "Search")
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        @if (completionLogs != null && completionLogs.Count > 0)
+        {
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Date</th>
+                        <th>Exercise</th>
+                        <th>Completed By</th>
+                        <th>Sets</th>
+                        <th>Reps</th>
+                        <th>Duration</th>
+                        <th>Pain</th>
+                        <th>Notes</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var log in completionLogs)
+                    {
+                        <tr>
+                            <td class="date">@log.CompletedDate.ToString("MM/dd/yyyy HH:mm")</td>
+                            <td>@GetPrescriptionName(log.PrescriptionId)</td>
+                            <td>@log.CompletedBy</td>
+                            <td>@(log.SetsCompleted?.ToString() ?? "—")</td>
+                            <td>@(log.RepsCompleted?.ToString() ?? "—")</td>
+                            <td>@FormatDuration(log.DurationSecondsCompleted)</td>
+                            <td>@(log.PainLevel.HasValue ? $"{log.PainLevel}/10" : "—")</td>
+                            <td class="notes-cell">@Truncate(log.Notes, 60)</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        }
+        else if (completionLogs != null)
+        {
+            <div class="empty-state">No completion logs found for the selected date range.</div>
+        }
+    }
+}
+
+@code {
+    [SupplyParameterFromQuery] public string? patientId { get; set; }
+    private bool loading, loaded, submitting, logLoading;
+    private string? error, successMessage;
+    private string activeTab = "program";
+    private List<BodyGroup> allBodyGroups = BodyGroupDefinitions.GetAllBodyGroups().ToList();
+
+    // Active program tab
+    private List<HepPrescription>? activePrescriptions;
+
+    // Prescribe form
+    private string? rxName, rxInstructions, rxFrequency, rxPrescribedBy, rxNotes;
+    private ExerciseCategory rxCategory = ExerciseCategory.Strengthening;
+    private BodyGroup rxBodyGroup = BodyGroup.Knee;
+    private Laterality rxSide = Laterality.Bilateral;
+    private int? rxSets, rxReps, rxDuration;
+
+    // Completion log
+    private DateTime logFrom = DateTime.Now.AddMonths(-1);
+    private DateTime logTo = DateTime.Now;
+    private List<HepCompletionLog>? completionLogs;
+
+    // Lookup cache for prescription names
+    private Dictionary<string, string> prescriptionNameCache = new();
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (string.IsNullOrWhiteSpace(patientId) && !string.IsNullOrWhiteSpace(PatientContext.PatientId))
+            patientId = PatientContext.PatientId;
+        if (!string.IsNullOrWhiteSpace(patientId))
+            await Load();
+    }
+
+    private async Task HandleKeyDown(KeyboardEventArgs e) { if (e.Key == "Enter") await Load(); }
+
+    private async Task Load()
+    {
+        if (string.IsNullOrWhiteSpace(patientId)) return;
+        loading = true; error = null;
+        try
+        {
+            PatientContext.SetPatient(patientId.Trim());
+            loaded = true;
+            await LoadActiveProgram();
+        }
+        catch (Exception ex) { error = ex.Message; }
+        finally { loading = false; }
+    }
+
+    private void SetTab(string tab) { activeTab = tab; error = null; successMessage = null; }
+
+    private async Task LoadActiveProgram()
+    {
+        activeTab = "program"; error = null; successMessage = null;
+        if (string.IsNullOrWhiteSpace(patientId)) return;
+        loading = true;
+        try
+        {
+            var grain = Grains.GetGrain<IPTWorkflowGrain>(patientId.Trim());
+            activePrescriptions = await grain.GetActiveHepPrescriptionsAsync();
+            // Cache names for log lookup
+            if (activePrescriptions != null)
+                foreach (var rx in activePrescriptions)
+                    prescriptionNameCache[rx.PrescriptionId] = rx.ExerciseName;
+        }
+        catch (Exception ex) { error = ex.Message; }
+        finally { loading = false; }
+    }
+
+    private async Task SubmitPrescription()
+    {
+        if (string.IsNullOrWhiteSpace(patientId)) return;
+        if (string.IsNullOrWhiteSpace(rxName)) { error = "Exercise name is required."; return; }
+        submitting = true; error = null; successMessage = null;
+        try
+        {
+            var grain = Grains.GetGrain<IPTWorkflowGrain>(patientId.Trim());
+            await grain.AddHepPrescriptionAsync(new HepPrescription
+            {
+                ExerciseName = rxName,
+                Instructions = rxInstructions ?? string.Empty,
+                Frequency = rxFrequency ?? string.Empty,
+                Sets = rxSets,
+                Reps = rxReps,
+                DurationSeconds = rxDuration,
+                BodyGroup = rxBodyGroup,
+                Side = rxSide,
+                Category = rxCategory,
+                PrescribedBy = rxPrescribedBy ?? string.Empty,
+                Notes = rxNotes
+            });
+            successMessage = "Exercise prescribed successfully.";
+            rxName = rxInstructions = rxFrequency = rxPrescribedBy = rxNotes = null;
+            rxSets = rxReps = rxDuration = null;
+            activeTab = "program";
+            await LoadActiveProgram();
+        }
+        catch (Exception ex) { error = ex.Message; }
+        finally { submitting = false; }
+    }
+
+    private async Task QuickLogCompletion(HepPrescription rx)
+    {
+        if (string.IsNullOrWhiteSpace(patientId)) return;
+        error = null;
+        try
+        {
+            var grain = Grains.GetGrain<IPTWorkflowGrain>(patientId.Trim());
+            await grain.LogHepCompletionAsync(new HepCompletionLog
+            {
+                PrescriptionId = rx.PrescriptionId,
+                CompletedBy = "Patient",
+                SetsCompleted = rx.Sets,
+                RepsCompleted = rx.Reps,
+                DurationSecondsCompleted = rx.DurationSeconds
+            });
+            successMessage = $"Logged completion of {rx.ExerciseName}.";
+        }
+        catch (Exception ex) { error = ex.Message; }
+    }
+
+    private async Task DiscontinuePrescription(HepPrescription rx)
+    {
+        if (string.IsNullOrWhiteSpace(patientId)) return;
+        error = null;
+        try
+        {
+            var grain = Grains.GetGrain<IPTWorkflowGrain>(patientId.Trim());
+            await grain.UpdateHepPrescriptionStatusAsync(rx.PrescriptionId, HepStatus.Discontinued);
+            successMessage = $"Discontinued {rx.ExerciseName}.";
+            await LoadActiveProgram();
+        }
+        catch (Exception ex) { error = ex.Message; }
+    }
+
+    private async Task LoadCompletionLogs()
+    {
+        if (string.IsNullOrWhiteSpace(patientId)) return;
+        logLoading = true; error = null;
+        try
+        {
+            var grain = Grains.GetGrain<IPTWorkflowGrain>(patientId.Trim());
+            completionLogs = await grain.GetHepCompletionLogsAsync(null, logFrom, logTo);
+
+            // Also load all prescriptions to populate name cache
+            var hepGrain = Grains.GetGrain<IPTHomeExerciseProgramGrain>($"PTHEP:{patientId.Trim()}");
+            var state = await hepGrain.GetProgramAsync();
+            foreach (var rx in state.Prescriptions)
+                prescriptionNameCache[rx.PrescriptionId] = rx.ExerciseName;
+        }
+        catch (Exception ex) { error = ex.Message; }
+        finally { logLoading = false; }
+    }
+
+    private string GetPrescriptionName(string prescriptionId)
+        => prescriptionNameCache.TryGetValue(prescriptionId, out var name) ? name : prescriptionId[..8] + "...";
+
+    private static string FormatSetsReps(HepPrescription rx)
+    {
+        if (rx.Sets.HasValue && rx.Reps.HasValue) return $"{rx.Sets} x {rx.Reps}";
+        if (rx.Sets.HasValue) return $"{rx.Sets} sets";
+        if (rx.Reps.HasValue) return $"{rx.Reps} reps";
+        return "—";
+    }
+
+    private static string FormatDuration(int? seconds)
+    {
+        if (!seconds.HasValue) return "—";
+        if (seconds.Value >= 60) return $"{seconds.Value / 60}m {seconds.Value % 60}s";
+        return $"{seconds.Value}s";
+    }
+
+    private static string FormatBodyGroup(BodyGroup bg) => bg switch
+    {
+        BodyGroup.Cervical => "Cervical (Neck)",
+        BodyGroup.ThoracicSpine => "Thoracic Spine",
+        BodyGroup.LumbarSpine => "Lumbar Spine",
+        BodyGroup.TMJ => "TMJ",
+        _ => bg.ToString()
+    };
+
+    private static string Truncate(string? s, int max) =>
+        string.IsNullOrWhiteSpace(s) ? "—" : s.Length <= max ? s : s[..max] + "...";
+}
+
+<style>
+    .page-header { display: flex; align-items: center; gap: 1rem; margin-bottom: 1rem; }
+    .page-header h1 { margin: 0; }
+    .btn-back { background: none; border: 1px solid #ccc; border-radius: 4px; padding: 0.3rem 0.75rem; cursor: pointer; font-size: 0.8rem; color: #003f72; }
+    .btn-back:hover { background: #f4f6f9; }
+    .lookup-bar { display: flex; gap: 0.5rem; margin-bottom: 1.5rem; }
+    .lookup-input { width: 280px; padding: 0.5rem 0.75rem; border: 1px solid #ccc; border-radius: 4px; font-size: 0.9rem; }
+    .btn { padding: 0.5rem 1.25rem; border: none; border-radius: 4px; cursor: pointer; font-size: 0.85rem; }
+    .btn-primary { background: #003f72; color: white; }
+    .btn-primary:disabled { background: #999; cursor: not-allowed; }
+    .btn-secondary { background: white; color: #003f72; border: 1px solid #003f72; }
+    .btn-danger { background: #b91c1c; color: white; }
+    .btn-sm { padding: 0.25rem 0.6rem; font-size: 0.75rem; }
+    .alert-error { background: #fde8e8; color: #b91c1c; border: 1px solid #f5c6c6; padding: 0.75rem 1rem; border-radius: 4px; margin-bottom: 1rem; }
+    .alert-success { background: #dcfce7; color: #166534; border: 1px solid #bbf7d0; padding: 0.75rem 1rem; border-radius: 4px; margin-bottom: 1rem; }
+    .empty-state { color: #999; font-style: italic; padding: 2rem 0; }
+
+    .tab-bar { display: flex; gap: 0; margin-bottom: 1.5rem; border-bottom: 2px solid #d4d9e0; }
+    .tab { padding: 0.5rem 1.25rem; border: none; background: none; cursor: pointer; font-size: 0.85rem; color: #555; border-bottom: 2px solid transparent; margin-bottom: -2px; }
+    .tab.active { color: #003f72; border-bottom-color: #003f72; font-weight: 600; }
+
+    .form-section { max-width: 700px; margin-bottom: 1.5rem; }
+    .form-grid { display: flex; flex-direction: column; gap: 0.5rem; }
+    .form-row { display: flex; align-items: center; gap: 1rem; }
+    .form-row label { width: 140px; font-size: 0.85rem; font-weight: 500; color: #333; flex-shrink: 0; }
+    .form-input { flex: 1; padding: 0.4rem 0.6rem; border: 1px solid #ccc; border-radius: 4px; font-size: 0.85rem; }
+    .form-actions { margin-top: 1rem; }
+    .log-filters { margin-bottom: 1.5rem; padding-bottom: 1rem; border-bottom: 1px solid #e5e7eb; }
+
+    .data-table { width: 100%; border-collapse: collapse; font-size: 0.85rem; border: 1px solid #d4d9e0; margin-bottom: 1rem; }
+    .data-table thead { background: #f4f6f9; }
+    .data-table th { text-align: left; padding: 0.5rem; font-weight: 600; color: #003f72; border-bottom: 2px solid #d4d9e0; font-size: 0.75rem; text-transform: uppercase; }
+    .data-table td { padding: 0.35rem 0.5rem; border-bottom: 1px solid #f0f0f0; }
+    .data-table tr:hover { background: #f9fafb; }
+
+    .exercise-name { font-weight: 500; }
+    .exercise-instructions { font-size: 0.7rem; color: #888; font-style: italic; margin-top: 2px; }
+    .date { color: #888; font-size: 0.8rem; white-space: nowrap; }
+    .notes-cell { max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 0.8rem; color: #666; }
+</style>

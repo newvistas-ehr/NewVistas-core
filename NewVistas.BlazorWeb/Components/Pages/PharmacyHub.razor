@@ -1,0 +1,471 @@
+@page "/pharmacy"
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+@rendermode InteractiveServer
+@using NewVistas.BlazorWeb.Services
+@using NewVistas.Abstractions.GrainInterfaces
+@using NewVistas.Abstractions.GrainStates
+@inject OrleansGrainService Grains
+@inject NavigationManager Nav
+
+<PageTitle>Pharmacy Operations</PageTitle>
+
+<div class="pharm-header">
+    <div class="pharm-header-text">
+        <h2>Pharmacy Operations Center</h2>
+        <p class="pharm-subtitle">PSO · PSJ · PSB · PSA · BPS · PSN · PSS</p>
+    </div>
+    <div class="pharm-header-actions">
+        <input @bind="demoPatientId" placeholder="Patient ID for demo" class="demo-patient-input" />
+        <button @onclick="LoadAllDemo" disabled="@loading" class="btn-demo-all">
+            @(loading ? "Loading…" : "Load All Demo Data")
+        </button>
+    </div>
+</div>
+
+@if (!string.IsNullOrEmpty(statusMessage))
+{
+    <div class="status-banner @(statusIsError ? "status-error" : "status-ok")">
+        <strong>@(statusIsError ? "Warning:" : "Ready:")</strong> @statusMessage
+    </div>
+}
+
+<h3 class="section-heading">Pharmacy Modules</h3>
+
+<div class="module-grid">
+    <div class="module-card card-pso">
+        <div class="card-top">
+            <span class="pkg-badge">PSO</span>
+            <span class="module-icon">💊</span>
+        </div>
+        <div class="module-name">Outpatient Pharmacy</div>
+        <div class="module-desc">
+            Prescription fill and refill, pharmacist verification, label printing,
+            patient counseling flags, days-supply tracking, refill history.
+        </div>
+        <div class="card-actions">
+            <button @onclick='() => OpenWithPatient("/outpatientpharmacy")' class="btn-open">Open</button>
+        </div>
+    </div>
+
+    <div class="module-card card-psj">
+        <div class="card-top">
+            <span class="pkg-badge">PSJ</span>
+            <span class="module-icon">🏥</span>
+        </div>
+        <div class="module-name">Inpatient Medications</div>
+        <div class="module-desc">
+            Unit dose, IV, and large-volume parenteral orders. Pharmacist
+            verification, scheduled administration times, BCMA integration.
+        </div>
+        <div class="card-actions">
+            <button @onclick='() => OpenWithPatient("/inpatientpharmacy")' class="btn-open">Open</button>
+        </div>
+    </div>
+
+    <div class="module-card card-psb">
+        <div class="card-top">
+            <span class="pkg-badge">PSB</span>
+            <span class="module-icon">📱</span>
+        </div>
+        <div class="module-name">BCMA</div>
+        <div class="module-desc">
+            Bedside medication administration verification. Witness recording
+            for controlled substances, PRN reason and effectiveness capture.
+        </div>
+        <div class="card-actions">
+            <button @onclick='() => OpenWithPatient("/bcma")' class="btn-open">Open</button>
+        </div>
+    </div>
+
+    <div class="module-card card-psa">
+        <div class="card-top">
+            <span class="pkg-badge">PSA</span>
+            <span class="module-icon">📦</span>
+        </div>
+        <div class="module-name">Drug Accountability</div>
+        <div class="module-desc">
+            Per-location drug inventory with signed transaction ledger. Controlled
+            substance vault tracking, waste with witness, physical inventory counts.
+        </div>
+        <div class="card-actions">
+            <button @onclick='() => Nav.NavigateTo("/drugaccountability")' class="btn-open">Open</button>
+        </div>
+    </div>
+
+    <div class="module-card card-bps">
+        <div class="card-top">
+            <span class="pkg-badge">BPS</span>
+            <span class="module-icon">💳</span>
+        </div>
+        <div class="module-name">Pharmacy Benefits</div>
+        <div class="module-desc">
+            Insurance formulary look-up, tier and copay check, coverage verification,
+            and full prior-authorization submission and review workflow.
+        </div>
+        <div class="card-actions">
+            <button @onclick='() => OpenWithPatient("/pharmacybenefits")' class="btn-open">Open</button>
+        </div>
+    </div>
+
+    <div class="module-card card-psn">
+        <div class="card-top">
+            <span class="pkg-badge">PSN</span>
+            <span class="module-icon">📚</span>
+        </div>
+        <div class="module-name">National Drug File</div>
+        <div class="module-desc">
+            VA Product and VA Generic catalog (29,000+ entries), drug class hierarchy,
+            NDC codes, and formulary classification data.
+        </div>
+        <div class="card-actions">
+            <button @onclick='() => Nav.NavigateTo("/drugformulary")' class="btn-open">Open</button>
+        </div>
+    </div>
+
+    <div class="module-card card-pss">
+        <div class="card-top">
+            <span class="pkg-badge">PSS</span>
+            <span class="module-icon">🗃️</span>
+        </div>
+        <div class="module-name">Drug File</div>
+        <div class="module-desc">
+            Local drug file (File #50), orderable items, medication routes (55 standard
+            routes), and dose units. Foundation for all prescribing and dispensing.
+        </div>
+        <div class="card-actions">
+            <button @onclick='() => Nav.NavigateTo("/drugfile")' class="btn-open">Open</button>
+        </div>
+    </div>
+</div>
+
+<h3 class="section-heading">Common Workflows</h3>
+
+<div class="workflow-grid">
+    <div class="workflow-card" @onclick='() => OpenWithPatient("/outpatientpharmacy")'>
+        <span class="wf-icon">💊</span>
+        <div>
+            <div class="wf-name">Fill New Prescription</div>
+            <div class="wf-desc">Create, fill, and verify a new outpatient Rx</div>
+        </div>
+        <span class="wf-arrow">›</span>
+    </div>
+    <div class="workflow-card" @onclick='() => OpenWithPatient("/outpatientpharmacy")'>
+        <span class="wf-icon">🔄</span>
+        <div>
+            <div class="wf-name">Process Refill Request</div>
+            <div class="wf-desc">Refill an active prescription with refill history</div>
+        </div>
+        <span class="wf-arrow">›</span>
+    </div>
+    <div class="workflow-card" @onclick='() => OpenWithPatient("/inpatientpharmacy")'>
+        <span class="wf-icon">✅</span>
+        <div>
+            <div class="wf-name">Verify Inpatient Order</div>
+            <div class="wf-desc">Pharmacist review and activation of new inpatient orders</div>
+        </div>
+        <span class="wf-arrow">›</span>
+    </div>
+    <div class="workflow-card" @onclick='() => OpenWithPatient("/bcma")'>
+        <span class="wf-icon">📱</span>
+        <div>
+            <div class="wf-name">Record Administration</div>
+            <div class="wf-desc">BCMA bedside scan and medication administration</div>
+        </div>
+        <span class="wf-arrow">›</span>
+    </div>
+    <div class="workflow-card" @onclick='() => Nav.NavigateTo("/drugaccountability")'>
+        <span class="wf-icon">📥</span>
+        <div>
+            <div class="wf-name">Receive Drug Shipment</div>
+            <div class="wf-desc">Record stock receipt and update location inventory</div>
+        </div>
+        <span class="wf-arrow">›</span>
+    </div>
+    <div class="workflow-card" @onclick='() => Nav.NavigateTo("/drugaccountability")'>
+        <span class="wf-icon">⚠️</span>
+        <div>
+            <div class="wf-name">Review Low-Stock Alerts</div>
+            <div class="wf-desc">Identify drugs at or below reorder point</div>
+        </div>
+        <span class="wf-arrow">›</span>
+    </div>
+    <div class="workflow-card" @onclick='() => OpenWithPatient("/pharmacybenefits")'>
+        <span class="wf-icon">🔍</span>
+        <div>
+            <div class="wf-name">Check Insurance Coverage</div>
+            <div class="wf-desc">Formulary tier, copay, and prior-auth requirement</div>
+        </div>
+        <span class="wf-arrow">›</span>
+    </div>
+    <div class="workflow-card" @onclick='() => OpenWithPatient("/pharmacybenefits")'>
+        <span class="wf-icon">📋</span>
+        <div>
+            <div class="wf-name">Submit Prior Authorization</div>
+            <div class="wf-desc">PA request for non-formulary or tier-3 medications</div>
+        </div>
+        <span class="wf-arrow">›</span>
+    </div>
+    <div class="workflow-card" @onclick='() => Nav.NavigateTo("/drugaccountability")'>
+        <span class="wf-icon">🔐</span>
+        <div>
+            <div class="wf-name">Controlled Substance Count</div>
+            <div class="wf-desc">Physical inventory count with pharmacist witness</div>
+        </div>
+        <span class="wf-arrow">›</span>
+    </div>
+    <div class="workflow-card" @onclick='() => Nav.NavigateTo("/drugformulary")'>
+        <span class="wf-icon">📚</span>
+        <div>
+            <div class="wf-name">Look Up Drug Information</div>
+            <div class="wf-desc">NDF product, generic name, drug class, and NDC</div>
+        </div>
+        <span class="wf-arrow">›</span>
+    </div>
+</div>
+
+<div class="demo-note">
+    <strong>Demo:</strong> Click <em>Load All Demo Data</em> above to populate all seven pharmacy modules
+    (outpatient Rx, inpatient orders, drug inventory, PBM formulary, drug file) with realistic sample data.
+    Use Patient ID <code>P-DEMO-001</code> when opening patient-specific modules after loading.
+</div>
+
+@code {
+    bool loading;
+    string? statusMessage;
+    bool statusIsError;
+    string demoPatientId = "P-DEMO-001";
+
+    void OpenWithPatient(string route) => Nav.NavigateTo(route);
+
+    async Task LoadAllDemo()
+    {
+        if (loading) return;
+        loading = true;
+        statusMessage = "Demo data loading requires the API server. Navigate to individual modules to interact with grain data directly.";
+        statusIsError = true;
+        loading = false;
+    }
+}
+
+<style>
+    .pharm-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 16px;
+        background: linear-gradient(135deg, #1a3a5c 0%, #2d6a9f 100%);
+        color: #fff;
+        padding: 20px 24px;
+        border-radius: 8px;
+        margin-bottom: 20px;
+        flex-wrap: wrap;
+    }
+
+    .pharm-header h2 {
+        margin: 0 0 4px 0;
+        font-size: 1.5em;
+        font-weight: 700;
+    }
+
+    .pharm-subtitle {
+        margin: 0;
+        opacity: 0.75;
+        font-size: 0.88em;
+        letter-spacing: 0.05em;
+    }
+
+    .pharm-header-actions {
+        display: flex;
+        gap: 8px;
+        align-items: center;
+        flex-wrap: wrap;
+    }
+
+    .demo-patient-input {
+        padding: 6px 10px;
+        border: 1px solid rgba(255,255,255,0.4);
+        border-radius: 4px;
+        background: rgba(255,255,255,0.15);
+        color: #fff;
+        width: 180px;
+    }
+
+    .demo-patient-input::placeholder { color: rgba(255,255,255,0.6); }
+
+    .btn-demo-all {
+        padding: 7px 18px;
+        background: rgba(255,255,255,0.2);
+        border: 1px solid rgba(255,255,255,0.5);
+        border-radius: 4px;
+        color: #fff;
+        cursor: pointer;
+        font-weight: 600;
+        white-space: nowrap;
+    }
+
+    .btn-demo-all:hover:not(:disabled) { background: rgba(255,255,255,0.3); }
+    .btn-demo-all:disabled { opacity: 0.5; cursor: not-allowed; }
+
+    .status-banner {
+        padding: 10px 16px;
+        border-radius: 6px;
+        margin-bottom: 16px;
+        font-size: 0.92em;
+    }
+
+    .status-ok    { background: #e8f5e9; border: 1px solid #a5d6a7; color: #1b5e20; }
+    .status-error { background: #fff3e0; border: 1px solid #ffcc80; color: #e65100; }
+
+    .section-heading {
+        font-size: 1em;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        color: #666;
+        margin: 24px 0 12px 0;
+        border-bottom: 1px solid #e0e0e0;
+        padding-bottom: 6px;
+    }
+
+    /* ── Module card grid ───────────────────────────────────────────────── */
+
+    .module-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+        gap: 16px;
+        margin-bottom: 24px;
+    }
+
+    .module-card {
+        border-radius: 8px;
+        border: 1px solid #e0e0e0;
+        border-left-width: 5px;
+        padding: 16px;
+        background: #fff;
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+        transition: box-shadow 0.15s;
+    }
+
+    .module-card:hover { box-shadow: 0 3px 8px rgba(0,0,0,0.12); }
+
+    .card-pso { border-left-color: #1976d2; }
+    .card-psj { border-left-color: #7b1fa2; }
+    .card-psb { border-left-color: #0097a7; }
+    .card-psa { border-left-color: #f57c00; }
+    .card-bps { border-left-color: #388e3c; }
+    .card-psn { border-left-color: #5d4037; }
+    .card-pss { border-left-color: #546e7a; }
+
+    .card-top {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+
+    .pkg-badge {
+        font-size: 0.72em;
+        font-weight: 700;
+        letter-spacing: 0.08em;
+        padding: 2px 8px;
+        border-radius: 10px;
+        background: #f0f0f0;
+        color: #555;
+    }
+
+    .module-icon { font-size: 1.6em; }
+
+    .module-name {
+        font-weight: 700;
+        font-size: 1em;
+        color: #222;
+    }
+
+    .module-desc {
+        font-size: 0.83em;
+        color: #666;
+        line-height: 1.45;
+        flex: 1;
+    }
+
+    .card-actions { margin-top: 4px; }
+
+    .btn-open {
+        padding: 5px 16px;
+        border-radius: 4px;
+        border: 1px solid #bbb;
+        background: #f5f5f5;
+        cursor: pointer;
+        font-size: 0.88em;
+        font-weight: 600;
+    }
+
+    .btn-open:hover { background: #e8e8e8; }
+
+    /* ── Workflow grid ───────────────────────────────────────────────────── */
+
+    .workflow-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+        gap: 10px;
+        margin-bottom: 24px;
+    }
+
+    .workflow-card {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 12px 14px;
+        border: 1px solid #e0e0e0;
+        border-radius: 6px;
+        background: #fff;
+        cursor: pointer;
+        transition: background 0.1s, border-color 0.1s;
+    }
+
+    .workflow-card:hover {
+        background: #f0f7ff;
+        border-color: #90caf9;
+    }
+
+    .wf-icon { font-size: 1.3em; flex-shrink: 0; }
+
+    .wf-name {
+        font-weight: 600;
+        font-size: 0.9em;
+        color: #222;
+    }
+
+    .wf-desc {
+        font-size: 0.78em;
+        color: #888;
+        margin-top: 1px;
+    }
+
+    .wf-arrow {
+        margin-left: auto;
+        font-size: 1.2em;
+        color: #bbb;
+        flex-shrink: 0;
+    }
+
+    /* ── Demo note ───────────────────────────────────────────────────────── */
+
+    .demo-note {
+        padding: 12px 16px;
+        background: #f8f9fa;
+        border: 1px solid #dee2e6;
+        border-radius: 6px;
+        font-size: 0.85em;
+        color: #555;
+        margin-top: 8px;
+    }
+
+    .demo-note code {
+        background: #e9ecef;
+        padding: 1px 5px;
+        border-radius: 3px;
+        font-family: monospace;
+    }
+</style>

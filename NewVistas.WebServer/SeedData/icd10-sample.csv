@@ -1,0 +1,51 @@
+Code,ShortDescription,LongDescription,Category
+A09,Infectious gastroenteritis and colitis unspecified,Infectious gastroenteritis and colitis unspecified,A00-B99 Certain infectious and parasitic diseases
+A41.9,Sepsis unspecified organism,Sepsis unspecified organism,A00-B99 Certain infectious and parasitic diseases
+B34.9,Viral infection unspecified,Viral infection unspecified,A00-B99 Certain infectious and parasitic diseases
+D64.9,Anemia unspecified,Anemia unspecified,D50-D89 Blood and immune mechanism disorders
+E11.9,Type 2 diabetes mellitus without complications,Type 2 diabetes mellitus without complications,E00-E89 Endocrine nutritional and metabolic diseases
+E11.65,Type 2 diabetes mellitus with hyperglycemia,Type 2 diabetes mellitus with hyperglycemia,E00-E89 Endocrine nutritional and metabolic diseases
+E78.5,Hyperlipidemia unspecified,Hyperlipidemia unspecified,E00-E89 Endocrine nutritional and metabolic diseases
+E78.0,Pure hypercholesterolemia unspecified,Pure hypercholesterolemia unspecified,E00-E89 Endocrine nutritional and metabolic diseases
+E03.9,Hypothyroidism unspecified,Hypothyroidism unspecified,E00-E89 Endocrine nutritional and metabolic diseases
+E66.01,Morbid (severe) obesity due to excess calories,Morbid (severe) obesity due to excess calories,E00-E89 Endocrine nutritional and metabolic diseases
+F32.9,Major depressive disorder single episode unspecified,Major depressive disorder single episode unspecified,F01-F99 Mental behavioral and neurodevelopmental disorders
+F41.1,Generalized anxiety disorder,Generalized anxiety disorder,F01-F99 Mental behavioral and neurodevelopmental disorders
+F43.10,Post-traumatic stress disorder unspecified,Post-traumatic stress disorder unspecified,F01-F99 Mental behavioral and neurodevelopmental disorders
+G47.33,Obstructive sleep apnea (adult) (pediatric),Obstructive sleep apnea (adult) (pediatric),G00-G99 Nervous system diseases
+G89.29,Other chronic pain,Other chronic pain,G00-G99 Nervous system diseases
+I10,Essential (primary) hypertension,Essential (primary) hypertension,I00-I99 Circulatory system diseases
+I25.10,Atherosclerotic heart disease of native coronary artery without angina pectoris,Atherosclerotic heart disease of native coronary artery without angina pectoris,I00-I99 Circulatory system diseases
+I48.91,Unspecified atrial fibrillation,Unspecified atrial fibrillation,I00-I99 Circulatory system diseases
+I50.9,Heart failure unspecified,Heart failure unspecified,I00-I99 Circulatory system diseases
+I63.9,Cerebral infarction unspecified,Cerebral infarction unspecified,I00-I99 Circulatory system diseases
+J06.9,Acute upper respiratory infection unspecified,Acute upper respiratory infection unspecified,J00-J99 Respiratory system diseases
+J18.9,Pneumonia unspecified organism,Pneumonia unspecified organism,J00-J99 Respiratory system diseases
+J44.1,Chronic obstructive pulmonary disease with (acute) exacerbation,Chronic obstructive pulmonary disease with (acute) exacerbation,J00-J99 Respiratory system diseases
+J45.909,Unspecified asthma uncomplicated,Unspecified asthma uncomplicated,J00-J99 Respiratory system diseases
+K21.0,Gastro-esophageal reflux disease with esophagitis,Gastro-esophageal reflux disease with esophagitis,K00-K95 Digestive system diseases
+K57.30,Diverticulosis of large intestine without perforation or abscess without bleeding,Diverticulosis of large intestine without perforation or abscess without bleeding,K00-K95 Digestive system diseases
+K76.0,Fatty (change of) liver not elsewhere classified,Fatty (change of) liver not elsewhere classified,K00-K95 Digestive system diseases
+L03.90,Cellulitis unspecified,Cellulitis unspecified,L00-L99 Skin and subcutaneous tissue diseases
+M17.11,Primary osteoarthritis right knee,Primary osteoarthritis right knee,M00-M99 Musculoskeletal and connective tissue diseases
+M54.5,Low back pain,Low back pain,M00-M99 Musculoskeletal and connective tissue diseases
+M54.2,Cervicalgia,Cervicalgia,M00-M99 Musculoskeletal and connective tissue diseases
+M79.3,Panniculitis unspecified,Panniculitis unspecified,M00-M99 Musculoskeletal and connective tissue diseases
+M25.511,Pain in right shoulder,Pain in right shoulder,M00-M99 Musculoskeletal and connective tissue diseases
+N18.3,Chronic kidney disease stage 3 (moderate),Chronic kidney disease stage 3 (moderate),N00-N99 Genitourinary system diseases
+N39.0,Urinary tract infection site not specified,Urinary tract infection site not specified,N00-N99 Genitourinary system diseases
+N40.0,Benign prostatic hyperplasia without lower urinary tract symptoms,Benign prostatic hyperplasia without lower urinary tract symptoms,N00-N99 Genitourinary system diseases
+R05.9,Cough unspecified,Cough unspecified,R00-R99 Symptoms signs and abnormal clinical findings
+R06.02,Shortness of breath,Shortness of breath,R00-R99 Symptoms signs and abnormal clinical findings
+R07.9,Chest pain unspecified,Chest pain unspecified,R00-R99 Symptoms signs and abnormal clinical findings
+R10.9,Unspecified abdominal pain,Unspecified abdominal pain,R00-R99 Symptoms signs and abnormal clinical findings
+R10.84,Generalized abdominal pain,Generalized abdominal pain,R00-R99 Symptoms signs and abnormal clinical findings
+R11.2,Nausea with vomiting unspecified,Nausea with vomiting unspecified,R00-R99 Symptoms signs and abnormal clinical findings
+R42,Dizziness and giddiness,Dizziness and giddiness,R00-R99 Symptoms signs and abnormal clinical findings
+R51.9,Headache unspecified,Headache unspecified,R00-R99 Symptoms signs and abnormal clinical findings
+S62.509A,"Fracture of unspecified phalanx of unspecified finger, initial encounter","Fracture of unspecified phalanx of unspecified finger, initial encounter for closed fracture",S00-T88 Injury poisoning and external causes
+Z00.00,"Encounter for general adult medical examination without abnormal findings","Encounter for general adult medical examination without abnormal findings",Z00-Z99 Factors influencing health status
+Z12.31,Encounter for screening mammogram for malignant neoplasm of breast,Encounter for screening mammogram for malignant neoplasm of breast,Z00-Z99 Factors influencing health status
+Z23,Encounter for immunization,Encounter for immunization,Z00-Z99 Factors influencing health status
+Z79.4,Long term (current) use of insulin,Long term (current) use of insulin,Z00-Z99 Factors influencing health status
+Z87.891,Personal history of nicotine dependence,Personal history of nicotine dependence,Z00-Z99 Factors influencing health status

@@ -1,0 +1,27 @@
+<UserControl x:Class="NewVistas.Wpf_UI.Views.QualityManagementView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <ScrollViewer VerticalScrollBarVisibility="Auto">
+        <StackPanel Margin="24">
+            <TextBlock Style="{StaticResource PageTitle}" Text="Quality Management"/>
+            <TextBlock Style="{StaticResource ErrorText}" Text="{Binding Error}"
+                       Visibility="{Binding Error, Converter={StaticResource NullToVisibility}}"/>
+            <StackPanel Orientation="Horizontal" Margin="0,0,0,12">
+                <Button Content="Load Incidents" Style="{StaticResource PrimaryButton}"
+                        Command="{Binding LoadCommand}" Margin="0,0,8,0"/>
+                <ProgressBar IsIndeterminate="True" Width="120" Height="20"
+                             Visibility="{Binding IsLoading, Converter={StaticResource BoolToVisibility}}"/>
+            </StackPanel>
+            <DataGrid ItemsSource="{Binding Incidents}" SelectedItem="{Binding SelectedIncident}" AutoGenerateColumns="False">
+                <DataGrid.Columns>
+                    <DataGridTextColumn Header="Incident #" Binding="{Binding IncidentNumber}" Width="110"/>
+                    <DataGridTextColumn Header="Category" Binding="{Binding Category}" Width="140"/>
+                    <DataGridTextColumn Header="Severity" Binding="{Binding Severity}" Width="110"/>
+                    <DataGridTextColumn Header="Status" Binding="{Binding Status}" Width="110"/>
+                    <DataGridTextColumn Header="Incident Date" Binding="{Binding IncidentDate, StringFormat=d}" Width="120"/>
+                    <DataGridTextColumn Header="Description" Binding="{Binding ShortDescription}" Width="*"/>
+                </DataGrid.Columns>
+            </DataGrid>
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>

@@ -1,0 +1,444 @@
+@page "/health-factors"
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+@rendermode InteractiveServer
+@using NewVistas.BlazorWeb.Services
+@using NewVistas.Abstractions.GrainInterfaces
+@using NewVistas.Abstractions.GrainStates
+@inject OrleansGrainService Grains
+
+<PageTitle>Health Factors</PageTitle>
+<h1>Health Factors</h1>
+
+<div class="lookup-bar">
+    <input type="text" @bind="patientId" @bind:event="oninput" @onkeydown="HandleKeyDown" placeholder="Patient ID" class="lookup-input" />
+    <button @onclick="Load" disabled="@(string.IsNullOrWhiteSpace(patientId) || loading)" class="btn btn-primary">@(loading ? "Loading..." : "Load")</button>
+    <button @onclick="ShowForm" disabled="@(string.IsNullOrWhiteSpace(patientId))" class="btn btn-secondary">+ Record Factor</button>
+</div>
+
+@if (error != null) { <div class="alert alert-error">@error</div> }
+@if (success != null) { <div class="alert alert-success">@success</div> }
+
+@if (items != null || detail != null)
+{
+    <div class="tab-bar">
+        <button class="tab @(activeTab == "list" ? "tab-active" : "")" @onclick='() => SetTab("list")'>Health Factors</button>
+        @if (detail != null)
+        {
+            <button class="tab @(activeTab == "detail" ? "tab-active" : "")" @onclick='() => SetTab("detail")'>Detail</button>
+        }
+    </div>
+}
+
+@if (showNew)
+{
+    <div class="entry-form">
+        <h3>Record Health Factor</h3>
+        <div class="form-grid">
+            <div class="form-row"><label>Health Factor *</label><input type="text" @bind="f_name" placeholder="e.g. CURRENT SMOKER" /></div>
+            <div class="form-row"><label>Category</label>
+                <select @bind="f_category"><option value="">--</option><option>TOBACCO</option><option>ALCOHOL</option><option>SOCIAL HISTORY</option><option>EXERCISE</option><option>DIET</option><option>SAFETY</option></select>
+            </div>
+            <div class="form-row"><label>Date</label><input type="datetime-local" @bind="f_date" /></div>
+            <div class="form-row"><label>Level/Severity</label>
+                <select @bind="f_severity"><option value="">--</option><option>NONE</option><option>LIGHT</option><option>MODERATE</option><option>HEAVY/SEVERE</option></select>
+            </div>
+            <div class="form-row"><label>Entered By</label><input type="text" @bind="f_enteredBy" /></div>
+            <div class="form-row"><label>Location</label><input type="text" @bind="f_location" /></div>
+            <div class="form-row full"><label>Comments</label><textarea @bind="f_comments" rows="3" placeholder="Additional details..."></textarea></div>
+        </div>
+        <div class="form-actions">
+            <button @onclick="Submit" disabled="@saving" class="btn btn-primary">@(saving ? "Saving..." : "Record")</button>
+            <button @onclick="() => showNew = false" class="btn btn-outline">Cancel</button>
+        </div>
+    </div>
+}
+
+@if (activeTab == "list" && items != null)
+{
+    @if (items.Count == 0) { <div class="empty-state">No health factors found.</div> }
+    else
+    {
+        <table class="data-table">
+            <thead><tr><th>Date</th><th>Health Factor</th><th>Category</th><th>Severity</th><th>Status</th><th>Comments</th></tr></thead>
+            <tbody>
+                @foreach (var s in items)
+                {
+                    <tr class="clickable" @onclick="() => ViewDetail(s.HealthFactorId)">
+                        <td class="date">@s.EventDateTime.ToString("MM/dd/yyyy")</td>
+                        <td>@s.HealthFactorName</td><td>@s.Category</td><td>@s.LevelSeverity</td>
+                        <td><span class="badge @(s.EvaluationStatus == "RESOLVED" ? "badge-green" : "badge-blue")">@(s.EvaluationStatus ?? "ACTIVE")</span></td>
+                        <td class="comments">@s.Comments</td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    }
+}
+
+@if (activeTab == "detail" && detail != null)
+{
+    <div class="detail-panel">
+        <div class="detail-header">
+            <h3>@detail.HealthFactorName</h3>
+            <span class="badge @(detail.EvaluationStatus == "RESOLVED" ? "badge-green" : "badge-blue")">@(detail.EvaluationStatus ?? "ACTIVE")</span>
+            <button @onclick="CloseDetail" class="btn btn-outline btn-sm-action">Close</button>
+        </div>
+        <div class="detail-grid">
+            <div><strong>ID:</strong> @detail.HealthFactorId</div>
+            <div><strong>Date:</strong> @detail.EventDateTime.ToString("MM/dd/yyyy HH:mm")</div>
+            <div><strong>Category:</strong> @(detail.Category ?? "--")</div>
+            <div><strong>Subcategory:</strong> @(detail.Subcategory ?? "--")</div>
+            <div><strong>Severity:</strong> @(detail.LevelSeverity ?? "--")</div>
+            <div><strong>Value:</strong> @(detail.Value ?? "--")</div>
+            <div><strong>Magnitude:</strong> @(detail.Magnitude ?? "--")</div>
+            <div><strong>Evaluation Status:</strong> @(detail.EvaluationStatus ?? "--")</div>
+            @if (!string.IsNullOrEmpty(detail.Comments))
+            {
+                <div class="full"><strong>Comments:</strong> @detail.Comments</div>
+            }
+        </div>
+
+        @* -- Actions: Resolve / Reactivate -- *@
+        <div class="section">
+            <h4>Actions</h4>
+            <div class="form-actions">
+                <button @onclick="ResolveHf" disabled="@saving" class="btn btn-primary">Resolve</button>
+                <button @onclick="ReactivateHf" disabled="@saving" class="btn btn-secondary">Reactivate</button>
+            </div>
+            <div class="entry-form compact" style="margin-top:.5rem">
+                <div class="form-grid">
+                    <div class="form-row"><label>Resolved By Name</label><input type="text" @bind="resolve_by" /></div>
+                </div>
+            </div>
+        </div>
+
+        @* -- Severity -- *@
+        <div class="section">
+            <h4>Update Severity</h4>
+            <div class="entry-form compact">
+                <div class="form-grid">
+                    <div class="form-row"><label>Severity Level *</label>
+                        <select @bind="sev_level"><option value="">--</option><option>MINIMAL</option><option>MODERATE</option><option>SEVERE</option></select>
+                    </div>
+                </div>
+                <div class="form-actions">
+                    <button @onclick="SubmitSeverity" disabled="@saving" class="btn btn-primary">Update Severity</button>
+                </div>
+            </div>
+        </div>
+
+        @* -- Category -- *@
+        <div class="section">
+            <h4>Set Category</h4>
+            <div class="entry-form compact">
+                <div class="form-grid">
+                    <div class="form-row"><label>Category *</label><input type="text" @bind="cat_category" placeholder="e.g. TOBACCO" /></div>
+                    <div class="form-row"><label>Subcategory</label><input type="text" @bind="cat_subcategory" placeholder="e.g. SMOKING" /></div>
+                </div>
+                <div class="form-actions">
+                    <button @onclick="SubmitCategory" disabled="@saving" class="btn btn-primary">Set Category</button>
+                </div>
+            </div>
+        </div>
+
+        @* -- Value -- *@
+        <div class="section">
+            <h4>Set Value</h4>
+            <div class="entry-form compact">
+                <div class="form-grid">
+                    <div class="form-row"><label>Value *</label><input type="text" @bind="val_value" placeholder="e.g. 20 cigarettes/day" /></div>
+                    <div class="form-row"><label>Magnitude</label><input type="text" @bind="val_magnitude" placeholder="e.g. PACK-YEARS: 15" /></div>
+                </div>
+                <div class="form-actions">
+                    <button @onclick="SubmitValue" disabled="@saving" class="btn btn-primary">Set Value</button>
+                </div>
+            </div>
+        </div>
+
+        @* -- History -- *@
+        <div class="section">
+            <h4>History (@hfHistory.Count)</h4>
+            @if (hfHistory.Count > 0)
+            {
+                <table class="data-table">
+                    <thead><tr><th>Date</th><th>Value</th><th>Severity</th><th>Comment</th><th>Recorded By</th></tr></thead>
+                    <tbody>
+                        @foreach (var h in hfHistory)
+                        {
+                            <tr>
+                                <td class="date">@h.DateTime.ToString("MM/dd/yyyy HH:mm")</td>
+                                <td>@h.Value</td><td>@h.SeverityLevel</td>
+                                <td>@h.Comment</td><td>@h.RecordedByName</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            }
+            <div class="entry-form compact">
+                <div class="form-grid">
+                    <div class="form-row"><label>Value *</label><input type="text" @bind="hist_value" /></div>
+                    <div class="form-row"><label>Severity</label><input type="text" @bind="hist_severity" /></div>
+                    <div class="form-row"><label>Recorded By</label><input type="text" @bind="hist_recordedBy" /></div>
+                    <div class="form-row full"><label>Comment</label><textarea @bind="hist_comment" rows="2"></textarea></div>
+                </div>
+                <div class="form-actions">
+                    <button @onclick="SubmitHistoryEntry" disabled="@saving" class="btn btn-primary">Add History Entry</button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    [SupplyParameterFromQuery] public string? patientId { get; set; }
+    private List<HfListDto>? items;
+    private HfDetailDto? detail;
+    private List<HfHistoryDto> hfHistory = new();
+    private bool loading, saving, showNew;
+    private string? error, success;
+    private string activeTab = "list";
+
+    // New form
+    private string f_name = "", f_category = "", f_severity = "", f_enteredBy = "", f_location = "", f_comments = "";
+    private DateTime f_date = DateTime.Now;
+
+    // Detail forms
+    private string resolve_by = "";
+    private string sev_level = "";
+    private string cat_category = "", cat_subcategory = "";
+    private string val_value = "", val_magnitude = "";
+    private string hist_value = "", hist_severity = "", hist_comment = "", hist_recordedBy = "";
+
+    private IPatientWorkflowGrain GetWorkflow() => Grains.GetGrain<IPatientWorkflowGrain>(patientId!.Trim());
+
+    protected override async Task OnParametersSetAsync() { if (!string.IsNullOrWhiteSpace(patientId)) await Load(); }
+    private async Task HandleKeyDown(KeyboardEventArgs e) { if (e.Key == "Enter") await Load(); }
+    private void SetTab(string tab) { activeTab = tab; success = null; }
+    private void ShowForm() { showNew = true; success = null; f_name = ""; f_category = ""; f_severity = ""; f_enteredBy = ""; f_location = ""; f_comments = ""; f_date = DateTime.Now; }
+    private void CloseDetail() { detail = null; activeTab = "list"; }
+
+    private async Task Load()
+    {
+        if (string.IsNullOrWhiteSpace(patientId)) return;
+        loading = true; error = null;
+        try
+        {
+            var summaries = await GetWorkflow().GetHealthFactorsAsync();
+            items = summaries.Select(s => new HfListDto
+            {
+                HealthFactorId = s.HealthFactorId, HealthFactorName = s.HealthFactorName,
+                Category = s.Category, EventDateTime = s.EventDateTime, LevelSeverity = s.LevelSeverity
+            }).ToList();
+        }
+        catch (Exception ex) { error = $"Error: {ex.Message}"; } finally { loading = false; }
+    }
+
+    private async Task ViewDetail(string healthFactorId)
+    {
+        error = null;
+        try
+        {
+            var state = await Grains.GetGrain<IHealthFactorGrain>(healthFactorId).GetHealthFactorAsync();
+            detail = new HfDetailDto
+            {
+                HealthFactorId = state.HealthFactorId, HealthFactorName = state.HealthFactorName,
+                Category = state.Category, Subcategory = state.Subcategory,
+                EventDateTime = state.EventDateTime, LevelSeverity = state.LevelSeverity,
+                Value = state.Value, Magnitude = state.Magnitude,
+                EvaluationStatus = state.EvaluationStatus, Comments = state.Comments
+            };
+            activeTab = "detail";
+            ResetDetailForms();
+            await LoadHistory(healthFactorId);
+        }
+        catch (Exception ex) { error = $"Error: {ex.Message}"; }
+    }
+
+    private async Task LoadHistory(string healthFactorId)
+    {
+        try
+        {
+            var entries = await Grains.GetGrain<IHealthFactorGrain>(healthFactorId).GetHistoryAsync();
+            hfHistory = entries.Select(e => new HfHistoryDto
+            {
+                Value = e.Value, SeverityLevel = e.SeverityLevel,
+                Comment = e.Comment, RecordedByName = e.RecordedByName, DateTime = e.EntryDate
+            }).ToList();
+        }
+        catch { hfHistory = new(); }
+    }
+
+    private void ResetDetailForms()
+    {
+        resolve_by = ""; sev_level = "";
+        cat_category = ""; cat_subcategory = "";
+        val_value = ""; val_magnitude = "";
+        hist_value = ""; hist_severity = ""; hist_comment = ""; hist_recordedBy = "";
+    }
+
+    private async Task Submit()
+    {
+        if (string.IsNullOrWhiteSpace(f_name)) { error = "Health factor name is required."; return; }
+        saving = true; error = null;
+        try
+        {
+            await GetWorkflow().RecordHealthFactorAsync(
+                f_name, NullIfEmpty(f_category), f_date, NullIfEmpty(f_severity),
+                null, null, NullIfEmpty(f_location), null, NullIfEmpty(f_enteredBy), NullIfEmpty(f_comments));
+            showNew = false; success = "Health factor recorded."; await Load();
+        }
+        catch (Exception ex) { error = $"Error: {ex.Message}"; } finally { saving = false; }
+    }
+
+    private async Task ResolveHf()
+    {
+        saving = true; error = null;
+        try
+        {
+            await GetWorkflow().ResolveHealthFactorAsync(detail!.HealthFactorId, string.IsNullOrWhiteSpace(resolve_by) ? "System" : resolve_by);
+            success = "Health factor resolved."; await Load();
+        }
+        catch (Exception ex) { error = $"Error: {ex.Message}"; } finally { saving = false; }
+    }
+
+    private async Task ReactivateHf()
+    {
+        saving = true; error = null;
+        try
+        {
+            await GetWorkflow().ReactivateHealthFactorAsync(detail!.HealthFactorId);
+            success = "Health factor reactivated."; await Load();
+        }
+        catch (Exception ex) { error = $"Error: {ex.Message}"; } finally { saving = false; }
+    }
+
+    private async Task SubmitSeverity()
+    {
+        if (string.IsNullOrWhiteSpace(sev_level)) { error = "Severity level is required."; return; }
+        saving = true; error = null;
+        try
+        {
+            await GetWorkflow().UpdateHealthFactorSeverityAsync(detail!.HealthFactorId, sev_level);
+            success = "Severity updated.";
+        }
+        catch (Exception ex) { error = $"Error: {ex.Message}"; } finally { saving = false; }
+    }
+
+    private async Task SubmitCategory()
+    {
+        if (string.IsNullOrWhiteSpace(cat_category)) { error = "Category is required."; return; }
+        saving = true; error = null;
+        try
+        {
+            await GetWorkflow().SetHealthFactorCategoryAsync(detail!.HealthFactorId, cat_category, NullIfEmpty(cat_subcategory));
+            success = "Category set.";
+        }
+        catch (Exception ex) { error = $"Error: {ex.Message}"; } finally { saving = false; }
+    }
+
+    private async Task SubmitValue()
+    {
+        if (string.IsNullOrWhiteSpace(val_value)) { error = "Value is required."; return; }
+        saving = true; error = null;
+        try
+        {
+            await GetWorkflow().SetHealthFactorValueAsync(detail!.HealthFactorId, val_value, NullIfEmpty(val_magnitude));
+            success = "Value set.";
+        }
+        catch (Exception ex) { error = $"Error: {ex.Message}"; } finally { saving = false; }
+    }
+
+    private async Task SubmitHistoryEntry()
+    {
+        if (string.IsNullOrWhiteSpace(hist_value)) { error = "Value is required."; return; }
+        saving = true; error = null;
+        try
+        {
+            await GetWorkflow().AddHealthFactorHistoryEntryAsync(detail!.HealthFactorId, hist_value, NullIfEmpty(hist_severity), NullIfEmpty(hist_comment), NullIfEmpty(hist_recordedBy));
+            success = "History entry added."; hist_value = ""; hist_severity = ""; hist_comment = ""; hist_recordedBy = ""; await LoadHistory(detail.HealthFactorId);
+        }
+        catch (Exception ex) { error = $"Error: {ex.Message}"; } finally { saving = false; }
+    }
+
+    private static string? NullIfEmpty(string s) => string.IsNullOrWhiteSpace(s) ? null : s;
+
+    private class HfListDto
+    {
+        public string HealthFactorId { get; set; } = "";
+        public string HealthFactorName { get; set; } = "";
+        public string? Category { get; set; }
+        public DateTime EventDateTime { get; set; }
+        public string? LevelSeverity { get; set; }
+        public string? EvaluationStatus { get; set; }
+        public string? Comments { get; set; }
+    }
+
+    private class HfDetailDto
+    {
+        public string HealthFactorId { get; set; } = "";
+        public string HealthFactorName { get; set; } = "";
+        public string? Category { get; set; }
+        public string? Subcategory { get; set; }
+        public DateTime EventDateTime { get; set; }
+        public string? LevelSeverity { get; set; }
+        public string? Value { get; set; }
+        public string? Magnitude { get; set; }
+        public string? EvaluationStatus { get; set; }
+        public string? Comments { get; set; }
+    }
+
+    private class HfHistoryDto
+    {
+        public string Value { get; set; } = "";
+        public string? SeverityLevel { get; set; }
+        public string? Comment { get; set; }
+        public string? RecordedByName { get; set; }
+        public DateTime DateTime { get; set; }
+    }
+}
+
+<style>
+    h1 { color: #003f72; margin-bottom: 1.25rem; font-size: 1.4rem; }
+    .lookup-bar { display: flex; gap: .5rem; margin-bottom: 1.5rem; align-items: center; }
+    .lookup-input { width: 280px; padding: .5rem .75rem; border: 1px solid #ccc; border-radius: 4px; font-size: .9rem; }
+    .btn { padding: .5rem 1.25rem; border: none; border-radius: 4px; cursor: pointer; font-size: .85rem; }
+    .btn-primary { background: #003f72; color: white; } .btn-primary:hover { background: #002a4e; } .btn-primary:disabled { background: #999; cursor: not-allowed; }
+    .btn-secondary { background: #16a34a; color: white; } .btn-secondary:disabled { background: #999; }
+    .btn-outline { background: white; border: 1px solid #ccc; color: #333; }
+    .btn-sm-action { padding: 4px 12px; font-size: .8rem; }
+    .alert { padding: .75rem 1rem; border-radius: 4px; margin-bottom: 1rem; font-size: .85rem; }
+    .alert-error { background: #fde8e8; color: #b91c1c; border: 1px solid #f5c6c6; }
+    .alert-success { background: #dcfce7; color: #166534; border: 1px solid #bbf7d0; }
+    .empty-state { color: #999; font-style: italic; padding: 2rem 0; }
+    .tab-bar { display: flex; gap: 0; border-bottom: 2px solid #d4d9e0; margin-bottom: 1.25rem; }
+    .tab { background: none; border: none; padding: .6rem 1.25rem; cursor: pointer; font-size: .85rem; color: #555; border-bottom: 2px solid transparent; margin-bottom: -2px; }
+    .tab-active { color: #003f72; font-weight: 600; border-bottom-color: #003f72; }
+    .entry-form { border: 1px solid #d4d9e0; border-radius: 6px; padding: 1.25rem; margin-bottom: 1.5rem; background: #f9fafb; }
+    .entry-form.compact { margin-top: .75rem; padding: 1rem; }
+    .entry-form h3 { margin-bottom: 1rem; color: #003f72; }
+    .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: .75rem; }
+    .form-row { display: flex; flex-direction: column; gap: .25rem; }
+    .form-row.full { grid-column: 1 / -1; }
+    .form-row label { font-size: .8rem; font-weight: 600; color: #555; }
+    .form-row input, .form-row select, .form-row textarea { padding: .4rem .6rem; border: 1px solid #ccc; border-radius: 4px; font-size: .85rem; }
+    .form-row textarea { resize: vertical; }
+    .form-actions { display: flex; gap: .5rem; margin-top: .75rem; }
+    .data-table { width: 100%; border-collapse: collapse; font-size: .85rem; border: 1px solid #d4d9e0; }
+    .data-table thead { background: #f4f6f9; }
+    .data-table th { text-align: left; padding: .5rem; font-weight: 600; color: #003f72; border-bottom: 2px solid #d4d9e0; font-size: .75rem; text-transform: uppercase; }
+    .data-table td { padding: .4rem .5rem; border-bottom: 1px solid #f0f0f0; }
+    .data-table tr.clickable { cursor: pointer; }
+    .data-table tr.clickable:hover { background: #eef3f9; }
+    .date { color: #888; font-size: .8rem; white-space: nowrap; }
+    .comments { max-width: 300px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #666; font-size: .8rem; }
+    .badge { padding: 2px 8px; border-radius: 3px; font-size: .7rem; font-weight: 600; }
+    .badge-blue { background: #dbeafe; color: #1e40af; }
+    .badge-green { background: #dcfce7; color: #166534; }
+    .detail-panel { border: 1px solid #d4d9e0; border-radius: 6px; padding: 1.25rem; margin-bottom: 1.5rem; }
+    .detail-header { display: flex; align-items: center; gap: .75rem; margin-bottom: 1rem; }
+    .detail-header h3 { margin: 0; color: #003f72; flex: 1; }
+    .detail-grid { display: grid; grid-template-columns: 1fr 1fr; gap: .5rem; font-size: .85rem; margin-bottom: .5rem; }
+    .detail-grid .full { grid-column: 1 / -1; }
+    .section { border-top: 1px solid #e5e7eb; padding-top: 1rem; margin-top: 1rem; }
+    .section h4 { color: #003f72; margin-bottom: .75rem; font-size: .95rem; }
+</style>

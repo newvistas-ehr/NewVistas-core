@@ -1,0 +1,37 @@
+<UserControl x:Class="NewVistas.Wpf_UI.Views.PeriodontalChartView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <ScrollViewer VerticalScrollBarVisibility="Auto">
+        <StackPanel Margin="24">
+            <TextBlock Style="{StaticResource PageTitle}" Text="Periodontal Charting"/>
+
+            <Border Background="#FFF3CD" BorderBrush="#FFC107" BorderThickness="1" CornerRadius="3"
+                    Padding="12,8" Margin="0,0,0,12"
+                    Visibility="{Binding IsFeatureEnabled, Converter={StaticResource InverseBoolToVisibility}}">
+                <TextBlock Text="Periodontal Charting is not currently enabled for this site." Foreground="#856404" FontSize="13"/>
+            </Border>
+
+            <TextBlock Style="{StaticResource ErrorText}" Text="{Binding Error}" Visibility="{Binding Error, Converter={StaticResource NullToVisibility}}"/>
+            <TextBlock Foreground="{StaticResource VaSuccessBrush}" FontSize="13" Margin="0,0,0,8" Text="{Binding SuccessMessage}" Visibility="{Binding SuccessMessage, Converter={StaticResource NullToVisibility}}"/>
+
+            <StackPanel Orientation="Horizontal" Margin="0,0,0,12">
+                <Button Content="Load" Style="{StaticResource PrimaryButton}" Command="{Binding LoadCommand}" Margin="0,0,8,0"/>
+                <Button Content="New Chart" Style="{StaticResource SecondaryButton}" Command="{Binding CreateChartCommand}" Margin="0,0,8,0"/>
+                <ProgressBar IsIndeterminate="True" Width="120" Height="20" Visibility="{Binding IsLoading, Converter={StaticResource BoolToVisibility}}"/>
+            </StackPanel>
+
+            <TextBlock Style="{StaticResource SectionHeader}" Text="Periodontal Charts"/>
+            <DataGrid ItemsSource="{Binding Charts}" AutoGenerateColumns="False" IsReadOnly="True" MaxHeight="400">
+                <DataGrid.Columns>
+                    <DataGridTextColumn Header="Exam Date" Binding="{Binding ExamDate, StringFormat=d}" Width="100"/>
+                    <DataGridTextColumn Header="Provider" Binding="{Binding ProviderName}" Width="140"/>
+                    <DataGridTextColumn Header="Status" Binding="{Binding Status}" Width="100"/>
+                    <DataGridTextColumn Header="Classification" Binding="{Binding Classification}" Width="120"/>
+                    <DataGridTextColumn Header="Teeth" Binding="{Binding TeethCharted}" Width="60"/>
+                    <DataGridTextColumn Header="Deep Pockets" Binding="{Binding DeepPocketCount}" Width="90"/>
+                    <DataGridTextColumn Header="Bleeding" Binding="{Binding BleedingSiteCount}" Width="80"/>
+                </DataGrid.Columns>
+            </DataGrid>
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>

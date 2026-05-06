@@ -1,0 +1,669 @@
+@page "/drug-utilization-review"
+@attribute [Authorize]
+@rendermode InteractiveServer
+@using Microsoft.AspNetCore.Authorization
+@using NewVistas.BlazorWeb.Services
+@using NewVistas.Abstractions.GrainInterfaces
+@using NewVistas.Abstractions.GrainStates
+@inject OrleansGrainService Grains
+
+<PageTitle>Drug Utilization Review</PageTitle>
+<h1>Drug Utilization Review</h1>
+
+<div class="lookup-bar">
+    <label>Patient ID:</label>
+    <input type="text" @bind="patientId" @bind:event="oninput" @onkeydown="HandleKeyDown"
+           placeholder="Enter patient ID" />
+    <button class="btn btn-primary" @onclick="Load"
+            disabled="@(string.IsNullOrWhiteSpace(patientId) || loading)">
+        @(loading ? "Loading..." : "Load")
+    </button>
+    <button class="btn btn-secondary" @onclick="ShowPerformForm"
+            disabled="@(string.IsNullOrWhiteSpace(patientId))">
+        + Perform DUR
+    </button>
+</div>
+
+@if (error != null)
+{
+    <div class="alert alert-error">@error</div>
+}
+@if (successMsg != null)
+{
+    <div class="alert alert-success">@successMsg</div>
+}
+
+@* ── Perform DUR Form ─────────────────────────────────────────────── *@
+@if (showForm)
+{
+    <div class="entry-form">
+        <h3>Perform Drug Utilization Review</h3>
+        <div class="form-grid">
+            <div class="form-field">
+                <label>Prescription ID *</label>
+                <input type="text" @bind="f_prescriptionId" />
+            </div>
+            <div class="form-field">
+                <label>Drug Name *</label>
+                <input type="text" @bind="f_drugName" />
+            </div>
+            <div class="form-field">
+                <label>Drug ID</label>
+                <input type="text" @bind="f_drugId" />
+            </div>
+            <div class="form-field">
+                <label>Drug Class (VA)</label>
+                <input type="text" @bind="f_drugClass" />
+            </div>
+            <div class="form-field">
+                <label>Dosage</label>
+                <input type="text" @bind="f_dosage" />
+            </div>
+            <div class="form-field">
+                <label>Route</label>
+                <input type="text" @bind="f_route" />
+            </div>
+            <div class="form-field">
+                <label>Schedule</label>
+                <input type="text" @bind="f_schedule" />
+            </div>
+            <div class="form-field">
+                <label>Days Supply</label>
+                <input type="number" @bind="f_daysSupply" />
+            </div>
+            <div class="form-field">
+                <label>Quantity</label>
+                <input type="number" @bind="f_quantity" />
+            </div>
+            <div class="form-field">
+                <label>Max Days Supply</label>
+                <input type="number" @bind="f_maxDaysSupply" />
+            </div>
+            <div class="form-field">
+                <label>Max Quantity</label>
+                <input type="number" @bind="f_maxQuantity" />
+            </div>
+            <div class="form-field">
+                <label>Controlled Substance</label>
+                <select @bind="f_isControlled">
+                    <option value="false">No</option>
+                    <option value="true">Yes</option>
+                </select>
+            </div>
+            @if (f_isControlled == "true")
+            {
+                <div class="form-field">
+                    <label>DEA Schedule</label>
+                    <select @bind="f_deaSchedule">
+                        <option value="">Select...</option>
+                        <option value="II">Schedule II</option>
+                        <option value="IIN">Schedule IIN</option>
+                        <option value="III">Schedule III</option>
+                        <option value="IIIIN">Schedule IIIIN</option>
+                        <option value="IV">Schedule IV</option>
+                        <option value="V">Schedule V</option>
+                    </select>
+                </div>
+            }
+            <div class="form-field">
+                <label>Ingredient IENs</label>
+                <input type="text" @bind="f_ingredientIens" placeholder="Comma-separated IENs" />
+            </div>
+            <div class="form-field">
+                <label>Max Daily Dose (mg)</label>
+                <input type="number" step="0.01" @bind="f_maxDailyDoseMg" />
+            </div>
+            <div class="form-field">
+                <label>Performed By</label>
+                <input type="text" @bind="f_performedBy" placeholder="Pharmacist ID" />
+            </div>
+        </div>
+        <div class="form-actions">
+            <button class="btn btn-primary" @onclick="SubmitDur" disabled="@saving">
+                @(saving ? "Running..." : "Run DUR")
+            </button>
+            <button class="btn btn-secondary" @onclick="() => showForm = false">Cancel</button>
+        </div>
+    </div>
+}
+
+@* ── Tabs: All / Pending / Detail ─────────────────────────────────── *@
+@if (allAssessments != null)
+{
+    <div class="tab-bar">
+        <button class="tab @(activeTab == "all" ? "tab-active" : "")"
+                @onclick='() => activeTab = "all"'>
+            All (@allAssessments.Count)
+        </button>
+        <button class="tab @(activeTab == "pending" ? "tab-active" : "")"
+                @onclick='() => activeTab = "pending"'>
+            Pending Review (@pendingReviews.Count)
+        </button>
+        @if (selectedAssessment != null)
+        {
+            <button class="tab @(activeTab == "detail" ? "tab-active" : "")"
+                    @onclick='() => activeTab = "detail"'>
+                Detail
+            </button>
+        }
+    </div>
+
+    @* ── All Assessments Tab ─────────────────────────────────────────── *@
+    @if (activeTab == "all")
+    {
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>Date</th>
+                    <th>Drug</th>
+                    <th>Status</th>
+                    <th>Outcome</th>
+                    <th>Failed</th>
+                    <th>Warnings</th>
+                    <th>Performed By</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (DurAssessmentIndexEntry a in allAssessments)
+                {
+                    <tr class="@GetRowClass(a)">
+                        <td>@(a.PerformedDate?.ToString("MM/dd/yyyy HH:mm") ?? "—")</td>
+                        <td>@a.DrugName</td>
+                        <td><span class="status-badge status-@a.Status.ToString().ToLower()">@FormatStatus(a.Status)</span></td>
+                        <td><span class="outcome-badge outcome-@a.OverallOutcome.ToString().ToLower()">@FormatOutcome(a.OverallOutcome)</span></td>
+                        <td class="@(a.FailedCheckCount > 0 ? "text-danger" : "")">@a.FailedCheckCount</td>
+                        <td class="@(a.WarningCheckCount > 0 ? "text-warning" : "")">@a.WarningCheckCount</td>
+                        <td>@(a.PerformedBy ?? "—")</td>
+                        <td>
+                            <button class="btn btn-sm" @onclick="() => ViewDetail(a.AssessmentId)">View</button>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    }
+
+    @* ── Pending Review Tab ──────────────────────────────────────────── *@
+    @if (activeTab == "pending")
+    {
+        @if (pendingReviews.Count == 0)
+        {
+            <p class="empty-state">No assessments pending review.</p>
+        }
+        else
+        {
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Date</th>
+                        <th>Drug</th>
+                        <th>Status</th>
+                        <th>Failed</th>
+                        <th>Warnings</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (DurAssessmentIndexEntry a in pendingReviews)
+                    {
+                        <tr class="row-alert">
+                            <td>@(a.PerformedDate?.ToString("MM/dd/yyyy HH:mm") ?? "—")</td>
+                            <td>@a.DrugName</td>
+                            <td><span class="status-badge status-@a.Status.ToString().ToLower()">@FormatStatus(a.Status)</span></td>
+                            <td class="text-danger">@a.FailedCheckCount</td>
+                            <td class="text-warning">@a.WarningCheckCount</td>
+                            <td>
+                                <button class="btn btn-sm btn-primary" @onclick="() => ViewDetail(a.AssessmentId)">Review</button>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        }
+    }
+
+    @* ── Detail View Tab ─────────────────────────────────────────────── *@
+    @if (activeTab == "detail" && selectedAssessment != null)
+    {
+        <div class="detail-panel">
+            <h3>DUR Assessment: @selectedAssessment.DrugName</h3>
+            <div class="detail-grid">
+                <div><strong>Assessment ID:</strong> @selectedAssessment.AssessmentId</div>
+                <div><strong>Prescription:</strong> @selectedAssessment.PrescriptionId</div>
+                <div><strong>Drug:</strong> @selectedAssessment.DrugName @(selectedAssessment.DrugId != null ? $"({selectedAssessment.DrugId})" : "")</div>
+                <div><strong>Drug Class:</strong> @(selectedAssessment.DrugClass ?? "—")</div>
+                <div><strong>Dosage:</strong> @(selectedAssessment.Dosage ?? "—") @(selectedAssessment.Route ?? "")</div>
+                <div><strong>Schedule:</strong> @(selectedAssessment.Schedule ?? "—")</div>
+                <div><strong>Days Supply:</strong> @(selectedAssessment.DaysSupply?.ToString() ?? "—")</div>
+                <div><strong>Quantity:</strong> @(selectedAssessment.Quantity?.ToString() ?? "—")</div>
+                <div><strong>Status:</strong> <span class="status-badge status-@selectedAssessment.Status.ToString().ToLower()">@FormatStatus(selectedAssessment.Status)</span></div>
+                <div><strong>Overall:</strong> <span class="outcome-badge outcome-@selectedAssessment.OverallOutcome.ToString().ToLower()">@FormatOutcome(selectedAssessment.OverallOutcome)</span></div>
+                <div><strong>Performed:</strong> @(selectedAssessment.PerformedDate?.ToString("MM/dd/yyyy HH:mm") ?? "—") by @(selectedAssessment.PerformedBy ?? "System")</div>
+                @if (selectedAssessment.AcknowledgedBy != null)
+                {
+                    <div><strong>Acknowledged:</strong> @(selectedAssessment.AcknowledgedDate?.ToString("MM/dd/yyyy HH:mm")) by @selectedAssessment.AcknowledgedBy</div>
+                }
+            </div>
+
+            <h4>Check Results</h4>
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Check</th>
+                        <th>Outcome</th>
+                        <th>Severity</th>
+                        <th>Message</th>
+                        <th>Conflict</th>
+                        <th>Override</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (DurCheckResult chk in selectedAssessment.Checks)
+                    {
+                        <tr class="@GetCheckRowClass(chk)">
+                            <td>@FormatCheckType(chk.CheckType)</td>
+                            <td><span class="outcome-badge outcome-@chk.Outcome.ToString().ToLower()">@chk.Outcome</span></td>
+                            <td>@chk.Severity</td>
+                            <td>@chk.Message</td>
+                            <td>@(chk.ConflictingEntityName ?? "—")</td>
+                            <td>
+                                @if (chk.Outcome == DurOutcome.Fail)
+                                {
+                                    <button class="btn btn-sm btn-warning" @onclick="() => ShowOverrideForm(chk.CheckType)">Override</button>
+                                }
+                                else if (chk.Outcome == DurOutcome.Override)
+                                {
+                                    <span title="@chk.OverrideReason">Overridden by @chk.OverriddenBy</span>
+                                }
+                                else
+                                {
+                                    <span>—</span>
+                                }
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+
+            @* ── Override Form ───────────────────────────────────────────── *@
+            @if (showOverrideForm)
+            {
+                <div class="entry-form" style="margin-top: 1rem;">
+                    <h4>Override: @FormatCheckType(overrideCheckType)</h4>
+                    <div class="form-grid">
+                        <div class="form-field">
+                            <label>Pharmacist ID *</label>
+                            <input type="text" @bind="o_pharmacistId" />
+                        </div>
+                        <div class="form-field full-width">
+                            <label>Clinical Reason *</label>
+                            <textarea @bind="o_reason" rows="3"></textarea>
+                        </div>
+                    </div>
+                    <div class="form-actions">
+                        <button class="btn btn-warning" @onclick="SubmitOverride" disabled="@saving">
+                            @(saving ? "Saving..." : "Submit Override")
+                        </button>
+                        <button class="btn btn-secondary" @onclick="() => showOverrideForm = false">Cancel</button>
+                    </div>
+                </div>
+            }
+
+            @* ── Acknowledge Button ──────────────────────────────────────── *@
+            @if (selectedAssessment.Status != DurAssessmentStatus.Acknowledged)
+            {
+                <div class="form-actions" style="margin-top: 1rem;">
+                    <div class="form-field" style="display: inline-block; margin-right: 0.5rem;">
+                        <label>Pharmacist ID:</label>
+                        <input type="text" @bind="ack_pharmacistId" style="width: 200px;" />
+                    </div>
+                    <div class="form-field" style="display: inline-block; margin-right: 0.5rem;">
+                        <label>Notes:</label>
+                        <input type="text" @bind="ack_notes" style="width: 300px;" />
+                    </div>
+                    <button class="btn btn-primary" @onclick="AcknowledgeAssessment" disabled="@saving">
+                        Acknowledge
+                    </button>
+                </div>
+            }
+
+            @if (selectedAssessment.Notes != null)
+            {
+                <div class="notes-section">
+                    <h4>Notes</h4>
+                    <pre>@selectedAssessment.Notes</pre>
+                </div>
+            }
+        </div>
+    }
+}
+
+@code {
+    [SupplyParameterFromQuery]
+    public string? patientId { get; set; }
+
+    private List<DurAssessmentIndexEntry>? allAssessments;
+    private List<DurAssessmentIndexEntry> pendingReviews = new();
+    private DurAssessmentState? selectedAssessment;
+    private bool loading, saving, showForm, showOverrideForm;
+    private string? error, successMsg;
+    private string activeTab = "all";
+
+    // Perform DUR form fields
+    private string f_prescriptionId = string.Empty;
+    private string f_drugName = string.Empty;
+    private string f_drugId = string.Empty;
+    private string f_drugClass = string.Empty;
+    private string f_dosage = string.Empty;
+    private string f_route = string.Empty;
+    private string f_schedule = string.Empty;
+    private int? f_daysSupply;
+    private int? f_quantity;
+    private int? f_maxDaysSupply;
+    private int? f_maxQuantity;
+    private string f_isControlled = "false";
+    private string f_deaSchedule = string.Empty;
+    private string f_ingredientIens = string.Empty;
+    private decimal? f_maxDailyDoseMg;
+    private string f_performedBy = string.Empty;
+
+    // Override form fields
+    private DurCheckType overrideCheckType;
+    private string o_pharmacistId = string.Empty;
+    private string o_reason = string.Empty;
+
+    // Acknowledge fields
+    private string ack_pharmacistId = string.Empty;
+    private string ack_notes = string.Empty;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (!string.IsNullOrWhiteSpace(patientId))
+            await Load();
+    }
+
+    private async Task HandleKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter") await Load();
+    }
+
+    private async Task Load()
+    {
+        if (string.IsNullOrWhiteSpace(patientId)) return;
+        loading = true;
+        error = null;
+        successMsg = null;
+        try
+        {
+            IPatientWorkflowGrain workflow = Grains.GetGrain<IPatientWorkflowGrain>(patientId.Trim());
+            allAssessments = await workflow.GetDurAssessmentsAsync();
+            pendingReviews = allAssessments.Where(a =>
+                a.Status == DurAssessmentStatus.Pending || a.Status == DurAssessmentStatus.Failed).ToList();
+        }
+        catch (Exception ex)
+        {
+            error = ex.Message;
+        }
+        finally
+        {
+            loading = false;
+        }
+    }
+
+    private void ShowPerformForm()
+    {
+        showForm = true;
+        f_prescriptionId = string.Empty;
+        f_drugName = string.Empty;
+        f_drugId = string.Empty;
+        f_drugClass = string.Empty;
+        f_dosage = string.Empty;
+        f_route = string.Empty;
+        f_schedule = string.Empty;
+        f_daysSupply = null;
+        f_quantity = null;
+        f_maxDaysSupply = null;
+        f_maxQuantity = null;
+        f_isControlled = "false";
+        f_deaSchedule = string.Empty;
+        f_ingredientIens = string.Empty;
+        f_maxDailyDoseMg = null;
+        f_performedBy = string.Empty;
+    }
+
+    private async Task SubmitDur()
+    {
+        if (string.IsNullOrWhiteSpace(f_prescriptionId) || string.IsNullOrWhiteSpace(f_drugName))
+        {
+            error = "Prescription ID and Drug Name are required.";
+            return;
+        }
+
+        saving = true;
+        error = null;
+        try
+        {
+            IPatientWorkflowGrain workflow = Grains.GetGrain<IPatientWorkflowGrain>(patientId!.Trim());
+            List<string>? iens = string.IsNullOrWhiteSpace(f_ingredientIens)
+                ? null
+                : f_ingredientIens.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).ToList();
+
+            string assessmentId = await workflow.PerformDurAsync(
+                f_prescriptionId.Trim(),
+                f_drugName.Trim(),
+                NullIfEmpty(f_drugId),
+                NullIfEmpty(f_drugClass),
+                NullIfEmpty(f_dosage),
+                NullIfEmpty(f_route),
+                NullIfEmpty(f_schedule),
+                f_daysSupply,
+                f_quantity,
+                f_maxDaysSupply,
+                f_maxQuantity,
+                f_isControlled == "true",
+                NullIfEmpty(f_deaSchedule),
+                NullIfEmpty(f_performedBy),
+                iens,
+                f_maxDailyDoseMg);
+
+            showForm = false;
+            successMsg = $"DUR assessment completed: {assessmentId}";
+            await Load();
+            await ViewDetail(assessmentId);
+        }
+        catch (Exception ex)
+        {
+            error = $"Error: {ex.Message}";
+        }
+        finally
+        {
+            saving = false;
+        }
+    }
+
+    private async Task ViewDetail(string assessmentId)
+    {
+        try
+        {
+            IPatientWorkflowGrain workflow = Grains.GetGrain<IPatientWorkflowGrain>(patientId!.Trim());
+            selectedAssessment = await workflow.GetDurAssessmentAsync(assessmentId);
+            activeTab = "detail";
+            showOverrideForm = false;
+        }
+        catch (Exception ex)
+        {
+            error = ex.Message;
+        }
+    }
+
+    private void ShowOverrideForm(DurCheckType checkType)
+    {
+        overrideCheckType = checkType;
+        o_pharmacistId = string.Empty;
+        o_reason = string.Empty;
+        showOverrideForm = true;
+    }
+
+    private async Task SubmitOverride()
+    {
+        if (string.IsNullOrWhiteSpace(o_pharmacistId) || string.IsNullOrWhiteSpace(o_reason))
+        {
+            error = "Pharmacist ID and clinical reason are required for override.";
+            return;
+        }
+
+        saving = true;
+        error = null;
+        try
+        {
+            IPatientWorkflowGrain workflow = Grains.GetGrain<IPatientWorkflowGrain>(patientId!.Trim());
+            await workflow.OverrideDurCheckAsync(
+                selectedAssessment!.AssessmentId, overrideCheckType, o_pharmacistId.Trim(), o_reason.Trim());
+
+            showOverrideForm = false;
+            successMsg = $"Override submitted for {FormatCheckType(overrideCheckType)}.";
+            await Load();
+            await ViewDetail(selectedAssessment.AssessmentId);
+        }
+        catch (Exception ex)
+        {
+            error = $"Error: {ex.Message}";
+        }
+        finally
+        {
+            saving = false;
+        }
+    }
+
+    private async Task AcknowledgeAssessment()
+    {
+        if (string.IsNullOrWhiteSpace(ack_pharmacistId))
+        {
+            error = "Pharmacist ID is required to acknowledge.";
+            return;
+        }
+
+        saving = true;
+        error = null;
+        try
+        {
+            IPatientWorkflowGrain workflow = Grains.GetGrain<IPatientWorkflowGrain>(patientId!.Trim());
+            await workflow.AcknowledgeDurAsync(
+                selectedAssessment!.AssessmentId, ack_pharmacistId.Trim(), NullIfEmpty(ack_notes));
+
+            successMsg = "Assessment acknowledged.";
+            await Load();
+            await ViewDetail(selectedAssessment.AssessmentId);
+        }
+        catch (Exception ex)
+        {
+            error = $"Error: {ex.Message}";
+        }
+        finally
+        {
+            saving = false;
+        }
+    }
+
+    private static string? NullIfEmpty(string s) => string.IsNullOrWhiteSpace(s) ? null : s;
+
+    private static string FormatStatus(DurAssessmentStatus s) => s switch
+    {
+        DurAssessmentStatus.Pending => "Pending",
+        DurAssessmentStatus.Passed => "Passed",
+        DurAssessmentStatus.Failed => "Failed",
+        DurAssessmentStatus.OverriddenByPharmacist => "Overridden",
+        DurAssessmentStatus.Acknowledged => "Acknowledged",
+        _ => s.ToString()
+    };
+
+    private static string FormatOutcome(DurOutcome o) => o switch
+    {
+        DurOutcome.Pass => "Pass",
+        DurOutcome.Fail => "Fail",
+        DurOutcome.Warning => "Warning",
+        DurOutcome.Override => "Override",
+        DurOutcome.NotApplicable => "N/A",
+        _ => o.ToString()
+    };
+
+    private static string FormatCheckType(DurCheckType t) => t switch
+    {
+        DurCheckType.DuplicateDrug => "Duplicate Drug",
+        DurCheckType.DuplicateTherapy => "Duplicate Therapy",
+        DurCheckType.DrugInteraction => "Drug Interaction",
+        DurCheckType.DrugAllergyContraindication => "Drug-Allergy",
+        DurCheckType.MaxDoseExceeded => "Max Dose",
+        DurCheckType.DaysSupplyExceeded => "Days Supply",
+        DurCheckType.RefillTooSoon => "Refill Too Soon",
+        DurCheckType.AgeBasedDosing => "Age-Based Dosing",
+        DurCheckType.RenalAdjustment => "Renal Adjustment",
+        DurCheckType.HepaticAdjustment => "Hepatic Adjustment",
+        DurCheckType.ControlledSubstance => "Controlled Substance",
+        _ => t.ToString()
+    };
+
+    private static string GetRowClass(DurAssessmentIndexEntry a) => a.Status switch
+    {
+        DurAssessmentStatus.Failed => "row-alert",
+        DurAssessmentStatus.Pending => "row-warning",
+        _ => ""
+    };
+
+    private static string GetCheckRowClass(DurCheckResult c) => c.Outcome switch
+    {
+        DurOutcome.Fail => "row-alert",
+        DurOutcome.Warning => "row-warning",
+        DurOutcome.Override => "row-override",
+        _ => ""
+    };
+}
+
+<style>
+    .lookup-bar { display: flex; gap: .5rem; align-items: center; margin-bottom: 1rem; flex-wrap: wrap; }
+    .lookup-bar input { padding: .4rem .6rem; border: 1px solid #555; border-radius: 4px; background: #1e1e1e; color: #ddd; min-width: 220px; }
+    .alert { padding: .6rem 1rem; border-radius: 4px; margin-bottom: .75rem; }
+    .alert-error { background: #3c1111; border: 1px solid #e74c3c; color: #e74c3c; }
+    .alert-success { background: #0f2e0f; border: 1px solid #27ae60; color: #27ae60; }
+    .btn { padding: .4rem .8rem; border: 1px solid #555; border-radius: 4px; cursor: pointer; background: #2d2d2d; color: #ddd; }
+    .btn:disabled { opacity: .5; cursor: not-allowed; }
+    .btn-primary { background: #1a5276; border-color: #2980b9; }
+    .btn-secondary { background: #333; }
+    .btn-warning { background: #7d6608; border-color: #f1c40f; }
+    .btn-sm { padding: .2rem .5rem; font-size: .85rem; }
+    .tab-bar { display: flex; gap: 2px; margin-bottom: 1rem; border-bottom: 2px solid #444; }
+    .tab { padding: .5rem 1rem; background: #1e1e1e; border: 1px solid #444; border-bottom: none; border-radius: 4px 4px 0 0; cursor: pointer; color: #aaa; }
+    .tab-active { background: #2d2d2d; color: #fff; border-color: #2980b9; }
+    .data-table { width: 100%; border-collapse: collapse; margin-bottom: 1rem; }
+    .data-table th { background: #1a1a2e; padding: .5rem; text-align: left; border-bottom: 2px solid #444; font-size: .85rem; color: #aaa; }
+    .data-table td { padding: .4rem .5rem; border-bottom: 1px solid #333; font-size: .85rem; }
+    .data-table tr:hover { background: #2a2a3e; }
+    .row-alert { background: #3c1111 !important; }
+    .row-warning { background: #3c3211 !important; }
+    .row-override { background: #2a2a0a !important; }
+    .text-danger { color: #e74c3c; font-weight: bold; }
+    .text-warning { color: #f1c40f; }
+    .status-badge, .outcome-badge { padding: .15rem .4rem; border-radius: 3px; font-size: .8rem; font-weight: 600; }
+    .status-badge.status-pending { background: #7d6608; color: #fff; }
+    .status-badge.status-passed { background: #1e6e3e; color: #fff; }
+    .status-badge.status-failed { background: #8b1a1a; color: #fff; }
+    .status-badge.status-overriddenbypharmacist { background: #6e4b1e; color: #fff; }
+    .status-badge.status-acknowledged { background: #1a5276; color: #fff; }
+    .outcome-badge.outcome-pass { background: #1e6e3e; color: #fff; }
+    .outcome-badge.outcome-fail { background: #8b1a1a; color: #fff; }
+    .outcome-badge.outcome-warning { background: #7d6608; color: #fff; }
+    .outcome-badge.outcome-override { background: #6e4b1e; color: #fff; }
+    .outcome-badge.outcome-notapplicable { background: #444; color: #aaa; }
+    .entry-form { background: #1e1e2e; border: 1px solid #444; border-radius: 6px; padding: 1rem; margin-bottom: 1rem; }
+    .form-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: .75rem; }
+    .form-field label { display: block; font-size: .8rem; color: #aaa; margin-bottom: .2rem; }
+    .form-field input, .form-field select, .form-field textarea { width: 100%; padding: .35rem .5rem; background: #1a1a1a; border: 1px solid #555; border-radius: 4px; color: #ddd; }
+    .form-field.full-width { grid-column: 1 / -1; }
+    .form-actions { display: flex; gap: .5rem; margin-top: .75rem; }
+    .detail-panel { background: #1e1e2e; border: 1px solid #444; border-radius: 6px; padding: 1rem; }
+    .detail-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: .4rem; margin-bottom: 1rem; }
+    .notes-section { margin-top: 1rem; }
+    .notes-section pre { background: #1a1a1a; padding: .75rem; border-radius: 4px; white-space: pre-wrap; color: #ccc; }
+    .empty-state { color: #888; font-style: italic; padding: 2rem; text-align: center; }
+</style>

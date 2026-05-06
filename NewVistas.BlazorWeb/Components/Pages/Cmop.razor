@@ -1,0 +1,343 @@
+﻿@page "/cmop"
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+@rendermode InteractiveServer
+@using NewVistas.BlazorWeb.Services
+@using NewVistas.Abstractions.GrainInterfaces
+@using NewVistas.Abstractions.GrainStates
+@inject OrleansGrainService Grains
+
+<PageTitle>CMOP - Mail Order Pharmacy</PageTitle>
+
+<h1>Consolidated Mail Outpatient Pharmacy</h1>
+
+@if (error != null) { <div class="alert alert-error">@error</div> }
+@if (successMsg != null) { <div class="alert alert-success">@successMsg</div> }
+
+<div class="site-selector">
+    <label>Site:</label>
+    <input type="text" @bind="siteId" style="width:160px" />
+    <button class="btn btn-primary" @onclick="Refresh">Load</button>
+    <button class="btn btn-demo" @onclick="LoadDemo">Load Demo Data</button>
+</div>
+
+<div class="tab-bar">
+    <button class="@TabClass(0)" @onclick="async () => { activeTab = 0; await LoadSuspense(); }">Suspense Queue</button>
+    <button class="@TabClass(1)" @onclick="async () => { activeTab = 1; await LoadTransmissions(); }">Transmissions</button>
+    <button class="@TabClass(2)" @onclick="() => activeTab = 2">Add to Queue</button>
+</div>
+
+@* ─── Tab 0: Suspense Queue ──────────────────────────────────────────── *@
+@if (activeTab == 0)
+{
+    <div class="board-actions">
+        <button class="btn btn-primary" @onclick="LoadSuspense" disabled="@loading">Refresh</button>
+        @if (suspenseQueue != null && suspenseQueue.Count > 0)
+        {
+            <button class="btn btn-transmit" @onclick="TransmitQueue">Transmit to CMOP</button>
+        }
+    </div>
+
+    @if (suspenseQueue != null)
+    {
+        @if (suspenseQueue.Count == 0)
+        {
+            <div class="empty-state">No prescriptions in suspense queue.</div>
+        }
+        else
+        {
+            <table class="data-table">
+                <thead>
+                    <tr><th>Rx#</th><th>Patient</th><th>Drug</th><th>Qty</th><th>Days</th><th>Fill</th><th>Priority</th><th>Queued</th><th>Actions</th></tr>
+                </thead>
+                <tbody>
+                    @foreach (var e in suspenseQueue)
+                    {
+                        <tr class="@(e.Priority == "URGENT" ? "row-urgent" : "")">
+                            <td class="rx">@(e.RxNumber ?? "—")</td>
+                            <td>@e.PatientName</td>
+                            <td>@e.DrugName</td>
+                            <td>@e.Quantity</td>
+                            <td>@e.DaysSupply</td>
+                            <td><span class="badge badge-@e.FillType.ToLower()">@e.FillType</span></td>
+                            <td><span class="badge badge-@e.Priority.ToLower()">@e.Priority</span></td>
+                            <td class="date">@e.QueuedDate.ToString("MM/dd HH:mm")</td>
+                            <td><button class="btn-sm btn-dc" @onclick="() => RemoveFromSuspense(e.PrescriptionId)">Remove</button></td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        }
+    }
+}
+
+@* ─── Tab 1: Transmissions ───────────────────────────────────────────── *@
+@if (activeTab == 1)
+{
+    <div class="board-actions">
+        <button class="btn btn-primary" @onclick="LoadTransmissions" disabled="@loading">Refresh</button>
+    </div>
+
+    @if (transmissions != null)
+    {
+        @if (transmissions.Count == 0)
+        {
+            <div class="empty-state">No transmissions found.</div>
+        }
+        else
+        {
+            <table class="data-table">
+                <thead>
+                    <tr><th>Transmission ID</th><th>CMOP Facility</th><th>Status</th><th>Rx Count</th><th>Dispensed</th><th>Rejected</th><th>Tracking</th><th>Transmitted</th><th>Actions</th></tr>
+                </thead>
+                <tbody>
+                    @foreach (var t in transmissions)
+                    {
+                        <tr>
+                            <td class="rx">@t.TransmissionId[..Math.Min(16, t.TransmissionId.Length)]…</td>
+                            <td>@t.CmopFacilityName</td>
+                            <td><span class="badge badge-@t.Status.ToLower().Replace("_","")">@t.Status</span></td>
+                            <td>@t.PrescriptionCount</td>
+                            <td>@t.DispensedCount</td>
+                            <td>@t.RejectedCount</td>
+                            <td>@(t.TrackingNumber ?? "—")</td>
+                            <td class="date">@(t.TransmittedDate?.ToString("MM/dd HH:mm") ?? "—")</td>
+                            <td class="actions">
+                                @if (t.Status == "TRANSMITTED")
+                                {
+                                    <button class="btn-sm" @onclick="() => AcknowledgeTx(t.TransmissionId)">Ack</button>
+                                }
+                                @if (t.Status == "RECEIVED")
+                                {
+                                    <button class="btn-sm" @onclick="() => DispenseTx(t.TransmissionId, t.PrescriptionCount)">Dispensed</button>
+                                }
+                                @if (t.Status == "DISPENSED")
+                                {
+                                    <button class="btn-sm" @onclick="() => ShipTx(t.TransmissionId)">Ship</button>
+                                }
+                                @if (t.Status == "SHIPPED")
+                                {
+                                    <button class="btn-sm" @onclick="() => CompleteTx(t.TransmissionId)">Complete</button>
+                                }
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        }
+    }
+}
+
+@* ─── Tab 2: Add to Queue ────────────────────────────────────────────── *@
+@if (activeTab == 2)
+{
+    <div class="form-card">
+        <h3>Add Prescription to CMOP Suspense</h3>
+        <div class="form-row"><label>Prescription ID</label><input type="text" @bind="newRxId" /></div>
+        <div class="form-row"><label>Patient ID</label><input type="text" @bind="newPatientId" /></div>
+        <div class="form-row"><label>Patient Name</label><input type="text" @bind="newPatientName" /></div>
+        <div class="form-row"><label>Drug Name</label><input type="text" @bind="newDrugName" /></div>
+        <div class="form-row"><label>Rx Number</label><input type="text" @bind="newRxNumber" /></div>
+        <div class="form-row"><label>Quantity</label><input type="number" @bind="newQty" /></div>
+        <div class="form-row"><label>Days Supply</label><input type="number" @bind="newDays" /></div>
+        <div class="form-row">
+            <label>Fill Type</label>
+            <select @bind="newFillType">
+                <option value="ORIGINAL">Original</option>
+                <option value="REFILL">Refill</option>
+            </select>
+        </div>
+        <div class="form-row">
+            <label>Priority</label>
+            <select @bind="newPriority">
+                <option value="ROUTINE">Routine</option>
+                <option value="URGENT">Urgent</option>
+            </select>
+        </div>
+        <button class="btn btn-primary" @onclick="AddToQueue"
+                disabled="@(string.IsNullOrWhiteSpace(newRxId) || string.IsNullOrWhiteSpace(newDrugName))">
+            Add to Queue
+        </button>
+    </div>
+}
+
+@code {
+    private string siteId = "SITE-500";
+    private List<SuspenseEntryDto>? suspenseQueue;
+    private List<TransmissionSummaryDto>? transmissions;
+    private bool loading;
+    private string? error, successMsg;
+    private int activeTab;
+
+    // Add form
+    private string newRxId = "", newPatientId = "", newPatientName = "", newDrugName = "", newRxNumber = "";
+    private int newQty = 90, newDays = 90;
+    private string newFillType = "ORIGINAL", newPriority = "ROUTINE";
+
+    private ICmopSuspenseGrain GetSuspenseGrain() =>
+        Grains.GetGrain<ICmopSuspenseGrain>($"CMOP-SUSPENSE:{siteId}");
+
+    private ICmopTransmissionIndexGrain GetTxIndex() =>
+        Grains.GetGrain<ICmopTransmissionIndexGrain>($"CMOP-TX-INDEX:{siteId}");
+
+    private ICmopTransmissionGrain GetTxGrain(string txId) =>
+        Grains.GetGrain<ICmopTransmissionGrain>($"CMOP-TX:{txId}");
+
+    protected override async Task OnInitializedAsync() => await LoadSuspense();
+
+    private async Task Refresh()
+    {
+        if (activeTab == 0) await LoadSuspense();
+        else if (activeTab == 1) await LoadTransmissions();
+    }
+
+    private async Task LoadSuspense()
+    {
+        activeTab = 0; loading = true; error = null;
+        try
+        {
+            List<CmopSuspenseEntry> entries = await GetSuspenseGrain().GetQueuedPrescriptionsAsync();
+            suspenseQueue = entries.Select(e => new SuspenseEntryDto
+            {
+                PrescriptionId = e.PrescriptionId, PatientId = e.PatientId, PatientName = e.PatientName,
+                DrugName = e.DrugName, RxNumber = e.RxNumber, Quantity = e.Quantity, DaysSupply = e.DaysSupply,
+                FillType = e.FillType, QueuedDate = e.QueuedDate, Priority = e.Priority, MailingAddress = e.MailingAddress
+            }).ToList();
+        }
+        catch (Exception ex) { error = ex.Message; }
+        finally { loading = false; }
+    }
+
+    private async Task LoadTransmissions()
+    {
+        activeTab = 1; loading = true; error = null;
+        try
+        {
+            List<CmopTransmissionSummary> entries = await GetTxIndex().GetTransmissionsAsync();
+            transmissions = entries.Select(e => new TransmissionSummaryDto
+            {
+                TransmissionId = e.TransmissionId, CmopFacilityName = e.CmopFacilityName,
+                Status = e.Status, TransmittedDate = e.TransmittedDate,
+                PrescriptionCount = e.PrescriptionCount, DispensedCount = e.DispensedCount,
+                RejectedCount = e.RejectedCount, TrackingNumber = e.TrackingNumber
+            }).ToList();
+        }
+        catch (Exception ex) { error = ex.Message; }
+        finally { loading = false; }
+    }
+
+    private async Task TransmitQueue()
+    {
+        error = null; successMsg = null;
+        try
+        {
+            await GetSuspenseGrain().TransmitQueueAsync("CMOP-LEAV", "CMOP LEAVENWORTH");
+            successMsg = "Queue transmitted to CMOP."; await LoadSuspense();
+        }
+        catch (Exception ex) { error = ex.Message; }
+    }
+
+    private async Task RemoveFromSuspense(string rxId)
+    {
+        try
+        {
+            await GetSuspenseGrain().RemoveFromSuspenseAsync(rxId);
+            await LoadSuspense();
+        }
+        catch (Exception ex) { error = ex.Message; }
+    }
+
+    private async Task AddToQueue()
+    {
+        error = null; successMsg = null;
+        try
+        {
+            await GetSuspenseGrain().AddToSuspenseAsync(new CmopSuspenseEntry
+            {
+                PrescriptionId = newRxId, PatientId = newPatientId, PatientName = newPatientName,
+                DrugName = newDrugName, RxNumber = newRxNumber, Quantity = newQty, DaysSupply = newDays,
+                FillType = newFillType, Priority = newPriority, QueuedDate = DateTime.UtcNow
+            });
+            successMsg = "Added to suspense queue."; newRxId = ""; newDrugName = ""; activeTab = 0; await LoadSuspense();
+        }
+        catch (Exception ex) { error = ex.Message; }
+    }
+
+    private async Task AcknowledgeTx(string txId)
+    {
+        try { await GetTxGrain(txId).AcknowledgeReceiptAsync(); await LoadTransmissions(); }
+        catch (Exception ex) { error = ex.Message; }
+    }
+
+    private async Task DispenseTx(string txId, int rxCount)
+    {
+        try { await GetTxGrain(txId).RecordDispensedAsync(rxCount, 0, null); await LoadTransmissions(); }
+        catch (Exception ex) { error = ex.Message; }
+    }
+
+    private async Task ShipTx(string txId)
+    {
+        try { await GetTxGrain(txId).RecordShippedAsync($"USPS{Random.Shared.Next(100000000, 999999999)}", "USPS"); await LoadTransmissions(); }
+        catch (Exception ex) { error = ex.Message; }
+    }
+
+    private async Task CompleteTx(string txId)
+    {
+        try { await GetTxGrain(txId).CompleteAsync(); await LoadTransmissions(); }
+        catch (Exception ex) { error = ex.Message; }
+    }
+
+    private async Task LoadDemo()
+    {
+        error = "Demo load is only available when running the API server.";
+    }
+
+    private string TabClass(int tab) => activeTab == tab ? "tab active" : "tab";
+
+    private class SuspenseEntryDto { public string PrescriptionId { get; set; } = ""; public string PatientId { get; set; } = ""; public string PatientName { get; set; } = ""; public string DrugName { get; set; } = ""; public string? RxNumber { get; set; } public int? Quantity { get; set; } public int? DaysSupply { get; set; } public string FillType { get; set; } = ""; public DateTime QueuedDate { get; set; } public string Priority { get; set; } = ""; public string? MailingAddress { get; set; } }
+    private class TransmissionSummaryDto { public string TransmissionId { get; set; } = ""; public string CmopFacilityName { get; set; } = ""; public string Status { get; set; } = ""; public DateTime? TransmittedDate { get; set; } public int PrescriptionCount { get; set; } public int DispensedCount { get; set; } public int RejectedCount { get; set; } public string? TrackingNumber { get; set; } }
+}
+
+<style>
+    .site-selector { display: flex; align-items: center; gap: 0.5rem; margin-bottom: 1rem; }
+    .site-selector label { font-weight: 600; font-size: 0.85rem; }
+    .site-selector input { padding: 0.35rem 0.6rem; border: 1px solid #d1d5db; border-radius: 4px; font-size: 0.85rem; }
+    .tab-bar { display: flex; gap: 0; margin-bottom: 1.5rem; border-bottom: 2px solid #d4d9e0; }
+    .tab { padding: 0.6rem 1.25rem; border: none; background: transparent; cursor: pointer; font-size: 0.85rem; color: #666; border-bottom: 2px solid transparent; margin-bottom: -2px; }
+    .tab.active { color: #003f72; font-weight: 600; border-bottom: 2px solid #003f72; }
+    .btn { padding: 0.5rem 1.25rem; border: none; border-radius: 4px; cursor: pointer; font-size: 0.85rem; }
+    .btn-primary { background: #003f72; color: white; }
+    .btn-demo { background: #059669; color: white; }
+    .btn-transmit { background: #7c3aed; color: white; }
+    .btn-sm { padding: 0.2rem 0.5rem; font-size: 0.75rem; border: 1px solid #ccc; border-radius: 3px; cursor: pointer; background: white; }
+    .btn-dc { border-color: #dc2626; color: #dc2626; }
+    .board-actions { display: flex; gap: 0.5rem; margin-bottom: 1rem; }
+    .alert { padding: 0.75rem 1rem; border-radius: 4px; margin-bottom: 1rem; }
+    .alert-error { background: #fde8e8; color: #b91c1c; border: 1px solid #f5c6c6; }
+    .alert-success { background: #d1fae5; color: #065f46; border: 1px solid #a7f3d0; }
+    .empty-state { color: #999; font-style: italic; padding: 2rem 0; }
+    .data-table { width: 100%; border-collapse: collapse; font-size: 0.85rem; border: 1px solid #d4d9e0; }
+    .data-table thead { background: #1e3a5f; color: white; }
+    .data-table th { text-align: left; padding: 0.5rem; font-weight: 600; font-size: 0.75rem; text-transform: uppercase; }
+    .data-table td { padding: 0.4rem 0.5rem; border-bottom: 1px solid #e5e7eb; }
+    .data-table tr:hover { background: #f0f4f8; }
+    .row-urgent { background: #fff7ed; }
+    .rx { font-weight: 600; color: #003f72; font-family: monospace; }
+    .date { color: #888; font-size: 0.8rem; }
+    .actions { white-space: nowrap; display: flex; gap: 0.25rem; }
+    .badge { padding: 0.15rem 0.5rem; border-radius: 10px; font-size: 0.7rem; font-weight: 600; }
+    .badge-original { background: #e0f2fe; color: #0369a1; }
+    .badge-refill { background: #d1fae5; color: #065f46; }
+    .badge-routine { background: #f3f4f6; color: #374151; }
+    .badge-urgent { background: #fef3c7; color: #92400e; }
+    .badge-pending { background: #fef3c7; color: #92400e; }
+    .badge-transmitted { background: #e0f2fe; color: #0369a1; }
+    .badge-received { background: #dbeafe; color: #1e40af; }
+    .badge-dispensed { background: #d1fae5; color: #065f46; }
+    .badge-shipped { background: #ede9fe; color: #6d28d9; }
+    .badge-completed { background: #d1fae5; color: #065f46; }
+    .badge-cancelled { background: #fde8e8; color: #b91c1c; }
+    .form-card { background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 6px; padding: 1.25rem; max-width: 500px; }
+    .form-row { margin-bottom: 0.75rem; }
+    .form-row label { display: block; font-size: 0.8rem; font-weight: 600; color: #374151; margin-bottom: 0.25rem; }
+    .form-row input, .form-row select { width: 100%; padding: 0.4rem 0.6rem; border: 1px solid #d1d5db; border-radius: 4px; font-size: 0.85rem; }
+</style>

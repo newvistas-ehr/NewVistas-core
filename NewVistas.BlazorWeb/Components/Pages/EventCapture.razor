@@ -1,0 +1,947 @@
+@page "/event-capture"
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+@rendermode InteractiveServer
+@using NewVistas.BlazorWeb.Services
+@using NewVistas.Abstractions.GrainInterfaces
+@using NewVistas.Abstractions.GrainStates
+@inject OrleansGrainService Grains
+
+<PageTitle>Event Capture</PageTitle>
+
+<h1>Event Capture</h1>
+<p class="subtitle">VistA Files #721, #724 — Workload / Encounter Capture (ECPEC.m, ECPEEN.m, ECPEWL.m)</p>
+
+<div class="lookup-bar">
+    <input type="text" @bind="patientId" @bind:event="oninput"
+           @onkeydown="OnKeyDown" placeholder="Patient ID" class="lookup-input" />
+    <button @onclick="LoadPatient" disabled="@(string.IsNullOrWhiteSpace(patientId) || loading)"
+            class="btn btn-primary">
+        @if (loading) { <span>Loading...</span> } else { <span>Load</span> }
+    </button>
+</div>
+
+@if (error != null) { <div class="alert alert-error">@error</div> }
+@if (successMessage != null) { <div class="alert alert-success">@successMessage</div> }
+
+<div class="tabs">
+    <button class="tab @(activeTab == "encounters" ? "active" : "")" @onclick='() => activeTab = "encounters"'>Encounters</button>
+    <button class="tab @(activeTab == "dssunits" ? "active" : "")" @onclick='() => { activeTab = "dssunits"; _ = LoadDssUnits(); }'>DSS Units</button>
+    <button class="tab @(activeTab == "workload" ? "active" : "")" @onclick='() => { activeTab = "workload"; _ = SearchWorkload(); }'>Workload Search</button>
+</div>
+
+<!-- ── Encounters Tab ──────────────────────────────────────────────────── -->
+@if (activeTab == "encounters")
+{
+    @if (encounters == null && !string.IsNullOrWhiteSpace(patientId))
+    {
+        <p class="loading-hint">Load a patient to view encounters.</p>
+    }
+    else if (encounters != null)
+    {
+        <div class="section-card">
+            <div class="section-header">
+                <h2>Patient Encounters</h2>
+                <button class="btn btn-primary btn-sm" @onclick='() => showNewEncounterForm = !showNewEncounterForm'>
+                    @(showNewEncounterForm ? "Cancel" : "+ New Encounter")
+                </button>
+            </div>
+
+            @if (showNewEncounterForm)
+            {
+                <div class="form-section">
+                    <h3>New Workload Encounter</h3>
+                    <div class="form-grid">
+                        <div class="form-group">
+                            <label>Encounter Date/Time *</label>
+                            <input type="datetime-local" @bind="newEncounterDateTime" class="form-control" />
+                        </div>
+                        <div class="form-group">
+                            <label>DSS Unit ID *</label>
+                            <input type="text" @bind="newDssUnitId" placeholder="EC-DSS-UNIT:..." class="form-control" />
+                        </div>
+                        <div class="form-group">
+                            <label>DSS Unit Name *</label>
+                            <input type="text" @bind="newDssUnitName" placeholder="e.g. PRIMARY CARE" class="form-control" />
+                        </div>
+                        <div class="form-group">
+                            <label>DSS Unit Code</label>
+                            <input type="text" @bind="newDssUnitCode" placeholder="e.g. PC" class="form-control" />
+                        </div>
+                        <div class="form-group">
+                            <label>Clinic Name</label>
+                            <input type="text" @bind="newClinicName" placeholder="Clinic" class="form-control" />
+                        </div>
+                        <div class="form-group">
+                            <label>Primary Provider ID *</label>
+                            <input type="text" @bind="newPrimaryProviderId" placeholder="PROVIDER-..." class="form-control" />
+                        </div>
+                        <div class="form-group">
+                            <label>Primary Provider Name *</label>
+                            <input type="text" @bind="newPrimaryProviderName" placeholder="Dr. ..." class="form-control" />
+                        </div>
+                        <div class="form-group">
+                            <label>Encounter Type</label>
+                            <select @bind="newEncounterType" class="form-control">
+                                <option value="Outpatient">Outpatient</option>
+                                <option value="Inpatient">Inpatient</option>
+                                <option value="Daycase">Day Case</option>
+                                <option value="Telephone">Telephone</option>
+                                <option value="NursingHome">Nursing Home</option>
+                                <option value="Domiciliary">Domiciliary</option>
+                                <option value="HomeBased">Home Based</option>
+                                <option value="CompensationAndPension">C&amp;P Exam</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label>Patient Category</label>
+                            <select @bind="newPatientCategory" class="form-control">
+                                <option value="ServiceConnected">Service Connected</option>
+                                <option value="NonServiceConnected">Non-Service Connected</option>
+                                <option value="Medicare">Medicare</option>
+                                <option value="Medicaid">Medicaid</option>
+                                <option value="ActiveDuty">Active Duty</option>
+                                <option value="Humanitarian">Humanitarian</option>
+                                <option value="Research">Research</option>
+                                <option value="Other">Other</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label>Primary Stop Code</label>
+                            <input type="text" @bind="newPrimaryStopCode" placeholder="e.g. 323" class="form-control" />
+                        </div>
+                        <div class="form-group">
+                            <label>Credit Stop Code</label>
+                            <input type="text" @bind="newCreditStopCode" placeholder="Optional" class="form-control" />
+                        </div>
+                        <div class="form-group full-width">
+                            <label>Comments</label>
+                            <textarea @bind="newComments" rows="2" class="form-control"></textarea>
+                        </div>
+                    </div>
+                    <button class="btn btn-primary" @onclick="CreateEncounter"
+                            disabled="@(string.IsNullOrWhiteSpace(newDssUnitId) || string.IsNullOrWhiteSpace(newPrimaryProviderId))">
+                        Create Encounter
+                    </button>
+                </div>
+            }
+
+            @if (encounters.Count == 0)
+            {
+                <p class="empty-state">No encounters recorded for this patient.</p>
+            }
+            else
+            {
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>Date/Time</th>
+                            <th>DSS Unit</th>
+                            <th>Clinic</th>
+                            <th>Provider</th>
+                            <th>Type</th>
+                            <th>Procedures</th>
+                            <th>Status</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (EcEncounterIndexEntry enc in encounters)
+                        {
+                            <tr class="@(enc.Status == "Deleted" ? "row-deleted" : "")">
+                                <td>@enc.EncounterDateTime.ToString("MM/dd/yyyy HH:mm")</td>
+                                <td>
+                                    <span class="unit-code">@(enc.DssUnitCode ?? "—")</span>
+                                    @enc.DssUnitName
+                                </td>
+                                <td>@(enc.ClinicName ?? "—")</td>
+                                <td>@enc.PrimaryProviderName</td>
+                                <td><span class="badge badge-type">@enc.EncounterType</span></td>
+                                <td class="center">@enc.ProcedureCount</td>
+                                <td><span class="badge badge-@enc.Status.ToLower()">@enc.Status</span></td>
+                                <td>
+                                    @if (enc.Status == "Open")
+                                    {
+                                        <button class="btn btn-sm btn-secondary"
+                                                @onclick="() => SelectEncounterForDetail(enc.EncounterId)">
+                                            Detail
+                                        </button>
+                                        <button class="btn btn-sm btn-success"
+                                                @onclick="() => QuickCompleteEncounter(enc.EncounterId)">
+                                            Complete
+                                        </button>
+                                        <button class="btn btn-sm btn-danger"
+                                                @onclick="() => ConfirmDeleteEncounter(enc.EncounterId)">
+                                            Delete
+                                        </button>
+                                    }
+                                </td>
+                            </tr>
+                            @if (selectedEncounterId == enc.EncounterId && selectedEncounterDetail != null)
+                            {
+                                <tr class="detail-row">
+                                    <td colspan="8">
+                                        <div class="detail-panel">
+                                            <h4>Procedures</h4>
+                                            @if (selectedEncounterDetail.Procedures.Count == 0)
+                                            {
+                                                <p class="empty-state">No procedures captured.</p>
+                                            }
+                                            else
+                                            {
+                                                <table class="sub-table">
+                                                    <thead>
+                                                        <tr><th>CPT</th><th>Description</th><th>Qty</th><th>Provider</th><th>Modifier</th></tr>
+                                                    </thead>
+                                                    <tbody>
+                                                        @foreach (EcProcedureRow proc in selectedEncounterDetail.Procedures)
+                                                        {
+                                                            <tr>
+                                                                <td><strong>@proc.CptCode</strong></td>
+                                                                <td>@proc.ProcedureDescription</td>
+                                                                <td class="center">@proc.Quantity</td>
+                                                                <td>@proc.ProviderName</td>
+                                                                <td>@(proc.ModifierCode ?? "—")</td>
+                                                            </tr>
+                                                        }
+                                                    </tbody>
+                                                </table>
+                                            }
+
+                                            <div class="add-procedure-form mt-2">
+                                                <h4>Add Procedure</h4>
+                                                <div class="form-grid">
+                                                    <div class="form-group">
+                                                        <label>CPT Code *</label>
+                                                        <input type="text" @bind="addCptCode" placeholder="99213" class="form-control" />
+                                                    </div>
+                                                    <div class="form-group">
+                                                        <label>Description *</label>
+                                                        <input type="text" @bind="addProcDescription" placeholder="Office visit, E/M" class="form-control" />
+                                                    </div>
+                                                    <div class="form-group">
+                                                        <label>Quantity</label>
+                                                        <input type="number" @bind="addProcQuantity" min="1" class="form-control" />
+                                                    </div>
+                                                    <div class="form-group">
+                                                        <label>Provider ID *</label>
+                                                        <input type="text" @bind="addProcProviderId" class="form-control" />
+                                                    </div>
+                                                    <div class="form-group">
+                                                        <label>Provider Name *</label>
+                                                        <input type="text" @bind="addProcProviderName" class="form-control" />
+                                                    </div>
+                                                    <div class="form-group">
+                                                        <label>Modifier</label>
+                                                        <input type="text" @bind="addModifierCode" placeholder="Optional" class="form-control" />
+                                                    </div>
+                                                </div>
+                                                <button class="btn btn-primary btn-sm" @onclick="AddProcedure"
+                                                        disabled="@(string.IsNullOrWhiteSpace(addCptCode))">
+                                                    Add Procedure
+                                                </button>
+                                            </div>
+
+                                            <h4 class="mt-2">Diagnoses</h4>
+                                            @if (selectedEncounterDetail.Diagnoses.Count == 0)
+                                            {
+                                                <p class="empty-state">No diagnoses captured.</p>
+                                            }
+                                            else
+                                            {
+                                                @foreach (EcDiagnosisRow dx in selectedEncounterDetail.Diagnoses)
+                                                {
+                                                    <span class="badge badge-dx @(dx.IsPrimary ? "primary-dx" : "")">
+                                                        @(dx.IsPrimary ? "★ " : "")@dx.Icd10Code — @dx.Description
+                                                    </span>
+                                                }
+                                            }
+
+                                            <div class="add-diagnosis-form mt-2">
+                                                <h4>Add Diagnosis</h4>
+                                                <div class="form-row">
+                                                    <input type="text" @bind="addDxCode" placeholder="ICD-10 Code (e.g. Z00.00)" class="form-control" />
+                                                    <input type="text" @bind="addDxDesc" placeholder="Description" class="form-control" />
+                                                    <label><input type="checkbox" @bind="addDxIsPrimary" /> Primary</label>
+                                                    <button class="btn btn-primary btn-sm" @onclick="AddDiagnosis"
+                                                            disabled="@(string.IsNullOrWhiteSpace(addDxCode))">
+                                                        Add
+                                                    </button>
+                                                </div>
+                                            </div>
+
+                                            <button class="btn btn-sm btn-secondary mt-2"
+                                                    @onclick="() => selectedEncounterId = null">
+                                                Close Detail
+                                            </button>
+                                        </div>
+                                    </td>
+                                </tr>
+                            }
+                        }
+                    </tbody>
+                </table>
+            }
+        </div>
+    }
+    else
+    {
+        <p class="empty-state">Enter a Patient ID and click Load to view encounters.</p>
+    }
+}
+
+<!-- ── DSS Units Tab ───────────────────────────────────────────────────── -->
+@if (activeTab == "dssunits")
+{
+    <div class="section-card">
+        <div class="section-header">
+            <h2>DSS Units (Decision Support System Units)</h2>
+            <button class="btn btn-primary btn-sm" @onclick='() => showNewDssUnitForm = !showNewDssUnitForm'>
+                @(showNewDssUnitForm ? "Cancel" : "+ New DSS Unit")
+            </button>
+        </div>
+
+        @if (showNewDssUnitForm)
+        {
+            <div class="form-section">
+                <h3>Create DSS Unit</h3>
+                <div class="form-grid">
+                    <div class="form-group">
+                        <label>Unit Name *</label>
+                        <input type="text" @bind="newUnitName" placeholder="e.g. PRIMARY CARE" class="form-control" />
+                    </div>
+                    <div class="form-group">
+                        <label>Unit Code *</label>
+                        <input type="text" @bind="newUnitCode" placeholder="e.g. PC" maxlength="6" class="form-control" />
+                    </div>
+                    <div class="form-group">
+                        <label>Division Name</label>
+                        <input type="text" @bind="newDivisionName" placeholder="Optional" class="form-control" />
+                    </div>
+                    <div class="form-group">
+                        <label>Primary Stop Code</label>
+                        <input type="text" @bind="newUnitPrimaryStop" placeholder="e.g. 323" class="form-control" />
+                    </div>
+                    <div class="form-group">
+                        <label>Credit Stop Code</label>
+                        <input type="text" @bind="newUnitCreditStop" placeholder="Optional" class="form-control" />
+                    </div>
+                    <div class="form-group">
+                        <label>Treatment Code</label>
+                        <input type="text" @bind="newTreatmentCode" placeholder="Optional" class="form-control" />
+                    </div>
+                    <div class="form-group full-width">
+                        <label>Description</label>
+                        <textarea @bind="newUnitDescription" rows="2" class="form-control"></textarea>
+                    </div>
+                </div>
+                <button class="btn btn-primary" @onclick="CreateDssUnit"
+                        disabled="@(string.IsNullOrWhiteSpace(newUnitName) || string.IsNullOrWhiteSpace(newUnitCode))">
+                    Create DSS Unit
+                </button>
+            </div>
+        }
+
+        <div class="search-bar mt-2">
+            <input type="text" @bind="dssSearch" @bind:event="oninput" placeholder="Search by name or code..." class="form-control" />
+            <label><input type="checkbox" @bind="dssActiveOnly" @oninput="() => _ = LoadDssUnits()" /> Active only</label>
+        </div>
+
+        @if (dssUnits == null)
+        {
+            <p class="loading-hint">Loading DSS units...</p>
+        }
+        else if (dssUnits.Count == 0)
+        {
+            <p class="empty-state">No DSS units found.</p>
+        }
+        else
+        {
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Code</th>
+                        <th>Name</th>
+                        <th>Division</th>
+                        <th>Primary Stop</th>
+                        <th>Status</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (DssUnitRow unit in FilteredDssUnits())
+                    {
+                        <tr class="@(!unit.IsActive ? "row-inactive" : "")">
+                            <td><strong class="unit-code">@unit.UnitCode</strong></td>
+                            <td>@unit.UnitName</td>
+                            <td>@(unit.DivisionName ?? "—")</td>
+                            <td>@(unit.PrimaryStopCode ?? "—")</td>
+                            <td><span class="badge badge-@(unit.IsActive ? "active" : "inactive")">@(unit.IsActive ? "Active" : "Inactive")</span></td>
+                            <td>
+                                @if (unit.IsActive)
+                                {
+                                    <button class="btn btn-sm btn-danger" @onclick="() => DeactivateDssUnit(unit.DssUnitId)">
+                                        Deactivate
+                                    </button>
+                                }
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        }
+    </div>
+}
+
+<!-- ── Workload Search Tab ─────────────────────────────────────────────── -->
+@if (activeTab == "workload")
+{
+    <div class="section-card">
+        <h2>Workload Search</h2>
+        <p class="subtitle-small">Cross-patient encounter query for workload reporting (ECPEWL.m)</p>
+
+        <div class="form-grid filter-grid">
+            <div class="form-group">
+                <label>DSS Unit ID</label>
+                <input type="text" @bind="wlDssUnitId" placeholder="Optional filter" class="form-control" />
+            </div>
+            <div class="form-group">
+                <label>Provider ID</label>
+                <input type="text" @bind="wlProviderId" placeholder="Optional filter" class="form-control" />
+            </div>
+            <div class="form-group">
+                <label>Status</label>
+                <select @bind="wlStatus" class="form-control">
+                    <option value="">All</option>
+                    <option value="Open">Open</option>
+                    <option value="Complete">Complete</option>
+                    <option value="Deleted">Deleted</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>From Date</label>
+                <input type="date" @bind="wlFromDate" class="form-control" />
+            </div>
+            <div class="form-group">
+                <label>To Date</label>
+                <input type="date" @bind="wlToDate" class="form-control" />
+            </div>
+            <div class="form-group">
+                <label>Max Results</label>
+                <input type="number" @bind="wlMaxResults" min="10" max="500" class="form-control" />
+            </div>
+        </div>
+        <button class="btn btn-primary" @onclick="SearchWorkload">Search</button>
+
+        @if (workloadResults != null)
+        {
+            <div class="result-summary mt-2">
+                Found <strong>@workloadResults.Count</strong> encounter(s)
+                @if (workloadResults.Count > 0)
+                {
+                    @: | Complete: @workloadResults.Count(e => e.Status == "Complete")
+                    @: | Open: @workloadResults.Count(e => e.Status == "Open")
+                    @: | Procedures: @workloadResults.Sum(e => e.ProcedureCount)
+                }
+            </div>
+            @if (workloadResults.Count > 0)
+            {
+                <table class="data-table mt-1">
+                    <thead>
+                        <tr>
+                            <th>Date/Time</th>
+                            <th>Patient ID</th>
+                            <th>DSS Unit</th>
+                            <th>Provider</th>
+                            <th>Type</th>
+                            <th>Procedures</th>
+                            <th>Status</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (EcEncounterIndexEntry enc in workloadResults)
+                        {
+                            <tr>
+                                <td>@enc.EncounterDateTime.ToString("MM/dd/yyyy HH:mm")</td>
+                                <td class="mono">@enc.PatientId</td>
+                                <td>
+                                    <span class="unit-code">@(enc.DssUnitCode ?? "—")</span>
+                                    @enc.DssUnitName
+                                </td>
+                                <td>@enc.PrimaryProviderName</td>
+                                <td>@enc.EncounterType</td>
+                                <td class="center">@enc.ProcedureCount</td>
+                                <td><span class="badge badge-@enc.Status.ToLower()">@enc.Status</span></td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            }
+        }
+    </div>
+}
+
+<style>
+    .subtitle { color: #6c757d; margin-top: -0.5rem; margin-bottom: 1.5rem; font-size: 0.9rem; }
+    .subtitle-small { color: #6c757d; font-size: 0.85rem; margin-top: -0.5rem; margin-bottom: 1rem; }
+    .lookup-bar { display: flex; gap: 0.5rem; margin-bottom: 1rem; }
+    .lookup-input { flex: 1; padding: 0.5rem; border: 1px solid #ced4da; border-radius: 4px; }
+    .tabs { display: flex; gap: 0; margin-bottom: 1rem; border-bottom: 2px solid #dee2e6; }
+    .tab { padding: 0.5rem 1.25rem; background: none; border: none; cursor: pointer; color: #495057; border-bottom: 2px solid transparent; margin-bottom: -2px; }
+    .tab.active { color: #0d6efd; border-bottom-color: #0d6efd; font-weight: 600; }
+    .section-card { background: #fff; border: 1px solid #dee2e6; border-radius: 6px; padding: 1.25rem; margin-bottom: 1rem; }
+    .section-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; }
+    .section-header h2 { margin: 0; font-size: 1.1rem; }
+    .form-section { background: #f8f9fa; border: 1px solid #e9ecef; border-radius: 4px; padding: 1rem; margin-bottom: 1rem; }
+    .form-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.75rem; margin-bottom: 1rem; }
+    .filter-grid { grid-template-columns: repeat(3, 1fr); }
+    .form-group { display: flex; flex-direction: column; gap: 0.25rem; }
+    .form-group.full-width { grid-column: 1 / -1; }
+    .form-group label { font-size: 0.8rem; font-weight: 600; color: #495057; }
+    .form-control { padding: 0.375rem 0.5rem; border: 1px solid #ced4da; border-radius: 4px; font-size: 0.9rem; }
+    .form-row { display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap; }
+    .data-table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
+    .data-table th { background: #f8f9fa; border: 1px solid #dee2e6; padding: 0.5rem 0.75rem; text-align: left; font-weight: 600; font-size: 0.8rem; }
+    .data-table td { border: 1px solid #dee2e6; padding: 0.45rem 0.75rem; vertical-align: top; }
+    .data-table tr:hover td { background: #f8f9fa; }
+    .sub-table { width: 100%; border-collapse: collapse; font-size: 0.85rem; margin-bottom: 0.75rem; }
+    .sub-table th { background: #e9ecef; border: 1px solid #ced4da; padding: 0.375rem 0.5rem; font-size: 0.78rem; }
+    .sub-table td { border: 1px solid #ced4da; padding: 0.3rem 0.5rem; }
+    .detail-row td { background: #f0f4ff; padding: 0; }
+    .detail-panel { padding: 1rem; }
+    .badge { display: inline-block; padding: 0.2rem 0.5rem; border-radius: 4px; font-size: 0.75rem; font-weight: 600; }
+    .badge-open { background: #cff4fc; color: #0c5460; }
+    .badge-complete { background: #d1e7dd; color: #0f5132; }
+    .badge-deleted { background: #f8d7da; color: #842029; }
+    .badge-active { background: #d1e7dd; color: #0f5132; }
+    .badge-inactive { background: #e2e3e5; color: #383d41; }
+    .badge-type { background: #e0d7f7; color: #4a1d96; }
+    .badge-dx { background: #fff3cd; color: #664d03; margin: 0.1rem; }
+    .badge-dx.primary-dx { background: #cff4fc; color: #0c5460; }
+    .unit-code { background: #e9ecef; border-radius: 3px; padding: 0.1rem 0.3rem; font-size: 0.78rem; font-weight: 700; margin-right: 0.35rem; font-family: monospace; }
+    .mono { font-family: monospace; font-size: 0.85rem; }
+    .center { text-align: center; }
+    .search-bar { display: flex; gap: 0.75rem; align-items: center; margin-bottom: 1rem; }
+    .search-bar .form-control { flex: 1; }
+    .result-summary { font-size: 0.9rem; color: #495057; padding: 0.5rem; background: #f8f9fa; border-radius: 4px; }
+    .mt-1 { margin-top: 0.5rem; }
+    .mt-2 { margin-top: 1rem; }
+    .row-deleted td { opacity: 0.6; text-decoration: line-through; }
+    .row-inactive td { opacity: 0.65; }
+    .empty-state { color: #6c757d; font-style: italic; padding: 0.75rem 0; }
+    .loading-hint { color: #6c757d; font-style: italic; }
+    .alert { padding: 0.75rem 1rem; border-radius: 4px; margin-bottom: 1rem; }
+    .alert-error { background: #f8d7da; color: #842029; border: 1px solid #f5c2c7; }
+    .alert-success { background: #d1e7dd; color: #0f5132; border: 1px solid #badbcc; }
+    .btn { padding: 0.375rem 0.875rem; border: none; border-radius: 4px; cursor: pointer; font-size: 0.875rem; }
+    .btn:disabled { opacity: 0.65; cursor: not-allowed; }
+    .btn-primary { background: #0d6efd; color: #fff; }
+    .btn-secondary { background: #6c757d; color: #fff; }
+    .btn-success { background: #198754; color: #fff; }
+    .btn-danger { background: #dc3545; color: #fff; }
+    .btn-sm { padding: 0.2rem 0.6rem; font-size: 0.8rem; }
+    .add-procedure-form { border-top: 1px solid #dee2e6; padding-top: 0.75rem; }
+    .add-diagnosis-form { border-top: 1px solid #dee2e6; padding-top: 0.75rem; }
+</style>
+
+@code {
+    // ── State ─────────────────────────────────────────────────────────────────
+    string patientId = string.Empty;
+    string activeTab = "encounters";
+    bool loading;
+    string? error;
+    string? successMessage;
+
+    // Encounters tab
+    List<EcEncounterIndexEntry>? encounters;
+    bool showNewEncounterForm;
+    string? selectedEncounterId;
+    EcEncounterDetailDto? selectedEncounterDetail;
+
+    // New encounter form
+    DateTime newEncounterDateTime = DateTime.Now;
+    string newDssUnitId = string.Empty;
+    string newDssUnitName = string.Empty;
+    string newDssUnitCode = string.Empty;
+    string newClinicName = string.Empty;
+    string newPrimaryProviderId = string.Empty;
+    string newPrimaryProviderName = string.Empty;
+    string newEncounterType = "Outpatient";
+    string newPatientCategory = "NonServiceConnected";
+    string newPrimaryStopCode = string.Empty;
+    string newCreditStopCode = string.Empty;
+    string newComments = string.Empty;
+
+    // Add procedure form
+    string addCptCode = string.Empty;
+    string addProcDescription = string.Empty;
+    int addProcQuantity = 1;
+    string addProcProviderId = string.Empty;
+    string addProcProviderName = string.Empty;
+    string addModifierCode = string.Empty;
+
+    // Add diagnosis form
+    string addDxCode = string.Empty;
+    string addDxDesc = string.Empty;
+    bool addDxIsPrimary;
+
+    // DSS Units tab
+    List<DssUnitRow>? dssUnits;
+    bool showNewDssUnitForm;
+    string dssSearch = string.Empty;
+    bool dssActiveOnly = true;
+    string newUnitName = string.Empty;
+    string newUnitCode = string.Empty;
+    string newDivisionName = string.Empty;
+    string newUnitPrimaryStop = string.Empty;
+    string newUnitCreditStop = string.Empty;
+    string newTreatmentCode = string.Empty;
+    string newUnitDescription = string.Empty;
+
+    // Workload search tab
+    string wlDssUnitId = string.Empty;
+    string wlProviderId = string.Empty;
+    string wlStatus = string.Empty;
+    DateTime? wlFromDate;
+    DateTime? wlToDate;
+    int wlMaxResults = 100;
+    List<EcEncounterIndexEntry>? workloadResults;
+
+    // ── Lifecycle ─────────────────────────────────────────────────────────────
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadDssUnits();
+    }
+
+    async Task OnKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter") await LoadPatient();
+    }
+
+    // ── Data Loading ──────────────────────────────────────────────────────────
+    async Task LoadPatient()
+    {
+        if (string.IsNullOrWhiteSpace(patientId)) return;
+        loading = true;
+        error = null;
+        successMessage = null;
+        encounters = null;
+        selectedEncounterId = null;
+        selectedEncounterDetail = null;
+        try
+        {
+            var encIdx = Grains.GetGrain<IEventCaptureEncounterIndexGrain>("EC-ENCOUNTER-IDX");
+            List<EventCaptureIndexEntry> entries = await encIdx.GetByPatientAsync(patientId.Trim(), 50);
+            encounters = entries.Select(e => new EcEncounterIndexEntry(
+                e.EncounterId, e.PatientId, e.EncounterDateTime,
+                e.DssUnitId, e.DssUnitName, e.DssUnitCode, e.ClinicName,
+                e.PrimaryProviderId, e.PrimaryProviderName,
+                e.EncounterType.ToString(), e.Status.ToString(), e.ProcedureCount)).ToList();
+        }
+        catch (Exception ex)
+        {
+            error = $"Failed to load encounters: {ex.Message}";
+        }
+        finally
+        {
+            loading = false;
+        }
+    }
+
+    async Task LoadDssUnits()
+    {
+        try
+        {
+            var dssIdx = Grains.GetGrain<IDssUnitIndexGrain>("EC-DSS-IDX");
+            List<DssUnitIndexEntry> entries = await dssIdx.GetAllAsync();
+            dssUnits = entries.Select(e => new DssUnitRow(
+                e.DssUnitId, e.UnitName, e.UnitCode,
+                e.DivisionName, e.PrimaryStopCode, e.IsActive)).ToList();
+        }
+        catch (Exception ex)
+        {
+            error = $"Failed to load DSS units: {ex.Message}";
+        }
+    }
+
+    IEnumerable<DssUnitRow> FilteredDssUnits()
+    {
+        IEnumerable<DssUnitRow> query = dssUnits ?? Enumerable.Empty<DssUnitRow>();
+        if (dssActiveOnly)
+            query = query.Where(u => u.IsActive);
+        if (!string.IsNullOrWhiteSpace(dssSearch))
+            query = query.Where(u =>
+                u.UnitName.Contains(dssSearch, StringComparison.OrdinalIgnoreCase) ||
+                u.UnitCode.Contains(dssSearch, StringComparison.OrdinalIgnoreCase));
+        return query;
+    }
+
+    async Task SearchWorkload()
+    {
+        workloadResults = null;
+        error = null;
+        try
+        {
+            var encIdx = Grains.GetGrain<IEventCaptureEncounterIndexGrain>("EC-ENCOUNTER-IDX");
+            EcEncounterStatus? statusFilter = null;
+            if (!string.IsNullOrWhiteSpace(wlStatus) && Enum.TryParse<EcEncounterStatus>(wlStatus, out var sf))
+                statusFilter = sf;
+            List<EventCaptureIndexEntry> entries = await encIdx.SearchAsync(
+                null,
+                string.IsNullOrWhiteSpace(wlDssUnitId) ? null : wlDssUnitId,
+                string.IsNullOrWhiteSpace(wlProviderId) ? null : wlProviderId,
+                statusFilter, wlFromDate, wlToDate, wlMaxResults);
+            workloadResults = entries.Select(e => new EcEncounterIndexEntry(
+                e.EncounterId, e.PatientId, e.EncounterDateTime,
+                e.DssUnitId, e.DssUnitName, e.DssUnitCode, e.ClinicName,
+                e.PrimaryProviderId, e.PrimaryProviderName,
+                e.EncounterType.ToString(), e.Status.ToString(), e.ProcedureCount)).ToList();
+        }
+        catch (Exception ex)
+        {
+            error = $"Workload search failed: {ex.Message}";
+        }
+    }
+
+    // ── Encounter Actions ─────────────────────────────────────────────────────
+    async Task CreateEncounter()
+    {
+        if (string.IsNullOrWhiteSpace(patientId)) return;
+        error = null;
+        successMessage = null;
+        try
+        {
+            string encId = Guid.NewGuid().ToString();
+            var encGrain = Grains.GetGrain<IEventCaptureEncounterGrain>($"EC-ENCOUNTER:{encId}");
+            EcEncounterType encType = Enum.TryParse<EcEncounterType>(newEncounterType, out var et) ? et : EcEncounterType.Outpatient;
+            EcPatientCategory patCat = Enum.TryParse<EcPatientCategory>(newPatientCategory, out var pc) ? pc : EcPatientCategory.NonServiceConnected;
+            await encGrain.CreateAsync(patientId.Trim(), newEncounterDateTime,
+                newDssUnitId.Trim(), newDssUnitName.Trim(),
+                string.IsNullOrWhiteSpace(newDssUnitCode) ? null : newDssUnitCode.Trim(),
+                null, string.IsNullOrWhiteSpace(newClinicName) ? null : newClinicName.Trim(),
+                null, null,
+                newPrimaryProviderId.Trim(), newPrimaryProviderName.Trim(),
+                null, null, encType, patCat,
+                string.IsNullOrWhiteSpace(newPrimaryStopCode) ? null : newPrimaryStopCode.Trim(),
+                string.IsNullOrWhiteSpace(newCreditStopCode) ? null : newCreditStopCode.Trim(),
+                string.IsNullOrWhiteSpace(newComments) ? null : newComments.Trim());
+            successMessage = "Encounter created successfully.";
+            showNewEncounterForm = false;
+            await LoadPatient();
+        }
+        catch (Exception ex)
+        {
+            error = $"Error creating encounter: {ex.Message}";
+        }
+    }
+
+    async Task SelectEncounterForDetail(string encounterId)
+    {
+        if (selectedEncounterId == encounterId)
+        {
+            selectedEncounterId = null;
+            selectedEncounterDetail = null;
+            return;
+        }
+        selectedEncounterId = encounterId;
+        error = null;
+        try
+        {
+            string grainKey = encounterId.StartsWith("EC-ENCOUNTER:") ? encounterId : $"EC-ENCOUNTER:{encounterId}";
+            var encGrain = Grains.GetGrain<IEventCaptureEncounterGrain>(grainKey);
+            EventCaptureEncounterState s = await encGrain.GetEncounterAsync();
+            selectedEncounterDetail = new EcEncounterDetailDto(
+                s.EncounterId, s.PatientId, s.EncounterDateTime,
+                s.DssUnitName, s.DssUnitCode, s.ClinicName, s.PrimaryProviderName,
+                s.EncounterType.ToString(), s.Status.ToString(),
+                s.CheckOutDateTime, s.VisitLengthMinutes,
+                s.Procedures.Select(p => new EcProcedureRow(p.CptCode, p.ProcedureDescription, p.Quantity, p.ProviderId, p.ProviderName, p.ModifierCode)).ToList(),
+                s.Diagnoses.Select(d => new EcDiagnosisRow(d.Icd10Code, d.Description, d.IsPrimary)).ToList(),
+                s.Comments);
+        }
+        catch (Exception ex)
+        {
+            error = $"Error loading encounter detail: {ex.Message}";
+        }
+    }
+
+    async Task QuickCompleteEncounter(string encounterId)
+    {
+        error = null;
+        try
+        {
+            string grainKey = encounterId.StartsWith("EC-ENCOUNTER:") ? encounterId : $"EC-ENCOUNTER:{encounterId}";
+            var encGrain = Grains.GetGrain<IEventCaptureEncounterGrain>(grainKey);
+            await encGrain.CompleteAsync(DateTime.UtcNow, null);
+            successMessage = "Encounter completed.";
+            await LoadPatient();
+        }
+        catch (Exception ex)
+        {
+            error = $"Error completing encounter: {ex.Message}";
+        }
+    }
+
+    async Task ConfirmDeleteEncounter(string encounterId)
+    {
+        error = null;
+        try
+        {
+            string grainKey = encounterId.StartsWith("EC-ENCOUNTER:") ? encounterId : $"EC-ENCOUNTER:{encounterId}";
+            var encGrain = Grains.GetGrain<IEventCaptureEncounterGrain>(grainKey);
+            await encGrain.DeleteAsync("SYSTEM", "System User", "Deleted via UI");
+            successMessage = "Encounter deleted.";
+            await LoadPatient();
+        }
+        catch (Exception ex)
+        {
+            error = $"Error deleting encounter: {ex.Message}";
+        }
+    }
+
+    async Task AddProcedure()
+    {
+        if (selectedEncounterId == null) return;
+        error = null;
+        try
+        {
+            string grainKey = selectedEncounterId.StartsWith("EC-ENCOUNTER:") ? selectedEncounterId : $"EC-ENCOUNTER:{selectedEncounterId}";
+            var encGrain = Grains.GetGrain<IEventCaptureEncounterGrain>(grainKey);
+            await encGrain.AddProcedureAsync(addCptCode.Trim(), addProcDescription.Trim(), addProcQuantity,
+                addProcProviderId.Trim(), addProcProviderName.Trim(),
+                string.IsNullOrWhiteSpace(addModifierCode) ? null : addModifierCode.Trim());
+            successMessage = "Procedure added.";
+            addCptCode = string.Empty;
+            addProcDescription = string.Empty;
+            addProcQuantity = 1;
+            addProcProviderId = string.Empty;
+            addProcProviderName = string.Empty;
+            addModifierCode = string.Empty;
+            string refreshId = selectedEncounterId!;
+            selectedEncounterId = null;
+            await SelectEncounterForDetail(refreshId);
+            await LoadPatient();
+        }
+        catch (Exception ex)
+        {
+            error = $"Error adding procedure: {ex.Message}";
+        }
+    }
+
+    async Task AddDiagnosis()
+    {
+        if (selectedEncounterId == null) return;
+        error = null;
+        try
+        {
+            string grainKey = selectedEncounterId.StartsWith("EC-ENCOUNTER:") ? selectedEncounterId : $"EC-ENCOUNTER:{selectedEncounterId}";
+            var encGrain = Grains.GetGrain<IEventCaptureEncounterGrain>(grainKey);
+            await encGrain.AddDiagnosisAsync(addDxCode.Trim(), addDxDesc.Trim(), addDxIsPrimary);
+            successMessage = "Diagnosis added.";
+            addDxCode = string.Empty;
+            addDxDesc = string.Empty;
+            addDxIsPrimary = false;
+            await SelectEncounterForDetail(selectedEncounterId!);
+        }
+        catch (Exception ex)
+        {
+            error = $"Error adding diagnosis: {ex.Message}";
+        }
+    }
+
+    // ── DSS Unit Actions ──────────────────────────────────────────────────────
+    async Task CreateDssUnit()
+    {
+        error = null;
+        successMessage = null;
+        try
+        {
+            string unitId = Guid.NewGuid().ToString();
+            var dssGrain = Grains.GetGrain<IDssUnitGrain>($"EC-DSS-UNIT:{unitId}");
+            await dssGrain.UpsertAsync(newUnitName.Trim(), newUnitCode.Trim().ToUpperInvariant(),
+                null, string.IsNullOrWhiteSpace(newDivisionName) ? null : newDivisionName.Trim(),
+                string.IsNullOrWhiteSpace(newUnitPrimaryStop) ? null : newUnitPrimaryStop.Trim(),
+                string.IsNullOrWhiteSpace(newUnitCreditStop) ? null : newUnitCreditStop.Trim(),
+                string.IsNullOrWhiteSpace(newTreatmentCode) ? null : newTreatmentCode.Trim(),
+                string.IsNullOrWhiteSpace(newUnitDescription) ? null : newUnitDescription.Trim(),
+                true);
+            successMessage = "DSS unit created.";
+            showNewDssUnitForm = false;
+            newUnitName = string.Empty;
+            newUnitCode = string.Empty;
+            await LoadDssUnits();
+        }
+        catch (Exception ex)
+        {
+            error = $"Error creating DSS unit: {ex.Message}";
+        }
+    }
+
+    async Task DeactivateDssUnit(string dssUnitId)
+    {
+        error = null;
+        try
+        {
+            string grainKey = dssUnitId.StartsWith("EC-DSS-UNIT:") ? dssUnitId : $"EC-DSS-UNIT:{dssUnitId}";
+            var dssGrain = Grains.GetGrain<IDssUnitGrain>(grainKey);
+            await dssGrain.DeactivateAsync();
+            successMessage = "DSS unit deactivated.";
+            await LoadDssUnits();
+        }
+        catch (Exception ex)
+        {
+            error = $"Error deactivating DSS unit: {ex.Message}";
+        }
+    }
+
+    // ── DTOs ──────────────────────────────────────────────────────────────────
+    record EcEncounterIndexEntry(
+        string EncounterId,
+        string PatientId,
+        DateTime EncounterDateTime,
+        string DssUnitId,
+        string DssUnitName,
+        string? DssUnitCode,
+        string? ClinicName,
+        string PrimaryProviderId,
+        string PrimaryProviderName,
+        string EncounterType,
+        string Status,
+        int ProcedureCount);
+
+    record EcEncounterDetailDto(
+        string EncounterId,
+        string PatientId,
+        DateTime EncounterDateTime,
+        string DssUnitName,
+        string? DssUnitCode,
+        string? ClinicName,
+        string PrimaryProviderName,
+        string EncounterType,
+        string Status,
+        DateTime? CheckOutDateTime,
+        int? VisitLengthMinutes,
+        List<EcProcedureRow> Procedures,
+        List<EcDiagnosisRow> Diagnoses,
+        string? Comments);
+
+    record EcProcedureRow(
+        string CptCode,
+        string ProcedureDescription,
+        int Quantity,
+        string ProviderId,
+        string ProviderName,
+        string? ModifierCode);
+
+    record EcDiagnosisRow(
+        string Icd10Code,
+        string Description,
+        bool IsPrimary);
+
+    record DssUnitRow(
+        string DssUnitId,
+        string UnitName,
+        string UnitCode,
+        string? DivisionName,
+        string? PrimaryStopCode,
+        bool IsActive);
+}

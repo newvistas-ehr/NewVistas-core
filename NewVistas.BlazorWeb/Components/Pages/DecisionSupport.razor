@@ -1,0 +1,341 @@
+@* Copyright 2026 James Smyth. All rights reserved. *@
+@page "/dsi"
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+@rendermode InteractiveServer
+@using NewVistas.BlazorWeb.Services
+@using NewVistas.Abstractions.GrainInterfaces
+@using NewVistas.Abstractions.GrainStates
+@inject OrleansGrainService Grains
+
+<PageTitle>Decision Support Interventions</PageTitle>
+<h1>Decision Support Interventions (CDS)</h1>
+
+@if (error != null) { <div class="alert alert-error">@error</div> }
+@if (success != null) { <div class="alert alert-success">@success</div> }
+
+<div class="tab-bar">
+    <button class="tab-btn @(activeTab == 0 ? "active" : "")" @onclick="() => activeTab = 0">Interventions</button>
+    <button class="tab-btn @(activeTab == 1 ? "active" : "")" @onclick="() => activeTab = 1">Events</button>
+    <button class="tab-btn @(activeTab == 2 ? "active" : "")" @onclick="() => activeTab = 2">Evaluate</button>
+</div>
+
+@* ── Interventions Tab ── *@
+@if (activeTab == 0)
+{
+    <div class="form-actions">
+        <button @onclick="LoadAllInterventions" disabled="@loadingInterventions" class="btn btn-primary">
+            @if (loadingInterventions) { <span>Loading...</span> } else { <span>Load All</span> }
+        </button>
+        <button @onclick="LoadActiveInterventions" disabled="@loadingInterventions" class="btn btn-secondary">Active Only</button>
+    </div>
+
+    @if (interventions != null && interventions.Count > 0)
+    {
+        <table class="data-table">
+            <thead><tr><th>ID</th><th>Title</th><th>Type</th><th>Domain</th><th>Severity</th><th>Developer</th><th>Active</th></tr></thead>
+            <tbody>
+                @foreach (var i in interventions)
+                {
+                    <tr>
+                        <td class="code">@i.InterventionId</td>
+                        <td>@i.Title</td>
+                        <td><span class="type-badge type-@i.InterventionType.ToLower()">@i.InterventionType</span></td>
+                        <td>@i.ClinicalDomain</td>
+                        <td><span class="sev-badge sev-@i.Severity.ToLower()">@i.Severity</span></td>
+                        <td>@(i.Developer ?? "---")</td>
+                        <td>@(i.IsActive ? "Yes" : "No")</td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    }
+    else if (interventions != null) { <div class="empty-state">No interventions registered.</div> }
+}
+
+@* ── Events Tab ── *@
+@if (activeTab == 1)
+{
+    <div class="form-actions">
+        <button @onclick="LoadAllEvents" disabled="@loadingEvents" class="btn btn-primary">All Events</button>
+        <button @onclick="LoadPendingEvents" disabled="@loadingEvents" class="btn btn-secondary">Pending</button>
+    </div>
+
+    <div class="form-section">
+        <div class="form-row">
+            <label>Filter by Patient</label>
+            <input type="text" class="form-input" @bind="eventFilterPatient" @bind:event="oninput" placeholder="Patient ID" />
+            <button @onclick="LoadPatientEvents" disabled="@(string.IsNullOrWhiteSpace(eventFilterPatient) || loadingEvents)" class="btn btn-primary">Filter</button>
+        </div>
+    </div>
+
+    @if (events != null && events.Count > 0)
+    {
+        <table class="data-table">
+            <thead><tr><th>Event ID</th><th>Intervention</th><th>Patient</th><th>Severity</th><th>Fired</th><th>Response</th><th></th></tr></thead>
+            <tbody>
+                @foreach (var e in events)
+                {
+                    <tr>
+                        <td class="code event-id">@e.EventId</td>
+                        <td>@e.InterventionTitle</td>
+                        <td class="code">@e.PatientId</td>
+                        <td><span class="sev-badge sev-@e.Severity.ToLower()">@e.Severity</span></td>
+                        <td>@e.FiredDate.ToString("MM/dd HH:mm")</td>
+                        <td><span class="resp-badge resp-@e.UserResponse.ToLower()">@e.UserResponse</span></td>
+                        <td>
+                            @if (e.UserResponse == "pending")
+                            {
+                                <button class="btn btn-link" @onclick="() => ShowRespondForm(e.EventId)">Respond</button>
+                            }
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    }
+    else if (events != null) { <div class="empty-state">No DSI events found.</div> }
+
+    @if (respondEventId != null)
+    {
+        <div class="action-panel">
+            <h4>Respond to Event: <span class="code">@respondEventId</span></h4>
+            <div class="form-row">
+                <label>Response</label>
+                <select class="form-input" @bind="respondAction">
+                    <option value="accepted">Accept</option>
+                    <option value="overridden">Override</option>
+                    <option value="dismissed">Dismiss</option>
+                </select>
+            </div>
+            <div class="form-row">
+                <label>Override Reason</label>
+                <input type="text" class="form-input" @bind="respondReason" placeholder="Required if overriding" />
+            </div>
+            <div class="form-actions">
+                <button @onclick="SubmitResponse" disabled="@responding" class="btn btn-primary">Submit Response</button>
+                <button @onclick="() => respondEventId = null" class="btn btn-secondary">Cancel</button>
+            </div>
+        </div>
+    }
+}
+
+@* ── Evaluate Tab ── *@
+@if (activeTab == 2)
+{
+    <div class="form-section">
+        <h3>Evaluate Patient Against Active Interventions</h3>
+        <div class="form-row">
+            <label>Patient ID</label>
+            <input type="text" class="form-input" @bind="evalPatientId" placeholder="Patient ID" />
+        </div>
+        <div class="form-actions">
+            <button @onclick="EvaluatePatient" disabled="@(string.IsNullOrWhiteSpace(evalPatientId) || evaluating)" class="btn btn-primary">
+                @if (evaluating) { <span>Evaluating...</span> } else { <span>Evaluate Patient</span> }
+            </button>
+            <button @onclick="EvaluateAndFire" disabled="@(string.IsNullOrWhiteSpace(evalPatientId) || evaluating)" class="btn btn-secondary">Evaluate and Fire</button>
+        </div>
+    </div>
+
+    @if (evalResults != null)
+    {
+        @if (evalResults.Count == 0)
+        {
+            <div class="empty-state">No interventions triggered for this patient.</div>
+        }
+        else
+        {
+            <h3 style="color:#ddd;">Triggered Alerts (@evalResults.Count)</h3>
+            @foreach (var r in evalResults)
+            {
+                <div class="alert-card">
+                    <div class="alert-header">
+                        <span class="sev-badge sev-@r.Severity.ToLower()">@r.Severity</span>
+                        <strong>@r.Title</strong>
+                        <span class="type-badge type-@r.InterventionType.ToLower()">@r.InterventionType</span>
+                    </div>
+                    <div class="alert-body">
+                        <div><strong>Recommended Action:</strong> @r.RecommendedAction</div>
+                        <div><strong>Source:</strong> @r.SourceCitation</div>
+                        <div><strong>Evidence:</strong> @r.TriggerEvidence</div>
+                    </div>
+                </div>
+            }
+        }
+    }
+}
+
+@code {
+    private int activeTab;
+    private string? error, success;
+
+    // Interventions
+    private bool loadingInterventions;
+    private List<DsiInterventionSummary>? interventions;
+
+    // Events
+    private bool loadingEvents;
+    private List<DsiEventSummary>? events;
+    private string? eventFilterPatient;
+    private string? respondEventId;
+    private string respondAction = "accepted", respondReason = string.Empty;
+    private bool responding;
+
+    // Evaluate
+    private string evalPatientId = string.Empty;
+    private bool evaluating;
+    private List<DsiEvaluationResult>? evalResults;
+
+    private IDsiInterventionIndexGrain GetInterventionIndex() => Grains.GetGrain<IDsiInterventionIndexGrain>("DSI-INDEX");
+    private IDsiEventIndexGrain GetEventIndex() => Grains.GetGrain<IDsiEventIndexGrain>("DSI-EVENT-INDEX");
+
+    // Intervention methods
+    private async Task LoadAllInterventions()
+    {
+        loadingInterventions = true; error = null;
+        try { interventions = await GetInterventionIndex().GetAllInterventionsAsync(); }
+        catch (Exception ex) { error = ex.Message; }
+        finally { loadingInterventions = false; }
+    }
+
+    private async Task LoadActiveInterventions()
+    {
+        loadingInterventions = true; error = null;
+        try { interventions = await GetInterventionIndex().GetActiveInterventionsAsync(); }
+        catch (Exception ex) { error = ex.Message; }
+        finally { loadingInterventions = false; }
+    }
+
+    // Event methods
+    private async Task LoadAllEvents()
+    {
+        loadingEvents = true; error = null;
+        try { events = await GetEventIndex().GetAllEventsAsync(); }
+        catch (Exception ex) { error = ex.Message; }
+        finally { loadingEvents = false; }
+    }
+
+    private async Task LoadPendingEvents()
+    {
+        loadingEvents = true; error = null;
+        try { events = await GetEventIndex().GetPendingEventsAsync(); }
+        catch (Exception ex) { error = ex.Message; }
+        finally { loadingEvents = false; }
+    }
+
+    private async Task LoadPatientEvents()
+    {
+        if (string.IsNullOrWhiteSpace(eventFilterPatient)) return;
+        loadingEvents = true; error = null;
+        try { events = await GetEventIndex().GetEventsByPatientAsync(eventFilterPatient.Trim()); }
+        catch (Exception ex) { error = ex.Message; }
+        finally { loadingEvents = false; }
+    }
+
+    private void ShowRespondForm(string eventId) { respondEventId = eventId; respondAction = "accepted"; respondReason = string.Empty; }
+
+    private async Task SubmitResponse()
+    {
+        if (respondEventId == null) return;
+        responding = true; error = null; success = null;
+        try
+        {
+            var grain = Grains.GetGrain<IDsiEventGrain>(respondEventId);
+            await grain.RecordResponseAsync(respondAction, string.IsNullOrWhiteSpace(respondReason) ? null : respondReason);
+            await GetEventIndex().UpdateResponseAsync(respondEventId, respondAction);
+            success = $"Response '{respondAction}' recorded for event.";
+            respondEventId = null;
+            await LoadAllEvents();
+        }
+        catch (Exception ex) { error = ex.Message; }
+        finally { responding = false; }
+    }
+
+    // Evaluate
+    private async Task EvaluatePatient()
+    {
+        if (string.IsNullOrWhiteSpace(evalPatientId)) return;
+        evaluating = true; error = null; success = null;
+        try
+        {
+            var grain = Grains.GetGrain<IDsiEvaluationGrain>($"DSI-EVAL:{evalPatientId.Trim()}");
+            evalResults = await grain.EvaluatePatientAsync();
+            success = $"Evaluation complete: {evalResults.Count} alert(s) triggered.";
+        }
+        catch (Exception ex) { error = ex.Message; }
+        finally { evaluating = false; }
+    }
+
+    private async Task EvaluateAndFire()
+    {
+        if (string.IsNullOrWhiteSpace(evalPatientId)) return;
+        evaluating = true; error = null; success = null;
+        try
+        {
+            string pid = evalPatientId.Trim();
+            var evalGrain = Grains.GetGrain<IDsiEvaluationGrain>($"DSI-EVAL:{pid}");
+            evalResults = await evalGrain.EvaluatePatientAsync();
+
+            IDsiEventIndexGrain eventIndex = GetEventIndex();
+            int fired = 0;
+            foreach (DsiEvaluationResult result in evalResults)
+            {
+                string eventId = $"DSI-EVENT:{Guid.NewGuid():N}";
+                var eventGrain = Grains.GetGrain<IDsiEventGrain>(eventId);
+                await eventGrain.RecordFiringAsync(
+                    result.InterventionId, result.Title, result.InterventionType,
+                    pid, null, result.RecommendedAction,
+                    result.Severity, result.TriggerEvidence, result.SourceCitation);
+                await eventIndex.AddEventAsync(new DsiEventSummary
+                {
+                    EventId = eventId, InterventionId = result.InterventionId,
+                    InterventionTitle = result.Title, PatientId = pid,
+                    FiredDate = DateTime.UtcNow, Severity = result.Severity, UserResponse = "pending"
+                });
+                fired++;
+            }
+            success = $"Evaluation complete: {fired} event(s) fired.";
+        }
+        catch (Exception ex) { error = ex.Message; }
+        finally { evaluating = false; }
+    }
+}
+
+<style>
+    h1 { color: #ddd; }
+    .btn { padding: 0.5rem 1.25rem; border: none; border-radius: 4px; cursor: pointer; font-size: 0.85rem; }
+    .btn-primary { background: #003f72; color: white; } .btn-primary:disabled { background: #555; cursor: not-allowed; }
+    .btn-secondary { background: #374151; color: #ddd; border: 1px solid #555; }
+    .btn-link { background: none; color: #60a5fa; text-decoration: underline; padding: 0; border: none; cursor: pointer; font-size: 0.85rem; }
+    .alert { padding: 0.75rem 1rem; border-radius: 4px; margin-bottom: 1rem; }
+    .alert-error { background: #451a1a; color: #fca5a5; border: 1px solid #7f1d1d; }
+    .alert-success { background: #14332a; color: #6ee7b7; border: 1px solid #065f46; }
+    .empty-state { color: #888; font-style: italic; padding: 2rem 0; }
+    .tab-bar { display: flex; gap: 0; border-bottom: 2px solid #444; margin-bottom: 1.5rem; }
+    .tab-btn { padding: 0.6rem 1.25rem; border: none; background: transparent; cursor: pointer; font-size: 0.85rem; font-weight: 500; color: #999; border-bottom: 2px solid transparent; margin-bottom: -2px; }
+    .tab-btn.active { color: #60a5fa; border-bottom-color: #60a5fa; font-weight: 600; }
+    .form-section { max-width: 700px; } .form-section h3 { color: #ddd; }
+    .form-row { display: flex; align-items: center; gap: 1rem; margin-bottom: 0.75rem; }
+    .form-row label:first-child { width: 160px; font-size: 0.85rem; font-weight: 500; color: #ccc; flex-shrink: 0; }
+    .form-input { flex: 1; padding: 0.4rem 0.6rem; border: 1px solid #555; border-radius: 4px; font-size: 0.85rem; max-width: 350px; background: #2d2d2d; color: #ddd; }
+    select.form-input { appearance: auto; }
+    .form-actions { display: flex; gap: 0.75rem; margin-top: 1rem; margin-bottom: 1.5rem; }
+    .data-table { width: 100%; border-collapse: collapse; font-size: 0.85rem; color: #ddd; }
+    .data-table th { text-align: left; padding: 0.5rem; font-weight: 600; color: #60a5fa; border-bottom: 2px solid #444; font-size: 0.75rem; text-transform: uppercase; background: #252525; }
+    .data-table td { padding: 0.4rem 0.5rem; border-bottom: 1px solid #333; } .data-table tr:hover { background: #2a2a2a; }
+    .code { font-family: monospace; color: #60a5fa; } .event-id { font-size: 0.75rem; max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .type-badge { display: inline-block; padding: 0.15rem 0.5rem; border-radius: 3px; font-size: 0.75rem; font-weight: 600; text-transform: uppercase; }
+    .type-badge.type-evidence-based { background: #1e3a5f; color: #93c5fd; }
+    .type-badge.type-predictive { background: #4c1d95; color: #c4b5fd; }
+    .sev-badge { display: inline-block; padding: 0.15rem 0.5rem; border-radius: 3px; font-size: 0.75rem; font-weight: 700; text-transform: uppercase; }
+    .sev-badge.sev-high { background: #451a1a; color: #fca5a5; } .sev-badge.sev-medium { background: #422006; color: #fcd34d; }
+    .sev-badge.sev-low { background: #14332a; color: #6ee7b7; } .sev-badge.sev-info { background: #1e3a5f; color: #93c5fd; }
+    .resp-badge { display: inline-block; padding: 0.15rem 0.5rem; border-radius: 3px; font-size: 0.75rem; font-weight: 600; }
+    .resp-badge.resp-pending { background: #422006; color: #fcd34d; } .resp-badge.resp-accepted { background: #14332a; color: #6ee7b7; }
+    .resp-badge.resp-overridden { background: #451a1a; color: #fca5a5; } .resp-badge.resp-dismissed { background: #374151; color: #ccc; }
+    .action-panel { background: #252525; border: 1px solid #444; border-radius: 6px; padding: 1.5rem; margin-top: 1rem; max-width: 600px; }
+    .action-panel h4 { color: #ddd; margin-top: 0; }
+    .alert-card { background: #252525; border: 1px solid #444; border-radius: 6px; padding: 1rem; margin-bottom: 0.75rem; }
+    .alert-header { display: flex; align-items: center; gap: 0.75rem; margin-bottom: 0.5rem; color: #ddd; }
+    .alert-body { font-size: 0.85rem; color: #ccc; } .alert-body div { margin-bottom: 0.25rem; }
+    .alert-body strong { color: #ddd; }
+</style>

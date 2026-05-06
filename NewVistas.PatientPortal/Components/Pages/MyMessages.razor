@@ -1,0 +1,270 @@
+@page "/my-messages"
+@rendermode InteractiveServer
+@inject HttpClient Http
+
+<PageTitle>Secure Messages</PageTitle>
+<h1>Secure Messages</h1>
+
+@if (error != null) { <div class="alert alert-error">@error</div> }
+@if (successMessage != null) { <div class="alert alert-success">@successMessage</div> }
+
+<div class="section-header">
+    <h3>My Conversations</h3>
+    <button @onclick="ShowNewForm" class="btn btn-primary">+ New Message</button>
+</div>
+
+@if (showNewThread)
+{
+    <div class="portal-form">
+        <h4>New Message to Care Team</h4>
+        <div class="form-grid">
+            <div class="form-row"><label>Subject *</label><input type="text" @bind="newSubject" placeholder="What is this about?" /></div>
+            <div class="form-row">
+                <label>Category</label>
+                <select @bind="newCategory">
+                    <option value="general">General</option>
+                    <option value="medication">Medication Question</option>
+                    <option value="appointment">Appointment</option>
+                    <option value="lab-results">Lab Results</option>
+                    <option value="referral">Referral</option>
+                    <option value="billing">Billing</option>
+                </select>
+            </div>
+            <div class="form-row full"><label>Message *</label><textarea @bind="newBody" rows="5" placeholder="Type your message to your care team..."></textarea></div>
+        </div>
+        <div class="form-actions">
+            <button @onclick="CreateThread" disabled="@saving" class="btn btn-primary">@(saving ? "Sending..." : "Send Message")</button>
+            <button @onclick="() => showNewThread = false" class="btn btn-outline">Cancel</button>
+        </div>
+    </div>
+}
+
+@if (selectedThread != null)
+{
+    <div class="thread-detail">
+        <div class="detail-header">
+            <span class="badge badge-category">@selectedThread.Category</span>
+            <span class="badge badge-status status-@selectedThread.Status">@selectedThread.Status</span>
+            <strong>@selectedThread.Subject</strong>
+            @if (!string.IsNullOrEmpty(selectedThread.AssignedProviderName)) { <span class="provider-tag">@selectedThread.AssignedProviderName</span> }
+            <button @onclick="CloseDetail" class="btn btn-sm btn-outline">Close</button>
+        </div>
+
+        <div class="message-list">
+            @if (selectedThread.Messages != null)
+            {
+                @foreach (MessageDto msg in selectedThread.Messages)
+                {
+                    <div class="message @(msg.SenderType == "patient" ? "message-mine" : "message-provider")">
+                        <div class="message-header">
+                            <strong>@(msg.SenderType == "patient" ? "You" : (msg.SenderName ?? "Care Team"))</strong>
+                            <span class="message-date">@msg.SentDate.ToString("MM/dd/yyyy HH:mm")</span>
+                            @if (!msg.IsRead && msg.SenderType == "provider") { <span class="badge badge-unread">New</span> }
+                        </div>
+                        <div class="message-body">@msg.Body</div>
+                    </div>
+                }
+            }
+        </div>
+
+        @if (selectedThread.Status == "open")
+        {
+            <div class="reply-area">
+                <textarea @bind="replyBody" rows="3" placeholder="Type your reply..."></textarea>
+                <div class="form-actions">
+                    <button @onclick="SendReply" disabled="@saving" class="btn btn-primary">@(saving ? "Sending..." : "Send Reply")</button>
+                    <button @onclick="MarkAsRead" class="btn btn-outline">Mark Read</button>
+                </div>
+            </div>
+        }
+        else
+        {
+            <p class="thread-closed-note">This conversation is closed. Contact your care team to reopen.</p>
+        }
+    </div>
+}
+
+@if (loading) { <p>Loading messages...</p> }
+else if (threads.Count == 0 && !showNewThread) { <p class="empty-state">No messages yet. Send your first message to your care team.</p> }
+else
+{
+    <table class="health-table">
+        <thead><tr><th>Subject</th><th>Category</th><th>Last Message</th><th>Messages</th><th>Status</th><th></th></tr></thead>
+        <tbody>
+            @foreach (ThreadSummaryDto t in threads)
+            {
+                <tr class="@(selectedThread?.ThreadId == t.ThreadId ? "selected" : "") @(t.HasUnreadPatient ? "has-unread" : "")">
+                    <td>
+                        @t.Subject
+                        @if (t.HasUnreadPatient) { <span class="badge badge-unread">New</span> }
+                    </td>
+                    <td><span class="badge badge-category">@t.Category</span></td>
+                    <td>@t.LastMessageDate.ToString("MM/dd/yyyy HH:mm")</td>
+                    <td>@t.MessageCount</td>
+                    <td><span class="badge badge-status status-@t.Status">@t.Status</span></td>
+                    <td><button @onclick="() => ViewThread(t.ThreadId)" class="btn btn-sm btn-outline">View</button></td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+
+@code {
+    bool loading = true;
+    bool saving;
+    bool showNewThread;
+    string? error;
+    string? successMessage;
+
+    List<ThreadSummaryDto> threads = new();
+    ThreadDetailDto? selectedThread;
+
+    // New thread form
+    string? newSubject;
+    string newCategory = "general";
+    string? newBody;
+
+    // Reply
+    string? replyBody;
+
+    protected override async Task OnInitializedAsync() => await LoadData();
+
+    async Task LoadData()
+    {
+        loading = true;
+        try { threads = await Http.GetFromJsonAsync<List<ThreadSummaryDto>>("api/my/messages/threads") ?? new(); }
+        catch (Exception ex) { error = $"Error: {ex.Message}"; }
+        finally { loading = false; }
+    }
+
+    void ShowNewForm()
+    {
+        error = null; successMessage = null;
+        newSubject = null; newCategory = "general"; newBody = null;
+        showNewThread = true;
+    }
+
+    async Task CreateThread()
+    {
+        if (string.IsNullOrWhiteSpace(newSubject) || string.IsNullOrWhiteSpace(newBody))
+        { error = "Subject and message are required."; return; }
+        error = null; saving = true;
+        try
+        {
+            var payload = new { subject = newSubject, category = newCategory, body = newBody };
+            HttpResponseMessage response = await Http.PostAsJsonAsync("api/my/messages/threads", payload);
+            if (response.IsSuccessStatusCode)
+            {
+                successMessage = "Message sent!";
+                showNewThread = false;
+                await LoadData();
+            }
+            else error = $"Failed: {response.StatusCode}";
+        }
+        catch (Exception ex) { error = $"Error: {ex.Message}"; }
+        finally { saving = false; }
+    }
+
+    async Task ViewThread(string threadId)
+    {
+        error = null;
+        try
+        {
+            selectedThread = await Http.GetFromJsonAsync<ThreadDetailDto>($"api/my/messages/threads/{Uri.EscapeDataString(threadId)}");
+            replyBody = null;
+        }
+        catch (Exception ex) { error = $"Error: {ex.Message}"; }
+    }
+
+    void CloseDetail() { selectedThread = null; }
+
+    async Task SendReply()
+    {
+        if (selectedThread == null || string.IsNullOrWhiteSpace(replyBody)) return;
+        error = null; saving = true;
+        try
+        {
+            HttpResponseMessage response = await Http.PostAsJsonAsync(
+                $"api/my/messages/threads/{Uri.EscapeDataString(selectedThread.ThreadId)}/reply",
+                new { body = replyBody });
+            if (response.IsSuccessStatusCode)
+            {
+                replyBody = null;
+                await ViewThread(selectedThread.ThreadId);
+                await LoadData();
+            }
+            else error = $"Failed: {response.StatusCode}";
+        }
+        catch (Exception ex) { error = $"Error: {ex.Message}"; }
+        finally { saving = false; }
+    }
+
+    async Task MarkAsRead()
+    {
+        if (selectedThread == null) return;
+        try
+        {
+            await Http.PutAsJsonAsync($"api/my/messages/threads/{Uri.EscapeDataString(selectedThread.ThreadId)}/read", new { });
+            await ViewThread(selectedThread.ThreadId);
+            await LoadData();
+            successMessage = "Marked as read.";
+        }
+        catch (Exception ex) { error = $"Error: {ex.Message}"; }
+    }
+
+    // DTOs
+    class ThreadSummaryDto { public string ThreadId { get; set; } = ""; public string Subject { get; set; } = ""; public string Category { get; set; } = ""; public string Status { get; set; } = ""; public DateTime LastMessageDate { get; set; } public int MessageCount { get; set; } public bool HasUnreadPatient { get; set; } public bool HasUnreadProvider { get; set; } }
+    class ThreadDetailDto { public string ThreadId { get; set; } = ""; public string Subject { get; set; } = ""; public string Category { get; set; } = ""; public string Status { get; set; } = ""; public string? AssignedProviderName { get; set; } public List<MessageDto>? Messages { get; set; } }
+    class MessageDto { public string SenderType { get; set; } = ""; public string? SenderName { get; set; } public string Body { get; set; } = ""; public DateTime SentDate { get; set; } public bool IsRead { get; set; } }
+}
+
+<style>
+    .section-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: .75rem; }
+    .section-header h3 { margin: 0; }
+    .portal-form { background: #f8faf9; border: 1px solid #d4e8db; border-radius: 6px; padding: 1rem; margin-bottom: 1rem; }
+    .portal-form h4 { margin: 0 0 .75rem; color: #1a6b3c; }
+    .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: .4rem .75rem; }
+    .form-row { display: flex; flex-direction: column; gap: .2rem; }
+    .form-row.full { grid-column: span 2; }
+    .form-row label { font-size: .82rem; font-weight: 600; }
+    .form-row input, .form-row select, .form-row textarea { padding: .3rem .5rem; border: 1px solid #ccc; border-radius: 4px; font-size: .9rem; }
+    .form-actions { display: flex; gap: .5rem; margin-top: .75rem; }
+
+    .thread-detail { background: #fff; border: 1px solid #c8d6e5; border-radius: 6px; padding: 1rem; margin-bottom: 1rem; }
+    .detail-header { display: flex; align-items: center; gap: .5rem; flex-wrap: wrap; margin-bottom: .75rem; }
+    .provider-tag { font-size: .85rem; color: #666; }
+
+    .message-list { max-height: 400px; overflow-y: auto; margin-bottom: .75rem; }
+    .message { padding: .5rem .75rem; margin-bottom: .5rem; border-radius: 6px; }
+    .message-mine { background: #e8f5e9; border: 1px solid #c8e6c9; margin-left: 2rem; }
+    .message-provider { background: #e3f2fd; border: 1px solid #bbdefb; margin-right: 2rem; }
+    .message-header { display: flex; align-items: center; gap: .5rem; font-size: .85rem; margin-bottom: .25rem; }
+    .message-date { color: #888; font-size: .8rem; margin-left: auto; }
+    .message-body { font-size: .9rem; white-space: pre-wrap; }
+
+    .reply-area { background: #f8f9fa; border: 1px solid #dee2e6; border-radius: 6px; padding: .75rem; }
+    .reply-area textarea { width: 100%; padding: .4rem .5rem; border: 1px solid #ccc; border-radius: 4px; font-size: .9rem; box-sizing: border-box; }
+    .thread-closed-note { font-style: italic; color: #888; padding: .5rem 0; }
+
+    .health-table { width: 100%; border-collapse: collapse; font-size: .9rem; }
+    .health-table th { background: #f1f8f4; text-align: left; padding: .4rem .6rem; border-bottom: 2px solid #d4e8db; }
+    .health-table td { padding: .4rem .6rem; border-bottom: 1px solid #eee; }
+    .health-table tr.selected td { background: #e0f0e6; }
+    .health-table tr:hover td { background: #f5faf7; }
+    .health-table tr.has-unread td { font-weight: 600; }
+
+    .badge { display: inline-block; padding: .15rem .5rem; border-radius: 3px; font-size: .78rem; font-weight: 600; }
+    .badge-category { background: #e9ecef; color: #495057; }
+    .badge-unread { background: #dc3545; color: #fff; }
+    .badge-status.status-open { background: #d4edda; color: #155724; }
+    .badge-status.status-closed { background: #6c757d; color: #fff; }
+
+    .btn { padding: .35rem .75rem; border-radius: 4px; border: 1px solid transparent; cursor: pointer; font-size: .9rem; }
+    .btn-primary { background: #1a6b3c; color: #fff; border-color: #1a6b3c; }
+    .btn-outline { background: transparent; color: #1a6b3c; border-color: #1a6b3c; }
+    .btn-sm { padding: .2rem .5rem; font-size: .8rem; }
+    .btn:disabled { opacity: .6; cursor: not-allowed; }
+    .alert-error { background: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; padding: .5rem .75rem; border-radius: 4px; margin-bottom: .5rem; }
+    .alert-success { background: #d4edda; color: #155724; border: 1px solid #c3e6cb; padding: .5rem .75rem; border-radius: 4px; margin-bottom: .5rem; }
+    .empty-state { color: #888; font-style: italic; }
+</style>

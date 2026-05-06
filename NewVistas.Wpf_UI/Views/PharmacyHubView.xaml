@@ -1,0 +1,50 @@
+<UserControl x:Class="NewVistas.Wpf_UI.Views.PharmacyHubView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <ScrollViewer VerticalScrollBarVisibility="Auto">
+        <StackPanel Margin="24">
+            <TextBlock Style="{StaticResource PageTitle}" Text="Pharmacy Hub"/>
+            <TextBlock Foreground="#555" FontSize="14" TextWrapping="Wrap" Margin="0,0,0,24"
+                       Text="Select a pharmacy module from the sidebar to view patient prescriptions, inpatient orders, drug accountability, or benefit plan details."/>
+
+            <UniformGrid Columns="2">
+                <Border Margin="4" Padding="16" Background="White" BorderBrush="{StaticResource VaBorderBrush}"
+                        BorderThickness="1" CornerRadius="4">
+                    <StackPanel>
+                        <TextBlock FontSize="16" FontWeight="Bold" Foreground="{StaticResource VaBlueBrush}"
+                                   Text="Outpatient Pharmacy"/>
+                        <TextBlock Margin="0,8,0,0" Foreground="#555" TextWrapping="Wrap" FontSize="13"
+                                   Text="View and manage outpatient prescriptions, fills, refills, and holds."/>
+                    </StackPanel>
+                </Border>
+                <Border Margin="4" Padding="16" Background="White" BorderBrush="{StaticResource VaBorderBrush}"
+                        BorderThickness="1" CornerRadius="4">
+                    <StackPanel>
+                        <TextBlock FontSize="16" FontWeight="Bold" Foreground="{StaticResource VaBlueBrush}"
+                                   Text="Inpatient Pharmacy"/>
+                        <TextBlock Margin="0,8,0,0" Foreground="#555" TextWrapping="Wrap" FontSize="13"
+                                   Text="Manage unit dose orders and the Medication Administration Record (MAR)."/>
+                    </StackPanel>
+                </Border>
+                <Border Margin="4" Padding="16" Background="White" BorderBrush="{StaticResource VaBorderBrush}"
+                        BorderThickness="1" CornerRadius="4">
+                    <StackPanel>
+                        <TextBlock FontSize="16" FontWeight="Bold" Foreground="{StaticResource VaBlueBrush}"
+                                   Text="Drug Accountability"/>
+                        <TextBlock Margin="0,8,0,0" Foreground="#555" TextWrapping="Wrap" FontSize="13"
+                                   Text="Track drug inventory, receipts, dispenses, waste, and controlled substances by location."/>
+                    </StackPanel>
+                </Border>
+                <Border Margin="4" Padding="16" Background="White" BorderBrush="{StaticResource VaBorderBrush}"
+                        BorderThickness="1" CornerRadius="4">
+                    <StackPanel>
+                        <TextBlock FontSize="16" FontWeight="Bold" Foreground="{StaticResource VaBlueBrush}"
+                                   Text="Pharmacy Benefits / Prior Auth"/>
+                        <TextBlock Margin="0,8,0,0" Foreground="#555" TextWrapping="Wrap" FontSize="13"
+                                   Text="View patient benefit plan details and manage prior authorization requests."/>
+                    </StackPanel>
+                </Border>
+            </UniformGrid>
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>

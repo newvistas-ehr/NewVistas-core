@@ -1,0 +1,1232 @@
+@page "/home-telehealth"
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+@rendermode InteractiveServer
+@using NewVistas.BlazorWeb.Services
+@using NewVistas.Abstractions.GrainInterfaces
+@using NewVistas.Abstractions.GrainStates
+@inject OrleansGrainService Grains
+
+<PageTitle>Home Telehealth</PageTitle>
+
+<div class="ht-container">
+    <div class="ht-header">
+        <h2>Home Telehealth — Remote Patient Monitoring</h2>
+    </div>
+
+    @if (error != null)
+    {
+        <div class="alert alert-danger">@error</div>
+    }
+    @if (successMessage != null)
+    {
+        <div class="alert alert-success">@successMessage</div>
+    }
+
+    <div class="tab-bar">
+        <button class="tab-btn @(activeTab == "enrollment" ? "active" : "")"
+                @onclick='() => SetTab("enrollment")'>Enrollment</button>
+        <button class="tab-btn @(activeTab == "readings" ? "active" : "")"
+                @onclick='() => SetTab("readings")'>Readings</button>
+        <button class="tab-btn @(activeTab == "alerts" ? "active" : "")"
+                @onclick='() => SetTab("alerts")'>
+            Alerts
+            @if (activeAlertCount > 0)
+            {
+                <span class="badge badge-danger ms-1">@activeAlertCount</span>
+            }
+        </button>
+        <button class="tab-btn @(activeTab == "devices" ? "active" : "")"
+                @onclick='() => SetTab("devices")'>Device Inventory</button>
+    </div>
+
+    @* ── TAB: Enrollment ─────────────────────────────────────────────────────── *@
+    @if (activeTab == "enrollment")
+    {
+        <div class="tab-content">
+            <div class="ht-columns">
+                @* Left: patient lookup + status *@
+                <div class="col-left">
+                    <h4>Patient Lookup</h4>
+                    <div class="form-row mb-2">
+                        <input class="form-control" placeholder="Patient ID" @bind="patientId" />
+                        <button class="btn btn-primary" @onclick="LoadEnrollment" disabled="@loading">
+                            @(loading ? "Loading…" : "Load")
+                        </button>
+                    </div>
+
+                    @if (enrollment != null)
+                    {
+                        <div class="enrollment-card @(enrollment.IsEnrolled ? "enrolled" : "disenrolled")">
+                            <div class="enrollment-status-row">
+                                <span class="badge @(enrollment.IsEnrolled ? "badge-success" : "badge-secondary")">
+                                    @(enrollment.IsEnrolled ? "ENROLLED" : "NOT ENROLLED")
+                                </span>
+                                @if (enrollment.IsEnrolled && enrollment.EnrollmentDate.HasValue)
+                                {
+                                    <span class="enroll-date">Since @enrollment.EnrollmentDate.Value.ToShortDateString()</span>
+                                }
+                            </div>
+                            @if (enrollment.IsEnrolled)
+                            {
+                                <div class="info-grid mt-2">
+                                    <div class="info-label">Protocol</div>
+                                    <div class="info-value">@enrollment.Protocol</div>
+                                    <div class="info-label">Care Coordinator</div>
+                                    <div class="info-value">@(enrollment.CareCoordinatorName ?? "—")</div>
+                                    <div class="info-label">PCP</div>
+                                    <div class="info-value">@(enrollment.PrimaryCareProviderName ?? "—")</div>
+                                </div>
+                                @if (!string.IsNullOrEmpty(enrollment.Notes))
+                                {
+                                    <div class="mt-1 text-muted small">@enrollment.Notes</div>
+                                }
+
+                                <h5 class="mt-3">Assigned Devices</h5>
+                                @if (enrollment.AssignedDevices.Where(d => d.ReturnedDate == null).Any())
+                                {
+                                    <table class="ht-table">
+                                        <thead>
+                                            <tr><th>Device</th><th>Type</th><th>Since</th><th></th></tr>
+                                        </thead>
+                                        <tbody>
+                                            @foreach (AssignedDevice d in enrollment.AssignedDevices.Where(x => x.ReturnedDate == null))
+                                            {
+                                                <tr>
+                                                    <td>@d.DeviceName</td>
+                                                    <td>@d.DeviceType</td>
+                                                    <td>@d.AssignedDate.ToShortDateString()</td>
+                                                    <td>
+                                                        <button class="btn btn-sm btn-outline"
+                                                                @onclick="() => ReturnDevice(d.DeviceId)">Return</button>
+                                                    </td>
+                                                </tr>
+                                            }
+                                        </tbody>
+                                    </table>
+                                }
+                                else
+                                {
+                                    <p class="text-muted small">No devices assigned.</p>
+                                }
+
+                                <h5 class="mt-3">Alert Thresholds</h5>
+                                @if (enrollment.AlertThresholds.Count > 0)
+                                {
+                                    <table class="ht-table">
+                                        <thead>
+                                            <tr><th>Measurement</th><th>Low</th><th>High</th><th>Low₂</th><th>High₂</th></tr>
+                                        </thead>
+                                        <tbody>
+                                            @foreach (AlertThreshold t in enrollment.AlertThresholds)
+                                            {
+                                                <tr>
+                                                    <td>@t.MeasurementType</td>
+                                                    <td>@(t.LowValue?.ToString() ?? "—")</td>
+                                                    <td>@(t.HighValue?.ToString() ?? "—")</td>
+                                                    <td>@(t.LowValue2?.ToString() ?? "—")</td>
+                                                    <td>@(t.HighValue2?.ToString() ?? "—")</td>
+                                                </tr>
+                                            }
+                                        </tbody>
+                                    </table>
+                                }
+                                else
+                                {
+                                    <p class="text-muted small">No thresholds configured.</p>
+                                }
+
+                                <button class="btn btn-danger btn-sm mt-3" @onclick="() => showDisenrollForm = true">
+                                    Disenroll Patient
+                                </button>
+
+                                @if (showDisenrollForm)
+                                {
+                                    <div class="form-card mt-2">
+                                        <div class="form-group">
+                                            <label>Reason for Disenrollment</label>
+                                            <input class="form-control" @bind="disenrollReason" />
+                                        </div>
+                                        <div class="form-row mt-2">
+                                            <button class="btn btn-danger" @onclick="Disenroll" disabled="@saving">
+                                                @(saving ? "Saving…" : "Confirm Disenroll")
+                                            </button>
+                                            <button class="btn btn-secondary" @onclick="() => showDisenrollForm = false">Cancel</button>
+                                        </div>
+                                    </div>
+                                }
+                            }
+                        </div>
+                    }
+                </div>
+
+                @* Right: enroll / assign device / set thresholds *@
+                <div class="col-right">
+                    @if (enrollment != null && !enrollment.IsEnrolled)
+                    {
+                        <h4>Enroll Patient</h4>
+                        <div class="form-card">
+                            <div class="form-group">
+                                <label>Protocol</label>
+                                <select class="form-control" @bind="enrollProtocol">
+                                    <option value="Standard">Standard</option>
+                                    <option value="Hypertension">Hypertension</option>
+                                    <option value="Diabetes">Diabetes</option>
+                                    <option value="CongestiveHeartFailure">Congestive Heart Failure</option>
+                                    <option value="COPD">COPD</option>
+                                    <option value="PostSurgical">Post-Surgical</option>
+                                    <option value="Custom">Custom</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label>Care Coordinator Name</label>
+                                <input class="form-control" @bind="enrollCoordinatorName" />
+                            </div>
+                            <div class="form-group">
+                                <label>Primary Care Provider Name</label>
+                                <input class="form-control" @bind="enrollPcpName" />
+                            </div>
+                            <div class="form-group">
+                                <label>Notes</label>
+                                <textarea class="form-control" rows="2" @bind="enrollNotes"></textarea>
+                            </div>
+                            <button class="btn btn-primary" @onclick="Enroll" disabled="@saving">
+                                @(saving ? "Enrolling…" : "Enroll")
+                            </button>
+                        </div>
+                    }
+
+                    @if (enrollment != null && enrollment.IsEnrolled)
+                    {
+                        <h4>Assign Device</h4>
+                        <div class="form-card">
+                            <div class="form-group">
+                                <label>Device ID</label>
+                                <input class="form-control" placeholder="HT-DEV-..." @bind="assignDeviceId" />
+                            </div>
+                            <div class="form-group">
+                                <label>Device Name</label>
+                                <input class="form-control" @bind="assignDeviceName" />
+                            </div>
+                            <div class="form-group">
+                                <label>Device Type</label>
+                                <select class="form-control" @bind="assignDeviceType">
+                                    <option value="BloodPressureMonitor">Blood Pressure Monitor</option>
+                                    <option value="Scale">Scale</option>
+                                    <option value="Glucometer">Glucometer</option>
+                                    <option value="PulseOximeter">Pulse Oximeter</option>
+                                    <option value="Thermometer">Thermometer</option>
+                                    <option value="PeakFlowMeter">Peak Flow Meter</option>
+                                    <option value="ECGMonitor">ECG Monitor</option>
+                                    <option value="Other">Other</option>
+                                </select>
+                            </div>
+                            <button class="btn btn-primary" @onclick="AssignDevice" disabled="@saving">
+                                @(saving ? "Assigning…" : "Assign Device")
+                            </button>
+                        </div>
+
+                        <h4 class="mt-3">Add Alert Threshold</h4>
+                        <div class="form-card">
+                            <div class="form-group">
+                                <label>Measurement Type</label>
+                                <select class="form-control" @bind="thresholdType">
+                                    <option value="BloodPressure">Blood Pressure (systolic/diastolic)</option>
+                                    <option value="Weight">Weight</option>
+                                    <option value="BloodGlucose">Blood Glucose</option>
+                                    <option value="PulseOximetry">Pulse Oximetry (SpO2)</option>
+                                    <option value="HeartRate">Heart Rate</option>
+                                    <option value="Temperature">Temperature</option>
+                                    <option value="PeakFlow">Peak Flow</option>
+                                    <option value="PainScale">Pain Scale</option>
+                                </select>
+                            </div>
+                            <div class="form-row">
+                                <div class="form-group flex-1">
+                                    <label>Low</label>
+                                    <input class="form-control" type="number" @bind="thresholdLow" placeholder="Min" />
+                                </div>
+                                <div class="form-group flex-1">
+                                    <label>High</label>
+                                    <input class="form-control" type="number" @bind="thresholdHigh" placeholder="Max" />
+                                </div>
+                            </div>
+                            @if (thresholdType == "BloodPressure")
+                            {
+                                <div class="form-row">
+                                    <div class="form-group flex-1">
+                                        <label>Diastolic Low</label>
+                                        <input class="form-control" type="number" @bind="thresholdLow2" />
+                                    </div>
+                                    <div class="form-group flex-1">
+                                        <label>Diastolic High</label>
+                                        <input class="form-control" type="number" @bind="thresholdHigh2" />
+                                    </div>
+                                </div>
+                            }
+                            <button class="btn btn-secondary" @onclick="AddThreshold" disabled="@saving">
+                                @(saving ? "Saving…" : "Add Threshold")
+                            </button>
+                        </div>
+                    }
+                </div>
+            </div>
+        </div>
+    }
+
+    @* ── TAB: Readings ────────────────────────────────────────────────────────── *@
+    @if (activeTab == "readings")
+    {
+        <div class="tab-content">
+            <div class="ht-columns">
+                @* Left: record new reading *@
+                <div class="col-left">
+                    <h4>Record Reading</h4>
+                    <div class="form-card">
+                        <div class="form-group">
+                            <label>Patient ID</label>
+                            <input class="form-control" @bind="patientId" placeholder="Patient ID" />
+                        </div>
+                        <div class="form-group">
+                            <label>Measurement Type</label>
+                            <select class="form-control" @bind="readingType">
+                                <option value="BloodPressure">Blood Pressure</option>
+                                <option value="Weight">Weight</option>
+                                <option value="BloodGlucose">Blood Glucose</option>
+                                <option value="PulseOximetry">Pulse Oximetry</option>
+                                <option value="HeartRate">Heart Rate</option>
+                                <option value="Temperature">Temperature</option>
+                                <option value="PeakFlow">Peak Flow</option>
+                                <option value="PainScale">Pain Scale</option>
+                            </select>
+                        </div>
+                        <div class="form-row">
+                            <div class="form-group flex-1">
+                                <label>@ReadingLabel1</label>
+                                <input class="form-control" type="number" step="0.1" @bind="readingValue1" />
+                            </div>
+                            @if (readingType == "BloodPressure" || readingType == "PulseOximetry")
+                            {
+                                <div class="form-group flex-1">
+                                    <label>@ReadingLabel2</label>
+                                    <input class="form-control" type="number" @bind="readingValue2" />
+                                </div>
+                            }
+                        </div>
+                        <div class="form-row">
+                            <div class="form-group flex-1">
+                                <label>Unit</label>
+                                <input class="form-control" @bind="readingUnit" />
+                            </div>
+                            <div class="form-group flex-1">
+                                <label>Source</label>
+                                <select class="form-control" @bind="readingSource">
+                                    <option value="PatientEntry">Patient Entry</option>
+                                    <option value="DeviceTransmission">Device Transmission</option>
+                                    <option value="ClinicalStaff">Clinical Staff</option>
+                                    <option value="Telehealth">Telehealth</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label>Notes</label>
+                            <textarea class="form-control" rows="2" @bind="readingNotes"></textarea>
+                        </div>
+                        <button class="btn btn-primary" @onclick="RecordReading" disabled="@saving">
+                            @(saving ? "Recording…" : "Record Reading")
+                        </button>
+                    </div>
+                </div>
+
+                @* Right: reading history *@
+                <div class="col-right">
+                    <div class="history-header">
+                        <h4>Reading History</h4>
+                        <div class="form-row">
+                            <select class="form-control form-control-sm" @bind="filterMeasType">
+                                <option value="">All Types</option>
+                                <option value="BloodPressure">Blood Pressure</option>
+                                <option value="Weight">Weight</option>
+                                <option value="BloodGlucose">Blood Glucose</option>
+                                <option value="PulseOximetry">Pulse Oximetry</option>
+                                <option value="HeartRate">Heart Rate</option>
+                                <option value="Temperature">Temperature</option>
+                                <option value="PeakFlow">Peak Flow</option>
+                                <option value="PainScale">Pain Scale</option>
+                            </select>
+                            <select class="form-control form-control-sm" @bind="filterDays">
+                                <option value="0">All Time</option>
+                                <option value="7">Last 7 Days</option>
+                                <option value="30">Last 30 Days</option>
+                                <option value="90">Last 90 Days</option>
+                            </select>
+                            <button class="btn btn-secondary btn-sm" @onclick="LoadReadings">Refresh</button>
+                        </div>
+                    </div>
+
+                    @if (readings.Count == 0)
+                    {
+                        <p class="text-muted">No readings found.</p>
+                    }
+                    else
+                    {
+                        <table class="ht-table">
+                            <thead>
+                                <tr>
+                                    <th>Date/Time</th>
+                                    <th>Type</th>
+                                    <th>Value</th>
+                                    <th>Source</th>
+                                    <th>Alert</th>
+                                    <th>Reviewed</th>
+                                    <th></th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (ReadingIndexEntry r in readings)
+                                {
+                                    <tr class="@(r.AlertGenerated ? "row-alert" : "")">
+                                        <td>@r.ReadingDateTime.ToString("MM/dd HH:mm")</td>
+                                        <td>@FormatMeasType(r.MeasurementType)</td>
+                                        <td class="reading-value">@FormatReadingValue(r)</td>
+                                        <td><span class="badge badge-source">@r.Source</span></td>
+                                        <td>
+                                            @if (r.AlertGenerated)
+                                            {
+                                                <span class="badge badge-danger">Alert</span>
+                                            }
+                                        </td>
+                                        <td>
+                                            @if (r.IsReviewed)
+                                            {
+                                                <span class="badge badge-success">✓</span>
+                                            }
+                                        </td>
+                                        <td>
+                                            @if (!r.IsReviewed)
+                                            {
+                                                <button class="btn btn-sm btn-outline"
+                                                        @onclick="() => MarkReviewed(r.ReadingId)">Review</button>
+                                            }
+                                        </td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    }
+                </div>
+            </div>
+        </div>
+    }
+
+    @* ── TAB: Alerts ──────────────────────────────────────────────────────────── *@
+    @if (activeTab == "alerts")
+    {
+        <div class="tab-content">
+            <div class="alerts-header">
+                <div class="form-row mb-2">
+                    <input class="form-control" placeholder="Patient ID" @bind="patientId" />
+                    <select class="form-control" @bind="filterAlertStatus">
+                        <option value="">All Statuses</option>
+                        <option value="Active">Active</option>
+                        <option value="Acknowledged">Acknowledged</option>
+                        <option value="Resolved">Resolved</option>
+                        <option value="Dismissed">Dismissed</option>
+                    </select>
+                    <button class="btn btn-secondary" @onclick="LoadAlerts">Load Alerts</button>
+                </div>
+            </div>
+
+            @if (alerts.Count == 0)
+            {
+                <p class="text-muted">No alerts found.</p>
+            }
+            else
+            {
+                @foreach (AlertIndexEntry a in alerts)
+                {
+                    <div class="alert-card severity-@a.Severity.ToLower()">
+                        <div class="alert-card-header">
+                            <span class="badge badge-severity-@a.Severity.ToLower()">@a.Severity</span>
+                            <span class="alert-type">@FormatMeasType(a.MeasurementType)</span>
+                            <span class="alert-time">@a.AlertDateTime.ToString("MM/dd/yyyy HH:mm")</span>
+                            <span class="badge badge-status-@a.Status.ToLower()">@a.Status</span>
+                        </div>
+                        <div class="alert-description">@a.AlertDescription</div>
+                        @if (a.Status == "Active" || a.Status == "Acknowledged")
+                        {
+                            <div class="alert-actions">
+                                @if (a.Status == "Active")
+                                {
+                                    <button class="btn btn-sm btn-outline" @onclick='() => OpenAlertAction(a, "acknowledge")'>Acknowledge</button>
+                                }
+                                <button class="btn btn-sm btn-primary" @onclick='() => OpenAlertAction(a, "resolve")'>Resolve</button>
+                                <button class="btn btn-sm btn-secondary" @onclick='() => OpenAlertAction(a, "dismiss")'>Dismiss</button>
+                            </div>
+                        }
+                    </div>
+                }
+            }
+
+            @if (alertActionTarget != null)
+            {
+                <div class="modal-overlay">
+                    <div class="modal-card">
+                        <h4>@AlertActionTitle @FormatMeasType(alertActionTarget.MeasurementType) Alert</h4>
+                        <div class="form-group">
+                            <label>Clinician ID</label>
+                            <input class="form-control" @bind="actionClinicianId" />
+                        </div>
+                        <div class="form-group">
+                            <label>Clinician Name</label>
+                            <input class="form-control" @bind="actionClinicianName" />
+                        </div>
+                        <div class="form-group">
+                            <label>Clinical Response / Notes</label>
+                            <textarea class="form-control" rows="3" @bind="actionResponse"></textarea>
+                        </div>
+                        <div class="form-row mt-2">
+                            <button class="btn btn-primary" @onclick="SubmitAlertAction" disabled="@saving">
+                                @(saving ? "Saving…" : AlertActionTitle)
+                            </button>
+                            <button class="btn btn-secondary" @onclick="() => alertActionTarget = null">Cancel</button>
+                        </div>
+                    </div>
+                </div>
+            }
+        </div>
+    }
+
+    @* ── TAB: Device Inventory ────────────────────────────────────────────────── *@
+    @if (activeTab == "devices")
+    {
+        <div class="tab-content">
+            <div class="ht-columns">
+                @* Left: add new device *@
+                <div class="col-left">
+                    <h4>Add Device to Inventory</h4>
+                    <div class="form-card">
+                        <div class="form-group">
+                            <label>Device Name</label>
+                            <input class="form-control" @bind="newDeviceName" />
+                        </div>
+                        <div class="form-group">
+                            <label>Device Type</label>
+                            <select class="form-control" @bind="newDeviceType">
+                                <option value="BloodPressureMonitor">Blood Pressure Monitor</option>
+                                <option value="Scale">Scale</option>
+                                <option value="Glucometer">Glucometer</option>
+                                <option value="PulseOximeter">Pulse Oximeter</option>
+                                <option value="Thermometer">Thermometer</option>
+                                <option value="PeakFlowMeter">Peak Flow Meter</option>
+                                <option value="ECGMonitor">ECG Monitor</option>
+                                <option value="Other">Other</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label>Manufacturer</label>
+                            <input class="form-control" @bind="newDeviceManufacturer" />
+                        </div>
+                        <div class="form-group">
+                            <label>Model</label>
+                            <input class="form-control" @bind="newDeviceModel" />
+                        </div>
+                        <div class="form-group">
+                            <label>Serial Number</label>
+                            <input class="form-control" @bind="newDeviceSerial" />
+                        </div>
+                        <button class="btn btn-primary" @onclick="CreateDevice" disabled="@saving">
+                            @(saving ? "Creating…" : "Add Device")
+                        </button>
+                    </div>
+                </div>
+
+                @* Right: inventory list *@
+                <div class="col-right">
+                    <div class="history-header">
+                        <h4>Device Inventory</h4>
+                        <div class="form-row mb-2">
+                            <select class="form-control form-control-sm" @bind="filterDeviceType">
+                                <option value="">All Types</option>
+                                <option value="BloodPressureMonitor">BP Monitor</option>
+                                <option value="Scale">Scale</option>
+                                <option value="Glucometer">Glucometer</option>
+                                <option value="PulseOximeter">Pulse Oximeter</option>
+                                <option value="Thermometer">Thermometer</option>
+                                <option value="PeakFlowMeter">Peak Flow Meter</option>
+                                <option value="ECGMonitor">ECG Monitor</option>
+                                <option value="Other">Other</option>
+                            </select>
+                            <select class="form-control form-control-sm" @bind="filterDeviceStatus">
+                                <option value="">All Statuses</option>
+                                <option value="Available">Available</option>
+                                <option value="Assigned">Assigned</option>
+                                <option value="InMaintenance">In Maintenance</option>
+                                <option value="Retired">Retired</option>
+                            </select>
+                            <button class="btn btn-secondary btn-sm" @onclick="LoadDevices">Refresh</button>
+                        </div>
+                    </div>
+
+                    @if (devices.Count == 0)
+                    {
+                        <p class="text-muted">No devices found.</p>
+                    }
+                    else
+                    {
+                        <table class="ht-table">
+                            <thead>
+                                <tr>
+                                    <th>Name</th>
+                                    <th>Type</th>
+                                    <th>Serial</th>
+                                    <th>Status</th>
+                                    <th>Assigned To</th>
+                                    <th></th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (DeviceIndexEntry d in devices)
+                                {
+                                    <tr>
+                                        <td>@d.DeviceName</td>
+                                        <td>@FormatDeviceType(d.DeviceType)</td>
+                                        <td>@(d.SerialNumber ?? "—")</td>
+                                        <td><span class="badge badge-device-@d.Status.ToLower()">@d.Status</span></td>
+                                        <td>@(d.AssignedPatientId ?? "—")</td>
+                                        <td>
+                                            @if (d.Status == "Available")
+                                            {
+                                                <button class="btn btn-sm btn-outline"
+                                                        @onclick="() => SendToMaintenance(d.DeviceId)">Maintenance</button>
+                                            }
+                                            @if (d.Status == "InMaintenance")
+                                            {
+                                                <button class="btn btn-sm btn-outline"
+                                                        @onclick="() => RetireDevice(d.DeviceId)">Retire</button>
+                                            }
+                                        </td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    }
+                </div>
+            </div>
+        </div>
+    }
+</div>
+
+@code {
+    // ── State ──────────────────────────────────────────────────────────────────
+    string activeTab = "enrollment";
+    string? error;
+    string? successMessage;
+    bool loading;
+    bool saving;
+
+    string patientId = string.Empty;
+    EnrollmentRecord? enrollment;
+    List<ReadingIndexEntry> readings = new();
+    List<AlertIndexEntry> alerts = new();
+    List<DeviceIndexEntry> devices = new();
+
+    int activeAlertCount;
+
+    // Enrollment form
+    string enrollProtocol = "Standard";
+    string enrollCoordinatorName = string.Empty;
+    string enrollPcpName = string.Empty;
+    string enrollNotes = string.Empty;
+    bool showDisenrollForm;
+    string disenrollReason = string.Empty;
+
+    // Assign device form
+    string assignDeviceId = string.Empty;
+    string assignDeviceName = string.Empty;
+    string assignDeviceType = "BloodPressureMonitor";
+
+    // Threshold form
+    string thresholdType = "BloodPressure";
+    decimal? thresholdLow;
+    decimal? thresholdHigh;
+    decimal? thresholdLow2;
+    decimal? thresholdHigh2;
+
+    // Readings form
+    string readingType = "BloodPressure";
+    decimal? readingValue1;
+    decimal? readingValue2;
+    string readingUnit = "mmHg";
+    string readingSource = "PatientEntry";
+    string readingNotes = string.Empty;
+    string filterMeasType = string.Empty;
+    int filterDays;
+
+    // Alert form
+    string filterAlertStatus = "Active";
+    AlertIndexEntry? alertActionTarget;
+    string alertActionVerb = string.Empty;
+    string actionClinicianId = string.Empty;
+    string actionClinicianName = string.Empty;
+    string actionResponse = string.Empty;
+
+    // Device inventory form
+    string newDeviceName = string.Empty;
+    string newDeviceType = "BloodPressureMonitor";
+    string newDeviceManufacturer = string.Empty;
+    string newDeviceModel = string.Empty;
+    string newDeviceSerial = string.Empty;
+    string filterDeviceType = string.Empty;
+    string filterDeviceStatus = string.Empty;
+
+    // ── Computed ───────────────────────────────────────────────────────────────
+    string ReadingLabel1 => readingType switch
+    {
+        "BloodPressure" => "Systolic (mmHg)",
+        "Weight" => "Weight (lbs)",
+        "BloodGlucose" => "Glucose (mg/dL)",
+        "PulseOximetry" => "SpO2 (%)",
+        "HeartRate" => "HR (bpm)",
+        "Temperature" => "Temp (°F)",
+        "PeakFlow" => "Peak Flow (L/min)",
+        "PainScale" => "Pain (0–10)",
+        _ => "Value"
+    };
+
+    string ReadingLabel2 => readingType switch
+    {
+        "BloodPressure" => "Diastolic (mmHg)",
+        "PulseOximetry" => "Pulse (bpm)",
+        _ => "Value 2"
+    };
+
+    string ReadingUnit => readingType switch
+    {
+        "BloodPressure" => "mmHg",
+        "Weight" => "lbs",
+        "BloodGlucose" => "mg/dL",
+        "PulseOximetry" => "%",
+        "HeartRate" => "bpm",
+        "Temperature" => "°F",
+        "PeakFlow" => "L/min",
+        "PainScale" => "0-10",
+        _ => string.Empty
+    };
+
+    string AlertActionTitle => alertActionVerb switch
+    {
+        "acknowledge" => "Acknowledge",
+        "resolve" => "Resolve",
+        "dismiss" => "Dismiss",
+        _ => string.Empty
+    };
+
+    // ── Tab / Navigation ───────────────────────────────────────────────────────
+    async Task SetTab(string tab)
+    {
+        activeTab = tab;
+        error = null;
+        successMessage = null;
+
+        if (tab == "readings" && !string.IsNullOrWhiteSpace(patientId))
+            await LoadReadings();
+        else if (tab == "alerts" && !string.IsNullOrWhiteSpace(patientId))
+            await LoadAlerts();
+        else if (tab == "devices")
+            await LoadDevices();
+    }
+
+    // ── Enrollment ─────────────────────────────────────────────────────────────
+    async Task LoadEnrollment()
+    {
+        if (string.IsNullOrWhiteSpace(patientId)) return;
+        loading = true; error = null;
+        try
+        {
+            var workflow = Grains.GetGrain<IPatientWorkflowGrain>(patientId.Trim());
+            var state = await workflow.GetHtPatientAsync();
+            enrollment = new EnrollmentRecord
+            {
+                PatientId = state.PatientId, IsEnrolled = state.IsEnrolled,
+                EnrollmentDate = state.EnrollmentDate,
+                CareCoordinatorName = state.CareCoordinatorName,
+                PrimaryCareProviderName = state.PrimaryCareProviderName,
+                Protocol = state.Protocol.ToString(), Notes = state.Notes,
+                AssignedDevices = state.AssignedDevices.Select(d => new AssignedDevice
+                {
+                    DeviceId = d.DeviceId, DeviceName = d.DeviceName,
+                    DeviceType = d.DeviceType.ToString(), AssignedDate = d.AssignedDate,
+                    ReturnedDate = d.ReturnedDate
+                }).ToList(),
+                AlertThresholds = state.AlertThresholds.Select(t => new AlertThreshold
+                {
+                    MeasurementType = t.MeasurementType.ToString(),
+                    LowValue = t.LowValue, HighValue = t.HighValue,
+                    LowValue2 = t.LowValue2, HighValue2 = t.HighValue2
+                }).ToList()
+            };
+            activeAlertCount = alerts.Count(a => a.Status == "Active");
+        }
+        catch (Exception ex) { error = $"Load failed: {ex.Message}"; }
+        finally { loading = false; }
+    }
+
+    async Task Enroll()
+    {
+        saving = true; error = null;
+        try
+        {
+            var workflow = Grains.GetGrain<IPatientWorkflowGrain>(patientId.Trim());
+            await workflow.EnrollInHomeTelehealthAsync(null, enrollCoordinatorName, null, enrollPcpName,
+                Enum.Parse<HtCareProtocol>(enrollProtocol), enrollNotes);
+            successMessage = "Patient enrolled successfully.";
+            await LoadEnrollment();
+        }
+        catch (Exception ex) { error = $"Enroll error: {ex.Message}"; }
+        finally { saving = false; }
+    }
+
+    async Task Disenroll()
+    {
+        saving = true; error = null;
+        try
+        {
+            var workflow = Grains.GetGrain<IPatientWorkflowGrain>(patientId.Trim());
+            await workflow.DisenrollFromHomeTelehealthAsync(disenrollReason);
+            successMessage = "Patient disenrolled.";
+            showDisenrollForm = false;
+            await LoadEnrollment();
+        }
+        catch (Exception ex) { error = $"Disenroll error: {ex.Message}"; }
+        finally { saving = false; }
+    }
+
+    async Task AssignDevice()
+    {
+        if (string.IsNullOrWhiteSpace(assignDeviceId) || string.IsNullOrWhiteSpace(assignDeviceName)) return;
+        saving = true; error = null;
+        try
+        {
+            var workflow = Grains.GetGrain<IPatientWorkflowGrain>(patientId.Trim());
+            await workflow.AssignHtDeviceAsync(assignDeviceId, assignDeviceName,
+                Enum.Parse<HtDeviceType>(assignDeviceType));
+            successMessage = "Device assigned.";
+            assignDeviceId = string.Empty; assignDeviceName = string.Empty;
+            await LoadEnrollment();
+        }
+        catch (Exception ex) { error = $"Assign error: {ex.Message}"; }
+        finally { saving = false; }
+    }
+
+    async Task ReturnDevice(string deviceId)
+    {
+        saving = true; error = null;
+        try
+        {
+            var workflow = Grains.GetGrain<IPatientWorkflowGrain>(patientId.Trim());
+            await workflow.ReturnHtDeviceAsync(deviceId);
+            successMessage = "Device returned.";
+            await LoadEnrollment();
+        }
+        catch (Exception ex) { error = $"Return error: {ex.Message}"; }
+        finally { saving = false; }
+    }
+
+    async Task AddThreshold()
+    {
+        saving = true; error = null;
+        try
+        {
+            var existing = enrollment?.AlertThresholds ?? new List<AlertThreshold>();
+            existing.RemoveAll(t => t.MeasurementType == thresholdType);
+            existing.Add(new AlertThreshold
+            {
+                MeasurementType = thresholdType,
+                LowValue = thresholdLow,
+                HighValue = thresholdHigh,
+                LowValue2 = thresholdLow2,
+                HighValue2 = thresholdHigh2
+            });
+            var workflow = Grains.GetGrain<IPatientWorkflowGrain>(patientId.Trim());
+            var grainThresholds = existing.Select(t => new HtAlertThreshold
+            {
+                MeasurementType = Enum.Parse<HtMeasurementType>(t.MeasurementType),
+                LowValue = t.LowValue, HighValue = t.HighValue,
+                LowValue2 = t.LowValue2, HighValue2 = t.HighValue2
+            }).ToList();
+            await workflow.SetHtAlertThresholdsAsync(grainThresholds);
+            successMessage = "Threshold saved."; await LoadEnrollment();
+        }
+        catch (Exception ex) { error = $"Save error: {ex.Message}"; }
+        finally { saving = false; }
+    }
+
+    // ── Readings ───────────────────────────────────────────────────────────────
+    async Task LoadReadings()
+    {
+        if (string.IsNullOrWhiteSpace(patientId)) return;
+        loading = true; error = null;
+        try
+        {
+            var workflow = Grains.GetGrain<IPatientWorkflowGrain>(patientId.Trim());
+            HtMeasurementType? mt = !string.IsNullOrEmpty(filterMeasType) ? Enum.Parse<HtMeasurementType>(filterMeasType) : null;
+            int? days = filterDays > 0 ? filterDays : null;
+            var entries = await workflow.GetHtReadingsAsync(mt, days, 200);
+            readings = entries.Select(e => new ReadingIndexEntry
+            {
+                ReadingId = e.ReadingId, PatientId = e.PatientId,
+                MeasurementType = e.MeasurementType.ToString(),
+                Value1 = e.Value1, Value2 = e.Value2, Unit = e.Unit,
+                ReadingDateTime = e.ReadingDateTime, Source = e.Source.ToString(),
+                AlertGenerated = e.AlertGenerated, IsReviewed = e.IsReviewed
+            }).ToList();
+        }
+        catch (Exception ex) { error = $"Load error: {ex.Message}"; }
+        finally { loading = false; }
+    }
+
+    async Task RecordReading()
+    {
+        if (string.IsNullOrWhiteSpace(patientId) || readingValue1 == null) return;
+        saving = true; error = null;
+        try
+        {
+            var workflow = Grains.GetGrain<IPatientWorkflowGrain>(patientId.Trim());
+            await workflow.RecordHtReadingAsync(
+                Enum.Parse<HtMeasurementType>(readingType), readingValue1, readingValue2,
+                string.IsNullOrEmpty(readingUnit) ? ReadingUnit : readingUnit,
+                DateTime.UtcNow, Enum.Parse<HtReadingSource>(readingSource), null, readingNotes);
+            successMessage = "Reading recorded.";
+            readingValue1 = null; readingValue2 = null; readingNotes = string.Empty;
+            await LoadReadings();
+        }
+        catch (Exception ex) { error = $"Record error: {ex.Message}"; }
+        finally { saving = false; }
+    }
+
+    async Task MarkReviewed(string readingId)
+    {
+        saving = true; error = null;
+        try
+        {
+            var workflow = Grains.GetGrain<IPatientWorkflowGrain>(patientId.Trim());
+            await workflow.ReviewHtReadingAsync(readingId, "CURRENT-USER", "Current User");
+            successMessage = "Reading marked reviewed."; await LoadReadings();
+        }
+        catch (Exception ex) { error = $"Review error: {ex.Message}"; }
+        finally { saving = false; }
+    }
+
+    // ── Alerts ─────────────────────────────────────────────────────────────────
+    async Task LoadAlerts()
+    {
+        if (string.IsNullOrWhiteSpace(patientId)) return;
+        loading = true; error = null;
+        try
+        {
+            var workflow = Grains.GetGrain<IPatientWorkflowGrain>(patientId.Trim());
+            HtAlertStatus? status = !string.IsNullOrEmpty(filterAlertStatus) ? Enum.Parse<HtAlertStatus>(filterAlertStatus) : null;
+            var entries = await workflow.GetHtAlertsAsync(status);
+            alerts = entries.Select(e => new AlertIndexEntry
+            {
+                AlertId = e.AlertId, PatientId = e.PatientId,
+                MeasurementType = e.MeasurementType.ToString(),
+                Severity = e.Severity.ToString(), Status = e.Status.ToString(),
+                AlertDateTime = e.AlertDateTime, AlertDescription = e.AlertDescription
+            }).ToList();
+            activeAlertCount = alerts.Count(a => a.Status == "Active");
+        }
+        catch (Exception ex) { error = $"Load error: {ex.Message}"; }
+        finally { loading = false; }
+    }
+
+    void OpenAlertAction(AlertIndexEntry alert, string verb)
+    {
+        alertActionTarget = alert;
+        alertActionVerb = verb;
+        actionClinicianId = string.Empty;
+        actionClinicianName = string.Empty;
+        actionResponse = string.Empty;
+    }
+
+    async Task SubmitAlertAction()
+    {
+        if (alertActionTarget == null) return;
+        saving = true; error = null;
+        try
+        {
+            string alertId = alertActionTarget.AlertId;
+            var workflow = Grains.GetGrain<IPatientWorkflowGrain>(patientId.Trim());
+            if (alertActionVerb == "acknowledge")
+                await workflow.AcknowledgeHtAlertAsync(alertId, actionClinicianId, actionClinicianName, actionResponse);
+            else if (alertActionVerb == "resolve")
+                await workflow.ResolveHtAlertAsync(alertId, actionClinicianId, actionClinicianName, actionResponse);
+            else if (alertActionVerb == "dismiss")
+                await workflow.DismissHtAlertAsync(alertId, actionClinicianId, actionClinicianName, actionResponse);
+            successMessage = $"Alert {alertActionVerb}d.";
+            alertActionTarget = null;
+            await LoadAlerts();
+        }
+        catch (Exception ex) { error = $"Action error: {ex.Message}"; }
+        finally { saving = false; }
+    }
+
+    // ── Devices ────────────────────────────────────────────────────────────────
+    async Task LoadDevices()
+    {
+        loading = true; error = null;
+        try
+        {
+            var deviceIndex = Grains.GetGrain<IHomeTelehealthDeviceIndexGrain>("HT-DEVICE-IDX");
+            var entries = await deviceIndex.GetAsync(null, null);
+            devices = entries.Select(e => new DeviceIndexEntry
+            {
+                DeviceId = e.DeviceId, DeviceName = e.DeviceName,
+                DeviceType = e.DeviceType.ToString(), SerialNumber = e.SerialNumber,
+                Status = e.Status.ToString(), AssignedPatientId = e.AssignedPatientId
+            }).ToList();
+        }
+        catch (Exception ex) { error = $"Load error: {ex.Message}"; }
+        finally { loading = false; }
+    }
+
+    async Task CreateDevice()
+    {
+        if (string.IsNullOrWhiteSpace(newDeviceName)) return;
+        saving = true; error = null;
+        try
+        {
+            string deviceId = $"HT-DEV:{Guid.NewGuid()}";
+            var deviceGrain = Grains.GetGrain<IHomeTelehealthDeviceGrain>(deviceId);
+            await deviceGrain.CreateAsync(deviceId, newDeviceName,
+                Enum.Parse<HtDeviceType>(newDeviceType),
+                newDeviceManufacturer, newDeviceModel, newDeviceSerial, null);
+            successMessage = "Device added to inventory.";
+            newDeviceName = string.Empty; newDeviceManufacturer = string.Empty;
+            newDeviceModel = string.Empty; newDeviceSerial = string.Empty;
+            await LoadDevices();
+        }
+        catch (Exception ex) { error = $"Create error: {ex.Message}"; }
+        finally { saving = false; }
+    }
+
+    async Task SendToMaintenance(string deviceId)
+    {
+        saving = true; error = null;
+        try
+        {
+            var deviceGrain = Grains.GetGrain<IHomeTelehealthDeviceGrain>(deviceId);
+            await deviceGrain.SendToMaintenanceAsync(null);
+            successMessage = "Device sent to maintenance."; await LoadDevices();
+        }
+        catch (Exception ex) { error = $"Error: {ex.Message}"; }
+        finally { saving = false; }
+    }
+
+    async Task RetireDevice(string deviceId)
+    {
+        saving = true; error = null;
+        try
+        {
+            var deviceGrain = Grains.GetGrain<IHomeTelehealthDeviceGrain>(deviceId);
+            await deviceGrain.RetireAsync(null);
+            successMessage = "Device retired."; await LoadDevices();
+        }
+        catch (Exception ex) { error = $"Error: {ex.Message}"; }
+        finally { saving = false; }
+    }
+
+    // ── Helpers ────────────────────────────────────────────────────────────────
+    string FormatMeasType(string type) => type switch
+    {
+        "BloodPressure" => "Blood Pressure",
+        "BloodGlucose" => "Blood Glucose",
+        "PulseOximetry" => "SpO2",
+        "HeartRate" => "Heart Rate",
+        "PeakFlow" => "Peak Flow",
+        "PainScale" => "Pain Scale",
+        _ => type
+    };
+
+    string FormatReadingValue(ReadingIndexEntry r)
+    {
+        if (r.MeasurementType == "BloodPressure" && r.Value2.HasValue)
+            return $"{r.Value1}/{r.Value2} {r.Unit}";
+        return $"{r.Value1} {r.Unit}";
+    }
+
+    string FormatDeviceType(string type) => type switch
+    {
+        "BloodPressureMonitor" => "BP Monitor",
+        "PulseOximeter" => "Pulse Ox",
+        "PeakFlowMeter" => "Peak Flow",
+        "ECGMonitor" => "ECG",
+        _ => type
+    };
+
+    // ── DTOs ───────────────────────────────────────────────────────────────────
+    class EnrollmentRecord
+    {
+        public string PatientId { get; set; } = string.Empty;
+        public bool IsEnrolled { get; set; }
+        public DateTime? EnrollmentDate { get; set; }
+        public string? CareCoordinatorName { get; set; }
+        public string? PrimaryCareProviderName { get; set; }
+        public string Protocol { get; set; } = string.Empty;
+        public string? Notes { get; set; }
+        public List<AssignedDevice> AssignedDevices { get; set; } = new();
+        public List<AlertThreshold> AlertThresholds { get; set; } = new();
+    }
+
+    class AssignedDevice
+    {
+        public string DeviceId { get; set; } = string.Empty;
+        public string DeviceName { get; set; } = string.Empty;
+        public string DeviceType { get; set; } = string.Empty;
+        public DateTime AssignedDate { get; set; }
+        public DateTime? ReturnedDate { get; set; }
+    }
+
+    class AlertThreshold
+    {
+        public string MeasurementType { get; set; } = string.Empty;
+        public decimal? LowValue { get; set; }
+        public decimal? HighValue { get; set; }
+        public decimal? LowValue2 { get; set; }
+        public decimal? HighValue2 { get; set; }
+    }
+
+    class ReadingIndexEntry
+    {
+        public string ReadingId { get; set; } = string.Empty;
+        public string PatientId { get; set; } = string.Empty;
+        public string MeasurementType { get; set; } = string.Empty;
+        public decimal? Value1 { get; set; }
+        public decimal? Value2 { get; set; }
+        public string Unit { get; set; } = string.Empty;
+        public DateTime ReadingDateTime { get; set; }
+        public bool AlertGenerated { get; set; }
+        public bool IsReviewed { get; set; }
+        public string Source { get; set; } = string.Empty;
+    }
+
+    class AlertIndexEntry
+    {
+        public string AlertId { get; set; } = string.Empty;
+        public string PatientId { get; set; } = string.Empty;
+        public string ReadingId { get; set; } = string.Empty;
+        public string MeasurementType { get; set; } = string.Empty;
+        public string Severity { get; set; } = string.Empty;
+        public string Status { get; set; } = string.Empty;
+        public DateTime AlertDateTime { get; set; }
+        public string AlertDescription { get; set; } = string.Empty;
+    }
+
+    class DeviceIndexEntry
+    {
+        public string DeviceId { get; set; } = string.Empty;
+        public string DeviceName { get; set; } = string.Empty;
+        public string DeviceType { get; set; } = string.Empty;
+        public string? SerialNumber { get; set; }
+        public string Status { get; set; } = string.Empty;
+        public string? AssignedPatientId { get; set; }
+    }
+}
+
+<style>
+    .ht-container { padding: 1.5rem; font-family: var(--font-mono, monospace); max-width: 1400px; }
+    .ht-header { margin-bottom: 1rem; border-bottom: 2px solid var(--color-border, #ccc); padding-bottom: 0.5rem; }
+    .ht-header h2 { font-size: 1.4rem; color: var(--color-primary, #005a9e); }
+
+    .tab-bar { display: flex; gap: 0.5rem; margin-bottom: 1rem; border-bottom: 1px solid #ccc; }
+    .tab-btn { padding: 0.4rem 1rem; border: 1px solid #ccc; border-bottom: none; background: #f5f5f5; cursor: pointer; border-radius: 4px 4px 0 0; font-size: 0.9rem; }
+    .tab-btn.active { background: white; border-bottom-color: white; color: var(--color-primary, #005a9e); font-weight: bold; }
+    .tab-content { padding: 1rem 0; }
+
+    .ht-columns { display: flex; gap: 1.5rem; }
+    .col-left { flex: 0 0 400px; }
+    .col-right { flex: 1; }
+
+    .form-card { background: #f9f9f9; border: 1px solid #ddd; border-radius: 6px; padding: 1rem; margin-bottom: 1rem; }
+    .form-group { margin-bottom: 0.6rem; }
+    .form-group label { display: block; font-size: 0.8rem; font-weight: bold; margin-bottom: 0.2rem; color: #444; }
+    .form-control { width: 100%; padding: 0.35rem 0.5rem; border: 1px solid #ccc; border-radius: 4px; font-size: 0.9rem; }
+    .form-control-sm { padding: 0.25rem 0.4rem; font-size: 0.85rem; }
+    .form-row { display: flex; gap: 0.5rem; align-items: flex-end; flex-wrap: wrap; }
+    .flex-1 { flex: 1; }
+
+    .btn { padding: 0.35rem 0.8rem; border: none; border-radius: 4px; cursor: pointer; font-size: 0.85rem; }
+    .btn:disabled { opacity: 0.6; cursor: not-allowed; }
+    .btn-primary { background: var(--color-primary, #005a9e); color: white; }
+    .btn-secondary { background: #6c757d; color: white; }
+    .btn-danger { background: #dc3545; color: white; }
+    .btn-outline { background: transparent; border: 1px solid #aaa; color: #333; }
+    .btn-sm { padding: 0.2rem 0.5rem; font-size: 0.8rem; }
+
+    .alert { padding: 0.6rem 1rem; border-radius: 4px; margin-bottom: 1rem; font-size: 0.9rem; }
+    .alert-danger { background: #f8d7da; border: 1px solid #f5c6cb; color: #721c24; }
+    .alert-success { background: #d4edda; border: 1px solid #c3e6cb; color: #155724; }
+
+    .badge { padding: 0.2rem 0.5rem; border-radius: 3px; font-size: 0.75rem; font-weight: bold; display: inline-block; }
+    .badge-success { background: #28a745; color: white; }
+    .badge-secondary { background: #6c757d; color: white; }
+    .badge-danger { background: #dc3545; color: white; }
+    .badge-source { background: #e0e0e0; color: #333; }
+    .badge-status-active { background: #dc3545; color: white; }
+    .badge-status-acknowledged { background: #fd7e14; color: white; }
+    .badge-status-resolved { background: #28a745; color: white; }
+    .badge-status-dismissed { background: #6c757d; color: white; }
+    .badge-severity-low { background: #17a2b8; color: white; }
+    .badge-severity-moderate { background: #fd7e14; color: white; }
+    .badge-severity-high { background: #dc3545; color: white; }
+    .badge-severity-critical { background: #6f42c1; color: white; }
+    .badge-device-available { background: #28a745; color: white; }
+    .badge-device-assigned { background: #007bff; color: white; }
+    .badge-device-inmaintenance { background: #fd7e14; color: white; }
+    .badge-device-retired { background: #6c757d; color: white; }
+    .ms-1 { margin-left: 0.25rem; }
+
+    .enrollment-card { border: 1px solid #ccc; border-radius: 6px; padding: 1rem; background: #fff; margin-top: 1rem; }
+    .enrollment-card.enrolled { border-color: #28a745; }
+    .enrollment-card.disenrolled { border-color: #6c757d; }
+    .enrollment-status-row { display: flex; align-items: center; gap: 0.75rem; }
+    .enroll-date { font-size: 0.8rem; color: #555; }
+
+    .info-grid { display: grid; grid-template-columns: 120px 1fr; gap: 0.2rem 0.5rem; font-size: 0.85rem; }
+    .info-label { color: #666; font-weight: bold; }
+    .info-value { color: #222; }
+
+    .ht-table { width: 100%; border-collapse: collapse; font-size: 0.85rem; margin-top: 0.5rem; }
+    .ht-table th { background: #f0f0f0; padding: 0.4rem 0.6rem; text-align: left; border-bottom: 2px solid #ccc; }
+    .ht-table td { padding: 0.35rem 0.6rem; border-bottom: 1px solid #eee; vertical-align: middle; }
+    .ht-table tr:hover td { background: #fafafa; }
+    .row-alert td { background: #fff3cd !important; }
+    .reading-value { font-family: monospace; font-weight: bold; }
+
+    .history-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem; flex-wrap: wrap; gap: 0.5rem; }
+    .history-header h4 { margin: 0; }
+
+    .alert-card { border: 1px solid #ddd; border-radius: 6px; padding: 0.75rem 1rem; margin-bottom: 0.75rem; background: white; }
+    .alert-card.severity-critical { border-left: 5px solid #6f42c1; }
+    .alert-card.severity-high { border-left: 5px solid #dc3545; }
+    .alert-card.severity-moderate { border-left: 5px solid #fd7e14; }
+    .alert-card.severity-low { border-left: 5px solid #17a2b8; }
+    .alert-card-header { display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.4rem; flex-wrap: wrap; }
+    .alert-type { font-weight: bold; font-size: 0.9rem; }
+    .alert-time { color: #666; font-size: 0.8rem; margin-left: auto; }
+    .alert-description { font-size: 0.85rem; color: #333; margin-bottom: 0.5rem; }
+    .alert-actions { display: flex; gap: 0.5rem; }
+
+    .alerts-header { margin-bottom: 0.75rem; }
+
+    .modal-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.4); display: flex; align-items: center; justify-content: center; z-index: 1000; }
+    .modal-card { background: white; border-radius: 8px; padding: 1.5rem; width: 480px; max-width: 95vw; box-shadow: 0 4px 20px rgba(0,0,0,0.2); }
+
+    .mt-1 { margin-top: 0.25rem; }
+    .mt-2 { margin-top: 0.5rem; }
+    .mt-3 { margin-top: 1rem; }
+    .mb-1 { margin-bottom: 0.25rem; }
+    .mb-2 { margin-bottom: 0.5rem; }
+    .text-muted { color: #6c757d; }
+    .small { font-size: 0.85rem; }
+</style>

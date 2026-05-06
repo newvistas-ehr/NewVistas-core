@@ -1,0 +1,206 @@
+<UserControl x:Class="NewVistas.Wpf_UI.Views.PTGoalsView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <ScrollViewer VerticalScrollBarVisibility="Auto">
+        <StackPanel Margin="24" MaxWidth="1000">
+            <!-- Header -->
+            <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+                <Button Content="&lt; Back to PT Hub" Style="{StaticResource SecondaryButton}"
+                        Command="{Binding GoBackCommand}" Margin="0,0,12,0"/>
+                <TextBlock Style="{StaticResource PageTitle}" Text="PT Goals"/>
+            </StackPanel>
+
+            <TextBlock Style="{StaticResource ErrorText}" Text="{Binding Error}"
+                       Visibility="{Binding Error, Converter={StaticResource NullToVisibility}}"/>
+
+            <StackPanel Orientation="Horizontal" Margin="0,0,0,16">
+                <Button Content="Load Goals" Style="{StaticResource PrimaryButton}"
+                        Command="{Binding LoadCommand}" Margin="0,0,8,0"/>
+                <ProgressBar IsIndeterminate="True" Width="120" Height="20"
+                             Visibility="{Binding IsLoading, Converter={StaticResource BoolToVisibility}}"/>
+            </StackPanel>
+
+            <!-- Tab buttons -->
+            <StackPanel Orientation="Horizontal" Margin="0,0,0,12">
+                <Button Content="Active Goals" Style="{StaticResource PrimaryButton}"
+                        Command="{Binding ShowActiveCommand}" Margin="0,0,8,0"/>
+                <Button Content="Add Goal" Style="{StaticResource SecondaryButton}"
+                        Command="{Binding ShowAddCommand}" Margin="0,0,8,0"/>
+                <Button Content="All Goals" Style="{StaticResource SecondaryButton}"
+                        Command="{Binding ShowAllCommand}" Margin="0,0,8,0"/>
+            </StackPanel>
+
+            <!-- Active Goals -->
+            <Border Style="{StaticResource FormPanel}"
+                    Visibility="{Binding ShowActiveGoals, Converter={StaticResource BoolToVisibility}}">
+                <StackPanel>
+                    <TextBlock Style="{StaticResource SectionHeader}" Text="Active Goals"/>
+                    <DataGrid ItemsSource="{Binding ActiveGoals}" AutoGenerateColumns="False"
+                              IsReadOnly="True" MaxHeight="500"
+                              HeadersVisibility="Column" GridLinesVisibility="Horizontal">
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Header="Body Group" Binding="{Binding BodyGroup}" Width="100"/>
+                            <DataGridTextColumn Header="Type" Binding="{Binding GoalType}" Width="80"/>
+                            <DataGridTextColumn Header="Description" Binding="{Binding Description}" Width="*"/>
+                            <DataGridTextColumn Header="Baseline" Binding="{Binding BaselineValue}" Width="70"/>
+                            <DataGridTextColumn Header="Current" Binding="{Binding CurrentValue}" Width="70"/>
+                            <DataGridTextColumn Header="Target" Binding="{Binding TargetValue}" Width="70"/>
+                            <DataGridTextColumn Header="Status" Binding="{Binding Status}" Width="80"/>
+                            <DataGridTemplateColumn Header="Update" Width="70">
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <Button Content="Update" Style="{StaticResource PrimaryButton}"
+                                                Padding="4,2" FontSize="11"
+                                                Command="{Binding DataContext.SelectGoalForProgressCommand, RelativeSource={RelativeSource AncestorType=DataGrid}}"
+                                                CommandParameter="{Binding}"/>
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                            </DataGridTemplateColumn>
+                        </DataGrid.Columns>
+                    </DataGrid>
+                </StackPanel>
+            </Border>
+
+            <!-- Progress Form -->
+            <Border Style="{StaticResource FormPanel}" Margin="0,8,0,0"
+                    Visibility="{Binding ShowProgressForm, Converter={StaticResource BoolToVisibility}}">
+                <StackPanel>
+                    <TextBlock Style="{StaticResource SectionHeader}" Text="Record Progress"/>
+                    <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+                        <StackPanel Margin="0,0,16,0">
+                            <TextBlock Style="{StaticResource FieldLabel}" Text="New Value"/>
+                            <TextBox Text="{Binding ProgressValue, UpdateSourceTrigger=PropertyChanged}" Width="120"/>
+                        </StackPanel>
+                        <StackPanel Margin="0,0,16,0">
+                            <TextBlock Style="{StaticResource FieldLabel}" Text="Notes"/>
+                            <TextBox Text="{Binding ProgressNotes, UpdateSourceTrigger=PropertyChanged}" Width="300"/>
+                        </StackPanel>
+                    </StackPanel>
+                    <Button Content="Record Progress" Style="{StaticResource PrimaryButton}"
+                            Command="{Binding RecordProgressCommand}" HorizontalAlignment="Left"/>
+                </StackPanel>
+            </Border>
+
+            <!-- Add Goal Form -->
+            <Border Style="{StaticResource FormPanel}"
+                    Visibility="{Binding ShowAddGoal, Converter={StaticResource BoolToVisibility}}">
+                <StackPanel>
+                    <TextBlock Style="{StaticResource SectionHeader}" Text="Add New Goal"/>
+                    <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+                        <StackPanel Margin="0,0,16,0">
+                            <TextBlock Style="{StaticResource FieldLabel}" Text="Body Group"/>
+                            <ComboBox SelectedItem="{Binding NewGoalBodyGroup}" Width="140">
+                                <ComboBox.Items>
+                                    <x:Static Member="NewVistas.PT.Models.BodyGroup.Cervical"/>
+                                    <x:Static Member="NewVistas.PT.Models.BodyGroup.Shoulder"/>
+                                    <x:Static Member="NewVistas.PT.Models.BodyGroup.Elbow"/>
+                                    <x:Static Member="NewVistas.PT.Models.BodyGroup.Wrist"/>
+                                    <x:Static Member="NewVistas.PT.Models.BodyGroup.Hand"/>
+                                    <x:Static Member="NewVistas.PT.Models.BodyGroup.Hip"/>
+                                    <x:Static Member="NewVistas.PT.Models.BodyGroup.Knee"/>
+                                    <x:Static Member="NewVistas.PT.Models.BodyGroup.Ankle"/>
+                                    <x:Static Member="NewVistas.PT.Models.BodyGroup.Foot"/>
+                                    <x:Static Member="NewVistas.PT.Models.BodyGroup.ThoracicSpine"/>
+                                    <x:Static Member="NewVistas.PT.Models.BodyGroup.LumbarSpine"/>
+                                    <x:Static Member="NewVistas.PT.Models.BodyGroup.TMJ"/>
+                                </ComboBox.Items>
+                            </ComboBox>
+                        </StackPanel>
+                        <StackPanel Margin="0,0,16,0">
+                            <TextBlock Style="{StaticResource FieldLabel}" Text="Goal Type"/>
+                            <ComboBox SelectedItem="{Binding NewGoalType}" Width="140">
+                                <ComboBox.Items>
+                                    <x:Static Member="NewVistas.PT.Models.GoalType.ROM"/>
+                                    <x:Static Member="NewVistas.PT.Models.GoalType.Strength"/>
+                                    <x:Static Member="NewVistas.PT.Models.GoalType.PainReduction"/>
+                                    <x:Static Member="NewVistas.PT.Models.GoalType.Functional"/>
+                                    <x:Static Member="NewVistas.PT.Models.GoalType.Balance"/>
+                                    <x:Static Member="NewVistas.PT.Models.GoalType.Endurance"/>
+                                </ComboBox.Items>
+                            </ComboBox>
+                        </StackPanel>
+                        <StackPanel>
+                            <TextBlock Style="{StaticResource FieldLabel}" Text="Side"/>
+                            <ComboBox SelectedItem="{Binding NewGoalSide}" Width="120">
+                                <ComboBox.Items>
+                                    <x:Static Member="NewVistas.PT.GrainStates.Laterality.Bilateral"/>
+                                    <x:Static Member="NewVistas.PT.GrainStates.Laterality.Left"/>
+                                    <x:Static Member="NewVistas.PT.GrainStates.Laterality.Right"/>
+                                </ComboBox.Items>
+                            </ComboBox>
+                        </StackPanel>
+                    </StackPanel>
+                    <StackPanel Margin="0,0,0,8">
+                        <TextBlock Style="{StaticResource FieldLabel}" Text="Description"/>
+                        <TextBox Text="{Binding NewGoalDescription, UpdateSourceTrigger=PropertyChanged}" Width="500" HorizontalAlignment="Left"/>
+                    </StackPanel>
+                    <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+                        <StackPanel Margin="0,0,16,0">
+                            <TextBlock Style="{StaticResource FieldLabel}" Text="Baseline Value"/>
+                            <TextBox Text="{Binding NewGoalBaseline, UpdateSourceTrigger=PropertyChanged}" Width="100"/>
+                        </StackPanel>
+                        <StackPanel Margin="0,0,16,0">
+                            <TextBlock Style="{StaticResource FieldLabel}" Text="Target Value"/>
+                            <TextBox Text="{Binding NewGoalTarget, UpdateSourceTrigger=PropertyChanged}" Width="100"/>
+                        </StackPanel>
+                        <StackPanel>
+                            <TextBlock Style="{StaticResource FieldLabel}" Text="Target Date"/>
+                            <DatePicker SelectedDate="{Binding NewGoalTargetDate}" Width="160"/>
+                        </StackPanel>
+                    </StackPanel>
+                    <StackPanel Margin="0,0,0,8">
+                        <TextBlock Style="{StaticResource FieldLabel}" Text="Notes"/>
+                        <TextBox Text="{Binding NewGoalNotes, UpdateSourceTrigger=PropertyChanged}" Width="500" HorizontalAlignment="Left"
+                                 AcceptsReturn="True" TextWrapping="Wrap" Height="50"/>
+                    </StackPanel>
+                    <Button Content="Add Goal" Style="{StaticResource PrimaryButton}"
+                            Command="{Binding AddGoalCommand}" HorizontalAlignment="Left"/>
+                </StackPanel>
+            </Border>
+
+            <!-- All Goals -->
+            <Border Style="{StaticResource FormPanel}"
+                    Visibility="{Binding ShowAllGoals, Converter={StaticResource BoolToVisibility}}">
+                <StackPanel>
+                    <TextBlock Style="{StaticResource SectionHeader}" Text="All Goals"/>
+                    <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+                        <StackPanel Margin="0,0,16,0">
+                            <TextBlock Style="{StaticResource FieldLabel}" Text="Body Group"/>
+                            <ComboBox SelectedItem="{Binding FilterBodyGroup}" Width="140">
+                                <ComboBox.Items>
+                                    <x:Static Member="NewVistas.PT.Models.BodyGroup.Cervical"/>
+                                    <x:Static Member="NewVistas.PT.Models.BodyGroup.Shoulder"/>
+                                    <x:Static Member="NewVistas.PT.Models.BodyGroup.Elbow"/>
+                                    <x:Static Member="NewVistas.PT.Models.BodyGroup.Wrist"/>
+                                    <x:Static Member="NewVistas.PT.Models.BodyGroup.Hand"/>
+                                    <x:Static Member="NewVistas.PT.Models.BodyGroup.Hip"/>
+                                    <x:Static Member="NewVistas.PT.Models.BodyGroup.Knee"/>
+                                    <x:Static Member="NewVistas.PT.Models.BodyGroup.Ankle"/>
+                                    <x:Static Member="NewVistas.PT.Models.BodyGroup.Foot"/>
+                                    <x:Static Member="NewVistas.PT.Models.BodyGroup.ThoracicSpine"/>
+                                    <x:Static Member="NewVistas.PT.Models.BodyGroup.LumbarSpine"/>
+                                    <x:Static Member="NewVistas.PT.Models.BodyGroup.TMJ"/>
+                                </ComboBox.Items>
+                            </ComboBox>
+                        </StackPanel>
+                        <Button Content="Load" Style="{StaticResource PrimaryButton}"
+                                Command="{Binding LoadAllGoalsCommand}" VerticalAlignment="Bottom"/>
+                    </StackPanel>
+                    <DataGrid ItemsSource="{Binding AllGoals}" AutoGenerateColumns="False"
+                              IsReadOnly="True" MaxHeight="400"
+                              HeadersVisibility="Column" GridLinesVisibility="Horizontal">
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Header="Type" Binding="{Binding GoalType}" Width="80"/>
+                            <DataGridTextColumn Header="Description" Binding="{Binding Description}" Width="*"/>
+                            <DataGridTextColumn Header="Baseline" Binding="{Binding BaselineValue}" Width="70"/>
+                            <DataGridTextColumn Header="Current" Binding="{Binding CurrentValue}" Width="70"/>
+                            <DataGridTextColumn Header="Target" Binding="{Binding TargetValue}" Width="70"/>
+                            <DataGridTextColumn Header="Status" Binding="{Binding Status}" Width="80"/>
+                            <DataGridTextColumn Header="Created" Binding="{Binding CreatedDate, StringFormat=MM/dd/yyyy}" Width="90"/>
+                        </DataGrid.Columns>
+                    </DataGrid>
+                </StackPanel>
+            </Border>
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>

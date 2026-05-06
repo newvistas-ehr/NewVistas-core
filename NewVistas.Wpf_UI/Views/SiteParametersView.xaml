@@ -1,0 +1,108 @@
+<UserControl x:Class="NewVistas.Wpf_UI.Views.SiteParametersView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <ScrollViewer VerticalScrollBarVisibility="Auto">
+        <StackPanel Margin="24">
+            <TextBlock Style="{StaticResource PageTitle}" Text="Site Parameters"/>
+            <TextBlock Text="System-wide configuration settings" Foreground="Gray" FontSize="13" Margin="0,0,0,12"/>
+
+            <!-- Error / Success banners -->
+            <TextBlock Style="{StaticResource ErrorText}" Text="{Binding Error}"
+                       Visibility="{Binding Error, Converter={StaticResource NullToVisibility}}"/>
+            <Border Background="#d1fae5" BorderBrush="#a7f3d0" BorderThickness="1" CornerRadius="4"
+                    Padding="8" Margin="0,0,0,8"
+                    Visibility="{Binding SuccessMessage, Converter={StaticResource NullToVisibility}}">
+                <TextBlock Text="{Binding SuccessMessage}" Foreground="#065f46"/>
+            </Border>
+
+            <!-- Loading indicator -->
+            <ProgressBar IsIndeterminate="True" Width="120" Height="20" HorizontalAlignment="Left" Margin="0,0,0,8"
+                         Visibility="{Binding IsLoading, Converter={StaticResource BoolToVisibility}}"/>
+
+            <TabControl SelectedIndex="{Binding SelectedTab}">
+
+                <!-- ── Tab: Display Settings ───────────────────────────────────── -->
+                <TabItem Header="Display Settings">
+                    <StackPanel Margin="8">
+                        <TextBlock Style="{StaticResource SectionHeader}" Text="Display Settings"/>
+                        <TextBlock Text="Controls the number of entries displayed on the cover sheet and clinical pages."
+                                   Foreground="Gray" FontSize="13" Margin="0,0,0,12"/>
+
+                        <Border Style="{StaticResource FormPanel}" MaxWidth="500" HorizontalAlignment="Left">
+                            <StackPanel>
+                                <TextBlock Style="{StaticResource FieldLabel}" Text="Vitals Display Count"/>
+                                <TextBox Text="{Binding VitalsDisplayCount, UpdateSourceTrigger=PropertyChanged}"
+                                         Width="120" HorizontalAlignment="Left" Margin="0,0,0,12"/>
+
+                                <TextBlock Style="{StaticResource FieldLabel}" Text="Orders Display Count"/>
+                                <TextBox Text="{Binding OrdersDisplayCount, UpdateSourceTrigger=PropertyChanged}"
+                                         Width="120" HorizontalAlignment="Left" Margin="0,0,0,12"/>
+
+                                <TextBlock Style="{StaticResource FieldLabel}" Text="Notes Display Count"/>
+                                <TextBox Text="{Binding NotesDisplayCount, UpdateSourceTrigger=PropertyChanged}"
+                                         Width="120" HorizontalAlignment="Left" Margin="0,0,0,12"/>
+
+                                <StackPanel Orientation="Horizontal" Margin="0,4,0,0">
+                                    <Button Content="Load" Style="{StaticResource PrimaryButton}"
+                                            Command="{Binding LoadDisplaySettingsCommand}" Margin="0,0,8,0"/>
+                                    <Button Content="Save" Style="{StaticResource PrimaryButton}"
+                                            Command="{Binding SaveDisplaySettingsCommand}"
+                                            IsEnabled="{Binding IsSaving, Converter={StaticResource InverseBool}}"/>
+                                </StackPanel>
+                            </StackPanel>
+                        </Border>
+                    </StackPanel>
+                </TabItem>
+
+                <!-- ── Tab: Custom Parameters ──────────────────────────────────── -->
+                <TabItem Header="Custom Parameters">
+                    <StackPanel Margin="8">
+                        <TextBlock Style="{StaticResource SectionHeader}" Text="Custom Parameters"/>
+
+                        <!-- Add / Update form -->
+                        <Border Style="{StaticResource FormPanel}" Margin="0,0,0,12">
+                            <StackPanel>
+                                <TextBlock Style="{StaticResource SectionHeader}" Text="Add / Update Parameter" FontSize="14"/>
+                                <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
+                                    <StackPanel Margin="0,0,16,0">
+                                        <TextBlock Style="{StaticResource FieldLabel}" Text="Parameter Name *"/>
+                                        <TextBox Text="{Binding NewParamName, UpdateSourceTrigger=PropertyChanged}"
+                                                 Width="200"/>
+                                    </StackPanel>
+                                    <StackPanel Margin="0,0,16,0">
+                                        <TextBlock Style="{StaticResource FieldLabel}" Text="Value *"/>
+                                        <TextBox Text="{Binding NewParamValue, UpdateSourceTrigger=PropertyChanged}"
+                                                 Width="200"/>
+                                    </StackPanel>
+                                    <Button Content="Set Parameter" Style="{StaticResource PrimaryButton}"
+                                            Command="{Binding SetParameterCommand}" VerticalAlignment="Bottom"
+                                            IsEnabled="{Binding IsSaving, Converter={StaticResource InverseBool}}"/>
+                                </StackPanel>
+                            </StackPanel>
+                        </Border>
+
+                        <!-- Existing parameters grid -->
+                        <DataGrid ItemsSource="{Binding Parameters}" AutoGenerateColumns="False"
+                                  CanUserAddRows="False" CanUserDeleteRows="False" IsReadOnly="True">
+                            <DataGrid.Columns>
+                                <DataGridTextColumn Header="Name" Binding="{Binding Name}" Width="*"/>
+                                <DataGridTextColumn Header="Value" Binding="{Binding Value}" Width="*"/>
+                                <DataGridTemplateColumn Header="Actions" Width="90">
+                                    <DataGridTemplateColumn.CellTemplate>
+                                        <DataTemplate>
+                                            <Button Content="Delete" Style="{StaticResource DangerButton}"
+                                                    Command="{Binding DataContext.DeleteParameterCommand,
+                                                        RelativeSource={RelativeSource AncestorType=DataGrid}}"
+                                                    CommandParameter="{Binding Name}"/>
+                                        </DataTemplate>
+                                    </DataGridTemplateColumn.CellTemplate>
+                                </DataGridTemplateColumn>
+                            </DataGrid.Columns>
+                        </DataGrid>
+                    </StackPanel>
+                </TabItem>
+
+            </TabControl>
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>

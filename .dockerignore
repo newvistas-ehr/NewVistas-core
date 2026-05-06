@@ -1,0 +1,45 @@
+# Build output
+**/bin/
+**/obj/
+
+# Git
+.git/
+.gitattributes
+.gitignore
+
+# Visual Studio
+.vs/
+.vscode/
+*.user
+*.suo
+
+# NuGet
+**/packages/
+*.nupkg
+*.snupkg
+
+# Test results
+TestResults/
+*.trx
+nunit-*.xml
+coverage*.json
+
+# Scripts (not needed in build context)
+scripts/
+
+# Documentation
+*.md
+Markdown/
+Reporting/
+
+# Projects not needed in any container image
+NewVistas.CharUI/
+NewVistas.WpfDelphiUI/
+NewVistas.Wpf_UI/
+NewVistas.UnitTests/
+NewVistas.FunctionalTests/
+
+# Temporary files
+*.tmp
+*.log
+*.swp

@@ -1,0 +1,60 @@
+@page "/my-medications"
+@rendermode InteractiveServer
+@inject HttpClient Http
+
+<PageTitle>My Medications</PageTitle>
+<h1>My Medications</h1>
+
+@if (error != null) { <div class="alert alert-error">@error</div> }
+@if (loading) { <p>Loading...</p> }
+else if (items.Count == 0) { <p class="empty-state">No medications on record.</p> }
+else
+{
+    <table class="health-table">
+        <thead><tr><th>Medication</th><th>Dosage</th><th>Route</th><th>Schedule</th><th>Status</th></tr></thead>
+        <tbody>
+            @foreach (MedDto m in items)
+            {
+                <tr>
+                    <td>@(m.DrugName ?? m.OrderableItemName ?? "—")</td>
+                    <td>@(m.Dosage ?? "—")</td>
+                    <td>@(m.Route ?? "—")</td>
+                    <td>@(m.Schedule ?? "—")</td>
+                    <td>@(m.Status ?? "—")</td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+
+@code {
+    bool loading = true;
+    string? error;
+    List<MedDto> items = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        try { items = await Http.GetFromJsonAsync<List<MedDto>>("api/my/health/medications") ?? new(); }
+        catch (Exception ex) { error = $"Error: {ex.Message}"; }
+        finally { loading = false; }
+    }
+
+    private class MedDto
+    {
+        public string? DrugName { get; set; }
+        public string? OrderableItemName { get; set; }
+        public string? Dosage { get; set; }
+        public string? Route { get; set; }
+        public string? Schedule { get; set; }
+        public string? Status { get; set; }
+    }
+}
+
+<style>
+    .health-table { width: 100%; border-collapse: collapse; font-size: .9rem; }
+    .health-table th { background: #f1f8f4; text-align: left; padding: .5rem .6rem; border-bottom: 2px solid #d4e8db; }
+    .health-table td { padding: .4rem .6rem; border-bottom: 1px solid #eee; }
+    .health-table tr:hover td { background: #f5faf7; }
+    .empty-state { color: #888; font-style: italic; }
+    .alert-error { background: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; padding: .5rem .75rem; border-radius: 4px; margin-bottom: .5rem; }
+</style>

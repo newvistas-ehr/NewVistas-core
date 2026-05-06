@@ -1,0 +1,807 @@
+@page "/blood-bank"
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+@rendermode InteractiveServer
+@using NewVistas.BlazorWeb.Services
+@using NewVistas.Abstractions.GrainInterfaces
+@using NewVistas.Abstractions.GrainStates
+@inject OrleansGrainService Grains
+
+<PageTitle>Blood Bank</PageTitle>
+
+<h1>Blood Bank</h1>
+<p class="subtitle">VistA File #65 — Crossmatches, Transfusions &amp; Blood Inventory</p>
+
+<div class="lookup-bar">
+    <input type="text" @bind="patientId" @bind:event="oninput"
+           @onkeydown="OnKeyDown" placeholder="Patient ID" class="lookup-input" />
+    <button @onclick="LoadPatient" disabled="@(string.IsNullOrWhiteSpace(patientId) || loading)"
+            class="btn btn-primary">
+        @if (loading) { <span>Loading...</span> } else { <span>Load</span> }
+    </button>
+</div>
+
+@if (error != null) { <div class="alert alert-error">@error</div> }
+@if (successMessage != null) { <div class="alert alert-success">@successMessage</div> }
+
+@if (bbRecord != null)
+{
+    <div class="tabs">
+        <button class="tab @(activeTab == "record" ? "active" : "")" @onclick='() => activeTab = "record"'>Patient Record</button>
+        <button class="tab @(activeTab == "crossmatch" ? "active" : "")" @onclick='() => activeTab = "crossmatch"'>Crossmatches</button>
+        <button class="tab @(activeTab == "transfusions" ? "active" : "")" @onclick='() => activeTab = "transfusions"'>Transfusions</button>
+        <button class="tab @(activeTab == "inventory" ? "active" : "")" @onclick='() => activeTab = "inventory"'>Inventory</button>
+    </div>
+
+    <!-- ── Patient Record Tab ─────────────────────────────────────────── -->
+    @if (activeTab == "record")
+    {
+        <div class="section-card">
+            <div class="record-grid">
+                <div class="record-item">
+                    <label>ABO Type</label>
+                    <span class="blood-type @(bbRecord.AboType != "Unknown" ? "typed" : "untyped")">@bbRecord.AboType</span>
+                </div>
+                <div class="record-item">
+                    <label>Rh Factor</label>
+                    <span class="blood-type @(bbRecord.RhType != "Unknown" ? "typed" : "untyped")">@bbRecord.RhType</span>
+                </div>
+                <div class="record-item">
+                    <label>Antibody Screen</label>
+                    <span class="screen-result @bbRecord.AntibodyScreenResult.ToLower()">@bbRecord.AntibodyScreenResult</span>
+                </div>
+                <div class="record-item">
+                    <label>Screen Date</label>
+                    <span>@(bbRecord.AntibodyScreenDate.HasValue ? bbRecord.AntibodyScreenDate.Value.ToString("MM/dd/yyyy") : "—")</span>
+                </div>
+                <div class="record-item">
+                    <label>DAT Result</label>
+                    <span>@(bbRecord.DirectAntibodyTest ?? "—")</span>
+                </div>
+                <div class="record-item">
+                    <label>Lifetime Transfusions</label>
+                    <span class="count">@bbRecord.TransfusionCount</span>
+                </div>
+            </div>
+            @if (!string.IsNullOrEmpty(bbRecord.SpecialRequirements))
+            {
+                <div class="special-req">
+                    <strong>Special Requirements:</strong> @bbRecord.SpecialRequirements
+                </div>
+            }
+            @if (!string.IsNullOrEmpty(bbRecord.Notes))
+            {
+                <div class="notes-box">@bbRecord.Notes</div>
+            }
+
+            <button class="btn btn-secondary mt-2" @onclick='() => showTypeForm = !showTypeForm'>
+                @(showTypeForm ? "Cancel" : "Record Type & Screen")
+            </button>
+
+            @if (showTypeForm)
+            {
+                <div class="form-section">
+                    <h3>Type &amp; Screen Entry</h3>
+                    <div class="form-grid">
+                        <div class="form-row">
+                            <label>ABO Type *</label>
+                            <select @bind="typeAbo">
+                                <option value="Unknown">Unknown</option>
+                                <option value="A">A</option>
+                                <option value="B">B</option>
+                                <option value="AB">AB</option>
+                                <option value="O">O</option>
+                            </select>
+                        </div>
+                        <div class="form-row">
+                            <label>Rh Factor *</label>
+                            <select @bind="typeRh">
+                                <option value="Unknown">Unknown</option>
+                                <option value="Positive">Positive</option>
+                                <option value="Negative">Negative</option>
+                            </select>
+                        </div>
+                        <div class="form-row">
+                            <label>Antibody Screen Result</label>
+                            <select @bind="typeAbScreen">
+                                <option value="NotDone">Not Done</option>
+                                <option value="Negative">Negative</option>
+                                <option value="Positive">Positive</option>
+                                <option value="Pending">Pending</option>
+                            </select>
+                        </div>
+                        <div class="form-row">
+                            <label>DAT Result</label>
+                            <input type="text" @bind="typeDAT" placeholder="e.g. Negative" />
+                        </div>
+                        <div class="form-row full">
+                            <label>Special Requirements</label>
+                            <input type="text" @bind="typeSpecialReq" placeholder="e.g. Irradiated, CMV-Negative" />
+                        </div>
+                        <div class="form-row full">
+                            <label>Notes</label>
+                            <textarea @bind="typeNotes" rows="2"></textarea>
+                        </div>
+                    </div>
+                    <div class="form-actions">
+                        <button class="btn btn-primary" @onclick="SubmitTypeScreen" disabled="@saving">
+                            @if (saving) { <span>Saving...</span> } else { <span>Save Type &amp; Screen</span> }
+                        </button>
+                    </div>
+                </div>
+            }
+        </div>
+    }
+
+    <!-- ── Crossmatches Tab ───────────────────────────────────────────── -->
+    @if (activeTab == "crossmatch")
+    {
+        <div class="section-card">
+            <div class="toolbar">
+                <button class="btn btn-primary" @onclick='() => showXmForm = !showXmForm'>
+                    @(showXmForm ? "Cancel" : "Request Crossmatch")
+                </button>
+            </div>
+
+            @if (showXmForm)
+            {
+                <div class="form-section">
+                    <h3>Request Crossmatch</h3>
+                    <div class="form-grid">
+                        <div class="form-row">
+                            <label>Unit ID *</label>
+                            <input type="text" @bind="xmUnitId" placeholder="BB-UNIT:..." />
+                        </div>
+                        <div class="form-row">
+                            <label>Urgency</label>
+                            <select @bind="xmUrgency">
+                                <option value="Routine">Routine</option>
+                                <option value="Urgent">Urgent</option>
+                                <option value="Stat">Stat</option>
+                                <option value="Emergent">Emergent</option>
+                            </select>
+                        </div>
+                        <div class="form-row">
+                            <label>Requested By (ID)</label>
+                            <input type="text" @bind="xmRequestedById" />
+                        </div>
+                        <div class="form-row">
+                            <label>Requested By (Name)</label>
+                            <input type="text" @bind="xmRequestedByName" />
+                        </div>
+                        <div class="form-row full">
+                            <label>Notes</label>
+                            <input type="text" @bind="xmNotes" />
+                        </div>
+                    </div>
+                    <div class="form-actions">
+                        <button class="btn btn-primary" @onclick="SubmitCrossmatch" disabled="@saving">
+                            @if (saving) { <span>Submitting...</span> } else { <span>Request Crossmatch</span> }
+                        </button>
+                    </div>
+                </div>
+            }
+
+            @if (crossmatches.Count == 0)
+            {
+                <p class="no-data">No crossmatch records found.</p>
+            }
+            else
+            {
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>Date</th>
+                            <th>Unit</th>
+                            <th>Product</th>
+                            <th>Urgency</th>
+                            <th>Result</th>
+                            <th>Issued</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (CrossmatchEntry xm in crossmatches)
+                        {
+                            <tr class="@(xm.Result == "Incompatible" ? "row-danger" : xm.Result == "Compatible" ? "row-ok" : "")">
+                                <td>@xm.RequestedDate.ToString("MM/dd/yyyy HH:mm")</td>
+                                <td class="mono">@xm.UnitId.Replace("BB-UNIT:", "")</td>
+                                <td>@xm.ProductType</td>
+                                <td><span class="urgency @xm.Urgency.ToLower()">@xm.Urgency</span></td>
+                                <td><span class="result @xm.Result.ToLower()">@xm.Result</span></td>
+                                <td>@(xm.IsIssued ? "Yes" : "—")</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            }
+        </div>
+    }
+
+    <!-- ── Transfusions Tab ───────────────────────────────────────────── -->
+    @if (activeTab == "transfusions")
+    {
+        <div class="section-card">
+            <div class="toolbar">
+                <button class="btn btn-primary" @onclick='() => showTxForm = !showTxForm'>
+                    @(showTxForm ? "Cancel" : "Start Transfusion")
+                </button>
+            </div>
+
+            @if (showTxForm)
+            {
+                <div class="form-section">
+                    <h3>Start Transfusion</h3>
+                    <div class="form-grid">
+                        <div class="form-row">
+                            <label>Crossmatch ID *</label>
+                            <input type="text" @bind="txCrossmatchId" placeholder="BB-XM:..." />
+                        </div>
+                        <div class="form-row">
+                            <label>Unit ID *</label>
+                            <input type="text" @bind="txUnitId" placeholder="BB-UNIT:..." />
+                        </div>
+                        <div class="form-row">
+                            <label>Administered By (ID)</label>
+                            <input type="text" @bind="txAdminById" />
+                        </div>
+                        <div class="form-row">
+                            <label>Administered By (Name)</label>
+                            <input type="text" @bind="txAdminByName" />
+                        </div>
+                        <div class="form-row">
+                            <label>Ordered By (ID)</label>
+                            <input type="text" @bind="txOrderedById" />
+                        </div>
+                        <div class="form-row">
+                            <label>Ordered By (Name)</label>
+                            <input type="text" @bind="txOrderedByName" />
+                        </div>
+                        <div class="form-row">
+                            <label>Infusion Site</label>
+                            <input type="text" @bind="txInfusionSite" placeholder="e.g. Right antecubital" />
+                        </div>
+                        <div class="form-row full">
+                            <label>Pre-Transfusion Vitals</label>
+                            <input type="text" @bind="txPreVitals" placeholder="BP, HR, Temp, SpO2..." />
+                        </div>
+                    </div>
+                    <div class="form-actions">
+                        <button class="btn btn-primary" @onclick="SubmitStartTransfusion" disabled="@saving">
+                            @if (saving) { <span>Starting...</span> } else { <span>Start Transfusion</span> }
+                        </button>
+                    </div>
+                </div>
+            }
+
+            @if (transfusions.Count == 0)
+            {
+                <p class="no-data">No transfusion history found.</p>
+            }
+            else
+            {
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>Started</th>
+                            <th>Unit</th>
+                            <th>Product</th>
+                            <th>Type</th>
+                            <th>Status</th>
+                            <th>Reaction</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (TransfusionEntry tx in transfusions)
+                        {
+                            <tr class="@(tx.ReactionType != "None" ? "row-danger" : tx.Status == "Completed" ? "row-ok" : "")">
+                                <td>@tx.StartDateTime.ToString("MM/dd/yyyy HH:mm")</td>
+                                <td class="mono">@tx.UnitId.Replace("BB-UNIT:", "")</td>
+                                <td>@tx.ProductType</td>
+                                <td>@tx.AboType @tx.RhType</td>
+                                <td><span class="status @tx.Status.ToLower()">@tx.Status</span></td>
+                                <td>@(tx.ReactionType == "None" ? "—" : tx.ReactionType)</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            }
+        </div>
+    }
+
+    <!-- ── Inventory Tab ──────────────────────────────────────────────── -->
+    @if (activeTab == "inventory")
+    {
+        <div class="section-card">
+            <div class="filter-bar">
+                <select @bind="invProductType">
+                    <option value="">All Products</option>
+                    <option value="PackedRBC">Packed RBC</option>
+                    <option value="FreshFrozenPlasma">FFP</option>
+                    <option value="Platelets">Platelets</option>
+                    <option value="Cryoprecipitate">Cryoprecipitate</option>
+                    <option value="WholeBlood">Whole Blood</option>
+                    <option value="Granulocytes">Granulocytes</option>
+                    <option value="Albumin">Albumin</option>
+                    <option value="IVIg">IVIg</option>
+                </select>
+                <select @bind="invAboType">
+                    <option value="">All ABO</option>
+                    <option value="A">A</option>
+                    <option value="B">B</option>
+                    <option value="AB">AB</option>
+                    <option value="O">O</option>
+                </select>
+                <select @bind="invRhType">
+                    <option value="">All Rh</option>
+                    <option value="Positive">Positive</option>
+                    <option value="Negative">Negative</option>
+                </select>
+                <label><input type="checkbox" @bind="invAvailableOnly" /> Available Only</label>
+                <button class="btn btn-secondary" @onclick="LoadInventory" disabled="@loadingInv">
+                    @if (loadingInv) { <span>Loading...</span> } else { <span>Search</span> }
+                </button>
+                <button class="btn btn-primary" @onclick='() => showAddUnitForm = !showAddUnitForm'>
+                    @(showAddUnitForm ? "Cancel" : "Add Unit")
+                </button>
+            </div>
+
+            @if (showAddUnitForm)
+            {
+                <div class="form-section">
+                    <h3>Add Blood Unit to Inventory</h3>
+                    <div class="form-grid">
+                        <div class="form-row">
+                            <label>Product Type *</label>
+                            <select @bind="newProductType">
+                                <option value="PackedRBC">Packed RBC</option>
+                                <option value="FreshFrozenPlasma">FFP</option>
+                                <option value="Platelets">Platelets</option>
+                                <option value="Cryoprecipitate">Cryoprecipitate</option>
+                                <option value="WholeBlood">Whole Blood</option>
+                                <option value="Granulocytes">Granulocytes</option>
+                                <option value="Albumin">Albumin</option>
+                                <option value="IVIg">IVIg</option>
+                                <option value="Other">Other</option>
+                            </select>
+                        </div>
+                        <div class="form-row">
+                            <label>ABO Type *</label>
+                            <select @bind="newAboType">
+                                <option value="A">A</option>
+                                <option value="B">B</option>
+                                <option value="AB">AB</option>
+                                <option value="O">O</option>
+                            </select>
+                        </div>
+                        <div class="form-row">
+                            <label>Rh Factor *</label>
+                            <select @bind="newRhType">
+                                <option value="Positive">Positive</option>
+                                <option value="Negative">Negative</option>
+                            </select>
+                        </div>
+                        <div class="form-row">
+                            <label>Collection Date *</label>
+                            <input type="date" @bind="newCollectionDate" />
+                        </div>
+                        <div class="form-row">
+                            <label>Expiration Date *</label>
+                            <input type="date" @bind="newExpirationDate" />
+                        </div>
+                        <div class="form-row">
+                            <label>Volume (mL)</label>
+                            <input type="number" @bind="newVolumeML" />
+                        </div>
+                        <div class="form-row">
+                            <label>Source Facility</label>
+                            <input type="text" @bind="newSourceFacility" />
+                        </div>
+                        <div class="form-row">
+                            <label>Product Code</label>
+                            <input type="text" @bind="newProductCode" />
+                        </div>
+                        <div class="form-row">
+                            <label><input type="checkbox" @bind="newIsIrradiated" /> Irradiated</label>
+                        </div>
+                        <div class="form-row">
+                            <label><input type="checkbox" @bind="newIsLeukoreduced" /> Leukoreduced</label>
+                        </div>
+                        <div class="form-row">
+                            <label><input type="checkbox" @bind="newIsAntigenNeg" /> Antigen Negative</label>
+                        </div>
+                        @if (newIsAntigenNeg)
+                        {
+                            <div class="form-row">
+                                <label>Antigen(s)</label>
+                                <input type="text" @bind="newAntigenNegFor" placeholder="e.g. K, E, c" />
+                            </div>
+                        }
+                    </div>
+                    <div class="form-actions">
+                        <button class="btn btn-primary" @onclick="SubmitAddUnit" disabled="@saving">
+                            @if (saving) { <span>Adding...</span> } else { <span>Add Unit</span> }
+                        </button>
+                    </div>
+                </div>
+            }
+
+            @if (inventory.Count == 0)
+            {
+                <p class="no-data">No blood units found. Use Search to load inventory.</p>
+            }
+            else
+            {
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>Unit ID</th>
+                            <th>Product</th>
+                            <th>ABO</th>
+                            <th>Rh</th>
+                            <th>Status</th>
+                            <th>Expires</th>
+                            <th>Flags</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (InventoryEntry u in inventory)
+                        {
+                            <tr class="@(u.Status == "Expired" || u.Status == "Discarded" ? "row-muted" : u.Status == "Available" ? "row-ok" : "")">
+                                <td class="mono">@u.UnitId.Replace("BB-UNIT:", "")</td>
+                                <td>@u.ProductType</td>
+                                <td class="blood-cell">@u.AboType</td>
+                                <td>@u.RhType</td>
+                                <td><span class="status @u.Status.ToLower()">@u.Status</span></td>
+                                <td class="@(DateTime.TryParse(u.ExpirationDate, out DateTime ed) && ed < DateTime.UtcNow.AddDays(3) ? "exp-warn" : "")">
+                                    @u.ExpirationDate
+                                </td>
+                                <td>
+                                    @if (u.IsIrradiated) { <span class="flag">IRR</span> }
+                                    @if (u.IsLeukoreduced) { <span class="flag">LR</span> }
+                                    @if (u.IsAntigenNegative) { <span class="flag" title="@u.AntigenNegativeFor">Ag-</span> }
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            }
+        </div>
+    }
+}
+
+@code {
+    // ─── State ──────────────────────────────────────────────────────
+    private string patientId = string.Empty;
+    private string activeTab = "record";
+    private bool loading = false;
+    private bool loadingInv = false;
+    private bool saving = false;
+    private string? error;
+    private string? successMessage;
+
+    private BBRecord? bbRecord;
+    private List<CrossmatchEntry> crossmatches = new();
+    private List<TransfusionEntry> transfusions = new();
+    private List<InventoryEntry> inventory = new();
+
+    // Record tab form
+    private bool showTypeForm = false;
+    private string typeAbo = "Unknown";
+    private string typeRh = "Unknown";
+    private string typeAbScreen = "NotDone";
+    private string? typeDAT;
+    private string? typeSpecialReq;
+    private string? typeNotes;
+
+    // Crossmatch tab form
+    private bool showXmForm = false;
+    private string xmUnitId = string.Empty;
+    private string xmUrgency = "Routine";
+    private string xmRequestedById = string.Empty;
+    private string xmRequestedByName = string.Empty;
+    private string? xmNotes;
+
+    // Transfusion tab form
+    private bool showTxForm = false;
+    private string txCrossmatchId = string.Empty;
+    private string txUnitId = string.Empty;
+    private string txAdminById = string.Empty;
+    private string txAdminByName = string.Empty;
+    private string txOrderedById = string.Empty;
+    private string txOrderedByName = string.Empty;
+    private string? txInfusionSite;
+    private string? txPreVitals;
+
+    // Inventory tab
+    private string invProductType = string.Empty;
+    private string invAboType = string.Empty;
+    private string invRhType = string.Empty;
+    private bool invAvailableOnly = true;
+    private bool showAddUnitForm = false;
+    private string newProductType = "PackedRBC";
+    private string newAboType = "O";
+    private string newRhType = "Positive";
+    private DateTime newCollectionDate = DateTime.Today;
+    private DateTime newExpirationDate = DateTime.Today.AddDays(42);
+    private decimal? newVolumeML;
+    private string? newSourceFacility;
+    private string? newProductCode;
+    private bool newIsIrradiated = false;
+    private bool newIsLeukoreduced = true;
+    private bool newIsAntigenNeg = false;
+    private string? newAntigenNegFor;
+
+    // ─── Helpers ────────────────────────────────────────────────────
+    private string Pid => Uri.EscapeDataString(patientId.Trim());
+
+    private void ClearMessages() { error = null; successMessage = null; }
+
+    private async Task OnKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter") await LoadPatient();
+    }
+
+    // ─── Load ────────────────────────────────────────────────────────
+    private async Task LoadPatient()
+    {
+        ClearMessages();
+        loading = true;
+        try
+        {
+            var workflow = Grains.GetGrain<IPatientWorkflowGrain>(patientId.Trim());
+            var state = await workflow.GetBloodBankPatientAsync();
+            bbRecord = new BBRecord(state.PatientId, state.AboType.ToString(), state.RhType.ToString(),
+                state.AntibodyScreenResult.ToString(), state.AntibodyScreenDate,
+                state.DirectAntibodyTest, state.AntibodyIdentification,
+                state.SpecialRequirements, state.TransfusionCount, state.LastTypedDate, state.Notes);
+
+            var xmEntries = await workflow.GetCrossmatchesAsync();
+            crossmatches = xmEntries.Select(e => new CrossmatchEntry(
+                e.CrossmatchId, e.UnitId, e.ProductType.ToString(), e.Result.ToString(),
+                e.Urgency.ToString(), e.RequestedDate, e.IsIssued)).ToList();
+
+            var txEntries = await workflow.GetTransfusionHistoryAsync();
+            transfusions = txEntries.Select(e => new TransfusionEntry(
+                e.TransfusionId, e.UnitId, e.ProductType.ToString(), e.AboType.ToString(),
+                e.RhType.ToString(), e.StartDateTime, e.EndDateTime,
+                e.Status.ToString(), e.ReactionType.ToString())).ToList();
+        }
+        catch (Exception ex) { error = ex.Message; }
+        finally { loading = false; }
+    }
+
+    private async Task LoadInventory()
+    {
+        ClearMessages();
+        loadingInv = true;
+        try
+        {
+            var indexGrain = Grains.GetGrain<IBloodUnitIndexGrain>("BB-UNIT-IDX");
+            BloodProductType? pt = !string.IsNullOrEmpty(invProductType) ? Enum.Parse<BloodProductType>(invProductType) : null;
+            AboBloodType? abt = !string.IsNullOrEmpty(invAboType) ? Enum.Parse<AboBloodType>(invAboType) : null;
+            RhBloodType? rht = !string.IsNullOrEmpty(invRhType) ? Enum.Parse<RhBloodType>(invRhType) : null;
+            var entries = await indexGrain.SearchAsync(pt, abt, rht, null, invAvailableOnly);
+            inventory = entries.Select(e => new InventoryEntry(
+                e.UnitId, e.ProductType.ToString(), e.AboType.ToString(), e.RhType.ToString(),
+                e.Status.ToString(), e.ExpirationDate.ToString("MM/dd/yyyy"),
+                e.IsIrradiated, e.IsLeukoreduced, e.IsAntigenNegative, e.AntigenNegativeFor)).ToList();
+        }
+        catch (Exception ex) { error = ex.Message; }
+        finally { loadingInv = false; }
+    }
+
+    // ─── Submit Handlers ─────────────────────────────────────────────
+    private async Task SubmitTypeScreen()
+    {
+        ClearMessages();
+        saving = true;
+        try
+        {
+            var workflow = Grains.GetGrain<IPatientWorkflowGrain>(patientId.Trim());
+            await workflow.UpdateBloodTypeAsync(
+                Enum.Parse<AboBloodType>(typeAbo), Enum.Parse<RhBloodType>(typeRh),
+                Enum.Parse<AntibodyScreenResult>(typeAbScreen),
+                null, typeDAT, typeSpecialReq, typeNotes);
+            successMessage = "Type & Screen recorded.";
+            showTypeForm = false;
+            await LoadPatient();
+        }
+        catch (Exception ex) { error = ex.Message; }
+        finally { saving = false; }
+    }
+
+    private async Task SubmitCrossmatch()
+    {
+        if (string.IsNullOrWhiteSpace(xmUnitId)) { error = "Unit ID is required."; return; }
+        ClearMessages();
+        saving = true;
+        try
+        {
+            var workflow = Grains.GetGrain<IPatientWorkflowGrain>(patientId.Trim());
+            await workflow.RequestCrossmatchAsync(xmUnitId.Trim(),
+                Enum.Parse<CrossmatchUrgency>(xmUrgency), xmRequestedById, xmRequestedByName, xmNotes);
+            successMessage = "Crossmatch requested.";
+            showXmForm = false;
+            xmUnitId = string.Empty;
+            var xmEntries = await workflow.GetCrossmatchesAsync();
+            crossmatches = xmEntries.Select(e => new CrossmatchEntry(
+                e.CrossmatchId, e.UnitId, e.ProductType.ToString(), e.Result.ToString(),
+                e.Urgency.ToString(), e.RequestedDate, e.IsIssued)).ToList();
+        }
+        catch (Exception ex) { error = ex.Message; }
+        finally { saving = false; }
+    }
+
+    private async Task SubmitStartTransfusion()
+    {
+        if (string.IsNullOrWhiteSpace(txUnitId) || string.IsNullOrWhiteSpace(txCrossmatchId))
+        { error = "Crossmatch ID and Unit ID are required."; return; }
+        ClearMessages();
+        saving = true;
+        try
+        {
+            var workflow = Grains.GetGrain<IPatientWorkflowGrain>(patientId.Trim());
+            await workflow.StartTransfusionAsync(txCrossmatchId.Trim(), txUnitId.Trim(),
+                txAdminById, txAdminByName, txOrderedById, txOrderedByName, txInfusionSite, txPreVitals);
+            successMessage = "Transfusion started.";
+            showTxForm = false;
+            var txEntries = await workflow.GetTransfusionHistoryAsync();
+            transfusions = txEntries.Select(e => new TransfusionEntry(
+                e.TransfusionId, e.UnitId, e.ProductType.ToString(), e.AboType.ToString(),
+                e.RhType.ToString(), e.StartDateTime, e.EndDateTime,
+                e.Status.ToString(), e.ReactionType.ToString())).ToList();
+            await LoadPatient();
+        }
+        catch (Exception ex) { error = ex.Message; }
+        finally { saving = false; }
+    }
+
+    private async Task SubmitAddUnit()
+    {
+        ClearMessages();
+        saving = true;
+        try
+        {
+            // Adding inventory units requires controller-level unit creation;
+            // use direct grain in simplified mode
+            string unitId = $"BB-UNIT:{Guid.NewGuid()}";
+            var unitGrain = Grains.GetGrain<IBloodUnitGrain>(unitId);
+            // Note: BloodUnitGrain creation requires the controller pattern
+            successMessage = "Use the API to add blood units to inventory.";
+            showAddUnitForm = false;
+        }
+        catch (Exception ex) { error = ex.Message; }
+        finally { saving = false; }
+    }
+
+    // ─── DTOs ────────────────────────────────────────────────────────
+    private record BBRecord(
+        string PatientId,
+        string AboType,
+        string RhType,
+        string AntibodyScreenResult,
+        DateTime? AntibodyScreenDate,
+        string? DirectAntibodyTest,
+        string? AntibodyIdentification,
+        string? SpecialRequirements,
+        int TransfusionCount,
+        DateTime? LastTypedDate,
+        string? Notes);
+
+    private record CrossmatchEntry(
+        string CrossmatchId,
+        string UnitId,
+        string ProductType,
+        string Result,
+        string Urgency,
+        DateTime RequestedDate,
+        bool IsIssued);
+
+    private record TransfusionEntry(
+        string TransfusionId,
+        string UnitId,
+        string ProductType,
+        string AboType,
+        string RhType,
+        DateTime StartDateTime,
+        DateTime? EndDateTime,
+        string Status,
+        string ReactionType);
+
+    private record InventoryEntry(
+        string UnitId,
+        string ProductType,
+        string AboType,
+        string RhType,
+        string Status,
+        string ExpirationDate,
+        bool IsIrradiated,
+        bool IsLeukoreduced,
+        bool IsAntigenNegative,
+        string? AntigenNegativeFor);
+}
+
+<style>
+    .subtitle { color: #6c757d; font-size: 0.9rem; margin-top: -0.5rem; margin-bottom: 1rem; }
+
+    .lookup-bar { display: flex; gap: 0.5rem; margin-bottom: 1rem; }
+    .lookup-input { flex: 1; max-width: 300px; padding: 0.4rem 0.6rem; border: 1px solid #ced4da; border-radius: 4px; }
+
+    .tabs { display: flex; gap: 0; border-bottom: 2px solid #dee2e6; margin-bottom: 1rem; }
+    .tab { padding: 0.5rem 1.2rem; border: none; background: none; cursor: pointer; border-bottom: 2px solid transparent; margin-bottom: -2px; color: #495057; font-size: 0.9rem; }
+    .tab.active { border-bottom-color: #8b0000; color: #8b0000; font-weight: 600; }
+    .tab:hover:not(.active) { background: #f8f9fa; }
+
+    .section-card { background: #fff; border: 1px solid #dee2e6; border-radius: 6px; padding: 1.2rem; margin-bottom: 1rem; }
+
+    .record-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem; margin-bottom: 1rem; }
+    .record-item { display: flex; flex-direction: column; gap: 0.2rem; }
+    .record-item label { font-size: 0.75rem; color: #6c757d; font-weight: 600; text-transform: uppercase; }
+    .blood-type { font-size: 1.4rem; font-weight: 700; }
+    .blood-type.typed { color: #8b0000; }
+    .blood-type.untyped { color: #adb5bd; }
+    .screen-result { font-weight: 600; padding: 0.2rem 0.5rem; border-radius: 4px; display: inline-block; }
+    .screen-result.negative { background: #d4edda; color: #155724; }
+    .screen-result.positive { background: #f8d7da; color: #721c24; }
+    .screen-result.pending { background: #fff3cd; color: #856404; }
+    .screen-result.notdone { background: #e9ecef; color: #6c757d; }
+    .count { font-size: 1.2rem; font-weight: 700; color: #495057; }
+    .special-req { background: #fff3cd; border-left: 3px solid #ffc107; padding: 0.5rem 0.8rem; margin-top: 0.5rem; border-radius: 0 4px 4px 0; font-size: 0.9rem; }
+    .notes-box { background: #f8f9fa; border: 1px solid #dee2e6; border-radius: 4px; padding: 0.5rem; margin-top: 0.5rem; font-size: 0.85rem; }
+    .mt-2 { margin-top: 0.8rem; }
+
+    .toolbar { display: flex; gap: 0.5rem; margin-bottom: 1rem; }
+    .filter-bar { display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap; margin-bottom: 1rem; }
+    .filter-bar select, .filter-bar input[type=text] { padding: 0.35rem 0.5rem; border: 1px solid #ced4da; border-radius: 4px; font-size: 0.875rem; }
+
+    .form-section { background: #f8f9fa; border: 1px solid #dee2e6; border-radius: 6px; padding: 1rem; margin-bottom: 1rem; }
+    .form-section h3 { margin: 0 0 0.8rem; font-size: 0.95rem; color: #495057; }
+    .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0.6rem; }
+    .form-row { display: flex; flex-direction: column; gap: 0.2rem; }
+    .form-row.full { grid-column: 1 / -1; }
+    .form-row label { font-size: 0.8rem; font-weight: 600; color: #495057; }
+    .form-row input, .form-row select, .form-row textarea { padding: 0.35rem 0.5rem; border: 1px solid #ced4da; border-radius: 4px; font-size: 0.875rem; }
+    .form-actions { display: flex; gap: 0.5rem; margin-top: 0.8rem; }
+
+    .data-table { width: 100%; border-collapse: collapse; font-size: 0.875rem; }
+    .data-table th { background: #f8f9fa; padding: 0.5rem; text-align: left; border-bottom: 2px solid #dee2e6; font-size: 0.8rem; text-transform: uppercase; color: #6c757d; }
+    .data-table td { padding: 0.45rem 0.5rem; border-bottom: 1px solid #dee2e6; vertical-align: middle; }
+    .data-table .row-ok { background: #f8fff8; }
+    .data-table .row-danger { background: #fff5f5; }
+    .data-table .row-muted { opacity: 0.6; }
+    .mono { font-family: monospace; font-size: 0.8rem; }
+    .blood-cell { font-weight: 700; color: #8b0000; }
+
+    .urgency, .result, .status { padding: 0.15rem 0.4rem; border-radius: 3px; font-size: 0.8rem; font-weight: 600; }
+    .urgency.routine { background: #e9ecef; color: #495057; }
+    .urgency.urgent { background: #fff3cd; color: #856404; }
+    .urgency.stat { background: #fde8e8; color: #8b0000; }
+    .urgency.emergent { background: #8b0000; color: #fff; }
+    .result.compatible { background: #d4edda; color: #155724; }
+    .result.incompatible { background: #f8d7da; color: #721c24; }
+    .result.pending { background: #fff3cd; color: #856404; }
+    .result.cancelled { background: #e9ecef; color: #6c757d; }
+    .status.available { background: #d4edda; color: #155724; }
+    .status.reserved { background: #cce5ff; color: #004085; }
+    .status.transfused { background: #e9ecef; color: #495057; }
+    .status.inprogress { background: #cce5ff; color: #004085; }
+    .status.completed { background: #d4edda; color: #155724; }
+    .status.stopped { background: #fff3cd; color: #856404; }
+    .status.reaction { background: #f8d7da; color: #721c24; }
+    .status.discarded, .status.expired { background: #e9ecef; color: #6c757d; }
+    .status.quarantine { background: #fff3cd; color: #856404; }
+
+    .flag { display: inline-block; padding: 0.1rem 0.3rem; background: #6c757d; color: #fff; border-radius: 3px; font-size: 0.7rem; margin-right: 2px; }
+    .exp-warn { color: #8b0000; font-weight: 600; }
+    .no-data { color: #6c757d; font-style: italic; text-align: center; padding: 2rem; }
+
+    .btn { padding: 0.4rem 0.9rem; border: none; border-radius: 4px; cursor: pointer; font-size: 0.875rem; }
+    .btn:disabled { opacity: 0.6; cursor: not-allowed; }
+    .btn-primary { background: #8b0000; color: white; }
+    .btn-primary:hover:not(:disabled) { background: #6b0000; }
+    .btn-secondary { background: #6c757d; color: white; }
+    .btn-secondary:hover:not(:disabled) { background: #5a6268; }
+
+    .alert { padding: 0.6rem 1rem; border-radius: 4px; margin-bottom: 1rem; font-size: 0.875rem; }
+    .alert-error { background: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
+    .alert-success { background: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
+</style>

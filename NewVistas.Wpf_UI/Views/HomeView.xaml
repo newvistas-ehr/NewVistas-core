@@ -1,0 +1,72 @@
+<UserControl x:Class="NewVistas.Wpf_UI.Views.HomeView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <ScrollViewer VerticalScrollBarVisibility="Auto">
+        <StackPanel Margin="24">
+            <TextBlock Style="{StaticResource PageTitle}" Text="NewVistas Clinical Information System"/>
+            <TextBlock FontSize="16" Foreground="#444" TextWrapping="Wrap" Margin="0,0,0,24"
+                       Text="Welcome to NewVistas — a modern, Orleans-based clinical information system inspired by the VA VistA EHR."/>
+
+            <Border Background="{StaticResource VaLightBlueBrush}" BorderBrush="{StaticResource VaBorderBrush}"
+                    BorderThickness="1" CornerRadius="4" Padding="20" Margin="0,0,0,16">
+                <StackPanel>
+                    <TextBlock Style="{StaticResource SectionHeader}" Text="Getting Started"/>
+                    <TextBlock TextWrapping="Wrap" FontSize="13">
+                        Enter a Patient ID in the header bar above and use the sidebar to navigate between clinical modules.
+                        Each module connects directly to the Orleans silo — no HTTP layer required.
+                    </TextBlock>
+                </StackPanel>
+            </Border>
+
+            <!-- Demo Data Loader -->
+            <Border Background="#fff8e1" BorderBrush="#f9a825" BorderThickness="1" CornerRadius="4"
+                    Padding="16" Margin="0,0,0,16">
+                <StackPanel>
+                    <TextBlock Style="{StaticResource SectionHeader}" Text="Load Demo Data"/>
+                    <TextBlock TextWrapping="Wrap" FontSize="12" Margin="0,0,0,8"
+                               Text="Populate the system with demo data for the current patient: scheduling, labs, pharmacy, ADT, encounters, and more. Enter a Patient ID in the header first."/>
+                    <StackPanel Orientation="Horizontal">
+                        <Button Content="Load All Demo Data" Style="{StaticResource PrimaryButton}"
+                                Command="{Binding LoadDemoDataCommand}" Margin="0,0,8,0"/>
+                        <ProgressBar IsIndeterminate="True" Width="120" Height="20"
+                                     Visibility="{Binding IsLoading, Converter={StaticResource BoolToVisibility}}"/>
+                    </StackPanel>
+                    <TextBlock Style="{StaticResource ErrorText}" Text="{Binding Error}" Margin="0,4,0,0"
+                               Visibility="{Binding Error, Converter={StaticResource NullToVisibility}}"/>
+                    <ItemsControl ItemsSource="{Binding LoadResults}" Margin="0,8,0,0">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <TextBlock FontFamily="Consolas" FontSize="11" Text="{Binding}"/>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </StackPanel>
+            </Border>
+
+            <TextBlock Style="{StaticResource SectionHeader}" Text="Available Modules"/>
+            <UniformGrid Columns="3" Margin="0,8,0,0">
+                <Border Margin="4" Padding="12" Background="White" BorderBrush="{StaticResource VaBorderBrush}" BorderThickness="1" CornerRadius="3">
+                    <StackPanel>
+                        <TextBlock FontWeight="SemiBold" Text="Clinical"/>
+                        <TextBlock Foreground="#666" FontSize="12" TextWrapping="Wrap" Margin="0,4,0,0"
+                                   Text="Cover Sheet, Problems, Medications, Orders, Notes, Consults, Labs, Vitals, Allergies, Immunizations"/>
+                    </StackPanel>
+                </Border>
+                <Border Margin="4" Padding="12" Background="White" BorderBrush="{StaticResource VaBorderBrush}" BorderThickness="1" CornerRadius="3">
+                    <StackPanel>
+                        <TextBlock FontWeight="SemiBold" Text="Pharmacy"/>
+                        <TextBlock Foreground="#666" FontSize="12" TextWrapping="Wrap" Margin="0,4,0,0"
+                                   Text="Outpatient Rx, Inpatient, BCMA, Drug Accountability, Benefits/Prior Auth"/>
+                    </StackPanel>
+                </Border>
+                <Border Margin="4" Padding="12" Background="White" BorderBrush="{StaticResource VaBorderBrush}" BorderThickness="1" CornerRadius="3">
+                    <StackPanel>
+                        <TextBlock FontWeight="SemiBold" Text="Administrative"/>
+                        <TextBlock Foreground="#666" FontSize="12" TextWrapping="Wrap" Margin="0,4,0,0"
+                                   Text="ADT, Means Test, Service Connected, Prosthetics, Scheduling, PCE, Audit Trail"/>
+                    </StackPanel>
+                </Border>
+            </UniformGrid>
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>

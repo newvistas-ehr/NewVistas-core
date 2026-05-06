@@ -1,0 +1,866 @@
+@page "/oncology"
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+@rendermode InteractiveServer
+@using NewVistas.BlazorWeb.Services
+@using NewVistas.Abstractions.GrainInterfaces
+@using NewVistas.Abstractions.GrainStates
+@inject OrleansGrainService Grains
+
+<PageTitle>Oncology / Tumor Registry</PageTitle>
+
+<div class="onc-container">
+    <div class="onc-header">
+        <h2>Oncology / Tumor Registry</h2>
+        <div class="patient-bar">
+            <input @bind="patientId" placeholder="Patient ID" class="patient-input" />
+            <button @onclick="LoadAll" class="btn-load">Load</button>
+        </div>
+    </div>
+
+    @if (error != null)
+    {
+        <div class="alert-error">@error</div>
+    }
+    @if (successMsg != null)
+    {
+        <div class="alert-success">@successMsg</div>
+    }
+
+    <div class="tab-bar">
+        <button class="tab-btn @TabClass("registry")" @onclick='() => SetTab("registry")'>Tumor Registry</button>
+        <button class="tab-btn @TabClass("treatments")" @onclick='() => SetTab("treatments")'>Treatments</button>
+        <button class="tab-btn @TabClass("register")" @onclick='() => SetTab("register")'>Register Tumor</button>
+    </div>
+
+    <!-- ── Tumor Registry Tab ───────────────────────────────────────────── -->
+    @if (activeTab == "registry")
+    {
+        @if (loading)
+        {
+            <div class="loading">Loading tumor registry…</div>
+        }
+        else if (tumors != null)
+        {
+            <div class="stat-cards">
+                <div class="stat-card active">
+                    <span class="stat-num">@tumors.Count(t => t.Status == "Active")</span>
+                    <span class="stat-lbl">Active</span>
+                </div>
+                <div class="stat-card remission">
+                    <span class="stat-num">@tumors.Count(t => t.Status == "InRemission")</span>
+                    <span class="stat-lbl">In Remission</span>
+                </div>
+                <div class="stat-card recurrence">
+                    <span class="stat-num">@tumors.Count(t => t.Status == "Recurrence")</span>
+                    <span class="stat-lbl">Recurrence</span>
+                </div>
+                <div class="stat-card total">
+                    <span class="stat-num">@tumors.Count</span>
+                    <span class="stat-lbl">Total Primaries</span>
+                </div>
+            </div>
+
+            <table class="onc-table">
+                <thead>
+                    <tr>
+                        <th>#</th>
+                        <th>Primary Site</th>
+                        <th>Histology</th>
+                        <th>Dx Date</th>
+                        <th>Stage</th>
+                        <th>Status</th>
+                        <th>Oncologist</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (OncologyTumorSummary t in tumors)
+                    {
+                        <tr class="@(selectedTumorId == t.TumorId ? "row-selected" : "")"
+                            @onclick="() => SelectTumor(t.TumorId)">
+                            <td>@t.SequenceNumber</td>
+                            <td>@t.PrimarySiteText <span class="code">@t.PrimarySite</span></td>
+                            <td>@t.HistologyText</td>
+                            <td>@t.DateOfDiagnosis.ToString("yyyy-MM-dd")</td>
+                            <td>@(t.StageGroup ?? "—")</td>
+                            <td><span class="badge badge-@t.Status.ToLower()">@t.Status</span></td>
+                            <td>@(t.OncologistName ?? "—")</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+
+            @if (selectedTumor != null)
+            {
+                <div class="detail-panel">
+                    <h4>Tumor Detail — @selectedTumor.PrimarySiteText (@selectedTumor.PrimarySite)</h4>
+                    <div class="detail-grid">
+                        <div><label>Histology</label><span>@selectedTumor.HistologyText (@selectedTumor.Histology)</span></div>
+                        <div><label>Laterality</label><span>@selectedTumor.Laterality</span></div>
+                        <div><label>Dx Date</label><span>@selectedTumor.DateOfDiagnosis.ToString("yyyy-MM-dd")</span></div>
+                        <div><label>Dx Basis</label><span>@selectedTumor.DiagnosisBasis</span></div>
+                        <div><label>Status</label><span>@selectedTumor.Status</span></div>
+                        <div><label>Stage Group</label><span>@(selectedTumor.StageGroup ?? "Not staged")</span></div>
+                        <div><label>SEER Stage</label><span>@(selectedTumor.SeerSummaryStage ?? "—")</span></div>
+                        <div><label>Oncologist</label><span>@(selectedTumor.OncologistName ?? "—")</span></div>
+                        @if (selectedTumor.StagingDate.HasValue)
+                        {
+                            <div><label>Staged On</label><span>@selectedTumor.StagingDate.Value.ToString("yyyy-MM-dd")</span></div>
+                        }
+                        @if (selectedTumor.RecurrenceDate.HasValue)
+                        {
+                            <div><label>Recurrence Date</label><span>@selectedTumor.RecurrenceDate.Value.ToString("yyyy-MM-dd")</span></div>
+                            <div><label>Recurrence Site</label><span>@(selectedTumor.RecurrenceSite ?? "—")</span></div>
+                        }
+                        @if (!string.IsNullOrEmpty(selectedTumor.Comments))
+                        {
+                            <div class="full-width"><label>Comments</label><span>@selectedTumor.Comments</span></div>
+                        }
+                    </div>
+
+                    <div class="detail-actions">
+                        <button class="btn-action" @onclick="() => showStagingPanel = !showStagingPanel">Record Staging</button>
+                        <button class="btn-action" @onclick="() => showStatusPanel = !showStatusPanel">Update Status</button>
+                        <button class="btn-warn" @onclick="() => showRecurrencePanel = !showRecurrencePanel">Record Recurrence</button>
+                    </div>
+
+                    @if (showStagingPanel)
+                    {
+                        <div class="action-panel">
+                            <h5>Record TNM Staging</h5>
+                            <div class="form-row">
+                                <label>cT</label><input @bind="stagingClinicalT" placeholder="e.g. T2" />
+                                <label>cN</label><input @bind="stagingClinicalN" placeholder="e.g. N1" />
+                                <label>cM</label><input @bind="stagingClinicalM" placeholder="e.g. M0" />
+                            </div>
+                            <div class="form-row">
+                                <label>pT</label><input @bind="stagingPathologicT" placeholder="e.g. T2a" />
+                                <label>pN</label><input @bind="stagingPathologicN" placeholder="e.g. N0" />
+                                <label>pM</label><input @bind="stagingPathologicM" placeholder="e.g. M0" />
+                            </div>
+                            <div class="form-row">
+                                <label>Stage Group</label><input @bind="stagingStageGroup" placeholder="e.g. IIA" />
+                                <label>SEER Stage</label><input @bind="stagingSeer" placeholder="0-9" />
+                            </div>
+                            <div class="panel-btns">
+                                <button class="btn-save" @onclick="SubmitStaging">Save Staging</button>
+                                <button class="btn-cancel" @onclick="CloseAllPanels">Cancel</button>
+                            </div>
+                        </div>
+                    }
+
+                    @if (showStatusPanel)
+                    {
+                        <div class="action-panel">
+                            <h5>Update Disease Status</h5>
+                            <div class="form-row">
+                                <label>New Status</label>
+                                <select @bind="statusValue">
+                                    <option value="Active">Active</option>
+                                    <option value="InRemission">In Remission</option>
+                                    <option value="Recurrence">Recurrence</option>
+                                    <option value="Deceased">Deceased</option>
+                                    <option value="LostToFollowUp">Lost to Follow-Up</option>
+                                    <option value="Unknown">Unknown</option>
+                                </select>
+                                <label>Date</label>
+                                <input type="date" @bind="statusDate" />
+                            </div>
+                            <div class="form-row">
+                                <label>Notes</label>
+                                <textarea @bind="statusNotes" rows="2"></textarea>
+                            </div>
+                            <div class="panel-btns">
+                                <button class="btn-save" @onclick="SubmitStatus">Save Status</button>
+                                <button class="btn-cancel" @onclick="CloseAllPanels">Cancel</button>
+                            </div>
+                        </div>
+                    }
+
+                    @if (showRecurrencePanel)
+                    {
+                        <div class="action-panel">
+                            <h5>Record Recurrence</h5>
+                            <div class="form-row">
+                                <label>Date</label><input type="date" @bind="recurrenceDate" />
+                                <label>Site</label><input @bind="recurrenceSite" placeholder="e.g. Liver" />
+                            </div>
+                            <div class="form-row">
+                                <label>Notes</label><textarea @bind="recurrenceNotes" rows="2"></textarea>
+                            </div>
+                            <div class="panel-btns">
+                                <button class="btn-warn" @onclick="SubmitRecurrence">Record Recurrence</button>
+                                <button class="btn-cancel" @onclick="CloseAllPanels">Cancel</button>
+                            </div>
+                        </div>
+                    }
+                </div>
+            }
+        }
+    }
+
+    <!-- ── Treatments Tab ──────────────────────────────────────────────── -->
+    @if (activeTab == "treatments")
+    {
+        @if (loading)
+        {
+            <div class="loading">Loading treatments…</div>
+        }
+        else if (treatments != null)
+        {
+            <div class="tab-controls">
+                <button class="btn-action" @onclick="() => showCreateTxPanel = !showCreateTxPanel">+ Add Treatment</button>
+            </div>
+
+            <table class="onc-table">
+                <thead>
+                    <tr>
+                        <th>Type</th>
+                        <th>Agent / Regimen</th>
+                        <th>Start</th>
+                        <th>End</th>
+                        <th>Status</th>
+                        <th>Response</th>
+                        <th>Provider</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (OncologyTreatmentSummary tx in treatments)
+                    {
+                        <tr class="@(selectedTreatmentId == tx.TreatmentId ? "row-selected" : "")"
+                            @onclick="() => SelectTreatment(tx.TreatmentId)">
+                            <td>@tx.TreatmentType</td>
+                            <td>@tx.AgentName</td>
+                            <td>@(tx.StartDate.HasValue ? tx.StartDate.Value.ToString("yyyy-MM-dd") : "—")</td>
+                            <td>@(tx.EndDate.HasValue ? tx.EndDate.Value.ToString("yyyy-MM-dd") : "—")</td>
+                            <td><span class="badge badge-tx-@tx.Status.ToLower()">@tx.Status</span></td>
+                            <td>@tx.ResponseAssessment</td>
+                            <td>@(tx.ProviderName ?? "—")</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+
+            @if (selectedTreatment != null)
+            {
+                <div class="detail-panel">
+                    <h4>Treatment — @selectedTreatment.AgentName (@selectedTreatment.TreatmentType)</h4>
+                    <div class="detail-grid">
+                        <div><label>Status</label><span>@selectedTreatment.Status</span></div>
+                        <div><label>Start</label><span>@(selectedTreatment.StartDate.HasValue ? selectedTreatment.StartDate.Value.ToString("yyyy-MM-dd") : "Not started")</span></div>
+                        <div><label>End</label><span>@(selectedTreatment.EndDate.HasValue ? selectedTreatment.EndDate.Value.ToString("yyyy-MM-dd") : "—")</span></div>
+                        <div><label>Dose</label><span>@(selectedTreatment.DoseDescription ?? "—")</span></div>
+                        <div><label>Cycles</label><span>@(selectedTreatment.CyclesCompleted.HasValue ? selectedTreatment.CyclesCompleted.Value.ToString() : "—")</span></div>
+                        <div><label>Response</label><span>@selectedTreatment.ResponseAssessment</span></div>
+                        <div><label>Provider</label><span>@(selectedTreatment.ProviderName ?? "—")</span></div>
+                        <div><label>Facility</label><span>@(selectedTreatment.FacilityName ?? "—")</span></div>
+                        @if (!string.IsNullOrEmpty(selectedTreatment.DiscontinuationReason))
+                        {
+                            <div class="full-width"><label>Discontinuation Reason</label><span>@selectedTreatment.DiscontinuationReason</span></div>
+                        }
+                        @if (!string.IsNullOrEmpty(selectedTreatment.Notes))
+                        {
+                            <div class="full-width"><label>Notes</label><span>@selectedTreatment.Notes</span></div>
+                        }
+                    </div>
+
+                    @if (selectedTreatment.Status == "Planned")
+                    {
+                        <div class="detail-actions">
+                            <button class="btn-action" @onclick="() => showStartTxPanel = !showStartTxPanel">Start Treatment</button>
+                        </div>
+                    }
+                    @if (selectedTreatment.Status == "Active")
+                    {
+                        <div class="detail-actions">
+                            <button class="btn-action" @onclick="() => showResponsePanel = !showResponsePanel">Record Response</button>
+                            <button class="btn-action" @onclick="() => showCyclesPanel = !showCyclesPanel">Update Cycles</button>
+                            <button class="btn-save" @onclick="() => showCompleteTxPanel = !showCompleteTxPanel">Complete</button>
+                            <button class="btn-warn" @onclick="() => showDiscontinueTxPanel = !showDiscontinueTxPanel">Discontinue</button>
+                        </div>
+                    }
+
+                    @if (showStartTxPanel)
+                    {
+                        <div class="action-panel">
+                            <h5>Start Treatment</h5>
+                            <div class="form-row">
+                                <label>Start Date</label>
+                                <input type="date" @bind="txStartDate" />
+                            </div>
+                            <div class="panel-btns">
+                                <button class="btn-save" @onclick="SubmitStartTreatment">Start</button>
+                                <button class="btn-cancel" @onclick="CloseAllPanels">Cancel</button>
+                            </div>
+                        </div>
+                    }
+
+                    @if (showResponsePanel)
+                    {
+                        <div class="action-panel">
+                            <h5>Record Response Assessment</h5>
+                            <div class="form-row">
+                                <label>Response</label>
+                                <select @bind="txResponse">
+                                    <option value="CompleteResponse">Complete Response</option>
+                                    <option value="PartialResponse">Partial Response</option>
+                                    <option value="StableDisease">Stable Disease</option>
+                                    <option value="ProgressiveDisease">Progressive Disease</option>
+                                    <option value="NotEvaluable">Not Evaluable</option>
+                                </select>
+                                <label>Date</label>
+                                <input type="date" @bind="txResponseDate" />
+                            </div>
+                            <div class="form-row">
+                                <label>Notes</label><textarea @bind="txResponseNotes" rows="2"></textarea>
+                            </div>
+                            <div class="panel-btns">
+                                <button class="btn-save" @onclick="SubmitResponse">Save</button>
+                                <button class="btn-cancel" @onclick="CloseAllPanels">Cancel</button>
+                            </div>
+                        </div>
+                    }
+
+                    @if (showCyclesPanel)
+                    {
+                        <div class="action-panel">
+                            <h5>Update Cycles Completed</h5>
+                            <div class="form-row">
+                                <label>Cycles</label>
+                                <input type="number" min="0" @bind="txCycles" />
+                            </div>
+                            <div class="panel-btns">
+                                <button class="btn-save" @onclick="SubmitCycles">Save</button>
+                                <button class="btn-cancel" @onclick="CloseAllPanels">Cancel</button>
+                            </div>
+                        </div>
+                    }
+
+                    @if (showCompleteTxPanel)
+                    {
+                        <div class="action-panel">
+                            <h5>Complete Treatment</h5>
+                            <div class="form-row">
+                                <label>End Date</label><input type="date" @bind="txEndDate" />
+                                <label>Final Response</label>
+                                <select @bind="txResponse">
+                                    <option value="CompleteResponse">Complete Response</option>
+                                    <option value="PartialResponse">Partial Response</option>
+                                    <option value="StableDisease">Stable Disease</option>
+                                    <option value="ProgressiveDisease">Progressive Disease</option>
+                                    <option value="NotEvaluable">Not Evaluable</option>
+                                    <option value="NotAssessed">Not Assessed</option>
+                                </select>
+                            </div>
+                            <div class="form-row">
+                                <label>Notes</label><textarea @bind="txResponseNotes" rows="2"></textarea>
+                            </div>
+                            <div class="panel-btns">
+                                <button class="btn-save" @onclick="SubmitCompleteTreatment">Complete</button>
+                                <button class="btn-cancel" @onclick="CloseAllPanels">Cancel</button>
+                            </div>
+                        </div>
+                    }
+
+                    @if (showDiscontinueTxPanel)
+                    {
+                        <div class="action-panel">
+                            <h5>Discontinue Treatment</h5>
+                            <div class="form-row">
+                                <label>End Date</label><input type="date" @bind="txEndDate" />
+                                <label>Reason</label><input @bind="txDiscontinueReason" placeholder="Toxicity, progression, etc." />
+                            </div>
+                            <div class="form-row">
+                                <label>Notes</label><textarea @bind="txResponseNotes" rows="2"></textarea>
+                            </div>
+                            <div class="panel-btns">
+                                <button class="btn-warn" @onclick="SubmitDiscontinueTreatment">Discontinue</button>
+                                <button class="btn-cancel" @onclick="CloseAllPanels">Cancel</button>
+                            </div>
+                        </div>
+                    }
+                </div>
+            }
+
+            @if (showCreateTxPanel)
+            {
+                <div class="action-panel create-panel">
+                    <h5>Add Treatment Episode</h5>
+                    <div class="form-row">
+                        <label>Tumor</label>
+                        <select @bind="newTxTumorId">
+                            @if (tumors != null)
+                            {
+                                @foreach (OncologyTumorSummary t in tumors)
+                                {
+                                    <option value="@t.TumorId">@t.PrimarySiteText — @t.HistologyText</option>
+                                }
+                            }
+                        </select>
+                    </div>
+                    <div class="form-row">
+                        <label>Type</label>
+                        <select @bind="newTxType">
+                            <option value="Chemotherapy">Chemotherapy</option>
+                            <option value="Radiation">Radiation</option>
+                            <option value="Surgery">Surgery</option>
+                            <option value="Immunotherapy">Immunotherapy</option>
+                            <option value="HormoneTherapy">Hormone Therapy</option>
+                            <option value="TargetedTherapy">Targeted Therapy</option>
+                            <option value="Observation">Observation</option>
+                            <option value="BestSupportiveCare">Best Supportive Care</option>
+                            <option value="Other">Other</option>
+                        </select>
+                        <label>Agent / Regimen</label>
+                        <input @bind="newTxAgent" placeholder="e.g. FOLFOX, Pembrolizumab" />
+                    </div>
+                    <div class="form-row">
+                        <label>Dose / Schedule</label><input @bind="newTxDose" placeholder="e.g. 175 mg/m² q21d" />
+                        <label>Provider</label><input @bind="newTxProvider" placeholder="Provider name" />
+                    </div>
+                    <div class="form-row">
+                        <label>Facility</label><input @bind="newTxFacility" />
+                        <label>Notes</label><input @bind="newTxNotes" />
+                    </div>
+                    <div class="panel-btns">
+                        <button class="btn-save" @onclick="SubmitCreateTreatment">Add Treatment</button>
+                        <button class="btn-cancel" @onclick="CloseAllPanels">Cancel</button>
+                    </div>
+                </div>
+            }
+        }
+    }
+
+    <!-- ── Register Tumor Tab ──────────────────────────────────────────── -->
+    @if (activeTab == "register")
+    {
+        <div class="register-form">
+            <h4>Register New Primary Tumor</h4>
+            <div class="form-row">
+                <label>Primary Site Code (ICD-O-3)</label>
+                <input @bind="regSite" placeholder="e.g. C34.1" />
+                <label>Primary Site Description</label>
+                <input @bind="regSiteText" placeholder="e.g. Upper lobe of lung" />
+            </div>
+            <div class="form-row">
+                <label>Histology Code (ICD-O-3)</label>
+                <input @bind="regHistology" placeholder="e.g. 8140/3" />
+                <label>Histology Description</label>
+                <input @bind="regHistologyText" placeholder="e.g. Adenocarcinoma, NOS" />
+            </div>
+            <div class="form-row">
+                <label>Laterality</label>
+                <select @bind="regLaterality">
+                    <option value="NotApplicable">Not Applicable</option>
+                    <option value="Right">Right</option>
+                    <option value="Left">Left</option>
+                    <option value="Bilateral">Bilateral</option>
+                    <option value="Unknown">Unknown</option>
+                </select>
+                <label>Sequence #</label>
+                <input type="number" min="1" @bind="regSequence" />
+            </div>
+            <div class="form-row">
+                <label>Date of Diagnosis</label>
+                <input type="date" @bind="regDxDate" />
+                <label>Diagnosis Basis</label>
+                <select @bind="regDxBasis">
+                    <option value="HistologyOfPrimary">Histology of Primary</option>
+                    <option value="HistologyOfMetastasis">Histology of Metastasis</option>
+                    <option value="Cytology">Cytology</option>
+                    <option value="ClinicalInvestigation">Clinical Investigation</option>
+                    <option value="ClinicalOnly">Clinical Only</option>
+                    <option value="LabMarkerOnly">Lab Marker Only</option>
+                    <option value="Autopsy">Autopsy</option>
+                    <option value="Unknown">Unknown</option>
+                </select>
+            </div>
+            <div class="form-row">
+                <label>Oncologist</label>
+                <input @bind="regOncologistName" placeholder="Oncologist name" />
+            </div>
+            <div class="panel-btns">
+                <button class="btn-save" @onclick="SubmitRegisterTumor" disabled="@registerLoading">
+                    @(registerLoading ? "Registering…" : "Register Tumor")
+                </button>
+            </div>
+        </div>
+    }
+</div>
+
+<style>
+    .onc-container { max-width: 1200px; margin: 0 auto; padding: 1rem; font-family: sans-serif; }
+    .onc-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 1rem; }
+    .onc-header h2 { margin: 0; color: #1a3a5c; }
+    .patient-bar { display: flex; gap: 0.5rem; }
+    .patient-input { padding: 0.4rem 0.6rem; border: 1px solid #ccc; border-radius: 4px; font-size: 0.95rem; width: 220px; }
+    .btn-load { background: #1a3a5c; color: #fff; border: none; padding: 0.4rem 0.9rem; border-radius: 4px; cursor: pointer; }
+    .alert-error { background: #fde8e8; border: 1px solid #e74c3c; color: #c0392b; padding: 0.6rem 1rem; border-radius: 4px; margin-bottom: 0.75rem; }
+    .alert-success { background: #e8f8e8; border: 1px solid #27ae60; color: #196f3d; padding: 0.6rem 1rem; border-radius: 4px; margin-bottom: 0.75rem; }
+    .tab-bar { display: flex; gap: 0.25rem; border-bottom: 2px solid #1a3a5c; margin-bottom: 1rem; }
+    .tab-btn { background: none; border: none; padding: 0.5rem 1.2rem; cursor: pointer; font-size: 0.95rem; color: #555; border-radius: 4px 4px 0 0; }
+    .tab-btn.active { background: #1a3a5c; color: #fff; font-weight: 600; }
+    .loading { padding: 2rem; text-align: center; color: #888; }
+    .stat-cards { display: flex; gap: 1rem; margin-bottom: 1rem; flex-wrap: wrap; }
+    .stat-card { background: #fff; border: 1px solid #ddd; border-radius: 8px; padding: 0.75rem 1.5rem; text-align: center; min-width: 100px; }
+    .stat-card.active { border-color: #27ae60; }
+    .stat-card.remission { border-color: #2980b9; }
+    .stat-card.recurrence { border-color: #e67e22; }
+    .stat-card.total { border-color: #8e44ad; }
+    .stat-num { display: block; font-size: 2rem; font-weight: 700; color: #1a3a5c; }
+    .stat-lbl { font-size: 0.8rem; color: #777; }
+    .onc-table { width: 100%; border-collapse: collapse; font-size: 0.9rem; margin-bottom: 1rem; }
+    .onc-table th { background: #1a3a5c; color: #fff; padding: 0.5rem 0.75rem; text-align: left; }
+    .onc-table td { padding: 0.45rem 0.75rem; border-bottom: 1px solid #eee; }
+    .onc-table tr:hover { background: #f0f4f8; cursor: pointer; }
+    .row-selected { background: #dbeafe !important; }
+    .code { font-size: 0.75rem; color: #888; margin-left: 4px; }
+    .badge { display: inline-block; padding: 0.2rem 0.6rem; border-radius: 12px; font-size: 0.8rem; font-weight: 600; }
+    .badge-active { background: #d5f5e3; color: #1e8449; }
+    .badge-inremission { background: #d6eaf8; color: #1a5276; }
+    .badge-recurrence { background: #fde8d8; color: #ba4a00; }
+    .badge-deceased { background: #e8e8e8; color: #555; }
+    .badge-losttofollowup { background: #fef9e7; color: #7d6608; }
+    .badge-unknown { background: #f4f4f4; color: #888; }
+    .badge-tx-planned { background: #eaf2ff; color: #1a5276; }
+    .badge-tx-active { background: #d5f5e3; color: #1e8449; }
+    .badge-tx-completed { background: #e8e8e8; color: #555; }
+    .badge-tx-discontinued { background: #fde8d8; color: #ba4a00; }
+    .detail-panel { background: #f8fafc; border: 1px solid #ddd; border-radius: 8px; padding: 1rem; margin-top: 0.75rem; }
+    .detail-panel h4 { margin: 0 0 0.75rem; color: #1a3a5c; }
+    .detail-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 0.5rem; margin-bottom: 0.75rem; }
+    .detail-grid div { background: #fff; border: 1px solid #e5e7eb; border-radius: 4px; padding: 0.4rem 0.6rem; }
+    .detail-grid label { display: block; font-size: 0.75rem; color: #888; margin-bottom: 2px; }
+    .detail-grid span { font-size: 0.9rem; }
+    .full-width { grid-column: 1 / -1; }
+    .detail-actions { display: flex; gap: 0.5rem; flex-wrap: wrap; margin-bottom: 0.75rem; }
+    .tab-controls { margin-bottom: 0.75rem; }
+    .action-panel { background: #fff; border: 1px solid #b8cfe8; border-radius: 6px; padding: 1rem; margin-top: 0.75rem; }
+    .action-panel h5 { margin: 0 0 0.75rem; color: #1a3a5c; }
+    .create-panel { margin-top: 1rem; }
+    .register-form { background: #f8fafc; border: 1px solid #ddd; border-radius: 8px; padding: 1.25rem; }
+    .register-form h4 { margin: 0 0 1rem; color: #1a3a5c; }
+    .form-row { display: flex; align-items: center; gap: 0.6rem; margin-bottom: 0.6rem; flex-wrap: wrap; }
+    .form-row label { font-size: 0.85rem; color: #555; min-width: 130px; }
+    .form-row input, .form-row select, .form-row textarea { flex: 1; padding: 0.35rem 0.5rem; border: 1px solid #ccc; border-radius: 4px; font-size: 0.9rem; min-width: 120px; }
+    .panel-btns { display: flex; gap: 0.5rem; margin-top: 0.75rem; }
+    .btn-action { background: #2980b9; color: #fff; border: none; padding: 0.4rem 0.9rem; border-radius: 4px; cursor: pointer; font-size: 0.85rem; }
+    .btn-save { background: #27ae60; color: #fff; border: none; padding: 0.4rem 0.9rem; border-radius: 4px; cursor: pointer; font-size: 0.85rem; }
+    .btn-warn { background: #e67e22; color: #fff; border: none; padding: 0.4rem 0.9rem; border-radius: 4px; cursor: pointer; font-size: 0.85rem; }
+    .btn-cancel { background: #ccc; color: #333; border: none; padding: 0.4rem 0.9rem; border-radius: 4px; cursor: pointer; font-size: 0.85rem; }
+    button:disabled { opacity: 0.5; cursor: not-allowed; }
+</style>
+
+@code {
+    string patientId = string.Empty;
+    string activeTab = "registry";
+    bool loading;
+    bool registerLoading;
+    string? error;
+    string? successMsg;
+
+    List<OncologyTumorSummary>? tumors;
+    string? selectedTumorId;
+    OncologyTumorDetail? selectedTumor;
+
+    List<OncologyTreatmentSummary>? treatments;
+    string? selectedTreatmentId;
+    OncologyTreatmentDetail? selectedTreatment;
+
+    // Staging panel fields
+    bool showStagingPanel;
+    string stagingClinicalT = string.Empty, stagingClinicalN = string.Empty, stagingClinicalM = string.Empty;
+    string stagingPathologicT = string.Empty, stagingPathologicN = string.Empty, stagingPathologicM = string.Empty;
+    string stagingStageGroup = string.Empty, stagingSeer = string.Empty;
+
+    // Status panel fields
+    bool showStatusPanel;
+    string statusValue = "Active";
+    DateTime statusDate = DateTime.Today;
+    string statusNotes = string.Empty;
+
+    // Recurrence panel fields
+    bool showRecurrencePanel;
+    DateTime recurrenceDate = DateTime.Today;
+    string recurrenceSite = string.Empty, recurrenceNotes = string.Empty;
+
+    // Treatment action panels
+    bool showCreateTxPanel, showStartTxPanel, showResponsePanel, showCyclesPanel;
+    bool showCompleteTxPanel, showDiscontinueTxPanel;
+    string newTxTumorId = string.Empty, newTxType = "Chemotherapy", newTxAgent = string.Empty;
+    string newTxDose = string.Empty, newTxProvider = string.Empty, newTxFacility = string.Empty, newTxNotes = string.Empty;
+    DateTime txStartDate = DateTime.Today, txEndDate = DateTime.Today, txResponseDate = DateTime.Today;
+    string txResponse = "CompleteResponse", txResponseNotes = string.Empty, txDiscontinueReason = string.Empty;
+    int txCycles;
+
+    // Register tumor tab fields
+    string regSite = string.Empty, regSiteText = string.Empty;
+    string regHistology = string.Empty, regHistologyText = string.Empty;
+    string regLaterality = "NotApplicable";
+    int regSequence = 1;
+    DateTime regDxDate = DateTime.Today;
+    string regDxBasis = "HistologyOfPrimary";
+    string regOncologistName = string.Empty;
+
+    string TabClass(string tab) => activeTab == tab ? "active" : string.Empty;
+
+    void SetTab(string tab)
+    {
+        activeTab = tab;
+        error = null;
+        successMsg = null;
+        CloseAllPanels();
+    }
+
+    void CloseAllPanels()
+    {
+        showStagingPanel = showStatusPanel = showRecurrencePanel = false;
+        showCreateTxPanel = showStartTxPanel = showResponsePanel = false;
+        showCyclesPanel = showCompleteTxPanel = showDiscontinueTxPanel = false;
+        stagingClinicalT = stagingClinicalN = stagingClinicalM = string.Empty;
+        stagingPathologicT = stagingPathologicN = stagingPathologicM = string.Empty;
+        stagingStageGroup = stagingSeer = string.Empty;
+        statusValue = "Active"; statusNotes = string.Empty;
+        recurrenceSite = recurrenceNotes = string.Empty;
+        txResponse = "CompleteResponse"; txResponseNotes = string.Empty; txDiscontinueReason = string.Empty;
+        txCycles = 0;
+    }
+
+    async Task LoadAll()
+    {
+        if (string.IsNullOrWhiteSpace(patientId)) return;
+        error = null; successMsg = null; loading = true;
+        try
+        {
+            var workflow = Grains.GetGrain<IPatientWorkflowGrain>(patientId.Trim());
+            var tumorEntries = await workflow.GetOncologyTumorsAsync();
+            tumors = tumorEntries.Select(e => new OncologyTumorSummary(
+                e.TumorId, e.PrimarySite, e.PrimarySiteText, e.Histology, e.HistologyText,
+                e.DateOfDiagnosis, e.Status.ToString(), e.StageGroup, e.SequenceNumber, e.OncologistName)).ToList();
+            var txEntries = await workflow.GetOncologyTreatmentsAsync();
+            treatments = txEntries.Select(e => new OncologyTreatmentSummary(
+                e.TreatmentId, e.TumorId, e.TreatmentType.ToString(), e.AgentName,
+                e.StartDate, e.EndDate, e.Status.ToString(), e.ResponseAssessment.ToString(), e.ProviderName)).ToList();
+            selectedTumorId = null; selectedTumor = null;
+            selectedTreatmentId = null; selectedTreatment = null;
+            if (tumors?.Count > 0) newTxTumorId = tumors[0].TumorId;
+        }
+        catch { error = "Failed to load oncology data."; }
+        finally { loading = false; }
+    }
+
+    async Task SelectTumor(string tumorId)
+    {
+        selectedTumorId = tumorId;
+        CloseAllPanels();
+        try
+        {
+            var workflow = Grains.GetGrain<IPatientWorkflowGrain>(patientId.Trim());
+            var s = await workflow.GetOncologyTumorAsync(tumorId);
+            selectedTumor = new OncologyTumorDetail(
+                s.TumorId, s.PatientId, s.PrimarySite, s.PrimarySiteText,
+                s.Histology, s.HistologyText, s.Laterality.ToString(),
+                s.DateOfDiagnosis, s.DiagnosisBasis.ToString(), s.SequenceNumber,
+                s.OncologistId, s.OncologistName,
+                s.ClinicalT, s.ClinicalN, s.ClinicalM,
+                s.PathologicT, s.PathologicN, s.PathologicM,
+                s.StageGroup, s.SeerSummaryStage, s.StagingDate,
+                s.Status.ToString(), s.StatusChangeDate,
+                s.RecurrenceDate, s.RecurrenceSite,
+                s.DateOfLastContact, s.TreatmentIds,
+                s.Comments, s.CreatedDate, s.LastModifiedDate);
+        }
+        catch { error = "Failed to load tumor detail."; }
+    }
+
+    async Task SelectTreatment(string treatmentId)
+    {
+        selectedTreatmentId = treatmentId;
+        CloseAllPanels();
+        try
+        {
+            var workflow = Grains.GetGrain<IPatientWorkflowGrain>(patientId.Trim());
+            var s = await workflow.GetOncologyTreatmentAsync(treatmentId);
+            selectedTreatment = new OncologyTreatmentDetail(
+                s.TreatmentId, s.TumorId, s.PatientId,
+                s.TreatmentType.ToString(), s.AgentName,
+                s.StartDate, s.EndDate, s.Status.ToString(),
+                s.CyclesCompleted, s.DoseDescription,
+                s.ProviderId, s.ProviderName, s.FacilityName,
+                s.ResponseAssessment.ToString(), s.ResponseAssessmentDate,
+                s.DiscontinuationReason, s.Notes,
+                s.CreatedDate, s.LastModifiedDate);
+        }
+        catch { error = "Failed to load treatment detail."; }
+    }
+
+    async Task SubmitStaging()
+    {
+        if (selectedTumorId == null) return;
+        try
+        {
+            var workflow = Grains.GetGrain<IPatientWorkflowGrain>(patientId.Trim());
+            await workflow.RecordOncologyStagingAsync(selectedTumorId,
+                stagingClinicalT, stagingClinicalN, stagingClinicalM,
+                stagingPathologicT, stagingPathologicN, stagingPathologicM,
+                stagingStageGroup, stagingSeer);
+            successMsg = "Staging recorded."; CloseAllPanels(); await SelectTumor(selectedTumorId); await LoadAll();
+        }
+        catch { error = "Failed to record staging."; }
+    }
+
+    async Task SubmitStatus()
+    {
+        if (selectedTumorId == null) return;
+        try
+        {
+            var workflow = Grains.GetGrain<IPatientWorkflowGrain>(patientId.Trim());
+            await workflow.UpdateOncologyStatusAsync(selectedTumorId,
+                Enum.Parse<OncologyStatus>(statusValue), statusDate, statusNotes);
+            successMsg = "Status updated."; CloseAllPanels(); await SelectTumor(selectedTumorId); await LoadAll();
+        }
+        catch { error = "Failed to update status."; }
+    }
+
+    async Task SubmitRecurrence()
+    {
+        if (selectedTumorId == null) return;
+        try
+        {
+            var workflow = Grains.GetGrain<IPatientWorkflowGrain>(patientId.Trim());
+            await workflow.RecordOncologyRecurrenceAsync(selectedTumorId, recurrenceDate, recurrenceSite, recurrenceNotes);
+            successMsg = "Recurrence recorded."; CloseAllPanels(); await SelectTumor(selectedTumorId); await LoadAll();
+        }
+        catch { error = "Failed to record recurrence."; }
+    }
+
+    async Task SubmitCreateTreatment()
+    {
+        if (string.IsNullOrWhiteSpace(newTxTumorId) || string.IsNullOrWhiteSpace(newTxAgent)) return;
+        try
+        {
+            var workflow = Grains.GetGrain<IPatientWorkflowGrain>(patientId.Trim());
+            await workflow.CreateOncologyTreatmentAsync(newTxTumorId,
+                Enum.Parse<OncologyTreatmentType>(newTxType), newTxAgent,
+                newTxDose, null, newTxProvider, newTxFacility, newTxNotes);
+            successMsg = "Treatment added."; CloseAllPanels(); await LoadAll();
+        }
+        catch { error = "Failed to add treatment."; }
+    }
+
+    async Task SubmitStartTreatment()
+    {
+        if (selectedTreatmentId == null) return;
+        try
+        {
+            var workflow = Grains.GetGrain<IPatientWorkflowGrain>(patientId.Trim());
+            await workflow.StartOncologyTreatmentAsync(selectedTreatmentId, txStartDate);
+            successMsg = "Treatment started."; CloseAllPanels(); await SelectTreatment(selectedTreatmentId); await LoadAll();
+        }
+        catch { error = "Failed to start treatment."; }
+    }
+
+    async Task SubmitCompleteTreatment()
+    {
+        if (selectedTreatmentId == null) return;
+        try
+        {
+            var workflow = Grains.GetGrain<IPatientWorkflowGrain>(patientId.Trim());
+            await workflow.CompleteOncologyTreatmentAsync(selectedTreatmentId, txEndDate,
+                Enum.Parse<TreatmentResponseAssessment>(txResponse), txResponseNotes);
+            successMsg = "Treatment completed."; CloseAllPanels(); await SelectTreatment(selectedTreatmentId); await LoadAll();
+        }
+        catch { error = "Failed to complete treatment."; }
+    }
+
+    async Task SubmitDiscontinueTreatment()
+    {
+        if (selectedTreatmentId == null || string.IsNullOrWhiteSpace(txDiscontinueReason)) return;
+        try
+        {
+            var workflow = Grains.GetGrain<IPatientWorkflowGrain>(patientId.Trim());
+            await workflow.DiscontinueOncologyTreatmentAsync(selectedTreatmentId, txEndDate, txDiscontinueReason, txResponseNotes);
+            successMsg = "Treatment discontinued."; CloseAllPanels(); await SelectTreatment(selectedTreatmentId); await LoadAll();
+        }
+        catch { error = "Failed to discontinue treatment."; }
+    }
+
+    async Task SubmitResponse()
+    {
+        if (selectedTreatmentId == null) return;
+        try
+        {
+            var workflow = Grains.GetGrain<IPatientWorkflowGrain>(patientId.Trim());
+            await workflow.RecordOncologyResponseAsync(selectedTreatmentId,
+                Enum.Parse<TreatmentResponseAssessment>(txResponse), txResponseDate, txResponseNotes);
+            successMsg = "Response recorded."; CloseAllPanels(); await SelectTreatment(selectedTreatmentId);
+        }
+        catch { error = "Failed to record response."; }
+    }
+
+    async Task SubmitCycles()
+    {
+        if (selectedTreatmentId == null) return;
+        try
+        {
+            var workflow = Grains.GetGrain<IPatientWorkflowGrain>(patientId.Trim());
+            await workflow.UpdateOncologyCyclesAsync(selectedTreatmentId, txCycles);
+            successMsg = $"Cycles updated to {txCycles}."; CloseAllPanels(); await SelectTreatment(selectedTreatmentId);
+        }
+        catch { error = "Failed to update cycles."; }
+    }
+
+    async Task SubmitRegisterTumor()
+    {
+        if (string.IsNullOrWhiteSpace(patientId) || string.IsNullOrWhiteSpace(regSite)) return;
+        registerLoading = true; error = null; successMsg = null;
+        try
+        {
+            var workflow = Grains.GetGrain<IPatientWorkflowGrain>(patientId.Trim());
+            await workflow.RegisterOncologyTumorAsync(regSite, regSiteText, regHistology, regHistologyText,
+                Enum.Parse<TumorLaterality>(regLaterality), regDxDate,
+                Enum.Parse<DiagnosisBasis>(regDxBasis), regSequence, null, regOncologistName);
+            successMsg = "Tumor registered successfully.";
+            regSite = regSiteText = regHistology = regHistologyText = regOncologistName = string.Empty;
+            regSequence = 1; regLaterality = "NotApplicable"; regDxBasis = "HistologyOfPrimary";
+            SetTab("registry");
+            await LoadAll();
+        }
+        catch { error = "Failed to register tumor."; }
+        finally { registerLoading = false; }
+    }
+
+    // ── Response DTOs ────────────────────────────────────────────────────
+
+    record OncologyTumorSummary(
+        string TumorId, string PrimarySite, string PrimarySiteText,
+        string Histology, string HistologyText, DateTime DateOfDiagnosis,
+        string Status, string? StageGroup, int SequenceNumber, string? OncologistName);
+
+    record OncologyTumorDetail(
+        string TumorId, string PatientId, string PrimarySite, string PrimarySiteText,
+        string Histology, string HistologyText, string Laterality,
+        DateTime DateOfDiagnosis, string DiagnosisBasis, int SequenceNumber,
+        string? OncologistId, string? OncologistName,
+        string? ClinicalT, string? ClinicalN, string? ClinicalM,
+        string? PathologicT, string? PathologicN, string? PathologicM,
+        string? StageGroup, string? SeerSummaryStage, DateTime? StagingDate,
+        string Status, DateTime? StatusChangeDate,
+        DateTime? RecurrenceDate, string? RecurrenceSite,
+        DateTime? DateOfLastContact, List<string> TreatmentIds,
+        string? Comments, DateTime CreatedDate, DateTime LastModifiedDate);
+
+    record OncologyTreatmentSummary(
+        string TreatmentId, string TumorId, string TreatmentType, string AgentName,
+        DateTime? StartDate, DateTime? EndDate, string Status,
+        string ResponseAssessment, string? ProviderName);
+
+    record OncologyTreatmentDetail(
+        string TreatmentId, string TumorId, string PatientId,
+        string TreatmentType, string AgentName,
+        DateTime? StartDate, DateTime? EndDate, string Status,
+        int? CyclesCompleted, string? DoseDescription,
+        string? ProviderId, string? ProviderName, string? FacilityName,
+        string ResponseAssessment, DateTime? ResponseAssessmentDate,
+        string? DiscontinuationReason, string? Notes,
+        DateTime CreatedDate, DateTime LastModifiedDate);
+}

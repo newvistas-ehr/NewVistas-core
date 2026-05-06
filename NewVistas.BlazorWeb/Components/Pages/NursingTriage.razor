@@ -1,0 +1,150 @@
+@page "/nursing-triage"
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+@rendermode InteractiveServer
+@using NewVistas.BlazorWeb.Services
+@using NewVistas.Abstractions.GrainInterfaces
+@using NewVistas.Abstractions.GrainStates
+@inject OrleansGrainService Grains
+
+<PageTitle>Nursing Triage / Intake Assessment</PageTitle>
+
+<h3>Nursing Intake / Triage Assessment</h3>
+<p class="text-muted">ESI Triage with Chief Complaint, Vitals, and Nursing Assessment</p>
+
+<div class="mb-3 d-flex gap-2">
+    <input class="form-control" style="max-width:260px" placeholder="Patient ID" @bind="patientId" @bind:event="oninput" />
+    <button class="btn btn-primary" @onclick="LoadTriages" disabled="@loading">Load</button>
+</div>
+
+@if (error != null) { <div class="alert alert-danger">@error</div> }
+
+<ul class="nav nav-tabs mb-3">
+    <li class="nav-item"><button class="nav-link @(tab == "list" ? "active" : "")" @onclick='() => tab = "list"'>Triage History</button></li>
+    <li class="nav-item"><button class="nav-link @(tab == "detail" ? "active" : "")" @onclick='() => tab = "detail"'>Triage Detail</button></li>
+    <li class="nav-item"><button class="nav-link @(tab == "new" ? "active" : "")" @onclick='() => tab = "new"'>New Triage</button></li>
+</ul>
+
+@if (tab == "list" && triages != null)
+{
+    <table class="table table-sm table-striped">
+        <thead><tr><th>Date/Time</th><th>Nurse</th><th>Chief Complaint</th><th>ESI</th><th>Pain</th><th>Disposition</th><th>Status</th><th></th></tr></thead>
+        <tbody>
+            @foreach (var t in triages)
+            {
+                <tr>
+                    <td>@t.TriageDateTime.ToString("MM/dd HH:mm")</td>
+                    <td>@t.NurseName</td>
+                    <td>@t.ChiefComplaint</td>
+                    <td><span class="badge @EsiBadge(t.TriageLevel)">ESI @((int)t.TriageLevel)</span></td>
+                    <td>@(t.PainScore?.ToString() ?? "—")</td>
+                    <td><span class="badge @DispBadge(t.Disposition)">@t.Disposition</span></td>
+                    <td><span class="badge @(t.Status == NursingAssessmentStatus.Signed ? "bg-success" : "bg-warning text-dark")">@t.Status</span></td>
+                    <td><button class="btn btn-sm btn-outline-primary" @onclick="() => ViewDetail(t.TriageId)">View</button></td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+
+@if (tab == "detail" && selected != null)
+{
+    <div class="card mb-3">
+        <div class="card-header"><strong>Triage:</strong> @selected.TriageId <span class="badge @EsiBadge(selected.TriageLevel) ms-2">ESI @((int)selected.TriageLevel)</span> <span class="badge @(selected.Status == NursingAssessmentStatus.Signed ? "bg-success" : "bg-warning text-dark") ms-1">@selected.Status</span></div>
+        <div class="card-body">
+            <div class="row">
+                <div class="col-md-6">
+                    <h6>Chief Complaint &amp; History</h6>
+                    <dl class="row mb-0">
+                        <dt class="col-sm-5">Chief Complaint</dt><dd class="col-sm-7">@selected.ChiefComplaint</dd>
+                        <dt class="col-sm-5">HPI</dt><dd class="col-sm-7">@(selected.HistoryOfPresentIllness ?? "—")</dd>
+                        <dt class="col-sm-5">Arrival</dt><dd class="col-sm-7">@(selected.ModeOfArrival ?? "—") @(selected.ArrivedByAmbulance ? "(Ambulance)" : "")</dd>
+                        <dt class="col-sm-5">Acute Distress</dt><dd class="col-sm-7">@(selected.IsAcuteDistress ? "Yes" : "No")</dd>
+                        <dt class="col-sm-5">LOC</dt><dd class="col-sm-7">@(selected.LevelOfConsciousness ?? "—")</dd>
+                    </dl>
+                </div>
+                <div class="col-md-6">
+                    <h6>Triage Vital Signs</h6>
+                    <dl class="row mb-0">
+                        <dt class="col-sm-5">Temp</dt><dd class="col-sm-7">@(selected.Temperature?.ToString("F1") ?? "—") F</dd>
+                        <dt class="col-sm-5">HR</dt><dd class="col-sm-7">@(selected.HeartRate?.ToString() ?? "—") bpm</dd>
+                        <dt class="col-sm-5">RR</dt><dd class="col-sm-7">@(selected.RespiratoryRate?.ToString() ?? "—")</dd>
+                        <dt class="col-sm-5">BP</dt><dd class="col-sm-7">@(selected.SystolicBP?.ToString() ?? "—")/@(selected.DiastolicBP?.ToString() ?? "—")</dd>
+                        <dt class="col-sm-5">SpO2</dt><dd class="col-sm-7">@(selected.SpO2?.ToString("F0") ?? "—")%</dd>
+                        <dt class="col-sm-5">Pain</dt><dd class="col-sm-7">@(selected.PainScore?.ToString() ?? "—")/10 @(selected.PainLocation ?? "")</dd>
+                    </dl>
+                </div>
+            </div>
+            <div class="mt-3 d-flex gap-2">
+                @if (selected.Status == NursingAssessmentStatus.Draft)
+                { <button class="btn btn-sm btn-success" @onclick="() => Sign(selected.TriageId)">Sign</button> }
+                @if (selected.Disposition == TriageDisposition.Pending)
+                {
+                    <button class="btn btn-sm btn-outline-primary" @onclick="() => SetDisp(selected.TriageId, TriageDisposition.Admit)">Admit</button>
+                    <button class="btn btn-sm btn-outline-secondary" @onclick="() => SetDisp(selected.TriageId, TriageDisposition.Observation)">Observation</button>
+                    <button class="btn btn-sm btn-outline-info" @onclick="() => SetDisp(selected.TriageId, TriageDisposition.Discharge)">Discharge</button>
+                }
+            </div>
+        </div>
+    </div>
+}
+
+@if (tab == "new")
+{
+    <div class="card">
+        <div class="card-header">New Triage Assessment</div>
+        <div class="card-body">
+            <div class="row g-2 mb-2">
+                <div class="col-md-6"><label class="form-label">Chief Complaint</label><input class="form-control" @bind="nCC" /></div>
+                <div class="col-md-3"><label class="form-label">Nurse ID</label><input class="form-control" @bind="nNurseId" /></div>
+                <div class="col-md-3"><label class="form-label">Nurse Name</label><input class="form-control" @bind="nNurseName" /></div>
+            </div>
+            <div class="row g-2 mb-2">
+                <div class="col-md-2"><label class="form-label">Temp (F)</label><input type="number" step="0.1" class="form-control" @bind="nTemp" /></div>
+                <div class="col-md-2"><label class="form-label">HR</label><input type="number" class="form-control" @bind="nHR" /></div>
+                <div class="col-md-2"><label class="form-label">RR</label><input type="number" class="form-control" @bind="nRR" /></div>
+                <div class="col-md-2"><label class="form-label">Sys BP</label><input type="number" class="form-control" @bind="nSBP" /></div>
+                <div class="col-md-2"><label class="form-label">Dia BP</label><input type="number" class="form-control" @bind="nDBP" /></div>
+                <div class="col-md-2"><label class="form-label">SpO2</label><input type="number" class="form-control" @bind="nSpO2" /></div>
+            </div>
+            <div class="row g-2 mb-3">
+                <div class="col-md-2"><label class="form-label">Pain (0-10)</label><input type="number" class="form-control" @bind="nPain" /></div>
+                <div class="col-md-3">
+                    <label class="form-label">ESI Level</label>
+                    <select class="form-select" @bind="nESI">
+                        <option value="@TriageLevel.Esi1_Resuscitation">ESI 1 — Resuscitation</option>
+                        <option value="@TriageLevel.Esi2_Emergent">ESI 2 — Emergent</option>
+                        <option value="@TriageLevel.Esi3_Urgent">ESI 3 — Urgent</option>
+                        <option value="@TriageLevel.Esi4_LessUrgent">ESI 4 — Less Urgent</option>
+                        <option value="@TriageLevel.Esi5_NonUrgent">ESI 5 — Non-Urgent</option>
+                    </select>
+                </div>
+                <div class="col-md-3"><label class="form-label">Mode of Arrival</label>
+                    <select class="form-select" @bind="nArrival"><option>AMBULATORY</option><option>WHEELCHAIR</option><option>STRETCHER</option><option>AMBULANCE</option></select>
+                </div>
+                <div class="col-md-4"><label class="form-label">Notes</label><input class="form-control" @bind="nNotes" /></div>
+            </div>
+            <button class="btn btn-success" @onclick="CreateTriage" disabled="@creating">@(creating ? "Creating..." : "Create Triage")</button>
+            @if (createResult != null) { <div class="alert alert-success mt-2">@createResult</div> }
+        </div>
+    </div>
+}
+
+@code {
+    private string patientId = string.Empty, tab = "list";
+    private bool loading, creating;
+    private string? error, createResult;
+    private List<NursingTriageIndexEntry>? triages;
+    private NursingTriageState? selected;
+    private string nCC = string.Empty, nNurseId = string.Empty, nNurseName = string.Empty, nArrival = "AMBULATORY", nNotes = string.Empty;
+    private decimal? nTemp; private int? nHR, nRR, nSBP, nDBP, nPain; private decimal? nSpO2;
+    private TriageLevel nESI = TriageLevel.Esi3_Urgent;
+
+    private async Task LoadTriages() { if (string.IsNullOrWhiteSpace(patientId)) return; loading = true; error = null; try { triages = await Grains.GetGrain<IPatientWorkflowGrain>(patientId.Trim()).GetTriageAssessmentsAsync(); } catch (Exception ex) { error = ex.Message; } finally { loading = false; } }
+    private async Task ViewDetail(string id) { try { selected = await Grains.GetGrain<IPatientWorkflowGrain>(patientId.Trim()).GetTriageAssessmentAsync(id); tab = "detail"; } catch (Exception ex) { error = ex.Message; } }
+    private async Task Sign(string id) { try { await Grains.GetGrain<IPatientWorkflowGrain>(patientId.Trim()).SignTriageAssessmentAsync(id, nNurseId, nNurseName); await ViewDetail(id); await LoadTriages(); } catch (Exception ex) { error = ex.Message; } }
+    private async Task SetDisp(string id, TriageDisposition d) { try { await Grains.GetGrain<IPatientWorkflowGrain>(patientId.Trim()).SetTriageDispositionAsync(id, d); await ViewDetail(id); await LoadTriages(); } catch (Exception ex) { error = ex.Message; } }
+    private async Task CreateTriage() { if (string.IsNullOrWhiteSpace(patientId) || string.IsNullOrWhiteSpace(nCC)) return; creating = true; error = null; createResult = null; try { string id = await Grains.GetGrain<IPatientWorkflowGrain>(patientId.Trim()).CreateTriageAssessmentAsync(DateTime.UtcNow, nNurseId, nNurseName, null, null, nCC, null, nTemp, nHR, nRR, nSBP, nDBP, nSpO2, nPain, nESI, null, null, nArrival, false, nArrival == "AMBULANCE", nNotes); createResult = $"Triage created: {id}"; await LoadTriages(); } catch (Exception ex) { error = ex.Message; } finally { creating = false; } }
+
+    private string EsiBadge(TriageLevel l) => l switch { TriageLevel.Esi1_Resuscitation => "bg-danger", TriageLevel.Esi2_Emergent => "bg-warning text-dark", TriageLevel.Esi3_Urgent => "bg-info", TriageLevel.Esi4_LessUrgent => "bg-primary", TriageLevel.Esi5_NonUrgent => "bg-success", _ => "bg-secondary" };
+    private string DispBadge(TriageDisposition d) => d switch { TriageDisposition.Admit => "bg-primary", TriageDisposition.Discharge => "bg-success", TriageDisposition.Pending => "bg-warning text-dark", TriageDisposition.Transfer => "bg-info", _ => "bg-secondary" };
+}

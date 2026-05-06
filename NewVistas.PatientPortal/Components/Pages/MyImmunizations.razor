@@ -1,0 +1,57 @@
+@page "/my-immunizations"
+@rendermode InteractiveServer
+@inject HttpClient Http
+
+<PageTitle>My Immunizations</PageTitle>
+<h1>My Immunizations</h1>
+
+@if (error != null) { <div class="alert alert-error">@error</div> }
+@if (loading) { <p>Loading...</p> }
+else if (items.Count == 0) { <p class="empty-state">No immunizations on record.</p> }
+else
+{
+    <table class="health-table">
+        <thead><tr><th>Vaccine</th><th>Date</th><th>Series</th><th>Reaction</th></tr></thead>
+        <tbody>
+            @foreach (ImmunizationDto i in items)
+            {
+                <tr>
+                    <td>@(i.ImmunizationName ?? "—")</td>
+                    <td>@(i.AdministeredDate ?? "—")</td>
+                    <td>@(i.Series ?? "—")</td>
+                    <td>@(i.Reaction ?? "None")</td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+
+@code {
+    bool loading = true;
+    string? error;
+    List<ImmunizationDto> items = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        try { items = await Http.GetFromJsonAsync<List<ImmunizationDto>>("api/my/health/immunizations") ?? new(); }
+        catch (Exception ex) { error = $"Error: {ex.Message}"; }
+        finally { loading = false; }
+    }
+
+    private class ImmunizationDto
+    {
+        public string? ImmunizationName { get; set; }
+        public string? AdministeredDate { get; set; }
+        public string? Series { get; set; }
+        public string? Reaction { get; set; }
+    }
+}
+
+<style>
+    .health-table { width: 100%; border-collapse: collapse; font-size: .9rem; }
+    .health-table th { background: #f1f8f4; text-align: left; padding: .5rem .6rem; border-bottom: 2px solid #d4e8db; }
+    .health-table td { padding: .4rem .6rem; border-bottom: 1px solid #eee; }
+    .health-table tr:hover td { background: #f5faf7; }
+    .empty-state { color: #888; font-style: italic; }
+    .alert-error { background: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; padding: .5rem .75rem; border-radius: 4px; margin-bottom: .5rem; }
+</style>

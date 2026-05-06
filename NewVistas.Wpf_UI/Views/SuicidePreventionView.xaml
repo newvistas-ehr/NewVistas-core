@@ -1,0 +1,28 @@
+<UserControl x:Class="NewVistas.Wpf_UI.Views.SuicidePreventionView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <ScrollViewer VerticalScrollBarVisibility="Auto">
+        <StackPanel Margin="24">
+            <TextBlock Style="{StaticResource PageTitle}" Text="Suicide Prevention"/>
+            <TextBlock Style="{StaticResource ErrorText}" Text="{Binding Error}"
+                       Visibility="{Binding Error, Converter={StaticResource NullToVisibility}}"/>
+            <StackPanel Orientation="Horizontal" Margin="0,0,0,12">
+                <Button Content="Load Roster" Style="{StaticResource PrimaryButton}"
+                        Command="{Binding LoadCommand}" Margin="0,0,8,0"/>
+                <CheckBox Content="High Risk Only" IsChecked="{Binding ShowHighRiskOnly}"
+                          VerticalAlignment="Center" Margin="8,0,0,0"/>
+                <ProgressBar IsIndeterminate="True" Width="120" Height="20" Margin="8,0,0,0"
+                             Visibility="{Binding IsLoading, Converter={StaticResource BoolToVisibility}}"/>
+            </StackPanel>
+            <DataGrid ItemsSource="{Binding Patients}" AutoGenerateColumns="False">
+                <DataGrid.Columns>
+                    <DataGridTextColumn Header="Patient Name" Binding="{Binding PatientName}" Width="*"/>
+                    <DataGridTextColumn Header="Risk Level" Binding="{Binding RiskLevel}" Width="120"/>
+                    <DataGridTextColumn Header="High Risk Flag" Binding="{Binding IsHighRisk}" Width="110"/>
+                    <DataGridTextColumn Header="Risk Set Date" Binding="{Binding RiskSetDate, StringFormat=d}" Width="130"/>
+                    <DataGridTextColumn Header="Next Follow-Up" Binding="{Binding NextFollowUpDate, StringFormat=d}" Width="130"/>
+                </DataGrid.Columns>
+            </DataGrid>
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>

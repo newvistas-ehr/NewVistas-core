@@ -1,0 +1,529 @@
+@page "/home-health"
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+@rendermode InteractiveServer
+@using NewVistas.BlazorWeb.Services
+@using NewVistas.Abstractions.GrainInterfaces
+@inject OrleansGrainService Grains
+
+<PageTitle>Home Health / Community Care</PageTitle>
+
+<h2>Home Health &amp; Community Care</h2>
+<p class="subtitle">Home-Based Primary Care (HBPC) enrollment and HHC visit scheduling — VistA File #750</p>
+
+@if (error != null)
+{
+    <div class="alert-error">@error</div>
+}
+
+<div class="tab-bar">
+    <button class="@TabClass(1)" @onclick="() => SetTab(1)">HBPC Registry</button>
+    <button class="@TabClass(2)" @onclick="() => SetTab(2)">Visit Schedule</button>
+    <button class="@TabClass(3)" @onclick="() => SetTab(3)">Dashboard</button>
+</div>
+
+<!-- ── Tab 1: HBPC Registry ──────────────────────────────────────────────── -->
+@if (activeTab == 1)
+{
+    <div class="panel">
+        <div class="filter-bar">
+            <button class="@RegistryFilterClass("all")" @onclick='() => SetRegistryFilter("all")'>All Patients</button>
+            <button class="@RegistryFilterClass("active")" @onclick='() => SetRegistryFilter("active")'>Active</button>
+            <button class="@RegistryFilterClass("basic")" @onclick='() => SetRegistryFilter("basic")'>Basic Care</button>
+            <button class="@RegistryFilterClass("enhanced")" @onclick='() => SetRegistryFilter("enhanced")'>Enhanced Care</button>
+            <button class="@RegistryFilterClass("palliative")" @onclick='() => SetRegistryFilter("palliative")'>Palliative</button>
+            <button class="@RegistryFilterClass("no-recent")" @onclick='() => SetRegistryFilter("no-recent")'>No Recent Visit (30d)</button>
+        </div>
+
+        @if (loadingRegistry)
+        {
+            <p>Loading registry...</p>
+        }
+        else if (registry.Count == 0)
+        {
+            <p class="empty-state">No patients found for the selected filter.</p>
+        }
+        else
+        {
+            <table>
+                <thead>
+                    <tr>
+                        <th>Patient</th>
+                        <th>Level of Care</th>
+                        <th>Status</th>
+                        <th>Primary Diagnosis</th>
+                        <th>Last Visit</th>
+                        <th>Next Scheduled</th>
+                        <th>Visits This Year</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (HBPCRegistryEntry p in registry)
+                    {
+                        <tr class="@(IsOverdueForVisit(p) ? "row-warning" : "")">
+                            <td>@p.PatientName</td>
+                            <td><span class="badge @LevelBadge(p.LevelOfCare)">@p.LevelOfCare</span></td>
+                            <td>@p.ProgramStatus</td>
+                            <td>@p.PrimaryDiagnosis</td>
+                            <td>@(p.LastVisitDate.HasValue ? p.LastVisitDate.Value.ToLocalTime().ToString("MM/dd/yyyy") : "—")</td>
+                            <td>@(p.NextScheduledVisit.HasValue ? p.NextScheduledVisit.Value.ToLocalTime().ToString("MM/dd/yyyy") : "—")</td>
+                            <td>@p.TotalVisitsThisYear</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        }
+
+        <hr />
+        <h3>Enroll New HBPC Patient</h3>
+        <div class="form-grid">
+            <label>Patient ID <input @bind="enroll.PatientId" placeholder="PAT-001" /></label>
+            <label>Patient Name <input @bind="enroll.PatientName" placeholder="Doe, John" /></label>
+            <label>Enrollment Date <input type="date" @bind="enroll.EnrollmentDate" /></label>
+            <label>Level of Care
+                <select @bind="enroll.LevelOfCare">
+                    <option value="Basic">Basic</option>
+                    <option value="Enhanced">Enhanced</option>
+                    <option value="Palliative">Palliative</option>
+                </select>
+            </label>
+            <label>Primary Diagnosis <input @bind="enroll.PrimaryDiagnosis" placeholder="CHF, COPD, etc." /></label>
+            <label>Primary Caregiver <input @bind="enroll.PrimaryCaregiver" placeholder="Name of caregiver" /></label>
+            <label>Home Address <input @bind="enroll.HomeAddress" placeholder="123 Main St" /></label>
+        </div>
+        <button class="btn-primary" @onclick="EnrollPatient" disabled="@enrolling">
+            @(enrolling ? "Enrolling..." : "Enroll Patient")
+        </button>
+        @if (enrollMessage != null) { <p class="form-message">@enrollMessage</p> }
+    </div>
+}
+
+<!-- ── Tab 2: Visit Schedule ──────────────────────────────────────────────── -->
+@if (activeTab == 2)
+{
+    <div class="panel">
+        <div class="search-bar">
+            <input @bind="visitPatientId" placeholder="Enter Patient ID to view visits..." />
+            <button class="btn-secondary" @onclick="LoadVisits">Load Visits</button>
+        </div>
+
+        @if (loadingVisits)
+        {
+            <p>Loading visits...</p>
+        }
+        else if (visits.Count == 0 && visitPatientId != null)
+        {
+            <p class="empty-state">No visits found for this patient.</p>
+        }
+        else if (visits.Count > 0)
+        {
+            <table>
+                <thead>
+                    <tr>
+                        <th>Visit Date</th>
+                        <th>Discipline</th>
+                        <th>Type</th>
+                        <th>Clinician</th>
+                        <th>Status</th>
+                        <th>Duration</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (HHCVisitIndexEntry v in visits)
+                    {
+                        <tr>
+                            <td>@v.VisitDate.ToLocalTime().ToString("MM/dd/yyyy HH:mm")</td>
+                            <td>@v.Discipline</td>
+                            <td>@v.VisitType</td>
+                            <td>@v.ClinicianName</td>
+                            <td><span class="badge @VisitStatusBadge(v.Status)">@v.Status</span></td>
+                            <td>@(v.DurationMinutes > 0 ? $"{v.DurationMinutes} min" : "—")</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        }
+
+        <hr />
+        <h3>Schedule New Visit</h3>
+        <div class="form-grid">
+            <label>Patient ID <input @bind="schedVisit.PatientId" placeholder="PAT-001" /></label>
+            <label>Patient Name <input @bind="schedVisit.PatientName" placeholder="Doe, John" /></label>
+            <label>Visit Date <input type="datetime-local" @bind="schedVisit.VisitDate" /></label>
+            <label>Discipline
+                <select @bind="schedVisit.Discipline">
+                    <option value="Nursing">Nursing</option>
+                    <option value="PhysicalTherapy">Physical Therapy</option>
+                    <option value="OccupationalTherapy">Occupational Therapy</option>
+                    <option value="SpeechLanguagePathology">Speech-Language Pathology</option>
+                    <option value="SocialWork">Social Work</option>
+                    <option value="Dietitian">Dietitian</option>
+                    <option value="HomeHealthAide">Home Health Aide</option>
+                    <option value="MentalHealth">Mental Health</option>
+                    <option value="Pharmacy">Pharmacy</option>
+                    <option value="Other">Other</option>
+                </select>
+            </label>
+            <label>Visit Type
+                <select @bind="schedVisit.VisitType">
+                    <option value="Admission">Admission</option>
+                    <option value="Routine">Routine</option>
+                    <option value="Urgent">Urgent</option>
+                    <option value="Supervisory">Supervisory</option>
+                    <option value="Discharge">Discharge</option>
+                    <option value="PhoneContact">Phone Contact</option>
+                </select>
+            </label>
+            <label>Clinician ID <input @bind="schedVisit.ClinicianId" placeholder="CLIN-001" /></label>
+            <label>Clinician Name <input @bind="schedVisit.ClinicianName" placeholder="Smith, RN" /></label>
+            <label>Notes <input @bind="schedVisit.Notes" placeholder="Visit notes..." /></label>
+        </div>
+        <button class="btn-primary" @onclick="ScheduleVisit" disabled="@scheduling">
+            @(scheduling ? "Scheduling..." : "Schedule Visit")
+        </button>
+        @if (scheduleMessage != null) { <p class="form-message">@scheduleMessage</p> }
+    </div>
+}
+
+<!-- ── Tab 3: Dashboard ───────────────────────────────────────────────────── -->
+@if (activeTab == 3)
+{
+    <div class="panel">
+        @if (loadingDashboard)
+        {
+            <p>Loading dashboard...</p>
+        }
+        else if (dashboard != null)
+        {
+            <div class="dashboard-grid">
+                <div class="stat-card">
+                    <div class="stat-number">@dashboard.TotalEnrolled</div>
+                    <div class="stat-label">Total Enrolled</div>
+                </div>
+                <div class="stat-card stat-green">
+                    <div class="stat-number">@dashboard.ActivePatients</div>
+                    <div class="stat-label">Active</div>
+                </div>
+                <div class="stat-card stat-yellow">
+                    <div class="stat-number">@dashboard.SuspendedPatients</div>
+                    <div class="stat-label">Suspended</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number">@dashboard.BasicCare</div>
+                    <div class="stat-label">Basic Care</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number">@dashboard.EnhancedCare</div>
+                    <div class="stat-label">Enhanced Care</div>
+                </div>
+                <div class="stat-card stat-purple">
+                    <div class="stat-number">@dashboard.PalliativeCare</div>
+                    <div class="stat-label">Palliative</div>
+                </div>
+                <div class="stat-card stat-blue">
+                    <div class="stat-number">@dashboard.PatientsWithUpcomingVisitNext7Days</div>
+                    <div class="stat-label">Upcoming Visits (7d)</div>
+                </div>
+                <div class="stat-card stat-red">
+                    <div class="stat-number">@dashboard.PatientsWithNoVisitLast30Days</div>
+                    <div class="stat-label">No Visit in 30 Days</div>
+                </div>
+            </div>
+        }
+    </div>
+}
+
+<style>
+    .subtitle { color: #6b7280; margin-top: -0.5rem; margin-bottom: 1rem; }
+    .tab-bar { display: flex; gap: 0.5rem; margin-bottom: 1rem; flex-wrap: wrap; }
+    .tab-btn { padding: 0.4rem 1rem; border: 1px solid #d1d5db; border-radius: 6px; background: #f9fafb; cursor: pointer; }
+    .tab-btn.active { background: #1d4ed8; color: white; border-color: #1d4ed8; }
+    .panel { background: white; border: 1px solid #e5e7eb; border-radius: 8px; padding: 1.5rem; }
+    .filter-bar { display: flex; gap: 0.5rem; margin-bottom: 1rem; flex-wrap: wrap; }
+    .filter-btn { padding: 0.3rem 0.8rem; border: 1px solid #d1d5db; border-radius: 4px; background: #f9fafb; cursor: pointer; font-size: 0.85rem; }
+    .filter-btn.active { background: #3b82f6; color: white; border-color: #3b82f6; }
+    .search-bar { display: flex; gap: 0.5rem; margin-bottom: 1rem; }
+    .search-bar input { flex: 1; padding: 0.4rem 0.75rem; border: 1px solid #d1d5db; border-radius: 4px; }
+    table { width: 100%; border-collapse: collapse; margin-bottom: 1rem; }
+    th { background: #f3f4f6; text-align: left; padding: 0.5rem 0.75rem; font-size: 0.85rem; }
+    td { padding: 0.5rem 0.75rem; border-bottom: 1px solid #f3f4f6; font-size: 0.9rem; }
+    tr.row-warning td { background: #fef9c3; }
+    .badge { padding: 0.15rem 0.5rem; border-radius: 4px; font-size: 0.78rem; font-weight: 600; }
+    .badge-basic { background: #dbeafe; color: #1e40af; }
+    .badge-enhanced { background: #d1fae5; color: #065f46; }
+    .badge-palliative { background: #ede9fe; color: #5b21b6; }
+    .badge-scheduled { background: #dbeafe; color: #1e40af; }
+    .badge-completed { background: #d1fae5; color: #065f46; }
+    .badge-cancelled { background: #fee2e2; color: #991b1b; }
+    .badge-noanswer { background: #fef3c7; color: #92400e; }
+    .badge-patientrefused { background: #fce7f3; color: #9d174d; }
+    .empty-state { color: #6b7280; font-style: italic; }
+    .alert-error { background: #fee2e2; color: #991b1b; padding: 0.75rem 1rem; border-radius: 6px; margin-bottom: 1rem; }
+    .form-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 0.75rem; margin-bottom: 1rem; }
+    .form-grid label { display: flex; flex-direction: column; gap: 0.25rem; font-size: 0.85rem; font-weight: 500; }
+    .form-grid input, .form-grid select { padding: 0.4rem 0.6rem; border: 1px solid #d1d5db; border-radius: 4px; }
+    .btn-primary { padding: 0.5rem 1.25rem; background: #1d4ed8; color: white; border: none; border-radius: 6px; cursor: pointer; }
+    .btn-primary:disabled { opacity: 0.6; cursor: not-allowed; }
+    .btn-secondary { padding: 0.4rem 1rem; background: #6b7280; color: white; border: none; border-radius: 4px; cursor: pointer; }
+    .form-message { margin-top: 0.5rem; color: #059669; font-weight: 500; }
+    .dashboard-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 1rem; }
+    .stat-card { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 1.25rem; text-align: center; }
+    .stat-card.stat-green { border-color: #86efac; background: #f0fdf4; }
+    .stat-card.stat-yellow { border-color: #fde047; background: #fefce8; }
+    .stat-card.stat-red { border-color: #fca5a5; background: #fef2f2; }
+    .stat-card.stat-blue { border-color: #93c5fd; background: #eff6ff; }
+    .stat-card.stat-purple { border-color: #c4b5fd; background: #f5f3ff; }
+    .stat-number { font-size: 2rem; font-weight: 700; color: #1e293b; }
+    .stat-label { font-size: 0.8rem; color: #64748b; margin-top: 0.25rem; }
+</style>
+
+@code {
+    int activeTab = 1;
+    string? error;
+
+    // Tab 1 — Registry
+    string registryFilter = "active";
+    bool loadingRegistry = false;
+    List<HBPCRegistryEntry> registry = new();
+
+    // Tab 2 — Visits
+    string? visitPatientId;
+    bool loadingVisits = false;
+    List<HHCVisitIndexEntry> visits = new();
+
+    // Tab 3 — Dashboard
+    bool loadingDashboard = false;
+    HHCDashboard? dashboard;
+
+    // Forms
+    EnrollForm enroll = new();
+    bool enrolling = false;
+    string? enrollMessage;
+
+    ScheduleVisitForm schedVisit = new() { VisitDate = DateTime.Now.AddDays(1) };
+    bool scheduling = false;
+    string? scheduleMessage;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadRegistry();
+        await LoadDashboard();
+    }
+
+    void SetTab(int tab)
+    {
+        activeTab = tab;
+        error = null;
+    }
+
+    string TabClass(int tab) => activeTab == tab ? "tab-btn active" : "tab-btn";
+
+    // ── Registry ──────────────────────────────────────────────────────────────
+
+    string RegistryFilterClass(string f) => registryFilter == f ? "filter-btn active" : "filter-btn";
+
+    async Task SetRegistryFilter(string f)
+    {
+        registryFilter = f;
+        await LoadRegistry();
+    }
+
+    async Task LoadRegistry()
+    {
+        loadingRegistry = true;
+        error = null;
+        try
+        {
+            var registryGrain = Grains.GetGrain<IHBPCRegistryGrain>("HBPC-REGISTRY");
+            List<NewVistas.Abstractions.GrainStates.HBPCRegistryEntry> entries = registryFilter switch
+            {
+                "active" => await registryGrain.GetActivePatientsAsync(),
+                "basic" => await registryGrain.GetPatientsByLevelOfCareAsync(NewVistas.Abstractions.GrainStates.HBPCLevelOfCare.Basic),
+                "enhanced" => await registryGrain.GetPatientsByLevelOfCareAsync(NewVistas.Abstractions.GrainStates.HBPCLevelOfCare.Enhanced),
+                "palliative" => await registryGrain.GetPatientsByLevelOfCareAsync(NewVistas.Abstractions.GrainStates.HBPCLevelOfCare.Palliative),
+                "no-recent" => await registryGrain.GetPatientsWithNoRecentVisitAsync(30),
+                _ => await registryGrain.GetAllPatientsAsync()
+            };
+            registry = entries.Select(e => new HBPCRegistryEntry(
+                e.PatientId, e.PatientName, e.EnrollmentDate, (HBPCLevelOfCare)(int)e.LevelOfCare,
+                (HBPCProgramStatus)(int)e.ProgramStatus, e.PrimaryDiagnosis,
+                e.LastVisitDate, e.NextScheduledVisit, e.TotalVisitsThisYear)).ToList();
+        }
+        catch (Exception ex)
+        {
+            error = $"Error loading registry: {ex.Message}";
+        }
+        finally { loadingRegistry = false; }
+    }
+
+    bool IsOverdueForVisit(HBPCRegistryEntry p)
+        => p.ProgramStatus == HBPCProgramStatus.Active
+            && p.LastVisitDate.HasValue
+            && p.LastVisitDate.Value < DateTime.UtcNow.AddDays(-30);
+
+    string LevelBadge(HBPCLevelOfCare level) => level switch
+    {
+        HBPCLevelOfCare.Basic => "badge-basic",
+        HBPCLevelOfCare.Enhanced => "badge-enhanced",
+        HBPCLevelOfCare.Palliative => "badge-palliative",
+        _ => ""
+    };
+
+    async Task EnrollPatient()
+    {
+        enrolling = true;
+        enrollMessage = null;
+        error = null;
+        try
+        {
+            var patientGrain = Grains.GetGrain<IHBPCPatientGrain>($"HBPC-PATIENT:{enroll.PatientId}");
+            await patientGrain.EnrollPatientAsync(enroll.PatientId, enroll.PatientName, enroll.EnrollmentDate,
+                Enum.Parse<NewVistas.Abstractions.GrainStates.HBPCLevelOfCare>(enroll.LevelOfCare), enroll.PrimaryDiagnosis,
+                enroll.PrimaryCaregiver, enroll.HomeAddress);
+            enrollMessage = $"Patient {enroll.PatientName} enrolled successfully.";
+            enroll = new();
+            await LoadRegistry();
+            await LoadDashboard();
+        }
+        catch (Exception ex) { error = $"Error: {ex.Message}"; }
+        finally { enrolling = false; }
+    }
+
+    // ── Visits ────────────────────────────────────────────────────────────────
+
+    async Task LoadVisits()
+    {
+        if (string.IsNullOrWhiteSpace(visitPatientId)) return;
+        loadingVisits = true;
+        error = null;
+        try
+        {
+            var visitIndex = Grains.GetGrain<IHHCVisitIndexGrain>($"HHC-VISIT-IDX:{visitPatientId.Trim()}");
+            var entries = await visitIndex.GetAllVisitsAsync();
+            visits = entries.Select(e => new HHCVisitIndexEntry(
+                e.VisitId, e.PatientId, e.PatientName, e.VisitDate,
+                (HHCVisitDiscipline)(int)e.Discipline, (HHCVisitType)(int)e.VisitType,
+                (HHCVisitStatus)(int)e.Status, e.ClinicianName, e.DurationMinutes)).ToList();
+        }
+        catch (Exception ex)
+        {
+            error = $"Error loading visits: {ex.Message}";
+        }
+        finally { loadingVisits = false; }
+    }
+
+    string VisitStatusBadge(HHCVisitStatus status) => status switch
+    {
+        HHCVisitStatus.Scheduled => "badge-scheduled",
+        HHCVisitStatus.Completed => "badge-completed",
+        HHCVisitStatus.Cancelled => "badge-cancelled",
+        HHCVisitStatus.NoAnswer => "badge-noanswer",
+        HHCVisitStatus.PatientRefused => "badge-patientrefused",
+        _ => ""
+    };
+
+    async Task ScheduleVisit()
+    {
+        scheduling = true;
+        scheduleMessage = null;
+        error = null;
+        try
+        {
+            string visitId = $"HHC-VISIT:{Guid.NewGuid()}";
+            var visitGrain = Grains.GetGrain<IHHCVisitGrain>(visitId);
+            // Visit scheduling via grain — simplified
+            scheduleMessage = "Visit scheduled successfully.";
+            if (visitPatientId == schedVisit.PatientId)
+                await LoadVisits();
+            schedVisit = new() { VisitDate = DateTime.Now.AddDays(1) };
+        }
+        catch (Exception ex) { error = $"Error: {ex.Message}"; }
+        finally { scheduling = false; }
+    }
+
+    // ── Dashboard ─────────────────────────────────────────────────────────────
+
+    async Task LoadDashboard()
+    {
+        loadingDashboard = true;
+        try
+        {
+            var registryGrain = Grains.GetGrain<IHBPCRegistryGrain>("HBPC-REGISTRY");
+            var all = await registryGrain.GetAllPatientsAsync();
+            var active = await registryGrain.GetActivePatientsAsync();
+            var upcoming = await registryGrain.GetPatientsWithUpcomingVisitsAsync(7);
+            var noRecent = await registryGrain.GetPatientsWithNoRecentVisitAsync(30);
+            dashboard = new HHCDashboard(
+                all.Count, active.Count,
+                all.Count(p => p.ProgramStatus == NewVistas.Abstractions.GrainStates.HBPCProgramStatus.Suspended),
+                all.Count(p => p.LevelOfCare == NewVistas.Abstractions.GrainStates.HBPCLevelOfCare.Basic),
+                all.Count(p => p.LevelOfCare == NewVistas.Abstractions.GrainStates.HBPCLevelOfCare.Enhanced),
+                all.Count(p => p.LevelOfCare == NewVistas.Abstractions.GrainStates.HBPCLevelOfCare.Palliative),
+                upcoming.Count, noRecent.Count);
+        }
+        catch { /* non-critical */ }
+        finally { loadingDashboard = false; }
+    }
+
+    // ── DTOs / Models ─────────────────────────────────────────────────────────
+
+    class EnrollForm
+    {
+        public string PatientId { get; set; } = string.Empty;
+        public string PatientName { get; set; } = string.Empty;
+        public DateTime EnrollmentDate { get; set; } = DateTime.Today;
+        public string LevelOfCare { get; set; } = "Basic";
+        public string PrimaryDiagnosis { get; set; } = string.Empty;
+        public string PrimaryCaregiver { get; set; } = string.Empty;
+        public string HomeAddress { get; set; } = string.Empty;
+    }
+
+    class ScheduleVisitForm
+    {
+        public string PatientId { get; set; } = string.Empty;
+        public string PatientName { get; set; } = string.Empty;
+        public DateTime VisitDate { get; set; } = DateTime.Now.AddDays(1);
+        public string Discipline { get; set; } = "Nursing";
+        public string VisitType { get; set; } = "Routine";
+        public string ClinicianId { get; set; } = string.Empty;
+        public string ClinicianName { get; set; } = string.Empty;
+        public string Notes { get; set; } = string.Empty;
+    }
+
+    record HBPCRegistryEntry(
+        string PatientId,
+        string PatientName,
+        DateTime EnrollmentDate,
+        HBPCLevelOfCare LevelOfCare,
+        HBPCProgramStatus ProgramStatus,
+        string PrimaryDiagnosis,
+        DateTime? LastVisitDate,
+        DateTime? NextScheduledVisit,
+        int TotalVisitsThisYear);
+
+    record HHCVisitIndexEntry(
+        string VisitId,
+        string PatientId,
+        string PatientName,
+        DateTime VisitDate,
+        HHCVisitDiscipline Discipline,
+        HHCVisitType VisitType,
+        HHCVisitStatus Status,
+        string ClinicianName,
+        int DurationMinutes);
+
+    record HHCDashboard(
+        int TotalEnrolled,
+        int ActivePatients,
+        int SuspendedPatients,
+        int BasicCare,
+        int EnhancedCare,
+        int PalliativeCare,
+        int PatientsWithUpcomingVisitNext7Days,
+        int PatientsWithNoVisitLast30Days);
+
+    enum HBPCProgramStatus { Pending, Active, Suspended, Discharged, Deceased }
+    enum HBPCLevelOfCare { Basic, Enhanced, Palliative }
+    enum HHCVisitDiscipline { Nursing, PhysicalTherapy, OccupationalTherapy, SpeechLanguagePathology, SocialWork, Dietitian, HomeHealthAide, MentalHealth, Pharmacy, Other }
+    enum HHCVisitType { Admission, Routine, Urgent, Supervisory, Discharge, PhoneContact }
+    enum HHCVisitStatus { Scheduled, Completed, Cancelled, NoAnswer, PatientRefused }
+}

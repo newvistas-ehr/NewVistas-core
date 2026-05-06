@@ -1,0 +1,728 @@
+@* Copyright 2026 James Smyth. All rights reserved. *@
+@page "/pcc-surveillance"
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+@rendermode InteractiveServer
+@using NewVistas.BlazorWeb.Services
+@using NewVistas.Abstractions.GrainInterfaces
+@using NewVistas.Abstractions.GrainStates
+@inject OrleansGrainService Grains
+
+<h2>PCC Encounter Surveillance</h2>
+
+@if (error != null)
+{
+    <div class="error-msg">@error</div>
+}
+
+<div class="tabs">
+    <button class="@TabClass(0)" @onclick="() => SetTab(0)">Surveillance Matches</button>
+    <button class="@TabClass(1)" @onclick="() => SetTab(1)">Match Detail</button>
+    <button class="@TabClass(2)" @onclick="() => SetTab(2)">Configurations</button>
+</div>
+
+@if (activeTab == 0)
+{
+    <!-- Surveillance Matches Tab -->
+    <div class="tab-content">
+        <div class="toolbar">
+            <label>
+                Filter by Status:
+                <select @bind="statusFilter">
+                    <option value="">All Statuses</option>
+                    @foreach (string s in matchStatuses)
+                    {
+                        <option value="@s">@s</option>
+                    }
+                </select>
+            </label>
+            <label>
+                Filter by Condition:
+                <input @bind="conditionFilter" placeholder="Condition name" />
+            </label>
+            <button @onclick="LoadMatches">Refresh</button>
+        </div>
+
+        @if (matchesLoading)
+        {
+            <p>Loading...</p>
+        }
+        else
+        {
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Date</th>
+                        <th>Patient</th>
+                        <th>Condition</th>
+                        <th>Classification</th>
+                        <th>Visit Type</th>
+                        <th>Status</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (MatchSummaryDto m in FilteredMatches)
+                    {
+                        <tr>
+                            <td>@m.EncounterDate.ToString("MM/dd/yyyy")</td>
+                            <td>@m.PatientId</td>
+                            <td>@m.ConditionName</td>
+                            <td>@m.Classification</td>
+                            <td>@m.VisitType</td>
+                            <td><span class="badge badge-@m.Status.ToLower()">@m.Status</span></td>
+                            <td><button @onclick="() => SelectMatch(m.MatchId)">Detail</button></td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        }
+    </div>
+}
+
+@if (activeTab == 1)
+{
+    <!-- Match Detail Tab -->
+    <div class="tab-content">
+        @if (matchDetail == null)
+        {
+            <p>Select a match from the Surveillance Matches tab to view details.</p>
+        }
+        else
+        {
+            <h3>Encounter Context</h3>
+            <div class="detail-grid">
+                <div><strong>Match ID:</strong> @matchDetail.MatchId</div>
+                <div><strong>Patient:</strong> @(matchDetail.PatientName ?? matchDetail.PatientId)</div>
+                <div><strong>Encounter Date:</strong> @matchDetail.EncounterDate.ToString("MM/dd/yyyy")</div>
+                <div><strong>Visit Type:</strong> @matchDetail.VisitType</div>
+                <div><strong>Chief Complaint:</strong> @(matchDetail.ChiefComplaint ?? "—")</div>
+                <div><strong>Facility:</strong> @(matchDetail.FacilityName ?? "—")</div>
+                <div><strong>Provider:</strong> @(matchDetail.ProviderName ?? "—")</div>
+                <div><strong>Discharge Date:</strong> @(matchDetail.DischargeDate?.ToString("MM/dd/yyyy") ?? "—")</div>
+                <div><strong>Status:</strong> <span class="badge badge-@matchDetail.Status.ToLower()">@matchDetail.Status</span></div>
+                <div><strong>Classification:</strong> @matchDetail.Classification</div>
+            </div>
+
+            <h3>Clinical Evidence</h3>
+            <div class="evidence-grid">
+                <div>
+                    <strong>Diagnoses:</strong>
+                    @if (matchDetail.MatchingDiagnoses?.Count > 0)
+                    {
+                        <ul>@foreach (string d in matchDetail.MatchingDiagnoses) { <li>@d</li> }</ul>
+                    }
+                    else { <span>—</span> }
+                </div>
+                <div>
+                    <strong>Procedures:</strong>
+                    @if (matchDetail.MatchingProcedures?.Count > 0)
+                    {
+                        <ul>@foreach (string p in matchDetail.MatchingProcedures) { <li>@p</li> }</ul>
+                    }
+                    else { <span>—</span> }
+                </div>
+                <div>
+                    <strong>Lab Results:</strong>
+                    @if (matchDetail.MatchingLabResults?.Count > 0)
+                    {
+                        <ul>@foreach (string l in matchDetail.MatchingLabResults) { <li>@l</li> }</ul>
+                    }
+                    else { <span>—</span> }
+                </div>
+                <div>
+                    <strong>Medications:</strong>
+                    @if (matchDetail.MatchingMedications?.Count > 0)
+                    {
+                        <ul>@foreach (string med in matchDetail.MatchingMedications) { <li>@med</li> }</ul>
+                    }
+                    else { <span>—</span> }
+                </div>
+            </div>
+
+            @if (matchDetail.Comorbidities != null)
+            {
+                <h3>Comorbidity Flags</h3>
+                <div class="badge-row">
+                    @if (matchDetail.Comorbidities.Asthma) { <span class="comorbidity-badge">Asthma</span> }
+                    @if (matchDetail.Comorbidities.Diabetes) { <span class="comorbidity-badge">Diabetes</span> }
+                    @if (matchDetail.Comorbidities.Obesity) { <span class="comorbidity-badge">Obesity</span> }
+                    @if (matchDetail.Comorbidities.Pregnancy) { <span class="comorbidity-badge">Pregnancy</span> }
+                    @if (matchDetail.Comorbidities.Immunocompromised) { <span class="comorbidity-badge">Immunocompromised</span> }
+                    @if (matchDetail.Comorbidities.ChronicLungDisease) { <span class="comorbidity-badge">Chronic Lung Disease</span> }
+                    @if (matchDetail.Comorbidities.CardiovascularDisease) { <span class="comorbidity-badge">Cardiovascular Disease</span> }
+                    @if (matchDetail.Comorbidities.Bmi.HasValue) { <span class="comorbidity-badge">BMI: @matchDetail.Comorbidities.Bmi.Value</span> }
+                </div>
+            }
+
+            @if (matchDetail.Vitals != null)
+            {
+                <h3>Vital Signs</h3>
+                <div class="detail-grid">
+                    <div><strong>Temperature:</strong> @(matchDetail.Vitals.TemperatureF.HasValue ? $"{matchDetail.Vitals.TemperatureF.Value} F" : "—")</div>
+                    <div><strong>O2 Sat:</strong> @(matchDetail.Vitals.OxygenSaturationPct.HasValue ? $"{matchDetail.Vitals.OxygenSaturationPct.Value}%" : "—")</div>
+                    <div><strong>Heart Rate:</strong> @(matchDetail.Vitals.HeartRate?.ToString() ?? "—")</div>
+                    <div><strong>Resp Rate:</strong> @(matchDetail.Vitals.RespiratoryRate?.ToString() ?? "—")</div>
+                    <div><strong>BP:</strong> @(matchDetail.Vitals.BloodPressureSystolic.HasValue ? $"{matchDetail.Vitals.BloodPressureSystolic}/{matchDetail.Vitals.BloodPressureDiastolic}" : "—")</div>
+                </div>
+            }
+
+            <hr />
+            <h3>Actions</h3>
+            <div class="toolbar">
+                <label>
+                    Update Status:
+                    <select @bind="updateStatus">
+                        @foreach (string s in matchStatuses)
+                        {
+                            <option value="@s">@s</option>
+                        }
+                    </select>
+                </label>
+                <button @onclick="UpdateMatchStatus">Update Status</button>
+            </div>
+
+            <div class="toolbar" style="margin-top:8px;">
+                <label>Export Reference:<input @bind="exportReference" /></label>
+                <button @onclick="ExportMatch">Mark Exported</button>
+            </div>
+            @if (detailActionMsg != null) { <span class="submit-msg">@detailActionMsg</span> }
+        }
+    </div>
+}
+
+@if (activeTab == 2)
+{
+    <!-- Configurations Tab -->
+    <div class="tab-content">
+        <div class="toolbar">
+            <button @onclick="LoadConfigs">Refresh</button>
+        </div>
+
+        @if (configsLoading)
+        {
+            <p>Loading...</p>
+        }
+        else
+        {
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Condition</th>
+                        <th>Classification</th>
+                        <th>Criteria</th>
+                        <th>Active</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (ConfigSummaryDto cfg in allConfigs)
+                    {
+                        <tr>
+                            <td>@cfg.ConditionName</td>
+                            <td>@cfg.Classification</td>
+                            <td>@cfg.CriteriaCount</td>
+                            <td><span class="badge badge-@(cfg.IsActive ? "active" : "inactive")">@(cfg.IsActive ? "Active" : "Inactive")</span></td>
+                            <td>
+                                <button @onclick="() => ToggleActive(cfg)">@(cfg.IsActive ? "Deactivate" : "Activate")</button>
+                                <button @onclick="() => SelectConfig(cfg.ConfigId)">Detail</button>
+                            </td>
+                        </tr>
+                        @if (selectedConfigId == cfg.ConfigId && configDetail != null)
+                        {
+                            <tr class="detail-row">
+                                <td colspan="5">
+                                    <div class="detail-panel">
+                                        <strong>Scan Window:</strong> @configDetail.ScanWindowDays days<br />
+                                        <strong>Reporting Timeframe:</strong> @configDetail.ReportingTimeframe<br />
+                                        <strong>Detect Comorbidities:</strong> @(configDetail.DetectComorbidities ? "Yes" : "No")<br />
+                                        <strong>Capture Vitals:</strong> @(configDetail.CaptureVitals ? "Yes" : "No")<br />
+                                        @if (configDetail.Jurisdictions?.Count > 0)
+                                        {
+                                            <strong>Jurisdictions:</strong> @string.Join(", ", configDetail.Jurisdictions)<br />
+                                        }
+                                        @if (configDetail.RequiredVisitTypes?.Count > 0)
+                                        {
+                                            <strong>Required Visit Types:</strong> @string.Join(", ", configDetail.RequiredVisitTypes)<br />
+                                        }
+                                        @if (configDetail.Criteria?.Count > 0)
+                                        {
+                                            <table class="inner-table">
+                                                <thead><tr><th>Code</th><th>System</th><th>Match Type</th><th>Description</th></tr></thead>
+                                                <tbody>
+                                                    @foreach (CriterionDto cr in configDetail.Criteria)
+                                                    {
+                                                        <tr>
+                                                            <td>@cr.Code</td>
+                                                            <td>@cr.CodeSystem</td>
+                                                            <td>@cr.MatchType</td>
+                                                            <td>@cr.Description</td>
+                                                        </tr>
+                                                    }
+                                                </tbody>
+                                            </table>
+                                        }
+
+                                        <h4 style="margin-top:12px;">Add Criterion</h4>
+                                        <div class="form-grid">
+                                            <label>Code:<input @bind="newCriterion.Code" /></label>
+                                            <label>Code System:<input @bind="newCriterion.CodeSystem" /></label>
+                                            <label>Match Type:
+                                                <select @bind="newCriterion.MatchType">
+                                                    <option value="diagnosis">Diagnosis</option>
+                                                    <option value="lab-result">Lab Result</option>
+                                                    <option value="procedure">Procedure</option>
+                                                    <option value="medication">Medication</option>
+                                                    <option value="chief-complaint">Chief Complaint</option>
+                                                </select>
+                                            </label>
+                                            <label>Description:<input @bind="newCriterion.Description" /></label>
+                                            <label>Value Operator:<input @bind="newCriterion.ValueOperator" placeholder="Optional" /></label>
+                                            <label>Threshold Value:<input @bind="newCriterion.ThresholdValue" placeholder="Optional" /></label>
+                                        </div>
+                                        <button @onclick="() => AddCriterion(cfg.ConfigId)">Add Criterion</button>
+                                        @if (criterionMsg != null) { <span class="submit-msg">@criterionMsg</span> }
+                                    </div>
+                                </td>
+                            </tr>
+                        }
+                    }
+                </tbody>
+            </table>
+        }
+
+        <hr />
+        <h3>Add Configuration</h3>
+        <div class="form-grid">
+            <label>Condition Name:<input @bind="newConfig.ConditionName" /></label>
+            <label>Classification:
+                <select @bind="newConfig.Classification">
+                    @foreach (string c in classifications)
+                    {
+                        <option value="@c">@c</option>
+                    }
+                </select>
+            </label>
+            <label>Scan Window (days):<input type="number" @bind="newConfig.ScanWindowDays" /></label>
+            <label>Reporting Timeframe:<input @bind="newConfig.ReportingTimeframe" /></label>
+            <label>Detect Comorbidities:<input type="checkbox" @bind="newConfig.DetectComorbidities" /></label>
+            <label>Capture Vitals:<input type="checkbox" @bind="newConfig.CaptureVitals" /></label>
+            <label>Jurisdictions (comma-separated):<input @bind="newConfig.JurisdictionsText" /></label>
+            <label>Active:<input type="checkbox" @bind="newConfig.IsActive" /></label>
+        </div>
+        <button @onclick="CreateConfig">Create Configuration</button>
+        @if (configSubmitMsg != null) { <span class="submit-msg">@configSubmitMsg</span> }
+    </div>
+}
+
+<style>
+    .tabs { display: flex; gap: 4px; margin-bottom: 16px; }
+    .tab-active { background: #0078d4; color: white; border: none; padding: 8px 16px; border-radius: 4px 4px 0 0; cursor: pointer; }
+    .tab-inactive { background: #e0e0e0; border: none; padding: 8px 16px; border-radius: 4px 4px 0 0; cursor: pointer; }
+    .tab-content { border: 1px solid #ccc; padding: 16px; }
+    .toolbar { display: flex; gap: 12px; align-items: center; margin-bottom: 12px; flex-wrap: wrap; }
+    .data-table { width: 100%; border-collapse: collapse; margin-bottom: 16px; font-size: 0.9em; }
+    .data-table th, .data-table td { border: 1px solid #ddd; padding: 6px 10px; text-align: left; }
+    .data-table th { background: #f5f5f5; }
+    .detail-row td { background: #fafafa; }
+    .detail-panel { padding: 8px; }
+    .detail-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-bottom: 12px; }
+    .evidence-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px; }
+    .inner-table { border-collapse: collapse; margin-top: 8px; }
+    .inner-table th, .inner-table td { border: 1px solid #ccc; padding: 4px 8px; }
+    .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 12px; }
+    .form-grid label { display: flex; flex-direction: column; font-size: 0.85em; }
+    .form-grid input, .form-grid select, .form-grid textarea { margin-top: 2px; padding: 4px; }
+    .submit-msg { margin-left: 12px; color: green; }
+    .error-msg { color: red; margin-bottom: 12px; }
+    .badge { padding: 2px 8px; border-radius: 10px; font-size: 0.8em; }
+    .badge-detected { background: #fff3cd; color: #856404; }
+    .badge-reviewed { background: #cfe2ff; color: #084298; }
+    .badge-reported { background: #d1e7dd; color: #0f5132; }
+    .badge-exported { background: #e2e3e5; color: #41464b; }
+    .badge-falsepositive { background: #f8d7da; color: #842029; }
+    .badge-active { background: #d1e7dd; color: #0f5132; }
+    .badge-inactive { background: #e2e3e5; color: #41464b; }
+    .badge-row { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 12px; }
+    .comorbidity-badge { background: #e8daef; color: #6c3483; padding: 4px 10px; border-radius: 12px; font-size: 0.85em; }
+</style>
+
+@code {
+    int activeTab = 0;
+    string? error;
+
+    // ── Matches ──────────────────────────────────────────────────────────────
+    bool matchesLoading;
+    string statusFilter = string.Empty;
+    string conditionFilter = string.Empty;
+    List<MatchSummaryDto> allMatches = new();
+    string? selectedMatchId;
+    MatchDetailDto? matchDetail;
+    string updateStatus = "Detected";
+    string exportReference = string.Empty;
+    string? detailActionMsg;
+
+    // ── Configs ──────────────────────────────────────────────────────────────
+    bool configsLoading;
+    List<ConfigSummaryDto> allConfigs = new();
+    string? selectedConfigId;
+    ConfigDetailDto? configDetail;
+    string? configSubmitMsg;
+    NewConfigForm newConfig = new();
+    NewCriterionForm newCriterion = new();
+    string? criterionMsg;
+
+    static readonly string[] matchStatuses = { "Detected", "Reviewed", "Reported", "Exported", "FalsePositive" };
+    static readonly string[] classifications = { "Unclassified", "InfluenzaLikeIllness", "SevereRespiratoryDisease", "ReportableCommunicable", "ReportableEnvironmental", "ReportableOccupational" };
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadMatches();
+        await LoadConfigs();
+    }
+
+    string TabClass(int tab) => tab == activeTab ? "tab-active" : "tab-inactive";
+
+    async Task SetTab(int tab)
+    {
+        activeTab = tab;
+        error = null;
+        if (tab == 0) await LoadMatches();
+        if (tab == 2) await LoadConfigs();
+    }
+
+    // ── Matches ──────────────────────────────────────────────────────────────
+
+    IEnumerable<MatchSummaryDto> FilteredMatches
+    {
+        get
+        {
+            IEnumerable<MatchSummaryDto> result = allMatches;
+            if (!string.IsNullOrEmpty(statusFilter))
+                result = result.Where(m => m.Status == statusFilter);
+            if (!string.IsNullOrEmpty(conditionFilter))
+                result = result.Where(m => m.ConditionName.Contains(conditionFilter, StringComparison.OrdinalIgnoreCase));
+            return result;
+        }
+    }
+
+    async Task LoadMatches()
+    {
+        matchesLoading = true;
+        error = null;
+        try
+        {
+            var indexGrain = Grains.GetGrain<IPccSurveillanceMatchIndexGrain>("PCC-SURV-MATCH-IDX");
+            var entries = await indexGrain.GetAllAsync();
+            allMatches = entries.Select(e => new MatchSummaryDto
+            {
+                MatchId = e.MatchId, PatientId = e.PatientId, ConditionName = e.ConditionName,
+                Status = e.Status.ToString(), Classification = e.Classification.ToString(),
+                EncounterDate = e.EncounterDate, VisitType = e.VisitType.ToString(), CreatedDate = e.CreatedDate
+            }).ToList();
+        }
+        catch { error = "Failed to load surveillance matches."; }
+        finally { matchesLoading = false; }
+    }
+
+    async Task SelectMatch(string matchId)
+    {
+        selectedMatchId = matchId;
+        matchDetail = null;
+        detailActionMsg = null;
+        try
+        {
+            var matchGrain = Grains.GetGrain<IPccSurveillanceMatchGrain>($"PCC-SURV-MATCH:{matchId}");
+            var state = await matchGrain.GetAsync();
+            matchDetail = new MatchDetailDto
+            {
+                MatchId = state.MatchId, PatientId = state.PatientId, PatientName = state.PatientName,
+                ConfigId = state.ConfigId, ConditionName = state.ConditionName,
+                Status = state.Status.ToString(), Classification = state.Classification.ToString(),
+                EncounterDate = state.EncounterDate, VisitType = state.VisitType.ToString(),
+                ChiefComplaint = state.ChiefComplaint, FacilityName = state.FacilityName,
+                DischargeDate = state.DischargeDate, ProviderName = state.ProviderName,
+                MatchingDiagnoses = state.MatchingDiagnoses, MatchingProcedures = state.MatchingProcedures,
+                MatchingLabResults = state.MatchingLabResults, MatchingMedications = state.MatchingMedications,
+                Comorbidities = state.Comorbidities != null ? new ComorbidityFlagsDto
+                {
+                    Asthma = state.Comorbidities.Asthma, Diabetes = state.Comorbidities.Diabetes,
+                    Obesity = state.Comorbidities.Obesity, Pregnancy = state.Comorbidities.Pregnancy,
+                    Immunocompromised = state.Comorbidities.Immunocompromised,
+                    ChronicLungDisease = state.Comorbidities.ChronicLungDisease,
+                    CardiovascularDisease = state.Comorbidities.CardiovascularDisease,
+                    Bmi = state.Comorbidities.Bmi
+                } : null,
+                Vitals = state.Vitals != null ? new VitalsDto
+                {
+                    TemperatureF = state.Vitals.TemperatureF, OxygenSaturationPct = state.Vitals.OxygenSaturationPct,
+                    HeartRate = state.Vitals.HeartRate, RespiratoryRate = state.Vitals.RespiratoryRate,
+                    BloodPressureSystolic = state.Vitals.BloodPressureSystolic,
+                    BloodPressureDiastolic = state.Vitals.BloodPressureDiastolic
+                } : null,
+                ExportedDate = state.ExportedDate, ExportReference = state.ExportReference
+            };
+            activeTab = 1;
+        }
+        catch { error = "Failed to load match detail."; }
+    }
+
+    async Task UpdateMatchStatus()
+    {
+        if (selectedMatchId == null) return;
+        detailActionMsg = null;
+        try
+        {
+            var matchGrain = Grains.GetGrain<IPccSurveillanceMatchGrain>($"PCC-SURV-MATCH:{selectedMatchId}");
+            var statusEnum = Enum.Parse<PccSurveillanceMatchStatus>(updateStatus);
+            await matchGrain.UpdateStatusAsync(statusEnum);
+            detailActionMsg = "Status updated.";
+            await SelectMatch(selectedMatchId);
+            await LoadMatches();
+        }
+        catch { detailActionMsg = "Error updating status."; }
+    }
+
+    async Task ExportMatch()
+    {
+        if (selectedMatchId == null) return;
+        detailActionMsg = null;
+        try
+        {
+            var matchGrain = Grains.GetGrain<IPccSurveillanceMatchGrain>($"PCC-SURV-MATCH:{selectedMatchId}");
+            await matchGrain.MarkExportedAsync(exportReference);
+            detailActionMsg = "Match exported.";
+            exportReference = string.Empty;
+            await SelectMatch(selectedMatchId);
+            await LoadMatches();
+        }
+        catch { detailActionMsg = "Error exporting match."; }
+    }
+
+    // ── Configs ──────────────────────────────────────────────────────────────
+
+    async Task LoadConfigs()
+    {
+        configsLoading = true;
+        error = null;
+        try
+        {
+            var indexGrain = Grains.GetGrain<IPccSurveillanceConfigIndexGrain>("PCC-SURV-CONFIG-IDX");
+            var entries = await indexGrain.GetAllAsync();
+            allConfigs = entries.Select(e => new ConfigSummaryDto
+            {
+                ConfigId = e.ConfigId, ConditionName = e.ConditionName,
+                Classification = e.Classification.ToString(), CriteriaCount = e.CriteriaCount, IsActive = e.IsActive
+            }).ToList();
+        }
+        catch { error = "Failed to load surveillance configs."; }
+        finally { configsLoading = false; }
+    }
+
+    async Task SelectConfig(string configId)
+    {
+        if (selectedConfigId == configId) { selectedConfigId = null; configDetail = null; return; }
+        selectedConfigId = configId;
+        configDetail = null;
+        criterionMsg = null;
+        try
+        {
+            var configGrain = Grains.GetGrain<IPccSurveillanceConfigGrain>($"PCC-SURV-CONFIG:{configId}");
+            var state = await configGrain.GetAsync();
+            configDetail = new ConfigDetailDto
+            {
+                ConfigId = state.ConfigId, ConditionName = state.ConditionName,
+                Classification = state.Classification.ToString(),
+                Criteria = state.Criteria?.Select(c => new CriterionDto
+                {
+                    Code = c.Code, CodeSystem = c.CodeSystem, Description = c.Description,
+                    MatchType = c.MatchType, ValueOperator = c.ValueOperator, ThresholdValue = c.ThresholdValue
+                }).ToList() ?? new(),
+                RequiredVisitTypes = state.RequiredVisitTypes?.Select(v => v.ToString()).ToList() ?? new(),
+                DetectComorbidities = state.DetectComorbidities, CaptureVitals = state.CaptureVitals,
+                ScanWindowDays = state.ScanWindowDays,
+                Jurisdictions = state.Jurisdictions ?? new(),
+                ReportingTimeframe = state.ReportingTimeframe, IsActive = state.IsActive
+            };
+        }
+        catch { error = "Failed to load config detail."; }
+    }
+
+    async Task ToggleActive(ConfigSummaryDto cfg)
+    {
+        try
+        {
+            var configGrain = Grains.GetGrain<IPccSurveillanceConfigGrain>($"PCC-SURV-CONFIG:{cfg.ConfigId}");
+            await configGrain.SetActiveAsync(!cfg.IsActive);
+            await LoadConfigs();
+        }
+        catch { error = "Error toggling config active status."; }
+    }
+
+    async Task CreateConfig()
+    {
+        configSubmitMsg = null;
+        error = null;
+        try
+        {
+            var configId = Guid.NewGuid().ToString();
+            var classification = Enum.Parse<PccEncounterClassification>(newConfig.Classification);
+            var jurisdictions = string.IsNullOrWhiteSpace(newConfig.JurisdictionsText) ? null :
+                newConfig.JurisdictionsText.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).ToList();
+
+            var configGrain = Grains.GetGrain<IPccSurveillanceConfigGrain>($"PCC-SURV-CONFIG:{configId}");
+            await configGrain.SaveAsync(newConfig.ConditionName, classification, null, null,
+                newConfig.DetectComorbidities, newConfig.CaptureVitals, newConfig.ScanWindowDays,
+                jurisdictions, newConfig.ReportingTimeframe, newConfig.IsActive);
+
+            var indexGrain = Grains.GetGrain<IPccSurveillanceConfigIndexGrain>("PCC-SURV-CONFIG-IDX");
+            await indexGrain.UpsertAsync(new PccSurveillanceConfigIndexEntry
+            {
+                ConfigId = configId, ConditionName = newConfig.ConditionName,
+                Classification = classification, CriteriaCount = 0, IsActive = newConfig.IsActive
+            });
+
+            configSubmitMsg = "Configuration created.";
+            newConfig = new();
+            await LoadConfigs();
+        }
+        catch { configSubmitMsg = "Error creating config."; }
+    }
+
+    async Task AddCriterion(string configId)
+    {
+        criterionMsg = null;
+        try
+        {
+            var configGrain = Grains.GetGrain<IPccSurveillanceConfigGrain>($"PCC-SURV-CONFIG:{configId}");
+            await configGrain.AddCriterionAsync(new PccSurveillanceCriterion
+            {
+                Code = newCriterion.Code, CodeSystem = newCriterion.CodeSystem,
+                Description = newCriterion.Description, MatchType = newCriterion.MatchType,
+                ValueOperator = string.IsNullOrWhiteSpace(newCriterion.ValueOperator) ? null : newCriterion.ValueOperator,
+                ThresholdValue = string.IsNullOrWhiteSpace(newCriterion.ThresholdValue) ? null : newCriterion.ThresholdValue,
+            });
+            criterionMsg = "Criterion added.";
+            newCriterion = new();
+            await SelectConfig(configId);
+            await LoadConfigs();
+        }
+        catch { criterionMsg = "Error adding criterion."; }
+    }
+
+    // ── Local DTOs ──────────────────────────────────────────────────────────
+
+    class MatchSummaryDto
+    {
+        public string MatchId { get; set; } = string.Empty;
+        public string PatientId { get; set; } = string.Empty;
+        public string ConditionName { get; set; } = string.Empty;
+        public string Status { get; set; } = string.Empty;
+        public string Classification { get; set; } = string.Empty;
+        public DateTime EncounterDate { get; set; }
+        public string VisitType { get; set; } = string.Empty;
+        public DateTime CreatedDate { get; set; }
+    }
+
+    class MatchDetailDto
+    {
+        public string MatchId { get; set; } = string.Empty;
+        public string PatientId { get; set; } = string.Empty;
+        public string? PatientName { get; set; }
+        public string ConfigId { get; set; } = string.Empty;
+        public string ConditionName { get; set; } = string.Empty;
+        public string Status { get; set; } = string.Empty;
+        public string Classification { get; set; } = string.Empty;
+        public DateTime EncounterDate { get; set; }
+        public string VisitType { get; set; } = string.Empty;
+        public string? ChiefComplaint { get; set; }
+        public string? FacilityName { get; set; }
+        public DateTime? DischargeDate { get; set; }
+        public string? ProviderName { get; set; }
+        public List<string>? MatchingDiagnoses { get; set; }
+        public List<string>? MatchingProcedures { get; set; }
+        public List<string>? MatchingLabResults { get; set; }
+        public List<string>? MatchingMedications { get; set; }
+        public ComorbidityFlagsDto? Comorbidities { get; set; }
+        public VitalsDto? Vitals { get; set; }
+        public DateTime? ExportedDate { get; set; }
+        public string? ExportReference { get; set; }
+    }
+
+    class ComorbidityFlagsDto
+    {
+        public bool Asthma { get; set; }
+        public bool Diabetes { get; set; }
+        public bool Obesity { get; set; }
+        public bool Pregnancy { get; set; }
+        public bool Immunocompromised { get; set; }
+        public bool ChronicLungDisease { get; set; }
+        public bool CardiovascularDisease { get; set; }
+        public decimal? Bmi { get; set; }
+    }
+
+    class VitalsDto
+    {
+        public decimal? TemperatureF { get; set; }
+        public int? OxygenSaturationPct { get; set; }
+        public int? HeartRate { get; set; }
+        public int? RespiratoryRate { get; set; }
+        public int? BloodPressureSystolic { get; set; }
+        public int? BloodPressureDiastolic { get; set; }
+    }
+
+    class ConfigSummaryDto
+    {
+        public string ConfigId { get; set; } = string.Empty;
+        public string ConditionName { get; set; } = string.Empty;
+        public string Classification { get; set; } = string.Empty;
+        public int CriteriaCount { get; set; }
+        public bool IsActive { get; set; }
+    }
+
+    class ConfigDetailDto
+    {
+        public string ConfigId { get; set; } = string.Empty;
+        public string ConditionName { get; set; } = string.Empty;
+        public string Classification { get; set; } = string.Empty;
+        public List<CriterionDto> Criteria { get; set; } = new();
+        public List<string> RequiredVisitTypes { get; set; } = new();
+        public bool DetectComorbidities { get; set; }
+        public bool CaptureVitals { get; set; }
+        public int ScanWindowDays { get; set; }
+        public List<string> Jurisdictions { get; set; } = new();
+        public string ReportingTimeframe { get; set; } = string.Empty;
+        public bool IsActive { get; set; }
+    }
+
+    class CriterionDto
+    {
+        public string Code { get; set; } = string.Empty;
+        public string CodeSystem { get; set; } = string.Empty;
+        public string Description { get; set; } = string.Empty;
+        public string MatchType { get; set; } = string.Empty;
+        public string? ValueOperator { get; set; }
+        public string? ThresholdValue { get; set; }
+    }
+
+    class NewConfigForm
+    {
+        public string ConditionName { get; set; } = string.Empty;
+        public string Classification { get; set; } = "Unclassified";
+        public int ScanWindowDays { get; set; } = 90;
+        public string ReportingTimeframe { get; set; } = "24 hours";
+        public bool DetectComorbidities { get; set; } = true;
+        public bool CaptureVitals { get; set; } = true;
+        public string JurisdictionsText { get; set; } = string.Empty;
+        public bool IsActive { get; set; } = true;
+    }
+
+    class NewCriterionForm
+    {
+        public string Code { get; set; } = string.Empty;
+        public string CodeSystem { get; set; } = "ICD-10";
+        public string MatchType { get; set; } = "diagnosis";
+        public string Description { get; set; } = string.Empty;
+        public string? ValueOperator { get; set; }
+        public string? ThresholdValue { get; set; }
+    }
+}

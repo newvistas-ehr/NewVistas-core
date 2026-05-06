@@ -1,0 +1,35 @@
+<UserControl x:Class="NewVistas.Wpf_UI.Views.SocialWorkView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <ScrollViewer VerticalScrollBarVisibility="Auto">
+        <StackPanel Margin="24">
+            <TextBlock Style="{StaticResource PageTitle}" Text="Social Work"/>
+            <TextBlock Style="{StaticResource ErrorText}" Text="{Binding Error}"
+                       Visibility="{Binding Error, Converter={StaticResource NullToVisibility}}"/>
+            <StackPanel Orientation="Horizontal" Margin="0,0,0,12">
+                <Button Content="Load" Style="{StaticResource PrimaryButton}"
+                        Command="{Binding LoadCommand}" Margin="0,0,8,0"/>
+                <ProgressBar IsIndeterminate="True" Width="120" Height="20"
+                             Visibility="{Binding IsLoading, Converter={StaticResource BoolToVisibility}}"/>
+            </StackPanel>
+            <TextBlock Style="{StaticResource SectionHeader}" Text="Assessments"/>
+            <DataGrid ItemsSource="{Binding Assessments}" AutoGenerateColumns="False" MaxHeight="220">
+                <DataGrid.Columns>
+                    <DataGridTextColumn Header="Type" Binding="{Binding AssessmentType}" Width="160"/>
+                    <DataGridTextColumn Header="Status" Binding="{Binding Status}" Width="110"/>
+                    <DataGridTextColumn Header="Date" Binding="{Binding AssessmentDate, StringFormat=d}" Width="110"/>
+                    <DataGridTextColumn Header="Social Worker" Binding="{Binding SocialWorkerName}" Width="*"/>
+                </DataGrid.Columns>
+            </DataGrid>
+            <TextBlock Style="{StaticResource SectionHeader}" Text="Referrals" Margin="0,12,0,0"/>
+            <DataGrid ItemsSource="{Binding Referrals}" AutoGenerateColumns="False" MaxHeight="200">
+                <DataGrid.Columns>
+                    <DataGridTextColumn Header="Service Type" Binding="{Binding ServiceType}" Width="160"/>
+                    <DataGridTextColumn Header="Status" Binding="{Binding Status}" Width="110"/>
+                    <DataGridTextColumn Header="Referred" Binding="{Binding ReferralDate, StringFormat=d}" Width="110"/>
+                    <DataGridTextColumn Header="Agency" Binding="{Binding ReferredToAgency}" Width="*"/>
+                </DataGrid.Columns>
+            </DataGrid>
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>

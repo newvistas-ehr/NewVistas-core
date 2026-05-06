@@ -1,0 +1,584 @@
+@page "/spinal-cord-injury"
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+@rendermode InteractiveServer
+@using NewVistas.BlazorWeb.Services
+@using NewVistas.Abstractions.GrainInterfaces
+@using NewVistas.Abstractions.GrainStates
+@inject OrleansGrainService Grains
+
+<PageTitle>SCI/D Registry</PageTitle>
+
+<h1>Spinal Cord Injury / Dysfunction Registry</h1>
+<p class="subtitle">VistA File #154 — SCIRPAU.m / SCIRPIV.m</p>
+
+<div class="lookup-bar">
+    <input type="text" @bind="patientId" @bind:event="oninput" @onkeydown="HandleKeyDown"
+           placeholder="Patient ID" class="lookup-input" />
+    <button @onclick="LoadPatient" disabled="@(string.IsNullOrWhiteSpace(patientId) || loading)" class="btn btn-primary">
+        @if (loading) { <span>Loading…</span> } else { <span>Load Patient</span> }
+    </button>
+</div>
+
+@if (error != null) { <div class="alert alert-error">@error</div> }
+@if (successMessage != null) { <div class="alert alert-success">@successMessage</div> }
+
+@if (patientLoaded)
+{
+    <div class="tab-bar">
+        <button class="tab @(activeTab == "record" ? "active" : "")" @onclick='() => SetTab("record")'>Registry Record</button>
+        <button class="tab @(activeTab == "encounters" ? "active" : "")" @onclick='() => SetTab("encounters")'>Annual Encounters</button>
+        <button class="tab @(activeTab == "enroll" ? "active" : "")" @onclick='() => SetTab("enroll")'>Enroll / Update</button>
+        <button class="tab @(activeTab == "status" ? "active" : "")" @onclick='() => SetTab("status")'>Status</button>
+    </div>
+
+    <!-- ── Registry Record ───────────────────────────────────── -->
+    @if (activeTab == "record")
+    {
+        @if (sciRecord == null)
+        {
+            <div class="empty-banner">No SCI/D registry record found for this patient.</div>
+        }
+        else
+        {
+            <div class="record-grid">
+                <div class="record-section">
+                    <h3>Enrollment</h3>
+                    <dl>
+                        <dt>Status</dt><dd><span class="badge badge-@StatusClass(sciRecord.Status.ToString())">@sciRecord.Status</span></dd>
+                        <dt>Enrollment Date</dt><dd>@sciRecord.EnrollmentDate.ToString("d")</dd>
+                        <dt>SCI Center</dt><dd>@(sciRecord.SCICenter ?? "—")</dd>
+                        <dt>Enrolling Provider</dt><dd>@(sciRecord.EnrollingProviderName ?? "—")</dd>
+                        <dt>Primary Provider</dt><dd>@(sciRecord.PrimaryProviderName ?? "—")</dd>
+                    </dl>
+                </div>
+                <div class="record-section">
+                    <h3>Injury Classification</h3>
+                    <dl>
+                        <dt>Injury Type</dt><dd>@sciRecord.InjuryType</dd>
+                        <dt>Etiology</dt><dd>@sciRecord.Etiology</dd>
+                        <dt>Date of Injury/Onset</dt><dd>@(sciRecord.DateOfInjuryOnset?.ToString("d") ?? "—")</dd>
+                        <dt>Neurological Level</dt><dd><strong>@(string.IsNullOrEmpty(sciRecord.NeurologicalLevelOfInjury) ? "—" : sciRecord.NeurologicalLevelOfInjury)</strong></dd>
+                        <dt>AIS Grade</dt><dd><span class="badge badge-ais">@sciRecord.AisGrade</span></dd>
+                        <dt>Primary Diagnosis</dt><dd>@(sciRecord.PrimaryDiagnosisDescription ?? sciRecord.PrimaryDiagnosisCode ?? "—")</dd>
+                    </dl>
+                </div>
+                <div class="record-section">
+                    <h3>Management &amp; Function</h3>
+                    <dl>
+                        <dt>Bladder Management</dt><dd>@(sciRecord.BladderManagement?.ToString() ?? "—")</dd>
+                        <dt>Bowel Program</dt><dd>@(sciRecord.BowelProgram?.ToString() ?? "—")</dd>
+                        <dt>Locomotion</dt><dd>@(sciRecord.LocomotionMethod?.ToString() ?? "—")</dd>
+                        <dt>Living Situation</dt><dd>@(sciRecord.LivingSituation?.ToString() ?? "—")</dd>
+                    </dl>
+                </div>
+                @if (sciRecord.AssociatedConditions.Count > 0)
+                {
+                    <div class="record-section full-width">
+                        <h3>Associated Conditions</h3>
+                        <ul class="tag-list">
+                            @foreach (string condition in sciRecord.AssociatedConditions)
+                            {
+                                <li class="tag">@condition</li>
+                            }
+                        </ul>
+                    </div>
+                }
+                @if (!string.IsNullOrEmpty(sciRecord.Notes))
+                {
+                    <div class="record-section full-width">
+                        <h3>Notes</h3>
+                        <p class="notes-text">@sciRecord.Notes</p>
+                    </div>
+                }
+            </div>
+        }
+    }
+
+    <!-- ── Annual Encounters ─────────────────────────────────── -->
+    @if (activeTab == "encounters")
+    {
+        <div class="section-header">
+            <h2>Annual Encounters</h2>
+            <button class="btn btn-sm btn-secondary" @onclick='() => SetTab("add-encounter")'>+ Add Encounter</button>
+        </div>
+
+        @if (encounters == null || encounters.Count == 0)
+        {
+            <div class="empty-banner">No annual encounters recorded.</div>
+        }
+        else
+        {
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>FY</th><th>Date</th><th>Type</th><th>NLI</th><th>AIS</th>
+                        <th>Hospital Admits</th><th>UTIs</th><th>Pressure Injuries</th><th>Provider</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (SCIAnnualEncounterRecord enc in encounters)
+                    {
+                        <tr>
+                            <td>@enc.FiscalYear</td>
+                            <td>@enc.EncounterDate.ToString("d")</td>
+                            <td>@enc.EncounterType</td>
+                            <td><strong>@enc.NeurologicalLevel</strong></td>
+                            <td><span class="badge badge-ais">@enc.AisGrade</span></td>
+                            <td>@enc.HospitalAdmissions</td>
+                            <td>@enc.UrinaryTractInfections</td>
+                            <td>@enc.PressureInjuryCount @(enc.PressureInjuryCount > 0 ? $"(max stage {enc.HighestPressureInjuryStage})" : "")</td>
+                            <td>@(enc.ProviderName ?? "—")</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        }
+    }
+
+    <!-- ── Add Encounter (sub-tab) ───────────────────────────── -->
+    @if (activeTab == "add-encounter")
+    {
+        <h2>Add Annual Encounter</h2>
+        <div class="form-grid">
+            <label>Fiscal Year
+                <input type="number" @bind="encFiscalYear" class="form-control" />
+            </label>
+            <label>Encounter Date
+                <input type="date" @bind="encDate" class="form-control" />
+            </label>
+            <label>Encounter Type
+                <select @bind="encType" class="form-control">
+                    @foreach (string t in EncounterTypes)
+                    { <option value="@t">@t</option> }
+                </select>
+            </label>
+            <label>Neurological Level (e.g., C5)
+                <input type="text" @bind="encNeurologicalLevel" class="form-control" placeholder="C5" />
+            </label>
+            <label>AIS Grade
+                <select @bind="encAisGrade" class="form-control">
+                    @foreach (string g in AisGrades)
+                    { <option value="@g">@g</option> }
+                </select>
+            </label>
+            <label>Hospital Admissions (past year)
+                <input type="number" @bind="encHospitalAdmissions" class="form-control" min="0" />
+            </label>
+            <label>UTIs (past year)
+                <input type="number" @bind="encUtis" class="form-control" min="0" />
+            </label>
+            <label>Pressure Injuries (count)
+                <input type="number" @bind="encPressureInjuryCount" class="form-control" min="0" />
+            </label>
+            <label>Highest Pressure Injury Stage (0–4)
+                <input type="number" @bind="encHighestStage" class="form-control" min="0" max="4" />
+            </label>
+            <label>Provider Name
+                <input type="text" @bind="encProviderName" class="form-control" />
+            </label>
+            <label class="full-width">Notes
+                <textarea @bind="encNotes" class="form-control" rows="3"></textarea>
+            </label>
+        </div>
+        <div class="form-actions">
+            <button class="btn btn-primary" @onclick="SubmitEncounter" disabled="@savingEncounter">
+                @if (savingEncounter) { <span>Saving…</span> } else { <span>Save Encounter</span> }
+            </button>
+            <button class="btn btn-secondary" @onclick='() => SetTab("encounters")'>Cancel</button>
+        </div>
+    }
+
+    <!-- ── Enroll / Update ───────────────────────────────────── -->
+    @if (activeTab == "enroll")
+    {
+        <h2>@(sciRecord?.EnrollmentDate == default ? "Enroll Patient" : "Update Clinical Data")</h2>
+        <div class="form-grid">
+            @if (sciRecord?.EnrollmentDate == default)
+            {
+                <label>Enrollment Date
+                    <input type="date" @bind="enrollDate" class="form-control" />
+                </label>
+                <label>SCI Center
+                    <input type="text" @bind="enrollSciCenter" class="form-control" />
+                </label>
+                <label>Date of Injury / Onset
+                    <input type="date" @bind="enrollDateOfInjury" class="form-control" />
+                </label>
+                <label>Injury Type
+                    <select @bind="enrollInjuryType" class="form-control">
+                        <option value="Traumatic">Traumatic</option>
+                        <option value="NonTraumatic">Non-Traumatic</option>
+                    </select>
+                </label>
+                <label>Etiology
+                    <select @bind="enrollEtiology" class="form-control">
+                        @foreach (string e in Etiologies)
+                        { <option value="@e">@e</option> }
+                    </select>
+                </label>
+                <label>Enrolling Provider Name
+                    <input type="text" @bind="enrollEnrollingProviderName" class="form-control" />
+                </label>
+            }
+            <label>Neurological Level (e.g., C5)
+                <input type="text" @bind="enrollNeurologicalLevel" class="form-control" placeholder="e.g., C5" />
+            </label>
+            <label>AIS Grade
+                <select @bind="enrollAisGrade" class="form-control">
+                    @foreach (string g in AisGrades)
+                    { <option value="@g">@g</option> }
+                </select>
+            </label>
+            <label>Primary Diagnosis Code
+                <input type="text" @bind="enrollDiagnosisCode" class="form-control" placeholder="ICD-10" />
+            </label>
+            <label>Primary Diagnosis Description
+                <input type="text" @bind="enrollDiagnosisDescription" class="form-control" />
+            </label>
+            <label>Bladder Management
+                <select @bind="enrollBladderMgmt" class="form-control">
+                    <option value="">— Select —</option>
+                    @foreach (string b in BladderOptions)
+                    { <option value="@b">@b</option> }
+                </select>
+            </label>
+            <label>Bowel Program
+                <select @bind="enrollBowelProgram" class="form-control">
+                    <option value="">— Select —</option>
+                    @foreach (string b in BowelOptions)
+                    { <option value="@b">@b</option> }
+                </select>
+            </label>
+            <label>Locomotion Method
+                <select @bind="enrollLocomotion" class="form-control">
+                    <option value="">— Select —</option>
+                    @foreach (string l in LocomotionOptions)
+                    { <option value="@l">@l</option> }
+                </select>
+            </label>
+            <label>Living Situation
+                <select @bind="enrollLivingSituation" class="form-control">
+                    <option value="">— Select —</option>
+                    @foreach (string s in LivingSituationOptions)
+                    { <option value="@s">@s</option> }
+                </select>
+            </label>
+            <label>Primary Provider Name
+                <input type="text" @bind="enrollPrimaryProviderName" class="form-control" />
+            </label>
+            <label class="full-width">Notes
+                <textarea @bind="enrollNotes" class="form-control" rows="3"></textarea>
+            </label>
+        </div>
+        <div class="form-actions">
+            <button class="btn btn-primary" @onclick="SubmitEnroll" disabled="@savingEnroll">
+                @if (savingEnroll) { <span>Saving…</span> } else { <span>Save</span> }
+            </button>
+        </div>
+    }
+
+    <!-- ── Status ────────────────────────────────────────────── -->
+    @if (activeTab == "status")
+    {
+        <h2>Update Enrollment Status</h2>
+        <div class="form-grid">
+            <label>New Status
+                <select @bind="newStatus" class="form-control">
+                    @foreach (string s in StatusOptions)
+                    { <option value="@s">@s</option> }
+                </select>
+            </label>
+            <label class="full-width">Notes / Reason
+                <textarea @bind="statusNotes" class="form-control" rows="3"></textarea>
+            </label>
+        </div>
+        <div class="form-actions">
+            <button class="btn btn-primary" @onclick="SubmitStatus" disabled="@savingStatus">
+                @if (savingStatus) { <span>Saving…</span> } else { <span>Update Status</span> }
+            </button>
+        </div>
+    }
+}
+
+@code {
+    // ── Lookup ────────────────────────────────────────────────────────────────
+    private string? patientId;
+    private bool loading;
+    private bool patientLoaded;
+    private string? error;
+    private string? successMessage;
+    private string activeTab = "record";
+
+    private SCIPatientState? sciRecord;
+    private List<SCIAnnualEncounterRecord>? encounters;
+
+    // ── Encounter form fields ────────────────────────────────────────────────
+    private int encFiscalYear = DateTime.UtcNow.Year;
+    private DateTime encDate = DateTime.Today;
+    private string encType = "Annual";
+    private string encNeurologicalLevel = string.Empty;
+    private string encAisGrade = "NotDetermined";
+    private int encHospitalAdmissions;
+    private int encUtis;
+    private int encPressureInjuryCount;
+    private int encHighestStage;
+    private string? encProviderName;
+    private string? encNotes;
+    private bool savingEncounter;
+
+    // ── Enroll / Update form fields ──────────────────────────────────────────
+    private DateTime enrollDate = DateTime.Today;
+    private string? enrollSciCenter;
+    private DateTime? enrollDateOfInjury;
+    private string enrollInjuryType = "Traumatic";
+    private string enrollEtiology = "Unknown";
+    private string enrollNeurologicalLevel = string.Empty;
+    private string enrollAisGrade = "NotDetermined";
+    private string? enrollDiagnosisCode;
+    private string? enrollDiagnosisDescription;
+    private string? enrollBladderMgmt;
+    private string? enrollBowelProgram;
+    private string? enrollLocomotion;
+    private string? enrollLivingSituation;
+    private string? enrollEnrollingProviderName;
+    private string? enrollPrimaryProviderName;
+    private string? enrollNotes;
+    private bool savingEnroll;
+
+    // ── Status form fields ───────────────────────────────────────────────────
+    private string newStatus = "Active";
+    private string? statusNotes;
+    private bool savingStatus;
+
+    // ── Option lists ─────────────────────────────────────────────────────────
+    private static readonly string[] AisGrades =
+        ["A", "B", "C", "D", "E", "NotDetermined"];
+    private static readonly string[] EncounterTypes =
+        ["Annual", "ProblemFocused", "Telephone", "Telemedicine", "Transitional"];
+    private static readonly string[] StatusOptions =
+        ["Active", "Inactive", "Deceased", "Transferred", "Excluded"];
+    private static readonly string[] Etiologies =
+        ["MotorVehicleAccident", "Fall", "Violence", "Sports", "OtherTraumatic",
+         "Disease", "Tumor", "Vascular", "Degenerative", "Iatrogenic",
+         "CongenitalDevelopmental", "OtherNonTraumatic", "Unknown"];
+    private static readonly string[] BladderOptions =
+        ["IntermittentCatheterization", "IndwellingUrethralCatheter", "IndwellingSuprapubicCatheter",
+         "ExternalCondomCatheter", "ReflexVoiding", "Crede", "Valsalva",
+         "SpontaneousVoiding", "Colostomy", "Other"];
+    private static readonly string[] BowelOptions =
+        ["DigitalStimulation", "Suppository", "ManualEvacuation", "NaturalSpontaneous",
+         "Colostomy", "MiniEnema", "Other"];
+    private static readonly string[] LocomotionOptions =
+        ["ManualWheelchair", "PowerWheelchair", "AmbulatoryWithDevice",
+         "AmbulatoryNoDevice", "Bedridden", "Other"];
+    private static readonly string[] LivingSituationOptions =
+        ["PrivateHome", "NursingHome", "BoardCare", "FosterHome",
+         "AssistedLiving", "HospitalLongTermCare", "Homeless", "Other"];
+
+    private void SetTab(string tab)
+    {
+        activeTab = tab;
+        successMessage = null;
+        error = null;
+    }
+
+    private async Task HandleKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter") await LoadPatient();
+    }
+
+    private async Task LoadPatient()
+    {
+        if (string.IsNullOrWhiteSpace(patientId)) return;
+        loading = true;
+        error = null;
+        successMessage = null;
+        sciRecord = null;
+        encounters = null;
+        try
+        {
+            var workflow = Grains.GetGrain<IPatientWorkflowGrain>(patientId.Trim());
+            sciRecord = await workflow.GetSCIPatientAsync();
+            encounters = await workflow.GetSCIAnnualEncountersAsync();
+            patientLoaded = true;
+            activeTab = "record";
+
+            // Pre-populate update form from current record
+            if (sciRecord != null)
+            {
+                enrollNeurologicalLevel = sciRecord.NeurologicalLevelOfInjury ?? string.Empty;
+                enrollAisGrade = sciRecord.AisGrade.ToString();
+                enrollDiagnosisCode = sciRecord.PrimaryDiagnosisCode;
+                enrollDiagnosisDescription = sciRecord.PrimaryDiagnosisDescription;
+                enrollPrimaryProviderName = sciRecord.PrimaryProviderName;
+                enrollNotes = sciRecord.Notes;
+            }
+        }
+        catch (Exception ex)
+        {
+            error = $"Failed to load patient: {ex.Message}";
+            patientLoaded = false;
+        }
+        finally { loading = false; }
+    }
+
+    private async Task SubmitEncounter()
+    {
+        savingEncounter = true;
+        error = null;
+        try
+        {
+            var workflow = Grains.GetGrain<IPatientWorkflowGrain>(patientId!.Trim());
+            await workflow.AddSCIAnnualEncounterAsync(
+                encFiscalYear,
+                encDate,
+                Enum.Parse<SCIEncounterType>(encType),
+                Enum.Parse<SCIAisGrade>(encAisGrade),
+                encNeurologicalLevel,
+                encHospitalAdmissions,
+                encUtis,
+                encPressureInjuryCount,
+                encHighestStage,
+                null,
+                null,
+                null,
+                null,
+                null,
+                encProviderName,
+                encNotes);
+            successMessage = "Encounter saved successfully.";
+            encounters = await workflow.GetSCIAnnualEncountersAsync();
+            SetTab("encounters");
+        }
+        catch (Exception ex) { error = ex.Message; }
+        finally { savingEncounter = false; }
+    }
+
+    private async Task SubmitEnroll()
+    {
+        savingEnroll = true;
+        error = null;
+        try
+        {
+            var workflow = Grains.GetGrain<IPatientWorkflowGrain>(patientId!.Trim());
+            bool isNewEnrollment = sciRecord?.EnrollmentDate == default || sciRecord == null;
+
+            if (isNewEnrollment)
+            {
+                await workflow.EnrollInSCIRegistryAsync(
+                    enrollDate,
+                    enrollSciCenter,
+                    enrollDateOfInjury,
+                    Enum.Parse<SCIInjuryType>(enrollInjuryType),
+                    Enum.Parse<SCIEtiology>(enrollEtiology),
+                    enrollNeurologicalLevel,
+                    Enum.Parse<SCIAisGrade>(enrollAisGrade),
+                    enrollDiagnosisCode,
+                    enrollDiagnosisDescription,
+                    null,
+                    enrollEnrollingProviderName,
+                    null,
+                    enrollPrimaryProviderName,
+                    string.IsNullOrEmpty(enrollBladderMgmt) ? null : Enum.Parse<SCIBladderManagement>(enrollBladderMgmt),
+                    string.IsNullOrEmpty(enrollBowelProgram) ? null : Enum.Parse<SCIBowelProgram>(enrollBowelProgram),
+                    string.IsNullOrEmpty(enrollLocomotion) ? null : Enum.Parse<SCILocomotionMethod>(enrollLocomotion),
+                    string.IsNullOrEmpty(enrollLivingSituation) ? null : Enum.Parse<SCILivingSituation>(enrollLivingSituation),
+                    null,
+                    enrollNotes);
+                successMessage = "Patient enrolled successfully.";
+            }
+            else
+            {
+                await workflow.UpdateSCIPatientAsync(
+                    enrollNeurologicalLevel,
+                    Enum.Parse<SCIAisGrade>(enrollAisGrade),
+                    enrollDiagnosisCode,
+                    enrollDiagnosisDescription,
+                    string.IsNullOrEmpty(enrollBladderMgmt) ? null : Enum.Parse<SCIBladderManagement>(enrollBladderMgmt),
+                    string.IsNullOrEmpty(enrollBowelProgram) ? null : Enum.Parse<SCIBowelProgram>(enrollBowelProgram),
+                    string.IsNullOrEmpty(enrollLocomotion) ? null : Enum.Parse<SCILocomotionMethod>(enrollLocomotion),
+                    string.IsNullOrEmpty(enrollLivingSituation) ? null : Enum.Parse<SCILivingSituation>(enrollLivingSituation),
+                    null,
+                    null,
+                    enrollPrimaryProviderName,
+                    enrollNotes);
+                successMessage = "SCI record updated successfully.";
+            }
+
+            await LoadPatient();
+        }
+        catch (Exception ex) { error = ex.Message; }
+        finally { savingEnroll = false; }
+    }
+
+    private async Task SubmitStatus()
+    {
+        savingStatus = true;
+        error = null;
+        try
+        {
+            var workflow = Grains.GetGrain<IPatientWorkflowGrain>(patientId!.Trim());
+            await workflow.UpdateSCIStatusAsync(Enum.Parse<SCIRegistryStatus>(newStatus), statusNotes);
+            successMessage = $"Status updated to {newStatus}.";
+            await LoadPatient();
+        }
+        catch (Exception ex) { error = ex.Message; }
+        finally { savingStatus = false; }
+    }
+
+    private static string StatusClass(string? status) => status switch
+    {
+        "Active" => "success",
+        "Inactive" => "warning",
+        "Deceased" => "danger",
+        "Transferred" => "info",
+        _ => "default"
+    };
+
+}
+
+<style>
+    .subtitle { color: #666; font-size: 0.9rem; margin-top: -12px; margin-bottom: 20px; }
+    .lookup-bar { display: flex; gap: 10px; margin-bottom: 20px; }
+    .lookup-input { padding: 8px; flex: 1; border: 1px solid #ccc; border-radius: 4px; }
+    .tab-bar { display: flex; gap: 4px; margin: 20px 0 0; border-bottom: 2px solid #007bff; flex-wrap: wrap; }
+    .tab { padding: 8px 16px; cursor: pointer; background: #f0f0f0; border: 1px solid #ccc; border-bottom: none; border-radius: 4px 4px 0 0; font-size: 0.9rem; }
+    .tab.active { background: #007bff; color: white; border-color: #007bff; }
+    .record-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-top: 20px; }
+    .record-section { background: #f9f9f9; border: 1px solid #e0e0e0; border-radius: 6px; padding: 16px; }
+    .record-section.full-width { grid-column: 1 / -1; }
+    .record-section h3 { margin: 0 0 12px; font-size: 1rem; color: #333; border-bottom: 1px solid #ddd; padding-bottom: 6px; }
+    dl { display: grid; grid-template-columns: auto 1fr; gap: 4px 12px; margin: 0; }
+    dt { font-weight: 600; color: #555; font-size: 0.85rem; white-space: nowrap; }
+    dd { margin: 0; font-size: 0.9rem; }
+    .badge { display: inline-block; padding: 2px 8px; border-radius: 12px; font-size: 0.8rem; font-weight: 600; }
+    .badge-success { background: #d4edda; color: #155724; }
+    .badge-warning { background: #fff3cd; color: #856404; }
+    .badge-danger { background: #f8d7da; color: #721c24; }
+    .badge-info { background: #d1ecf1; color: #0c5460; }
+    .badge-default { background: #e2e3e5; color: #383d41; }
+    .badge-ais { background: #cce5ff; color: #004085; }
+    .tag-list { display: flex; flex-wrap: wrap; gap: 6px; list-style: none; padding: 0; margin: 0; }
+    .tag { background: #e2e3e5; border-radius: 12px; padding: 2px 10px; font-size: 0.85rem; }
+    .notes-text { white-space: pre-wrap; font-size: 0.9rem; color: #333; margin: 0; }
+    .section-header { display: flex; justify-content: space-between; align-items: center; margin-top: 20px; }
+    .data-table { width: 100%; border-collapse: collapse; margin-top: 12px; font-size: 0.9rem; }
+    .data-table th, .data-table td { border: 1px solid #ddd; padding: 7px 10px; text-align: left; }
+    .data-table th { background: #f0f0f0; font-weight: 600; }
+    .data-table tr:nth-child(even) { background: #fafafa; }
+    .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 16px; }
+    .form-grid label { display: flex; flex-direction: column; font-size: 0.85rem; font-weight: 600; color: #555; gap: 4px; }
+    .form-grid label.full-width { grid-column: 1 / -1; }
+    .form-control { padding: 7px 10px; border: 1px solid #ccc; border-radius: 4px; font-size: 0.9rem; }
+    .form-actions { display: flex; gap: 10px; margin-top: 20px; }
+    .btn { padding: 8px 18px; border: none; border-radius: 4px; cursor: pointer; font-size: 0.9rem; }
+    .btn-primary { background: #007bff; color: white; }
+    .btn-primary:hover:not(:disabled) { background: #0056b3; }
+    .btn-secondary { background: #6c757d; color: white; }
+    .btn-sm { padding: 5px 12px; font-size: 0.85rem; }
+    .btn:disabled { opacity: 0.6; cursor: not-allowed; }
+    .alert { padding: 10px 14px; border-radius: 4px; margin: 10px 0; }
+    .alert-error { background: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
+    .alert-success { background: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
+    .empty-banner { padding: 20px; text-align: center; color: #888; font-style: italic; }
+</style>

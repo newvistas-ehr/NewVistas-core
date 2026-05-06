@@ -1,0 +1,27 @@
+<UserControl x:Class="NewVistas.Wpf_UI.Views.PccSurveillanceView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <ScrollViewer VerticalScrollBarVisibility="Auto">
+        <StackPanel Margin="24">
+            <TextBlock Style="{StaticResource PageTitle}" Text="PCC Encounter Surveillance"/>
+            <TextBlock Style="{StaticResource ErrorText}" Text="{Binding Error}"
+                       Visibility="{Binding Error, Converter={StaticResource NullToVisibility}}"/>
+            <StackPanel Orientation="Horizontal" Margin="0,0,0,12">
+                <Button Content="Load Matches" Style="{StaticResource PrimaryButton}"
+                        Command="{Binding LoadCommand}" Margin="0,0,8,0"/>
+                <ProgressBar IsIndeterminate="True" Width="120" Height="20" Margin="8,0,0,0"
+                             Visibility="{Binding IsLoading, Converter={StaticResource BoolToVisibility}}"/>
+            </StackPanel>
+            <DataGrid ItemsSource="{Binding Matches}" AutoGenerateColumns="False" IsReadOnly="True">
+                <DataGrid.Columns>
+                    <DataGridTextColumn Header="Date" Binding="{Binding EncounterDate, StringFormat=d}" Width="100"/>
+                    <DataGridTextColumn Header="Patient" Binding="{Binding PatientId}" Width="120"/>
+                    <DataGridTextColumn Header="Condition" Binding="{Binding ConditionName}" Width="160"/>
+                    <DataGridTextColumn Header="Classification" Binding="{Binding Classification}" Width="140"/>
+                    <DataGridTextColumn Header="Visit Type" Binding="{Binding VisitType}" Width="100"/>
+                    <DataGridTextColumn Header="Status" Binding="{Binding Status}" Width="*"/>
+                </DataGrid.Columns>
+            </DataGrid>
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>

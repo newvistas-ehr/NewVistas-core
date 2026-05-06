@@ -1,0 +1,505 @@
+@* Copyright 2026 James Smyth. All rights reserved. *@
+@page "/appointment-waitlist"
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+@rendermode InteractiveServer
+@using NewVistas.BlazorWeb.Services
+@using NewVistas.Abstractions.GrainInterfaces
+@using NewVistas.Abstractions.GrainStates
+@inject OrleansGrainService Grains
+
+<PageTitle>Appointment Wait List</PageTitle>
+
+<h1>Appointment Wait List</h1>
+
+@if (loading)
+{
+    <div class="empty-state">Loading feature status...</div>
+}
+else if (featureChecked && !featureEnabled)
+{
+    <div class="alert alert-warning">
+        The <strong>APPOINTMENT_WAITLIST</strong> feature is not enabled for this site.
+        Please enable it in <a href="/site-parameters">Site Parameters</a> before managing the wait list.
+    </div>
+}
+
+@if (error != null) { <div class="alert alert-error">@error</div> }
+
+@if (!loading)
+{
+    <div class="tab-bar">
+        <button class="tab-btn @(activeTab == 0 ? "active" : "")" @onclick="() => activeTab = 0">Patient Wait List</button>
+        <button class="tab-btn @(activeTab == 1 ? "active" : "")" @onclick="() => activeTab = 1">Clinic Pending</button>
+        <button class="tab-btn @(activeTab == 2 ? "active" : "")" @onclick="() => activeTab = 2">Dashboard</button>
+    </div>
+
+    @* Tab 0: Patient Wait List *@
+    @if (activeTab == 0)
+    {
+        <div class="form-section">
+            <div class="form-row">
+                <label>Patient ID</label>
+                <input type="text" class="form-input" @bind="patientId" @bind:event="oninput"
+                       placeholder="Enter patient ID" />
+                <button @onclick="LoadPatientEntries"
+                        disabled="@(string.IsNullOrWhiteSpace(patientId) || loadingEntries)"
+                        class="btn btn-primary">
+                    @if (loadingEntries) { <span>Loading...</span> } else { <span>Load</span> }
+                </button>
+            </div>
+        </div>
+
+        @if (patientEntries != null)
+        {
+            <div class="section-header">
+                <h3>Wait List Entries (@patientEntries.Count)</h3>
+                <button class="btn btn-secondary" @onclick="() => showNewForm = !showNewForm">
+                    @(showNewForm ? "Cancel" : "Add to Wait List")
+                </button>
+            </div>
+
+            @if (showNewForm)
+            {
+                <div class="new-form">
+                    <h4>Add to Wait List</h4>
+                    <div class="form-row">
+                        <label>Clinic ID</label>
+                        <input type="text" class="form-input" @bind="newClinicId" placeholder="Clinic ID" />
+                    </div>
+                    <div class="form-row">
+                        <label>Clinic Name</label>
+                        <input type="text" class="form-input" @bind="newClinicName" placeholder="Clinic name" />
+                    </div>
+                    <div class="form-row">
+                        <label>Appointment Type</label>
+                        <select class="form-input" @bind="newAppointmentType">
+                            <option value="FOLLOW-UP">FOLLOW-UP</option>
+                            <option value="NEW PATIENT">NEW PATIENT</option>
+                            <option value="PROCEDURE">PROCEDURE</option>
+                            <option value="CONSULT">CONSULT</option>
+                        </select>
+                    </div>
+                    <div class="form-row">
+                        <label>Priority</label>
+                        <select class="form-input" @bind="newPriority">
+                            <option value="ROUTINE">ROUTINE</option>
+                            <option value="URGENT">URGENT</option>
+                            <option value="STAT">STAT</option>
+                        </select>
+                    </div>
+                    <div class="form-row">
+                        <label>Preferred Provider</label>
+                        <input type="text" class="form-input" @bind="newPreferredProvider" placeholder="Provider name (optional)" />
+                    </div>
+                    <div class="form-row">
+                        <label>Desired Start</label>
+                        <input type="date" class="form-input" @bind="newDateStart" />
+                    </div>
+                    <div class="form-row">
+                        <label>Desired End</label>
+                        <input type="date" class="form-input" @bind="newDateEnd" />
+                    </div>
+                    <div class="form-row">
+                        <label>Comments</label>
+                        <input type="text" class="form-input" @bind="newComments" placeholder="Comments" />
+                    </div>
+                    <div class="form-actions">
+                        <button @onclick="CreateWaitListEntry"
+                                disabled="@(string.IsNullOrWhiteSpace(newClinicId) || string.IsNullOrWhiteSpace(newClinicName) || creating)"
+                                class="btn btn-primary">
+                            @if (creating) { <span>Adding...</span> } else { <span>Add to Wait List</span> }
+                        </button>
+                    </div>
+                </div>
+            }
+
+            @if (patientEntries.Count > 0)
+            {
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>Clinic</th>
+                            <th>Type</th>
+                            <th>Priority</th>
+                            <th>Status</th>
+                            <th>Wait Date</th>
+                            <th>Desired Range</th>
+                            <th>Provider</th>
+                            <th>Offers</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var e in patientEntries)
+                        {
+                            <tr>
+                                <td>@e.ClinicName</td>
+                                <td class="code">@e.DesiredAppointmentType</td>
+                                <td><span class="priority-badge @GetPriorityClass(e.Priority)">@e.Priority</span></td>
+                                <td><span class="status-badge" style="@GetStatusStyle(e.Status)">@e.Status</span></td>
+                                <td>@e.WaitListDate.ToString("MM/dd/yyyy")</td>
+                                <td>@(e.DesiredDateRangeStart?.ToString("MM/dd") ?? "---") – @(e.DesiredDateRangeEnd?.ToString("MM/dd") ?? "---")</td>
+                                <td>@(e.PreferredProviderName ?? "Any")</td>
+                                <td>@e.OfferCount</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            }
+            else
+            {
+                <div class="empty-state">No wait list entries for this patient.</div>
+            }
+        }
+    }
+
+    @* Tab 1: Clinic Pending *@
+    @if (activeTab == 1)
+    {
+        <div class="form-section">
+            <div class="form-row">
+                <label>Clinic ID</label>
+                <input type="text" class="form-input" @bind="clinicFilterId" @bind:event="oninput"
+                       placeholder="Enter clinic ID" />
+                <button @onclick="LoadClinicPending"
+                        disabled="@(string.IsNullOrWhiteSpace(clinicFilterId) || loadingClinic)"
+                        class="btn btn-primary">
+                    @if (loadingClinic) { <span>Loading...</span> } else { <span>Load Pending</span> }
+                </button>
+            </div>
+        </div>
+
+        @if (clinicPendingEntries != null)
+        {
+            @if (clinicPendingEntries.Count > 0)
+            {
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>Patient</th>
+                            <th>Type</th>
+                            <th>Priority</th>
+                            <th>Wait Date</th>
+                            <th>Desired Range</th>
+                            <th>Provider</th>
+                            <th>Offers</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var e in clinicPendingEntries)
+                        {
+                            <tr>
+                                <td>@e.PatientName <span class="patient-id-small">(@e.PatientId)</span></td>
+                                <td class="code">@e.DesiredAppointmentType</td>
+                                <td><span class="priority-badge @GetPriorityClass(e.Priority)">@e.Priority</span></td>
+                                <td>@e.WaitListDate.ToString("MM/dd/yyyy")</td>
+                                <td>@(e.DesiredDateRangeStart?.ToString("MM/dd") ?? "---") – @(e.DesiredDateRangeEnd?.ToString("MM/dd") ?? "---")</td>
+                                <td>@(e.PreferredProviderName ?? "Any")</td>
+                                <td>@e.OfferCount</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            }
+            else
+            {
+                <div class="empty-state">No pending wait list entries for this clinic.</div>
+            }
+        }
+    }
+
+    @* Tab 2: Dashboard *@
+    @if (activeTab == 2)
+    {
+        <div class="form-section">
+            <div class="form-row">
+                <label>Clinic ID</label>
+                <input type="text" class="form-input" @bind="dashClinicId" placeholder="Filter by clinic" />
+            </div>
+            <div class="form-row">
+                <label>Status</label>
+                <select class="form-input" @bind="dashStatus">
+                    <option value="">All Statuses</option>
+                    <option value="WAITING">WAITING</option>
+                    <option value="OFFERED">OFFERED</option>
+                    <option value="BOOKED">BOOKED</option>
+                    <option value="DECLINED">DECLINED</option>
+                    <option value="CANCELLED">CANCELLED</option>
+                    <option value="EXPIRED">EXPIRED</option>
+                </select>
+            </div>
+            <div class="form-row">
+                <label>Priority</label>
+                <select class="form-input" @bind="dashPriority">
+                    <option value="">All Priorities</option>
+                    <option value="STAT">STAT</option>
+                    <option value="URGENT">URGENT</option>
+                    <option value="ROUTINE">ROUTINE</option>
+                </select>
+            </div>
+            <div class="form-actions">
+                <button @onclick="SearchDashboard"
+                        disabled="@loadingDashboard"
+                        class="btn btn-primary">
+                    @if (loadingDashboard) { <span>Searching...</span> } else { <span>Search</span> }
+                </button>
+            </div>
+        </div>
+
+        @if (dashboardResults != null)
+        {
+            @if (dashboardResults.Count > 0)
+            {
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>Patient</th>
+                            <th>Clinic</th>
+                            <th>Type</th>
+                            <th>Priority</th>
+                            <th>Status</th>
+                            <th>Wait Date</th>
+                            <th>Offers</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var e in dashboardResults)
+                        {
+                            <tr>
+                                <td>@e.PatientName <span class="patient-id-small">(@e.PatientId)</span></td>
+                                <td>@e.ClinicName</td>
+                                <td class="code">@e.DesiredAppointmentType</td>
+                                <td><span class="priority-badge @GetPriorityClass(e.Priority)">@e.Priority</span></td>
+                                <td><span class="status-badge" style="@GetStatusStyle(e.Status)">@e.Status</span></td>
+                                <td>@e.WaitListDate.ToString("MM/dd/yyyy")</td>
+                                <td>@e.OfferCount</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            }
+            else
+            {
+                <div class="empty-state">No entries match the search criteria.</div>
+            }
+        }
+    }
+}
+
+@code {
+    private int activeTab;
+    private bool loading = true;
+    private bool featureEnabled;
+    private bool featureChecked;
+    private string? error;
+
+    // Tab 0: Patient entries
+    private string? patientId;
+    private bool loadingEntries;
+    private List<WaitListIndexDto>? patientEntries;
+    private bool showNewForm;
+    private bool creating;
+    private string newClinicId = "";
+    private string newClinicName = "";
+    private string newAppointmentType = "FOLLOW-UP";
+    private string newPriority = "ROUTINE";
+    private string newPreferredProvider = "";
+    private DateTime? newDateStart;
+    private DateTime? newDateEnd;
+    private string newComments = "";
+
+    // Tab 1: Clinic pending
+    private string? clinicFilterId;
+    private bool loadingClinic;
+    private List<WaitListIndexDto>? clinicPendingEntries;
+
+    // Tab 2: Dashboard
+    private string dashClinicId = "";
+    private string dashStatus = "";
+    private string dashPriority = "";
+    private bool loadingDashboard;
+    private List<WaitListIndexDto>? dashboardResults;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await CheckFeatureStatus();
+    }
+
+    private async Task CheckFeatureStatus()
+    {
+        loading = true; error = null;
+        try
+        {
+            var siteGrain = Grains.GetGrain<ISiteParametersGrain>("SITE:DEFAULT");
+            featureEnabled = await siteGrain.IsFeatureEnabledAsync("APPOINTMENT_WAITLIST");
+        }
+        catch (Exception ex) { error = $"Error checking feature status: {ex.Message}"; featureEnabled = false; }
+        finally { loading = false; featureChecked = true; }
+    }
+
+    private async Task LoadPatientEntries()
+    {
+        if (string.IsNullOrWhiteSpace(patientId)) return;
+        loadingEntries = true; error = null;
+        try
+        {
+            var indexGrain = Grains.GetGrain<IAppointmentWaitListIndexGrain>("SD-WL-IDX");
+            var entries = await indexGrain.GetByPatientAsync(patientId.Trim());
+            patientEntries = entries.Select(MapToDto).ToList();
+        }
+        catch (Exception ex) { error = $"Error loading entries: {ex.Message}"; }
+        finally { loadingEntries = false; }
+    }
+
+    private async Task CreateWaitListEntry()
+    {
+        if (string.IsNullOrWhiteSpace(patientId) || string.IsNullOrWhiteSpace(newClinicId) || string.IsNullOrWhiteSpace(newClinicName)) return;
+        creating = true; error = null;
+        try
+        {
+            var entryId = $"SD-WL:{Guid.NewGuid()}";
+            var grain = Grains.GetGrain<IAppointmentWaitListGrain>(entryId);
+            await grain.CreateEntryAsync(
+                patientId.Trim(), patientId.Trim(),
+                newClinicId, newClinicName,
+                newAppointmentType,
+                null, string.IsNullOrWhiteSpace(newPreferredProvider) ? null : newPreferredProvider,
+                newPriority,
+                newDateStart, newDateEnd,
+                string.IsNullOrWhiteSpace(newComments) ? null : newComments,
+                "SYSTEM", "System User");
+
+            showNewForm = false;
+            ResetNewForm();
+            await LoadPatientEntries();
+        }
+        catch (Exception ex) { error = $"Error adding to wait list: {ex.Message}"; }
+        finally { creating = false; }
+    }
+
+    private void ResetNewForm()
+    {
+        newClinicId = ""; newClinicName = ""; newAppointmentType = "FOLLOW-UP";
+        newPriority = "ROUTINE"; newPreferredProvider = ""; newDateStart = null;
+        newDateEnd = null; newComments = "";
+    }
+
+    private async Task LoadClinicPending()
+    {
+        if (string.IsNullOrWhiteSpace(clinicFilterId)) return;
+        loadingClinic = true; error = null;
+        try
+        {
+            var indexGrain = Grains.GetGrain<IAppointmentWaitListIndexGrain>("SD-WL-IDX");
+            var entries = await indexGrain.GetPendingByClinicAsync(clinicFilterId.Trim(), 50);
+            clinicPendingEntries = entries.Select(MapToDto).ToList();
+        }
+        catch (Exception ex) { error = $"Error loading clinic pending: {ex.Message}"; }
+        finally { loadingClinic = false; }
+    }
+
+    private async Task SearchDashboard()
+    {
+        loadingDashboard = true; error = null;
+        try
+        {
+            var indexGrain = Grains.GetGrain<IAppointmentWaitListIndexGrain>("SD-WL-IDX");
+            var entries = await indexGrain.SearchAsync(
+                string.IsNullOrEmpty(dashClinicId) ? null : dashClinicId,
+                string.IsNullOrEmpty(dashStatus) ? null : dashStatus,
+                string.IsNullOrEmpty(dashPriority) ? null : dashPriority, 50);
+            dashboardResults = entries.Select(MapToDto).ToList();
+        }
+        catch (Exception ex) { error = $"Error loading dashboard: {ex.Message}"; }
+        finally { loadingDashboard = false; }
+    }
+
+    private static WaitListIndexDto MapToDto(AppointmentWaitListIndexEntry e) => new()
+    {
+        EntryId = e.EntryId, PatientId = e.PatientId, PatientName = e.PatientName,
+        ClinicId = e.ClinicId, ClinicName = e.ClinicName,
+        DesiredAppointmentType = e.DesiredAppointmentType,
+        Priority = e.Priority, Status = e.Status, WaitListDate = e.WaitListDate,
+        DesiredDateRangeStart = e.DesiredDateRangeStart, DesiredDateRangeEnd = e.DesiredDateRangeEnd,
+        PreferredProviderName = e.PreferredProviderName, OfferCount = e.OfferCount
+    };
+
+    private string GetStatusStyle(string status) => status.ToUpperInvariant() switch
+    {
+        "WAITING" => "background: #dbeafe; color: #1e40af; border: 1px solid #93c5fd;",
+        "OFFERED" => "background: #f3e8ff; color: #7c3aed; border: 1px solid #c4b5fd;",
+        "BOOKED" => "background: #dcfce7; color: #166534; border: 1px solid #bbf7d0;",
+        "DECLINED" => "background: #fff7ed; color: #c2410c; border: 1px solid #fed7aa;",
+        "CANCELLED" => "background: #f3f4f6; color: #6b7280; border: 1px solid #d1d5db;",
+        "EXPIRED" => "background: #fde8e8; color: #b91c1c; border: 1px solid #f5c6c6;",
+        _ => "background: #f3f4f6; color: #6b7280; border: 1px solid #d1d5db;"
+    };
+
+    private string GetPriorityClass(string priority) => priority.ToUpperInvariant() switch
+    {
+        "STAT" => "priority-stat",
+        "URGENT" => "priority-urgent",
+        _ => "priority-routine"
+    };
+
+    private class WaitListIndexDto
+    {
+        public string EntryId { get; set; } = "";
+        public string PatientId { get; set; } = "";
+        public string PatientName { get; set; } = "";
+        public string ClinicId { get; set; } = "";
+        public string ClinicName { get; set; } = "";
+        public string DesiredAppointmentType { get; set; } = "";
+        public string Priority { get; set; } = "";
+        public string Status { get; set; } = "";
+        public DateTime WaitListDate { get; set; }
+        public DateTime? DesiredDateRangeStart { get; set; }
+        public DateTime? DesiredDateRangeEnd { get; set; }
+        public string? PreferredProviderName { get; set; }
+        public int OfferCount { get; set; }
+    }
+}
+
+<style>
+    .btn { padding: 0.5rem 1.25rem; border: none; border-radius: 4px; cursor: pointer; font-size: 0.85rem; }
+    .btn-primary { background: #003f72; color: white; }
+    .btn-primary:disabled { background: #999; cursor: not-allowed; }
+    .btn-secondary { background: #e5e7eb; color: #374151; border: 1px solid #d1d5db; }
+    .btn-secondary:hover { background: #d1d5db; }
+    .alert { padding: 0.75rem 1rem; border-radius: 4px; margin-bottom: 1rem; }
+    .alert-error { background: #fde8e8; color: #b91c1c; border: 1px solid #f5c6c6; }
+    .alert-warning { background: #fef3c7; color: #92400e; border: 1px solid #fde68a; }
+    .alert-warning a { color: #003f72; font-weight: 600; }
+    .empty-state { color: #999; font-style: italic; padding: 2rem 0; }
+
+    .tab-bar { display: flex; gap: 0; border-bottom: 2px solid #d4d9e0; margin-bottom: 1.5rem; }
+    .tab-btn { padding: 0.6rem 1.25rem; border: none; background: transparent; cursor: pointer; font-size: 0.85rem; font-weight: 500; color: #666; border-bottom: 2px solid transparent; margin-bottom: -2px; }
+    .tab-btn.active { color: #003f72; border-bottom-color: #003f72; font-weight: 600; }
+    .tab-btn:hover { color: #003f72; }
+
+    .form-section { max-width: 700px; }
+    .form-row { display: flex; align-items: center; gap: 1rem; margin-bottom: 0.75rem; }
+    .form-row label:first-child { width: 160px; font-size: 0.85rem; font-weight: 500; color: #333; flex-shrink: 0; }
+    .form-input { flex: 1; padding: 0.4rem 0.6rem; border: 1px solid #ccc; border-radius: 4px; font-size: 0.85rem; max-width: 350px; }
+    .form-actions { display: flex; gap: 0.75rem; margin-top: 1rem; margin-bottom: 1.5rem; }
+
+    .section-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 1rem; }
+    .section-header h3 { margin: 0; font-size: 1rem; color: #003f72; }
+
+    .new-form { background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 4px; padding: 1.25rem; margin-bottom: 1.5rem; max-width: 700px; }
+    .new-form h4 { margin: 0 0 1rem 0; font-size: 0.9rem; color: #003f72; }
+
+    .data-table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+    .data-table th { text-align: left; padding: 0.5rem; font-weight: 600; color: #003f72; border-bottom: 2px solid #d4d9e0; font-size: 0.75rem; text-transform: uppercase; background: #f4f6f9; }
+    .data-table td { padding: 0.4rem 0.5rem; border-bottom: 1px solid #f0f0f0; }
+    .data-table tr:hover { background: #f9fafb; }
+    .code { font-family: monospace; color: #003f72; }
+
+    .status-badge { display: inline-block; padding: 0.2rem 0.6rem; border-radius: 3px; font-size: 0.75rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.03em; }
+
+    .priority-badge { display: inline-block; padding: 0.15rem 0.5rem; border-radius: 3px; font-size: 0.75rem; font-weight: 600; text-transform: uppercase; }
+    .priority-routine { background: #f3f4f6; color: #6b7280; }
+    .priority-urgent { background: #fff7ed; color: #c2410c; }
+    .priority-stat { background: #fde8e8; color: #b91c1c; }
+
+    .patient-id-small { font-size: 0.75rem; color: #999; }
+</style>

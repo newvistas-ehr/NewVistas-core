@@ -1,0 +1,561 @@
+@page "/dietetics"
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+@rendermode InteractiveServer
+@using NewVistas.BlazorWeb.Services
+@using NewVistas.Abstractions.GrainInterfaces
+@using NewVistas.Abstractions.GrainStates
+@inject OrleansGrainService Grains
+
+<PageTitle>Dietetics</PageTitle>
+<h1>Dietetics</h1>
+
+<div class="lookup-bar">
+    <input type="text" @bind="patientId" @bind:event="oninput" @onkeydown="HandleKeyDown" placeholder="Patient ID" class="lookup-input" />
+    <button @onclick="Load" disabled="@(string.IsNullOrWhiteSpace(patientId) || loading)" class="btn btn-primary">@(loading ? "Loading..." : "Load")</button>
+    <button @onclick="ShowForm" disabled="@(string.IsNullOrWhiteSpace(patientId))" class="btn btn-secondary">+ Create Diet Order</button>
+</div>
+
+@if (error != null) { <div class="alert alert-error">@error</div> }
+@if (success != null) { <div class="alert alert-success">@success</div> }
+
+@if (items != null || detail != null)
+{
+    <div class="tab-bar">
+        <button class="tab @(activeTab == "list" ? "tab-active" : "")" @onclick='() => SetTab("list")'>Diet Orders</button>
+        @if (detail != null)
+        {
+            <button class="tab @(activeTab == "detail" ? "tab-active" : "")" @onclick='() => SetTab("detail")'>Detail</button>
+        }
+    </div>
+}
+
+@if (showNew)
+{
+    <div class="entry-form">
+        <h3>Create Diet Order</h3>
+        <div class="form-grid">
+            <div class="form-row"><label>Diet Type *</label>
+                <select @bind="f_type"><option>REGULAR</option><option>CARDIAC</option><option>RENAL</option><option>DIABETIC</option><option>CLEAR LIQUID</option><option>FULL LIQUID</option><option>NPO</option></select>
+            </div>
+            <div class="form-row"><label>Current Diet</label><input type="text" @bind="f_current" placeholder="Description" /></div>
+            <div class="form-row"><label>Texture</label>
+                <select @bind="f_texture"><option>REGULAR</option><option>MECHANICAL SOFT</option><option>PUREED</option><option>GROUND</option></select>
+            </div>
+            <div class="form-row"><label>Fluid Consistency</label>
+                <select @bind="f_fluid"><option>THIN</option><option>NECTAR THICK</option><option>HONEY THICK</option><option>PUDDING THICK</option></select>
+            </div>
+            <div class="form-row"><label>Calorie Level</label><input type="text" @bind="f_calories" placeholder="e.g. 2000 kcal" /></div>
+            <div class="form-row"><label>Modifications (comma-sep.)</label><input type="text" @bind="f_mods" placeholder="e.g. LOW SODIUM, LOW FAT" /></div>
+            <div class="form-row"><label>Provider</label><input type="text" @bind="f_provider" /></div>
+            <div class="form-row full"><label>Special Instructions</label><textarea @bind="f_instructions" rows="2"></textarea></div>
+        </div>
+        <div class="form-actions">
+            <button @onclick="Submit" disabled="@saving" class="btn btn-primary">@(saving ? "Saving..." : "Create Order")</button>
+            <button @onclick="() => showNew = false" class="btn btn-outline">Cancel</button>
+        </div>
+    </div>
+}
+
+@if (activeTab == "list" && items != null)
+{
+    @if (items.Count == 0) { <div class="empty-state">No diet orders found.</div> }
+    else
+    {
+        <table class="data-table">
+            <thead><tr><th>Diet Type</th><th>Texture</th><th>Calories</th><th>Modifications</th><th>Status</th><th>Actions</th></tr></thead>
+            <tbody>
+                @foreach (var s in items)
+                {
+                    <tr class="clickable" @onclick="() => ViewDetail(s.DietOrderId)">
+                        <td>@s.DietType</td><td>@s.Texture</td><td>@s.CalorieLevel</td>
+                        <td class="mods">@(s.Modifications != null ? string.Join(", ", s.Modifications) : "--")</td>
+                        <td><span class="badge @(s.Status == "ACTIVE" ? "badge-green" : "badge-red")">@s.Status</span></td>
+                        <td class="actions" @onclick:stopPropagation>
+                            @if (s.Status == "ACTIVE")
+                            {
+                                <button @onclick="() => Discontinue(s.DietOrderId)" class="btn-sm btn-cancel">D/C</button>
+                            }
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    }
+}
+
+@if (activeTab == "detail" && detail != null)
+{
+    <div class="detail-panel">
+        <div class="detail-header">
+            <h3>@detail.DietType Diet Order</h3>
+            <span class="badge @(detail.Status == "ACTIVE" ? "badge-green" : "badge-red")">@detail.Status</span>
+            <button @onclick="CloseDetail" class="btn btn-outline btn-sm-action">Close</button>
+        </div>
+        <div class="detail-grid">
+            <div><strong>ID:</strong> @detail.DietOrderId</div>
+            <div><strong>Diet Type:</strong> @detail.DietType</div>
+            <div><strong>Texture:</strong> @(detail.Texture ?? "--")</div>
+            <div><strong>Fluid Consistency:</strong> @(detail.FluidConsistency ?? "--")</div>
+            <div><strong>Calories:</strong> @(detail.CalorieLevel ?? "--")</div>
+            <div><strong>Current Diet:</strong> @(detail.CurrentDiet ?? "--")</div>
+            <div><strong>Calorie Target:</strong> @(detail.CalorieTarget.HasValue ? detail.CalorieTarget.ToString() : "--")</div>
+            <div><strong>Target Weight:</strong> @(detail.TargetWeight.HasValue ? detail.TargetWeight.ToString() : "--")</div>
+            <div><strong>Fluid Restriction:</strong> @(detail.FluidRestrictionMl.HasValue ? $"{detail.FluidRestrictionMl} mL" : "--")</div>
+            <div><strong>Texture Consistency:</strong> @(detail.TextureConsistency ?? "--")</div>
+            <div><strong>Tube Feeding:</strong> @(detail.IsTubeFeeding ? "Yes" : "No")</div>
+            <div><strong>Formula:</strong> @(detail.TubeFeedingFormula ?? "--")</div>
+            <div><strong>Rate:</strong> @(detail.TubeFeedingRateMlHr.HasValue ? $"{detail.TubeFeedingRateMlHr} mL/hr" : "--")</div>
+            <div><strong>NPO:</strong> @(detail.IsNPO ? "Yes" : "No")</div>
+            <div><strong>BMI:</strong> @(detail.Bmi.HasValue ? detail.Bmi.Value.ToString("F1") : "--")</div>
+            <div><strong>Assessment Score:</strong> @(detail.NutritionAssessmentScore.HasValue ? detail.NutritionAssessmentScore.Value.ToString("F1") : "--")</div>
+            @if (!string.IsNullOrEmpty(detail.MealPreferences))
+            {
+                <div class="full"><strong>Meal Preferences:</strong> @detail.MealPreferences</div>
+            }
+            @if (!string.IsNullOrEmpty(detail.AllergyConsiderations))
+            {
+                <div class="full"><strong>Allergy Considerations:</strong> @detail.AllergyConsiderations</div>
+            }
+            @if (detail.Modifications != null && detail.Modifications.Count > 0)
+            {
+                <div class="full"><strong>Modifications:</strong> @string.Join(", ", detail.Modifications)</div>
+            }
+        </div>
+
+        @* -- Nutrition Goals -- *@
+        <div class="section">
+            <h4>Nutrition Goals</h4>
+            <div class="entry-form compact">
+                <div class="form-grid">
+                    <div class="form-row"><label>Calorie Target</label><input type="number" @bind="ng_calories" min="0" /></div>
+                    <div class="form-row"><label>Target Weight (kg)</label><input type="number" @bind="ng_weight" step="0.1" min="0" /></div>
+                </div>
+                <div class="form-actions">
+                    <button @onclick="SubmitNutritionGoals" disabled="@saving" class="btn btn-primary">Set Nutrition Goals</button>
+                </div>
+            </div>
+        </div>
+
+        @* -- Fluid Restriction -- *@
+        <div class="section">
+            <h4>Fluid Restriction</h4>
+            <div class="entry-form compact">
+                <div class="form-grid">
+                    <div class="form-row"><label>Fluid Restriction (mL)</label><input type="number" @bind="fr_ml" min="0" /></div>
+                </div>
+                <div class="form-actions">
+                    <button @onclick="SubmitFluidRestriction" disabled="@saving" class="btn btn-primary">Set Fluid Restriction</button>
+                </div>
+            </div>
+        </div>
+
+        @* -- Texture -- *@
+        <div class="section">
+            <h4>Texture Consistency</h4>
+            <div class="entry-form compact">
+                <div class="form-grid">
+                    <div class="form-row"><label>Texture *</label>
+                        <select @bind="tx_texture"><option>REGULAR</option><option>MECHANICAL_SOFT</option><option>PUREED</option><option>LIQUID</option></select>
+                    </div>
+                </div>
+                <div class="form-actions">
+                    <button @onclick="SubmitTexture" disabled="@saving" class="btn btn-primary">Set Texture</button>
+                </div>
+            </div>
+        </div>
+
+        @* -- Tube Feeding -- *@
+        <div class="section">
+            <h4>Tube Feeding</h4>
+            <div class="entry-form compact">
+                <div class="form-grid">
+                    <div class="form-row"><label>Tube Feeding</label>
+                        <select @bind="tf_enabled"><option value="false">No</option><option value="true">Yes</option></select>
+                    </div>
+                    <div class="form-row"><label>Formula</label><input type="text" @bind="tf_formula" placeholder="e.g. Jevity 1.5" /></div>
+                    <div class="form-row"><label>Rate (mL/hr)</label><input type="number" @bind="tf_rate" step="0.1" min="0" /></div>
+                </div>
+                <div class="form-actions">
+                    <button @onclick="SubmitTubeFeeding" disabled="@saving" class="btn btn-primary">Set Tube Feeding</button>
+                </div>
+            </div>
+        </div>
+
+        @* -- NPO -- *@
+        <div class="section">
+            <h4>NPO Status</h4>
+            <div class="entry-form compact">
+                <div class="form-grid">
+                    <div class="form-row"><label>NPO</label>
+                        <select @bind="npo_enabled"><option value="false">No</option><option value="true">Yes</option></select>
+                    </div>
+                    <div class="form-row"><label>Start Date</label><input type="date" @bind="npo_start" /></div>
+                    <div class="form-row"><label>End Date</label><input type="date" @bind="npo_end" /></div>
+                </div>
+                <div class="form-actions">
+                    <button @onclick="SubmitNPO" disabled="@saving" class="btn btn-primary">Set NPO</button>
+                </div>
+            </div>
+        </div>
+
+        @* -- Meal Preferences -- *@
+        <div class="section">
+            <h4>Meal Preferences</h4>
+            <div class="entry-form compact">
+                <div class="form-grid">
+                    <div class="form-row full"><label>Preferences</label><textarea @bind="mp_prefs" rows="3" placeholder="e.g. No pork, kosher meals preferred..."></textarea></div>
+                </div>
+                <div class="form-actions">
+                    <button @onclick="SubmitMealPreferences" disabled="@saving" class="btn btn-primary">Save Preferences</button>
+                </div>
+            </div>
+        </div>
+
+        @* -- Nutrition Assessment -- *@
+        <div class="section">
+            <h4>Nutrition Assessment</h4>
+            <div class="entry-form compact">
+                <div class="form-grid">
+                    <div class="form-row"><label>Score *</label><input type="number" @bind="na_score" step="0.1" min="0" /></div>
+                    <div class="form-row"><label>Assessed By *</label><input type="text" @bind="na_assessor" /></div>
+                </div>
+                <div class="form-actions">
+                    <button @onclick="SubmitAssessment" disabled="@saving" class="btn btn-primary">Record Assessment</button>
+                </div>
+            </div>
+        </div>
+
+        @* -- BMI -- *@
+        <div class="section">
+            <h4>BMI</h4>
+            <div class="entry-form compact">
+                <div class="form-grid">
+                    <div class="form-row"><label>BMI *</label><input type="number" @bind="bmi_val" step="0.1" min="0" /></div>
+                </div>
+                <div class="form-actions">
+                    <button @onclick="SubmitBmi" disabled="@saving" class="btn btn-primary">Record BMI</button>
+                </div>
+            </div>
+        </div>
+
+        @* -- Allergy Considerations -- *@
+        <div class="section">
+            <h4>Allergy Considerations</h4>
+            <div class="entry-form compact">
+                <div class="form-grid">
+                    <div class="form-row full"><label>Allergy Considerations</label><textarea @bind="ac_text" rows="3" placeholder="e.g. Lactose intolerant, tree nut allergy..."></textarea></div>
+                </div>
+                <div class="form-actions">
+                    <button @onclick="SubmitAllergyConsiderations" disabled="@saving" class="btn btn-primary">Save</button>
+                </div>
+            </div>
+        </div>
+
+        @* -- Modification History -- *@
+        <div class="section">
+            <h4>Modification History (@modHistory.Count)</h4>
+            @if (modHistory.Count > 0)
+            {
+                <table class="data-table">
+                    <thead><tr><th>Date</th><th>Change</th><th>By</th></tr></thead>
+                    <tbody>
+                        @foreach (var m in modHistory)
+                        {
+                            <tr>
+                                <td class="date">@m.DateTime.ToString("MM/dd/yyyy HH:mm")</td>
+                                <td>@m.Description</td><td>@m.ModifiedByName</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            }
+            else
+            {
+                <div class="empty-state">No modification history.</div>
+            }
+        </div>
+    </div>
+}
+
+@code {
+    [SupplyParameterFromQuery] public string? patientId { get; set; }
+    private List<DietListDto>? items;
+    private DietDetailDto? detail;
+    private List<DietModHistoryDto> modHistory = new();
+    private bool loading, saving, showNew;
+    private string? error, success;
+    private string activeTab = "list";
+
+    // New form
+    private string f_type = "REGULAR", f_current = "", f_texture = "REGULAR", f_fluid = "THIN", f_calories = "", f_mods = "", f_provider = "", f_instructions = "";
+
+    // Detail forms
+    private int? ng_calories; private decimal? ng_weight;
+    private int? fr_ml;
+    private string tx_texture = "REGULAR";
+    private string tf_enabled = "false", tf_formula = ""; private decimal? tf_rate;
+    private string npo_enabled = "false"; private DateTime? npo_start, npo_end;
+    private string mp_prefs = "";
+    private decimal na_score; private string na_assessor = "";
+    private decimal bmi_val;
+    private string ac_text = "";
+
+    private IPatientWorkflowGrain GetWorkflow() => Grains.GetGrain<IPatientWorkflowGrain>(patientId!.Trim());
+
+    protected override async Task OnParametersSetAsync() { if (!string.IsNullOrWhiteSpace(patientId)) await Load(); }
+    private async Task HandleKeyDown(KeyboardEventArgs e) { if (e.Key == "Enter") await Load(); }
+    private void SetTab(string tab) { activeTab = tab; success = null; }
+    private void ShowForm() { showNew = true; success = null; f_type = "REGULAR"; f_current = ""; f_texture = "REGULAR"; f_fluid = "THIN"; f_calories = ""; f_mods = ""; f_provider = ""; f_instructions = ""; }
+    private void CloseDetail() { detail = null; activeTab = "list"; }
+
+    private async Task Load()
+    {
+        if (string.IsNullOrWhiteSpace(patientId)) return; loading = true; error = null;
+        try
+        {
+            var summaries = await GetWorkflow().GetDietOrdersAsync();
+            items = summaries.Select(s => new DietListDto
+            {
+                DietOrderId = s.DietOrderId, DietType = s.DietType, Status = s.Status
+            }).ToList();
+        }
+        catch (Exception ex) { error = $"Error: {ex.Message}"; } finally { loading = false; }
+    }
+
+    private async Task ViewDetail(string dietOrderId)
+    {
+        error = null;
+        try
+        {
+            var patient = Grains.GetGrain<IPatientGrain>(patientId!.Trim());
+            var orders = await patient.GetDietOrdersAsync();
+            var entry = orders.FirstOrDefault(o => o.DieteticsId == dietOrderId);
+            if (entry != null)
+            {
+                detail = new DietDetailDto
+                {
+                    DietOrderId = entry.DieteticsId, DietType = entry.DietType,
+                    Texture = entry.Texture, FluidConsistency = entry.FluidConsistency,
+                    CalorieLevel = entry.CalorieLevel, CurrentDiet = entry.CurrentDiet,
+                    Modifications = entry.Modifications, Status = entry.Status,
+                    CalorieTarget = entry.CalorieTarget, TargetWeight = entry.TargetWeight,
+                    FluidRestrictionMl = entry.FluidRestrictionMl, TextureConsistency = entry.TextureConsistency,
+                    IsTubeFeeding = entry.IsTubeFeeding, TubeFeedingFormula = entry.TubeFeedingFormula,
+                    TubeFeedingRateMlHr = entry.TubeFeedingRateMlHr, IsNPO = entry.IsNPO,
+                    Bmi = entry.CurrentBMI, NutritionAssessmentScore = entry.NutritionAssessmentScore,
+                    MealPreferences = entry.MealPreferences, AllergyConsiderations = entry.AllergyConsiderations
+                };
+            }
+            activeTab = "detail";
+            ResetDetailForms();
+            await LoadModificationHistory(dietOrderId);
+        }
+        catch (Exception ex) { error = $"Error: {ex.Message}"; }
+    }
+
+    private async Task LoadModificationHistory(string dietOrderId)
+    {
+        try
+        {
+            var entries = await GetWorkflow().GetDietModificationHistoryAsync(dietOrderId);
+            modHistory = entries.Select(e => new DietModHistoryDto
+            {
+                Description = e.Description ?? e.ModificationType, ModifiedByName = e.OrderedByName, DateTime = e.ModificationDate
+            }).ToList();
+        }
+        catch { modHistory = new(); }
+    }
+
+    private void ResetDetailForms()
+    {
+        ng_calories = null; ng_weight = null;
+        fr_ml = null; tx_texture = "REGULAR";
+        tf_enabled = "false"; tf_formula = ""; tf_rate = null;
+        npo_enabled = "false"; npo_start = null; npo_end = null;
+        mp_prefs = ""; na_score = 0; na_assessor = "";
+        bmi_val = 0; ac_text = "";
+    }
+
+    private async Task Submit()
+    {
+        saving = true; error = null;
+        try
+        {
+            var mods = string.IsNullOrWhiteSpace(f_mods) ? null : f_mods.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).ToList();
+            await GetWorkflow().CreateDietOrderAsync(
+                f_type, NullIfEmpty(f_current), mods, f_texture, f_fluid,
+                NullIfEmpty(f_calories), NullIfEmpty(f_instructions), DateTime.UtcNow,
+                null, NullIfEmpty(f_provider), null);
+            showNew = false; success = "Diet order created."; await Load();
+        }
+        catch (Exception ex) { error = $"Error: {ex.Message}"; } finally { saving = false; }
+    }
+
+    private async Task Discontinue(string id)
+    {
+        try
+        {
+            await GetWorkflow().DiscontinueDietOrderAsync(id);
+            success = "Diet order discontinued."; await Load();
+        }
+        catch (Exception ex) { error = $"Error: {ex.Message}"; }
+    }
+
+    private async Task SubmitNutritionGoals()
+    {
+        saving = true; error = null;
+        try { await GetWorkflow().SetDietNutritionGoalsAsync(detail!.DietOrderId, ng_calories, ng_weight); success = "Nutrition goals set."; }
+        catch (Exception ex) { error = $"Error: {ex.Message}"; } finally { saving = false; }
+    }
+
+    private async Task SubmitFluidRestriction()
+    {
+        saving = true; error = null;
+        try { await GetWorkflow().SetDietFluidRestrictionAsync(detail!.DietOrderId, fr_ml); success = "Fluid restriction set."; }
+        catch (Exception ex) { error = $"Error: {ex.Message}"; } finally { saving = false; }
+    }
+
+    private async Task SubmitTexture()
+    {
+        saving = true; error = null;
+        try { await GetWorkflow().SetDietTextureConsistencyAsync(detail!.DietOrderId, tx_texture); success = "Texture set."; }
+        catch (Exception ex) { error = $"Error: {ex.Message}"; } finally { saving = false; }
+    }
+
+    private async Task SubmitTubeFeeding()
+    {
+        saving = true; error = null;
+        try { await GetWorkflow().SetDietTubeFeedingAsync(detail!.DietOrderId, bool.Parse(tf_enabled), NullIfEmpty(tf_formula), tf_rate); success = "Tube feeding set."; }
+        catch (Exception ex) { error = $"Error: {ex.Message}"; } finally { saving = false; }
+    }
+
+    private async Task SubmitNPO()
+    {
+        saving = true; error = null;
+        try { await GetWorkflow().SetDietNPOAsync(detail!.DietOrderId, bool.Parse(npo_enabled), npo_start, npo_end); success = "NPO status set."; }
+        catch (Exception ex) { error = $"Error: {ex.Message}"; } finally { saving = false; }
+    }
+
+    private async Task SubmitMealPreferences()
+    {
+        if (string.IsNullOrWhiteSpace(mp_prefs)) { error = "Preferences text is required."; return; }
+        saving = true; error = null;
+        try { await GetWorkflow().RecordDietMealPreferenceAsync(detail!.DietOrderId, mp_prefs); success = "Meal preferences saved."; }
+        catch (Exception ex) { error = $"Error: {ex.Message}"; } finally { saving = false; }
+    }
+
+    private async Task SubmitAssessment()
+    {
+        if (string.IsNullOrWhiteSpace(na_assessor)) { error = "Assessor name is required."; return; }
+        saving = true; error = null;
+        try { await GetWorkflow().RecordDietNutritionAssessmentAsync(detail!.DietOrderId, na_score, na_assessor); success = "Nutrition assessment recorded."; }
+        catch (Exception ex) { error = $"Error: {ex.Message}"; } finally { saving = false; }
+    }
+
+    private async Task SubmitBmi()
+    {
+        saving = true; error = null;
+        try { await GetWorkflow().RecordDietBMIAsync(detail!.DietOrderId, bmi_val); success = "BMI recorded."; }
+        catch (Exception ex) { error = $"Error: {ex.Message}"; } finally { saving = false; }
+    }
+
+    private async Task SubmitAllergyConsiderations()
+    {
+        if (string.IsNullOrWhiteSpace(ac_text)) { error = "Allergy considerations text is required."; return; }
+        saving = true; error = null;
+        try { await GetWorkflow().SetDietAllergyConsiderationsAsync(detail!.DietOrderId, ac_text); success = "Allergy considerations saved."; }
+        catch (Exception ex) { error = $"Error: {ex.Message}"; } finally { saving = false; }
+    }
+
+    private static string? NullIfEmpty(string s) => string.IsNullOrWhiteSpace(s) ? null : s;
+
+    private class DietListDto
+    {
+        public string DietOrderId { get; set; } = "";
+        public string DietType { get; set; } = "";
+        public string? Texture { get; set; }
+        public string? CalorieLevel { get; set; }
+        public List<string>? Modifications { get; set; }
+        public string Status { get; set; } = "";
+    }
+
+    private class DietDetailDto
+    {
+        public string DietOrderId { get; set; } = "";
+        public string DietType { get; set; } = "";
+        public string? Texture { get; set; }
+        public string? FluidConsistency { get; set; }
+        public string? CalorieLevel { get; set; }
+        public string? CurrentDiet { get; set; }
+        public List<string>? Modifications { get; set; }
+        public string Status { get; set; } = "";
+        public int? CalorieTarget { get; set; }
+        public decimal? TargetWeight { get; set; }
+        public int? FluidRestrictionMl { get; set; }
+        public string? TextureConsistency { get; set; }
+        public bool IsTubeFeeding { get; set; }
+        public string? TubeFeedingFormula { get; set; }
+        public decimal? TubeFeedingRateMlHr { get; set; }
+        public bool IsNPO { get; set; }
+        public decimal? Bmi { get; set; }
+        public decimal? NutritionAssessmentScore { get; set; }
+        public string? MealPreferences { get; set; }
+        public string? AllergyConsiderations { get; set; }
+    }
+
+    private class DietModHistoryDto
+    {
+        public string Description { get; set; } = "";
+        public string? ModifiedByName { get; set; }
+        public DateTime DateTime { get; set; }
+    }
+}
+
+<style>
+    h1 { color: #003f72; margin-bottom: 1.25rem; font-size: 1.4rem; }
+    .lookup-bar { display: flex; gap: .5rem; margin-bottom: 1.5rem; align-items: center; }
+    .lookup-input { width: 280px; padding: .5rem .75rem; border: 1px solid #ccc; border-radius: 4px; font-size: .9rem; }
+    .btn { padding: .5rem 1.25rem; border: none; border-radius: 4px; cursor: pointer; font-size: .85rem; }
+    .btn-primary { background: #003f72; color: white; } .btn-primary:hover { background: #002a4e; } .btn-primary:disabled { background: #999; cursor: not-allowed; }
+    .btn-secondary { background: #16a34a; color: white; } .btn-secondary:disabled { background: #999; }
+    .btn-outline { background: white; border: 1px solid #ccc; color: #333; }
+    .btn-sm { padding: 2px 8px; border: none; border-radius: 3px; cursor: pointer; font-size: .75rem; }
+    .btn-sm-action { padding: 4px 12px; font-size: .8rem; }
+    .btn-cancel { background: #dc2626; color: white; }
+    .alert { padding: .75rem 1rem; border-radius: 4px; margin-bottom: 1rem; font-size: .85rem; }
+    .alert-error { background: #fde8e8; color: #b91c1c; border: 1px solid #f5c6c6; }
+    .alert-success { background: #dcfce7; color: #166534; border: 1px solid #bbf7d0; }
+    .empty-state { color: #999; font-style: italic; padding: 2rem 0; }
+    .tab-bar { display: flex; gap: 0; border-bottom: 2px solid #d4d9e0; margin-bottom: 1.25rem; }
+    .tab { background: none; border: none; padding: .6rem 1.25rem; cursor: pointer; font-size: .85rem; color: #555; border-bottom: 2px solid transparent; margin-bottom: -2px; }
+    .tab-active { color: #003f72; font-weight: 600; border-bottom-color: #003f72; }
+    .entry-form { border: 1px solid #d4d9e0; border-radius: 6px; padding: 1.25rem; margin-bottom: 1.5rem; background: #f9fafb; }
+    .entry-form.compact { margin-top: .75rem; padding: 1rem; }
+    .entry-form h3 { margin-bottom: 1rem; color: #003f72; }
+    .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: .75rem; }
+    .form-row { display: flex; flex-direction: column; gap: .25rem; }
+    .form-row.full { grid-column: 1 / -1; }
+    .form-row label { font-size: .8rem; font-weight: 600; color: #555; }
+    .form-row input, .form-row select, .form-row textarea { padding: .4rem .6rem; border: 1px solid #ccc; border-radius: 4px; font-size: .85rem; }
+    .form-row textarea { resize: vertical; }
+    .form-actions { display: flex; gap: .5rem; margin-top: .75rem; }
+    .data-table { width: 100%; border-collapse: collapse; font-size: .85rem; border: 1px solid #d4d9e0; }
+    .data-table thead { background: #f4f6f9; }
+    .data-table th { text-align: left; padding: .5rem; font-weight: 600; color: #003f72; border-bottom: 2px solid #d4d9e0; font-size: .75rem; text-transform: uppercase; }
+    .data-table td { padding: .4rem .5rem; border-bottom: 1px solid #f0f0f0; }
+    .data-table tr.clickable { cursor: pointer; }
+    .data-table tr.clickable:hover { background: #eef3f9; }
+    .mods { max-width: 250px; font-size: .8rem; color: #555; }
+    .actions { white-space: nowrap; }
+    .date { color: #888; font-size: .8rem; white-space: nowrap; }
+    .badge { padding: 2px 8px; border-radius: 3px; font-size: .7rem; font-weight: 600; }
+    .badge-green { background: #dcfce7; color: #166534; }
+    .badge-red { background: #fde8e8; color: #b91c1c; }
+    .detail-panel { border: 1px solid #d4d9e0; border-radius: 6px; padding: 1.25rem; margin-bottom: 1.5rem; }
+    .detail-header { display: flex; align-items: center; gap: .75rem; margin-bottom: 1rem; }
+    .detail-header h3 { margin: 0; color: #003f72; flex: 1; }
+    .detail-grid { display: grid; grid-template-columns: 1fr 1fr; gap: .5rem; font-size: .85rem; margin-bottom: .5rem; }
+    .detail-grid .full { grid-column: 1 / -1; }
+    .section { border-top: 1px solid #e5e7eb; padding-top: 1rem; margin-top: 1rem; }
+    .section h4 { color: #003f72; margin-bottom: .75rem; font-size: .95rem; }
+</style>

@@ -1,0 +1,315 @@
+<UserControl x:Class="NewVistas.Wpf_UI.Views.CoverSheetView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <ScrollViewer VerticalScrollBarVisibility="Auto">
+        <StackPanel Margin="24">
+            <TextBlock Style="{StaticResource PageTitle}" Text="Cover Sheet"/>
+            <TextBlock Style="{StaticResource ErrorText}" Text="{Binding Error}"
+                       Visibility="{Binding Error, Converter={StaticResource NullToVisibility}}"/>
+
+            <StackPanel Orientation="Horizontal" Margin="0,0,0,12">
+                <Button Content="Load Cover Sheet" Style="{StaticResource PrimaryButton}"
+                        Command="{Binding LoadCommand}" Margin="0,0,8,0"/>
+                <ProgressBar IsIndeterminate="True" Width="120" Height="20"
+                             Visibility="{Binding IsLoading, Converter={StaticResource BoolToVisibility}}"/>
+            </StackPanel>
+
+            <StackPanel Visibility="{Binding CoverSheet, Converter={StaticResource NullToVisibility}}">
+
+                <!-- Workflow Actions Bar -->
+                <Border Background="#f0f4f8" BorderBrush="#c5d3e3" BorderThickness="1"
+                        CornerRadius="4" Padding="10,8" Margin="0,0,0,12">
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock FontWeight="Bold" FontSize="12" Foreground="#003f72" Text="Actions:"
+                                   VerticalAlignment="Center" Margin="0,0,12,0"/>
+                        <Button Content="New Order" Style="{StaticResource PrimaryButton}"
+                                Command="{Binding NewOrderCommand}" Margin="0,0,6,0"/>
+                        <Button Content="New Medication" Style="{StaticResource SecondaryButton}"
+                                Command="{Binding NewMedOrderCommand}" Margin="0,0,6,0"/>
+                        <Button Content="New Lab Order" Style="{StaticResource SecondaryButton}"
+                                Command="{Binding NewLabOrderCommand}" Margin="0,0,6,0"/>
+                        <Button Content="New Consult" Style="{StaticResource SecondaryButton}"
+                                Command="{Binding NewConsultCommand}"/>
+                    </StackPanel>
+                </Border>
+
+                <!-- Patient Demographics Header -->
+                <Border Background="#e8edf3" BorderBrush="#c5cfe0" BorderThickness="1"
+                        CornerRadius="4" Padding="16,10" Margin="0,0,0,12">
+                    <StackPanel>
+                        <TextBlock FontSize="18" FontWeight="Bold"
+                                   Text="{Binding CoverSheet.Demographics.Name}"/>
+                        <StackPanel Orientation="Horizontal" Margin="0,3,0,0">
+                            <TextBlock FontSize="13" Text="{Binding CoverSheet.Demographics.Sex}"/>
+                            <TextBlock FontSize="13" Text="  Age: " Margin="6,0,0,0"/>
+                            <TextBlock FontSize="13" Text="{Binding CoverSheet.Demographics.Age}"/>
+                        </StackPanel>
+                    </StackPanel>
+                </Border>
+
+                <!-- CWAD Alert Banner — only shown when CwadDisplay is non-null/non-empty -->
+                <Border Background="#fff3e0" BorderBrush="#e65100" BorderThickness="1" CornerRadius="4"
+                        Padding="12" Margin="0,0,0,12"
+                        Visibility="{Binding CwadDisplay, Converter={StaticResource NullToVisibility}}">
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock FontWeight="Bold" Foreground="#e65100" Text="CWAD: " FontSize="14"/>
+                        <TextBlock Foreground="#e65100" Text="{Binding CwadDisplay}" FontSize="14"/>
+                    </StackPanel>
+                </Border>
+
+                <!-- Row 1: Active Problems | Allergies | Active Medications -->
+                <Grid Margin="0,0,0,8">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
+
+                    <!-- Active Problems -->
+                    <Border Grid.Column="0" Style="{StaticResource FormPanel}" Margin="0,0,4,0">
+                        <StackPanel>
+                            <TextBlock Style="{StaticResource SectionHeader}" Text="⚠ Active Problems"/>
+                            <ItemsControl ItemsSource="{Binding CoverSheet.ActiveProblems}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <Grid Margin="0,2">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="60"/>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                            </Grid.ColumnDefinitions>
+                                            <TextBlock Grid.Column="0" FontSize="12" FontFamily="Consolas"
+                                                       Foreground="#003f72"
+                                                       Text="{Binding DiagnosisCode}"/>
+                                            <TextBlock Grid.Column="1" FontSize="12"
+                                                       Text="{Binding Diagnosis}" TextWrapping="Wrap"/>
+                                            <TextBlock Grid.Column="2" FontSize="11" Foreground="#888"
+                                                       Margin="6,0,0,0"
+                                                       Text="{Binding DateOfOnset, StringFormat=MM/dd/yy}"/>
+                                        </Grid>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- Allergies -->
+                    <Border Grid.Column="1" Style="{StaticResource FormPanel}" Margin="4,0,4,0">
+                        <StackPanel>
+                            <TextBlock Style="{StaticResource SectionHeader}" Text="🚫 Allergies"/>
+                            <ItemsControl ItemsSource="{Binding CoverSheet.Allergies}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <StackPanel Margin="0,2">
+                                            <TextBlock FontSize="12" FontWeight="SemiBold"
+                                                       Text="{Binding Allergen}"/>
+                                            <TextBlock FontSize="11" Foreground="#b91c1c"
+                                                       Text="{Binding Severity}"/>
+                                        </StackPanel>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- Active Medications -->
+                    <Border Grid.Column="2" Style="{StaticResource FormPanel}" Margin="4,0,0,0">
+                        <StackPanel>
+                            <TextBlock Style="{StaticResource SectionHeader}" Text="💊 Active Medications"/>
+                            <ItemsControl ItemsSource="{Binding CoverSheet.ActiveMedications}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <Grid Margin="0,3">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                            </Grid.ColumnDefinitions>
+                                            <StackPanel Grid.Column="0">
+                                                <TextBlock FontSize="12" FontWeight="SemiBold"
+                                                           Text="{Binding DrugName}"/>
+                                                <TextBlock FontSize="11" Foreground="#555"
+                                                           Text="{Binding Sig}" TextWrapping="Wrap"/>
+                                            </StackPanel>
+                                            <TextBlock Grid.Column="1" FontSize="11" Foreground="#16a34a"
+                                                       Margin="6,0,0,0" VerticalAlignment="Top"
+                                                       Text="{Binding Status}"/>
+                                        </Grid>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </StackPanel>
+                    </Border>
+                </Grid>
+
+                <!-- Row 2: Clinical Reminders | Recent Labs | Recent Vitals -->
+                <Grid Margin="0,0,0,8">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
+
+                    <!-- Clinical Reminders -->
+                    <Border Grid.Column="0" Style="{StaticResource FormPanel}" Margin="0,0,4,0">
+                        <StackPanel>
+                            <TextBlock Style="{StaticResource SectionHeader}" Text="⏰ Clinical Reminders"/>
+                            <ItemsControl ItemsSource="{Binding CoverSheet.ClinicalReminders}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <Grid Margin="0,2">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                            </Grid.ColumnDefinitions>
+                                            <TextBlock Grid.Column="0" FontSize="12"
+                                                       Text="{Binding ReminderName}" TextWrapping="Wrap"/>
+                                            <TextBlock Grid.Column="1" FontSize="11" Foreground="#888"
+                                                       Margin="6,0,0,0"
+                                                       Text="{Binding DueDate, StringFormat=MM/dd/yy}"/>
+                                        </Grid>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- Recent Labs -->
+                    <Border Grid.Column="1" Style="{StaticResource FormPanel}" Margin="4,0,4,0">
+                        <StackPanel>
+                            <TextBlock Style="{StaticResource SectionHeader}" Text="🧪 Recent Labs"/>
+                            <ItemsControl ItemsSource="{Binding CoverSheet.RecentLabs}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <Grid Margin="0,2">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                                <ColumnDefinition Width="20"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                            </Grid.ColumnDefinitions>
+                                            <TextBlock Grid.Column="0" FontSize="12"
+                                                       Text="{Binding TestName}"/>
+                                            <TextBlock Grid.Column="1" FontSize="12" FontWeight="SemiBold"
+                                                       Margin="6,0,0,0">
+                                                <TextBlock.Style>
+                                                    <Style TargetType="TextBlock">
+                                                        <Setter Property="Foreground" Value="Black"/>
+                                                        <Style.Triggers>
+                                                            <DataTrigger Binding="{Binding Flag}" Value="H">
+                                                                <Setter Property="Foreground" Value="#b91c1c"/>
+                                                            </DataTrigger>
+                                                            <DataTrigger Binding="{Binding Flag}" Value="L">
+                                                                <Setter Property="Foreground" Value="#1d4ed8"/>
+                                                            </DataTrigger>
+                                                        </Style.Triggers>
+                                                    </Style>
+                                                </TextBlock.Style>
+                                                <Run Text="{Binding ResultValue, Mode=OneWay}"/>
+                                                <Run Text=" "/>
+                                                <Run Text="{Binding Units, Mode=OneWay}"/>
+                                            </TextBlock>
+                                            <TextBlock Grid.Column="2" FontSize="11"
+                                                       Foreground="#b91c1c" FontWeight="Bold"
+                                                       Text="{Binding Flag}" Margin="3,0,0,0"/>
+                                            <TextBlock Grid.Column="3" FontSize="11" Foreground="#888"
+                                                       Margin="6,0,0,0"
+                                                       Text="{Binding CollectionDate, StringFormat=MM/dd/yy}"/>
+                                        </Grid>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- Recent Vitals -->
+                    <Border Grid.Column="2" Style="{StaticResource FormPanel}" Margin="4,0,0,0">
+                        <StackPanel>
+                            <TextBlock Style="{StaticResource SectionHeader}" Text="❤ Recent Vitals"/>
+                            <ItemsControl ItemsSource="{Binding CoverSheet.RecentVitals}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <Grid Margin="0,2">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                            </Grid.ColumnDefinitions>
+                                            <TextBlock Grid.Column="0" FontSize="12"
+                                                       Text="{Binding VitalType}"/>
+                                            <TextBlock Grid.Column="1" FontSize="12" FontWeight="SemiBold"
+                                                       Margin="6,0,0,0" Text="{Binding Value}"/>
+                                            <TextBlock Grid.Column="2" FontSize="11" Foreground="#888"
+                                                       Margin="6,0,0,0"
+                                                       Text="{Binding DateTimeTaken, StringFormat=MM/dd/yy HH:mm}"/>
+                                        </Grid>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </StackPanel>
+                    </Border>
+                </Grid>
+
+                <!-- Row 3: Appointments | Active Orders -->
+                <Grid Margin="0,0,0,8">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
+
+                    <!-- Appointments -->
+                    <Border Grid.Column="0" Style="{StaticResource FormPanel}" Margin="0,0,4,0">
+                        <StackPanel>
+                            <TextBlock Style="{StaticResource SectionHeader}" Text="📅 Appointments"/>
+                            <ItemsControl ItemsSource="{Binding CoverSheet.RecentVisits}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <Grid Margin="0,2">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                            </Grid.ColumnDefinitions>
+                                            <TextBlock Grid.Column="0" FontSize="12"
+                                                       Text="{Binding ClinicName}" TextWrapping="Wrap"/>
+                                            <TextBlock Grid.Column="1" FontSize="11" Foreground="#888"
+                                                       Margin="6,0,0,0"
+                                                       Text="{Binding AppointmentDateTime, StringFormat=MM/dd/yy}"/>
+                                        </Grid>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- Active Orders -->
+                    <Border Grid.Column="1" Style="{StaticResource FormPanel}" Margin="4,0,4,0">
+                        <StackPanel>
+                            <TextBlock Style="{StaticResource SectionHeader}" Text="📋 Active Orders"/>
+                            <ItemsControl ItemsSource="{Binding CoverSheet.ActiveOrders}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <Grid Margin="0,2">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                            </Grid.ColumnDefinitions>
+                                            <TextBlock Grid.Column="0" FontSize="12"
+                                                       Text="{Binding OrderText}" TextWrapping="Wrap"/>
+                                            <TextBlock Grid.Column="1" FontSize="11" Foreground="#555"
+                                                       Margin="6,0,0,0"
+                                                       Text="{Binding Status}"/>
+                                        </Grid>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- Placeholder column -->
+                    <Grid Grid.Column="2"/>
+                </Grid>
+
+            </StackPanel>
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>

@@ -1,0 +1,547 @@
+@page "/prosthetics"
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+@rendermode InteractiveServer
+@using NewVistas.BlazorWeb.Services
+@using NewVistas.Abstractions.GrainInterfaces
+@using NewVistas.Abstractions.GrainStates
+@inject OrleansGrainService Grains
+
+<PageTitle>Prosthetics</PageTitle>
+<h1>Prosthetics &amp; Orthotics</h1>
+
+<div class="lookup-bar">
+    <input type="text" @bind="patientId" @bind:event="oninput" @onkeydown="HandleKeyDown" placeholder="Patient ID" class="lookup-input" />
+    <button @onclick="Load" disabled="@(string.IsNullOrWhiteSpace(patientId) || loading)" class="btn btn-primary">@(loading ? "Loading..." : "Load")</button>
+    <button @onclick="ShowForm" disabled="@(string.IsNullOrWhiteSpace(patientId))" class="btn btn-secondary">+ Issue Item</button>
+</div>
+
+@if (error != null) { <div class="alert alert-error">@error</div> }
+@if (success != null) { <div class="alert alert-success">@success</div> }
+
+@if (items != null || detail != null)
+{
+    <div class="tab-bar">
+        <button class="tab @(activeTab == "list" ? "tab-active" : "")" @onclick='() => SetTab("list")'>Items</button>
+        @if (detail != null)
+        {
+            <button class="tab @(activeTab == "detail" ? "tab-active" : "")" @onclick='() => SetTab("detail")'>Detail</button>
+        }
+    </div>
+}
+
+@if (showNew)
+{
+    <div class="entry-form">
+        <h3>Issue Prosthetic/Orthotic Item</h3>
+        <div class="form-grid">
+            <div class="form-row"><label>Item Description *</label><input type="text" @bind="f_desc" placeholder="e.g. Below-Knee Prosthesis" /></div>
+            <div class="form-row"><label>HCPCS Code</label><input type="text" @bind="f_hcpcs" placeholder="e.g. L5301" /></div>
+            <div class="form-row"><label>Category</label>
+                <select @bind="f_category"><option>PROSTHETIC</option><option>ORTHOTIC</option><option>SENSORY AID</option><option>WHEELCHAIR</option><option>OTHER</option></select>
+            </div>
+            <div class="form-row"><label>Date Issued</label><input type="date" @bind="f_date" /></div>
+            <div class="form-row"><label>Quantity</label><input type="number" @bind="f_qty" min="1" /></div>
+            <div class="form-row"><label>Cost ($)</label><input type="number" @bind="f_cost" step="0.01" min="0" /></div>
+            <div class="form-row"><label>Provider</label><input type="text" @bind="f_provider" /></div>
+            <div class="form-row"><label>Location</label><input type="text" @bind="f_location" /></div>
+            <div class="form-row"><label>Service Connected?</label>
+                <select @bind="f_sc"><option value="false">No</option><option value="true">Yes</option></select>
+            </div>
+            <div class="form-row full"><label>Comments</label><textarea @bind="f_comments" rows="2"></textarea></div>
+        </div>
+        <div class="form-actions">
+            <button @onclick="Submit" disabled="@saving" class="btn btn-primary">@(saving ? "Saving..." : "Issue")</button>
+            <button @onclick="() => showNew = false" class="btn btn-outline">Cancel</button>
+        </div>
+    </div>
+}
+
+@if (activeTab == "list" && items != null)
+{
+    @if (items.Count == 0) { <div class="empty-state">No prosthetics items found.</div> }
+    else
+    {
+        <table class="data-table">
+            <thead><tr><th>Date</th><th>Item</th><th>HCPCS</th><th>Category</th><th>Cost</th><th>SC</th><th>Status</th></tr></thead>
+            <tbody>
+                @foreach (var s in items)
+                {
+                    <tr class="clickable" @onclick="() => ViewDetail(s.ProstheticsId)">
+                        <td class="date">@s.DateIssued.ToString("MM/dd/yyyy")</td>
+                        <td>@s.ItemDescription</td><td>@s.HcpcsCode</td><td>@s.ItemCategory</td>
+                        <td>@(s.Cost.HasValue ? s.Cost.Value.ToString("C") : "--")</td>
+                        <td>@(s.IsServiceConnected ? "SC" : "")</td>
+                        <td><span class="badge badge-blue">@s.Status</span></td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    }
+}
+
+@if (activeTab == "detail" && detail != null)
+{
+    <div class="detail-panel">
+        <div class="detail-header">
+            <h3>@detail.ItemDescription</h3>
+            <span class="badge badge-blue">@detail.Status</span>
+            <button @onclick="CloseDetail" class="btn btn-outline btn-sm-action">Close</button>
+        </div>
+        <div class="detail-grid">
+            <div><strong>ID:</strong> @detail.ProstheticsId</div>
+            <div><strong>HCPCS:</strong> @(detail.HcpcsCode ?? "--")</div>
+            <div><strong>Category:</strong> @(detail.ItemCategory ?? "--")</div>
+            <div><strong>Date Issued:</strong> @detail.DateIssued.ToString("MM/dd/yyyy")</div>
+            <div><strong>Cost:</strong> @(detail.Cost.HasValue ? detail.Cost.Value.ToString("C") : "--")</div>
+            <div><strong>Vendor:</strong> @(detail.VendorName ?? "--")</div>
+            <div><strong>SC:</strong> @(detail.IsServiceConnected ? "Yes" : "No")</div>
+            <div><strong>Satisfaction:</strong> @(detail.SatisfactionRating.HasValue ? $"{detail.SatisfactionRating}/5" : "--")</div>
+            <div><strong>Warranty Start:</strong> @(detail.WarrantyStartDate?.ToString("MM/dd/yyyy") ?? "--")</div>
+            <div><strong>Warranty End:</strong> @(detail.WarrantyEndDate?.ToString("MM/dd/yyyy") ?? "--")</div>
+            <div><strong>Delivery Date:</strong> @(detail.DeliveryDate?.ToString("MM/dd/yyyy") ?? "--")</div>
+            <div><strong>Delivery Method:</strong> @(detail.DeliveryMethod ?? "--")</div>
+            <div><strong>Tracking:</strong> @(detail.TrackingNumber ?? "--")</div>
+            <div><strong>Fitting Notes:</strong> @(detail.FittingNotes ?? "--")</div>
+            <div><strong>Fitted By:</strong> @(detail.FittedByName ?? "--")</div>
+            <div><strong>Next Maintenance:</strong> @(detail.NextMaintenanceDate?.ToString("MM/dd/yyyy") ?? "--")</div>
+            @if (!string.IsNullOrEmpty(detail.Comments))
+            {
+                <div class="full"><strong>Comments:</strong> @detail.Comments</div>
+            }
+        </div>
+
+        @* -- HCPCS -- *@
+        <div class="section">
+            <h4>HCPCS Code</h4>
+            <div class="entry-form compact">
+                <div class="form-grid">
+                    <div class="form-row"><label>HCPCS Code *</label><input type="text" @bind="hc_code" placeholder="e.g. L5301" /></div>
+                </div>
+                <div class="form-actions">
+                    <button @onclick="SubmitHcpcs" disabled="@saving" class="btn btn-primary">Set HCPCS</button>
+                </div>
+            </div>
+        </div>
+
+        @* -- Cost + Vendor -- *@
+        <div class="section">
+            <h4>Cost &amp; Vendor</h4>
+            <div class="entry-form compact">
+                <div class="form-grid">
+                    <div class="form-row"><label>Cost ($) *</label><input type="number" @bind="cv_cost" step="0.01" min="0" /></div>
+                    <div class="form-row"><label>Vendor Name</label><input type="text" @bind="cv_vendor" /></div>
+                    <div class="form-row"><label>Vendor ID</label><input type="text" @bind="cv_vendorId" /></div>
+                </div>
+                <div class="form-actions">
+                    <button @onclick="SubmitCost" disabled="@saving" class="btn btn-primary">Record Cost</button>
+                </div>
+            </div>
+        </div>
+
+        @* -- Warranty -- *@
+        <div class="section">
+            <h4>Warranty</h4>
+            <div class="entry-form compact">
+                <div class="form-grid">
+                    <div class="form-row"><label>Start Date *</label><input type="date" @bind="wr_start" /></div>
+                    <div class="form-row"><label>End Date *</label><input type="date" @bind="wr_end" /></div>
+                </div>
+                <div class="form-actions">
+                    <button @onclick="SubmitWarranty" disabled="@saving" class="btn btn-primary">Set Warranty</button>
+                </div>
+            </div>
+        </div>
+
+        @* -- Delivery -- *@
+        <div class="section">
+            <h4>Delivery</h4>
+            <div class="entry-form compact">
+                <div class="form-grid">
+                    <div class="form-row"><label>Delivery Date *</label><input type="date" @bind="dl_date" /></div>
+                    <div class="form-row"><label>Method *</label>
+                        <select @bind="dl_method"><option>PICKUP</option><option>SHIPPED</option><option>DELIVERED</option></select>
+                    </div>
+                    <div class="form-row"><label>Tracking Number</label><input type="text" @bind="dl_tracking" /></div>
+                </div>
+                <div class="form-actions">
+                    <button @onclick="SubmitDelivery" disabled="@saving" class="btn btn-primary">Record Delivery</button>
+                </div>
+            </div>
+        </div>
+
+        @* -- Fitting -- *@
+        <div class="section">
+            <h4>Fitting</h4>
+            <div class="entry-form compact">
+                <div class="form-grid">
+                    <div class="form-row"><label>Fitted By *</label><input type="text" @bind="ft_fitter" /></div>
+                    <div class="form-row full"><label>Fitting Notes *</label><textarea @bind="ft_notes" rows="2"></textarea></div>
+                </div>
+                <div class="form-actions">
+                    <button @onclick="SubmitFitting" disabled="@saving" class="btn btn-primary">Record Fitting</button>
+                </div>
+            </div>
+        </div>
+
+        @* -- Satisfaction -- *@
+        <div class="section">
+            <h4>Patient Satisfaction</h4>
+            <div class="entry-form compact">
+                <div class="form-grid">
+                    <div class="form-row"><label>Rating (1-5) *</label><input type="number" @bind="sat_rating" min="1" max="5" /></div>
+                </div>
+                <div class="form-actions">
+                    <button @onclick="SubmitSatisfaction" disabled="@saving" class="btn btn-primary">Record Satisfaction</button>
+                </div>
+            </div>
+        </div>
+
+        @* -- Schedule Maintenance -- *@
+        <div class="section">
+            <h4>Schedule Maintenance</h4>
+            <div class="entry-form compact">
+                <div class="form-grid">
+                    <div class="form-row"><label>Next Maintenance Date *</label><input type="date" @bind="sm_date" /></div>
+                    <div class="form-row full"><label>Notes</label><textarea @bind="sm_notes" rows="2"></textarea></div>
+                </div>
+                <div class="form-actions">
+                    <button @onclick="SubmitScheduleMaintenance" disabled="@saving" class="btn btn-primary">Schedule Maintenance</button>
+                </div>
+            </div>
+        </div>
+
+        @* -- Maintenance History -- *@
+        <div class="section">
+            <h4>Maintenance History (@maintRecords.Count)</h4>
+            @if (maintRecords.Count > 0)
+            {
+                <table class="data-table">
+                    <thead><tr><th>Date</th><th>Type</th><th>Technician</th><th>Cost</th><th>Notes</th></tr></thead>
+                    <tbody>
+                        @foreach (var m in maintRecords)
+                        {
+                            <tr>
+                                <td class="date">@m.DateTime.ToString("MM/dd/yyyy")</td>
+                                <td>@m.MaintenanceType</td><td>@m.TechnicianName</td>
+                                <td>@(m.Cost.HasValue ? m.Cost.Value.ToString("C") : "--")</td>
+                                <td>@m.Notes</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            }
+            <div class="entry-form compact">
+                <div class="form-grid">
+                    <div class="form-row"><label>Maintenance Type *</label><input type="text" @bind="mr_type" placeholder="e.g. REPAIR, ADJUSTMENT" /></div>
+                    <div class="form-row"><label>Technician</label><input type="text" @bind="mr_tech" /></div>
+                    <div class="form-row"><label>Cost ($)</label><input type="number" @bind="mr_cost" step="0.01" min="0" /></div>
+                    <div class="form-row full"><label>Notes</label><textarea @bind="mr_notes" rows="2"></textarea></div>
+                </div>
+                <div class="form-actions">
+                    <button @onclick="SubmitMaintenanceRecord" disabled="@saving" class="btn btn-primary">Add Maintenance Record</button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    [SupplyParameterFromQuery] public string? patientId { get; set; }
+    private List<ProsthListDto>? items;
+    private ProsthDetailDto? detail;
+    private List<MaintRecordDto> maintRecords = new();
+    private bool loading, saving, showNew;
+    private string? error, success;
+    private string activeTab = "list";
+
+    // New form
+    private string f_desc = "", f_hcpcs = "", f_category = "PROSTHETIC", f_provider = "", f_location = "", f_sc = "false", f_comments = "";
+    private DateTime f_date = DateTime.Today; private int f_qty = 1; private decimal? f_cost;
+
+    // Detail forms
+    private string hc_code = "";
+    private decimal cv_cost; private string cv_vendor = "", cv_vendorId = "";
+    private DateTime wr_start = DateTime.Today, wr_end = DateTime.Today.AddYears(1);
+    private DateTime dl_date = DateTime.Today; private string dl_method = "PICKUP", dl_tracking = "";
+    private string ft_fitter = "", ft_notes = "";
+    private int sat_rating = 3;
+    private DateTime sm_date = DateTime.Today.AddMonths(6); private string sm_notes = "";
+    private string mr_type = "", mr_tech = "", mr_notes = ""; private decimal? mr_cost;
+
+    protected override async Task OnParametersSetAsync() { if (!string.IsNullOrWhiteSpace(patientId)) await Load(); }
+    private async Task HandleKeyDown(KeyboardEventArgs e) { if (e.Key == "Enter") await Load(); }
+    private void SetTab(string tab) { activeTab = tab; success = null; }
+    private void ShowForm() { showNew = true; success = null; f_desc = ""; f_hcpcs = ""; f_category = "PROSTHETIC"; f_provider = ""; f_location = ""; f_sc = "false"; f_comments = ""; f_date = DateTime.Today; f_qty = 1; f_cost = null; }
+    private void CloseDetail() { detail = null; activeTab = "list"; }
+
+    private async Task Load()
+    {
+        if (string.IsNullOrWhiteSpace(patientId)) return; loading = true; error = null;
+        try
+        {
+            var workflow = Grains.GetGrain<IPatientWorkflowGrain>(patientId.Trim());
+            List<ProstheticsSummary> summaries = await workflow.GetProstheticsAsync();
+            items = summaries.Select(s => new ProsthListDto
+            {
+                ProstheticsId = s.ProstheticsId, ItemDescription = s.ItemDescription,
+                HcpcsCode = s.HcpcsCode, DateIssued = s.DateIssued,
+                IsServiceConnected = s.IsServiceConnected, Status = s.Status
+            }).ToList();
+        }
+        catch (Exception ex) { error = $"Error: {ex.Message}"; } finally { loading = false; }
+    }
+
+    private async Task ViewDetail(string prostheticsId)
+    {
+        error = null;
+        try
+        {
+            var match = items?.FirstOrDefault(i => i.ProstheticsId == prostheticsId);
+            if (match != null)
+            {
+                detail = new ProsthDetailDto
+                {
+                    ProstheticsId = match.ProstheticsId, ItemDescription = match.ItemDescription,
+                    HcpcsCode = match.HcpcsCode, ItemCategory = match.ItemCategory,
+                    DateIssued = match.DateIssued, Cost = match.Cost,
+                    IsServiceConnected = match.IsServiceConnected, Status = match.Status
+                };
+            }
+            activeTab = "detail";
+            ResetDetailForms();
+            await LoadMaintenanceHistory(prostheticsId);
+        }
+        catch (Exception ex) { error = ex.Message; }
+    }
+
+    private async Task LoadMaintenanceHistory(string prostheticsId)
+    {
+        try
+        {
+            var workflow = Grains.GetGrain<IPatientWorkflowGrain>(patientId!.Trim());
+            List<ProstheticsMaintenanceRecord> records = await workflow.GetProstheticsMaintenanceHistoryAsync(prostheticsId);
+            maintRecords = records.Select(r => new MaintRecordDto
+            {
+                MaintenanceType = r.MaintenanceType, TechnicianName = r.TechnicianName,
+                Notes = r.Notes, Cost = r.Cost, DateTime = r.MaintenanceDate
+            }).ToList();
+        }
+        catch { maintRecords = new(); }
+    }
+
+    private void ResetDetailForms()
+    {
+        hc_code = "";
+        cv_cost = 0; cv_vendor = ""; cv_vendorId = "";
+        wr_start = DateTime.Today; wr_end = DateTime.Today.AddYears(1);
+        dl_date = DateTime.Today; dl_method = "PICKUP"; dl_tracking = "";
+        ft_fitter = ""; ft_notes = "";
+        sat_rating = 3;
+        sm_date = DateTime.Today.AddMonths(6); sm_notes = "";
+        mr_type = ""; mr_tech = ""; mr_notes = ""; mr_cost = null;
+    }
+
+    private async Task Submit()
+    {
+        if (string.IsNullOrWhiteSpace(f_desc)) { error = "Item description is required."; return; }
+        saving = true; error = null;
+        try
+        {
+            var workflow = Grains.GetGrain<IPatientWorkflowGrain>(patientId!.Trim());
+            await workflow.IssueProstheticAsync(f_desc, NullIfEmpty(f_hcpcs), f_category, f_date, f_qty, f_cost,
+                null, NullIfEmpty(f_provider), null, NullIfEmpty(f_location), bool.Parse(f_sc), NullIfEmpty(f_comments));
+            showNew = false; success = "Item issued."; await Load();
+        }
+        catch (Exception ex) { error = $"Error: {ex.Message}"; } finally { saving = false; }
+    }
+
+    private async Task SubmitHcpcs()
+    {
+        if (string.IsNullOrWhiteSpace(hc_code)) { error = "HCPCS code is required."; return; }
+        saving = true; error = null;
+        try
+        {
+            var workflow = Grains.GetGrain<IPatientWorkflowGrain>(patientId!.Trim());
+            await workflow.SetProstheticsHcpcsCodeAsync(detail!.ProstheticsId, hc_code);
+            success = "HCPCS code set.";
+        }
+        catch (Exception ex) { error = $"Error: {ex.Message}"; } finally { saving = false; }
+    }
+
+    private async Task SubmitCost()
+    {
+        saving = true; error = null;
+        try
+        {
+            var workflow = Grains.GetGrain<IPatientWorkflowGrain>(patientId!.Trim());
+            await workflow.RecordProstheticsCostAsync(detail!.ProstheticsId, cv_cost, NullIfEmpty(cv_vendor), NullIfEmpty(cv_vendorId));
+            success = "Cost recorded.";
+        }
+        catch (Exception ex) { error = $"Error: {ex.Message}"; } finally { saving = false; }
+    }
+
+    private async Task SubmitWarranty()
+    {
+        saving = true; error = null;
+        try
+        {
+            var workflow = Grains.GetGrain<IPatientWorkflowGrain>(patientId!.Trim());
+            await workflow.SetProstheticsWarrantyAsync(detail!.ProstheticsId, wr_start, wr_end);
+            success = "Warranty set.";
+        }
+        catch (Exception ex) { error = $"Error: {ex.Message}"; } finally { saving = false; }
+    }
+
+    private async Task SubmitDelivery()
+    {
+        saving = true; error = null;
+        try
+        {
+            var workflow = Grains.GetGrain<IPatientWorkflowGrain>(patientId!.Trim());
+            await workflow.RecordProstheticsDeliveryAsync(detail!.ProstheticsId, dl_date, dl_method, NullIfEmpty(dl_tracking));
+            success = "Delivery recorded.";
+        }
+        catch (Exception ex) { error = $"Error: {ex.Message}"; } finally { saving = false; }
+    }
+
+    private async Task SubmitFitting()
+    {
+        if (string.IsNullOrWhiteSpace(ft_fitter) || string.IsNullOrWhiteSpace(ft_notes)) { error = "Fitter and notes are required."; return; }
+        saving = true; error = null;
+        try
+        {
+            var workflow = Grains.GetGrain<IPatientWorkflowGrain>(patientId!.Trim());
+            await workflow.RecordProstheticsFittingAsync(detail!.ProstheticsId, ft_notes, ft_fitter);
+            success = "Fitting recorded.";
+        }
+        catch (Exception ex) { error = $"Error: {ex.Message}"; } finally { saving = false; }
+    }
+
+    private async Task SubmitSatisfaction()
+    {
+        saving = true; error = null;
+        try
+        {
+            var workflow = Grains.GetGrain<IPatientWorkflowGrain>(patientId!.Trim());
+            await workflow.RecordProstheticsSatisfactionAsync(detail!.ProstheticsId, sat_rating);
+            success = "Satisfaction recorded.";
+        }
+        catch (Exception ex) { error = $"Error: {ex.Message}"; } finally { saving = false; }
+    }
+
+    private async Task SubmitScheduleMaintenance()
+    {
+        saving = true; error = null;
+        try
+        {
+            var workflow = Grains.GetGrain<IPatientWorkflowGrain>(patientId!.Trim());
+            await workflow.ScheduleProstheticsMaintenanceAsync(detail!.ProstheticsId, sm_date, NullIfEmpty(sm_notes));
+            success = "Maintenance scheduled.";
+        }
+        catch (Exception ex) { error = $"Error: {ex.Message}"; } finally { saving = false; }
+    }
+
+    private async Task SubmitMaintenanceRecord()
+    {
+        if (string.IsNullOrWhiteSpace(mr_type)) { error = "Maintenance type is required."; return; }
+        saving = true; error = null;
+        try
+        {
+            var workflow = Grains.GetGrain<IPatientWorkflowGrain>(patientId!.Trim());
+            await workflow.AddProstheticsMaintenanceRecordAsync(detail!.ProstheticsId, mr_type, NullIfEmpty(mr_tech), NullIfEmpty(mr_notes), mr_cost);
+            success = "Maintenance record added."; mr_type = ""; mr_tech = ""; mr_notes = ""; mr_cost = null;
+            await LoadMaintenanceHistory(detail.ProstheticsId);
+        }
+        catch (Exception ex) { error = $"Error: {ex.Message}"; } finally { saving = false; }
+    }
+
+    private static string? NullIfEmpty(string s) => string.IsNullOrWhiteSpace(s) ? null : s;
+
+    private class ProsthListDto
+    {
+        public string ProstheticsId { get; set; } = "";
+        public string ItemDescription { get; set; } = "";
+        public string? HcpcsCode { get; set; }
+        public string? ItemCategory { get; set; }
+        public DateTime DateIssued { get; set; }
+        public decimal? Cost { get; set; }
+        public bool IsServiceConnected { get; set; }
+        public string Status { get; set; } = "";
+    }
+
+    private class ProsthDetailDto
+    {
+        public string ProstheticsId { get; set; } = "";
+        public string ItemDescription { get; set; } = "";
+        public string? HcpcsCode { get; set; }
+        public string? ItemCategory { get; set; }
+        public DateTime DateIssued { get; set; }
+        public decimal? Cost { get; set; }
+        public string? VendorName { get; set; }
+        public bool IsServiceConnected { get; set; }
+        public string Status { get; set; } = "";
+        public string? Comments { get; set; }
+        public int? SatisfactionRating { get; set; }
+        public DateTime? WarrantyStartDate { get; set; }
+        public DateTime? WarrantyEndDate { get; set; }
+        public DateTime? DeliveryDate { get; set; }
+        public string? DeliveryMethod { get; set; }
+        public string? TrackingNumber { get; set; }
+        public string? FittingNotes { get; set; }
+        public string? FittedByName { get; set; }
+        public DateTime? NextMaintenanceDate { get; set; }
+    }
+
+    private class MaintRecordDto
+    {
+        public string MaintenanceType { get; set; } = "";
+        public string? TechnicianName { get; set; }
+        public string? Notes { get; set; }
+        public decimal? Cost { get; set; }
+        public DateTime DateTime { get; set; }
+    }
+}
+
+<style>
+    h1 { color: #003f72; margin-bottom: 1.25rem; font-size: 1.4rem; }
+    .lookup-bar { display: flex; gap: .5rem; margin-bottom: 1.5rem; align-items: center; }
+    .lookup-input { width: 280px; padding: .5rem .75rem; border: 1px solid #ccc; border-radius: 4px; font-size: .9rem; }
+    .btn { padding: .5rem 1.25rem; border: none; border-radius: 4px; cursor: pointer; font-size: .85rem; }
+    .btn-primary { background: #003f72; color: white; } .btn-primary:hover { background: #002a4e; } .btn-primary:disabled { background: #999; cursor: not-allowed; }
+    .btn-secondary { background: #16a34a; color: white; } .btn-secondary:disabled { background: #999; }
+    .btn-outline { background: white; border: 1px solid #ccc; color: #333; }
+    .btn-sm-action { padding: 4px 12px; font-size: .8rem; }
+    .alert { padding: .75rem 1rem; border-radius: 4px; margin-bottom: 1rem; font-size: .85rem; }
+    .alert-error { background: #fde8e8; color: #b91c1c; border: 1px solid #f5c6c6; }
+    .alert-success { background: #dcfce7; color: #166534; border: 1px solid #bbf7d0; }
+    .empty-state { color: #999; font-style: italic; padding: 2rem 0; }
+    .tab-bar { display: flex; gap: 0; border-bottom: 2px solid #d4d9e0; margin-bottom: 1.25rem; }
+    .tab { background: none; border: none; padding: .6rem 1.25rem; cursor: pointer; font-size: .85rem; color: #555; border-bottom: 2px solid transparent; margin-bottom: -2px; }
+    .tab-active { color: #003f72; font-weight: 600; border-bottom-color: #003f72; }
+    .entry-form { border: 1px solid #d4d9e0; border-radius: 6px; padding: 1.25rem; margin-bottom: 1.5rem; background: #f9fafb; }
+    .entry-form.compact { margin-top: .75rem; padding: 1rem; }
+    .entry-form h3 { margin-bottom: 1rem; color: #003f72; }
+    .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: .75rem; }
+    .form-row { display: flex; flex-direction: column; gap: .25rem; }
+    .form-row.full { grid-column: 1 / -1; }
+    .form-row label { font-size: .8rem; font-weight: 600; color: #555; }
+    .form-row input, .form-row select, .form-row textarea { padding: .4rem .6rem; border: 1px solid #ccc; border-radius: 4px; font-size: .85rem; }
+    .form-row textarea { resize: vertical; }
+    .form-actions { display: flex; gap: .5rem; margin-top: .75rem; }
+    .data-table { width: 100%; border-collapse: collapse; font-size: .85rem; border: 1px solid #d4d9e0; }
+    .data-table thead { background: #f4f6f9; }
+    .data-table th { text-align: left; padding: .5rem; font-weight: 600; color: #003f72; border-bottom: 2px solid #d4d9e0; font-size: .75rem; text-transform: uppercase; }
+    .data-table td { padding: .4rem .5rem; border-bottom: 1px solid #f0f0f0; }
+    .data-table tr.clickable { cursor: pointer; }
+    .data-table tr.clickable:hover { background: #eef3f9; }
+    .date { color: #888; font-size: .8rem; white-space: nowrap; }
+    .badge { padding: 2px 8px; border-radius: 3px; font-size: .7rem; font-weight: 600; }
+    .badge-blue { background: #dbeafe; color: #1e40af; }
+    .detail-panel { border: 1px solid #d4d9e0; border-radius: 6px; padding: 1.25rem; margin-bottom: 1.5rem; }
+    .detail-header { display: flex; align-items: center; gap: .75rem; margin-bottom: 1rem; }
+    .detail-header h3 { margin: 0; color: #003f72; flex: 1; }
+    .detail-grid { display: grid; grid-template-columns: 1fr 1fr; gap: .5rem; font-size: .85rem; margin-bottom: .5rem; }
+    .detail-grid .full { grid-column: 1 / -1; }
+    .section { border-top: 1px solid #e5e7eb; padding-top: 1rem; margin-top: 1rem; }
+    .section h4 { color: #003f72; margin-bottom: .75rem; font-size: .95rem; }
+</style>

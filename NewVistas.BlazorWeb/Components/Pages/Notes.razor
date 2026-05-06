@@ -1,0 +1,492 @@
+@page "/notes"
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+@rendermode InteractiveServer
+@using NewVistas.BlazorWeb.Services
+@using NewVistas.Abstractions.GrainInterfaces
+@using NewVistas.Abstractions.GrainStates
+@inject OrleansGrainService Grains
+
+<PageTitle>Notes</PageTitle>
+
+<h1>Progress Notes</h1>
+
+<div class="lookup-bar">
+    <input type="text" @bind="patientId" @bind:event="oninput" @onkeydown="HandleKeyDown"
+           placeholder="Patient ID" class="lookup-input" />
+    <button @onclick="LoadNotes" disabled="@(string.IsNullOrWhiteSpace(patientId) || loading)" class="btn btn-primary">
+        @if (loading) { <span>Loading...</span> } else { <span>Load Notes</span> }
+    </button>
+    <button @onclick="ShowNewNoteForm" disabled="@(string.IsNullOrWhiteSpace(patientId))" class="btn btn-secondary">
+        + New Note
+    </button>
+    <button @onclick="ToggleHistory" disabled="@(string.IsNullOrWhiteSpace(patientId))" class="btn btn-outline">
+        Note History
+    </button>
+</div>
+
+@if (error != null)
+{
+    <div class="alert alert-error">@error</div>
+}
+
+@if (successMessage != null)
+{
+    <div class="alert alert-success">@successMessage</div>
+}
+
+@* ── Note History Panel ── *@
+@if (showHistory)
+{
+    <div class="note-form">
+        <h3>Note History</h3>
+        <div class="history-filters">
+            <div class="form-row">
+                <label>From</label>
+                <input type="datetime-local" @bind="historyFrom" />
+            </div>
+            <div class="form-row">
+                <label>To</label>
+                <input type="datetime-local" @bind="historyTo" />
+            </div>
+            <div class="form-row">
+                <label>Max Results</label>
+                <input type="number" @bind="historyMaxResults" min="1" max="500" style="width:80px" />
+            </div>
+            <button @onclick="LoadHistory" disabled="@historyLoading" class="btn btn-primary">
+                @if (historyLoading) { <span>Loading...</span> } else { <span>Load History</span> }
+            </button>
+        </div>
+        @if (historyNotes != null)
+        {
+            <div class="results-header history-result-count">@historyNotes.Count note(s) found</div>
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Date</th>
+                        <th>Type</th>
+                        <th>Subject</th>
+                        <th>Author</th>
+                        <th>Status</th>
+                        <th>Location</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var note in historyNotes)
+                    {
+                        <tr class="clickable" @onclick="() => ViewNote(note.DocumentId)">
+                            <td class="date-cell">@note.ReferenceDate.ToString("MM/dd/yyyy HH:mm")</td>
+                            <td class="doc-type">@note.DocumentType</td>
+                            <td>@(note.Subject ?? "---") @(note.HasAddenda ? "[+]" : "")</td>
+                            <td>@(note.AuthorName ?? "---")</td>
+                            <td><span class="badge badge-status @StatusClass(note.Status)">@note.Status</span></td>
+                            <td>@(note.LocationName ?? "---")</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        }
+    </div>
+}
+
+@* ── Electronic Signature Modal ── *@
+@if (showEsigModal)
+{
+    <div class="modal-overlay">
+        <div class="modal-dialog">
+            <h3>Electronic Signature Required</h3>
+            <p class="esig-prompt">Enter your electronic signature code to @esigAction this document.</p>
+            @if (esigError != null)
+            {
+                <div class="alert alert-error">@esigError</div>
+            }
+            <div class="form-row">
+                <label>Signer ID</label>
+                <input type="text" @bind="esigSignerId" placeholder="Your user ID" />
+            </div>
+            <div class="form-row">
+                <label>Electronic Signature Code</label>
+                <input type="password" @bind="esigCode" placeholder="Enter signature code" @onkeydown="HandleEsigKeyDown" />
+            </div>
+            <div class="form-actions">
+                <button @onclick="SubmitEsig" disabled="@esigSubmitting" class="btn btn-sign">
+                    @if (esigSubmitting) { <span>Verifying...</span> } else { <span>@esigAction</span> }
+                </button>
+                <button @onclick="CancelEsig" class="btn btn-outline">Cancel</button>
+            </div>
+        </div>
+    </div>
+}
+
+@* ── New Note Form ── *@
+@if (showNewNote)
+{
+    <div class="note-form">
+        <h3>New Progress Note</h3>
+        <div class="form-row">
+            <label>Document Type</label>
+            <select @bind="newNoteDocType">
+                <option value="PROGRESS NOTE">Progress Note</option>
+                <option value="DISCHARGE SUMMARY">Discharge Summary</option>
+                <option value="CONSULT NOTE">Consult Note</option>
+                <option value="SURGICAL NOTE">Surgical Note</option>
+                <option value="CRISIS NOTE">Crisis Note</option>
+                <option value="ADVANCE DIRECTIVE">Advance Directive</option>
+            </select>
+        </div>
+        <div class="form-row">
+            <label>Subject</label>
+            <input type="text" @bind="newNoteSubject" placeholder="Brief title" />
+        </div>
+        <div class="form-row">
+            <label>Author</label>
+            <input type="text" @bind="newNoteAuthor" placeholder="Provider name" />
+        </div>
+        <div class="form-row">
+            <label>Location</label>
+            <input type="text" @bind="newNoteLocation" placeholder="Clinic / ward" />
+        </div>
+        <div class="form-row full">
+            <label>Note Text</label>
+            <textarea @bind="newNoteText" rows="10" placeholder="Enter note text..."></textarea>
+        </div>
+        <div class="form-actions">
+            <button @onclick="SaveNote" disabled="@saving" class="btn btn-primary">
+                @if (saving) { <span>Saving...</span> } else { <span>Save Note</span> }
+            </button>
+            <button @onclick="() => showNewNote = false" class="btn btn-outline">Cancel</button>
+        </div>
+    </div>
+}
+
+@* ── Note Detail View ── *@
+@if (selectedNote != null)
+{
+    <div class="note-detail">
+        <div class="detail-header">
+            <div class="detail-title">
+                <span class="badge badge-type">@selectedNote.DocumentType</span>
+                <span class="badge badge-status @StatusClass(selectedNote.Status)">@selectedNote.Status</span>
+                @if (!string.IsNullOrEmpty(selectedNote.Subject))
+                {
+                    <strong>@selectedNote.Subject</strong>
+                }
+            </div>
+            <div class="detail-meta">
+                <span>Author: @(selectedNote.AuthorName ?? "---")</span>
+                <span>Date: @selectedNote.ReferenceDate.ToString("MM/dd/yyyy HH:mm")</span>
+                <span>Location: @(selectedNote.LocationName ?? "---")</span>
+            </div>
+            <div class="detail-actions">
+                @if (selectedNote.Status == "UNSIGNED")
+                {
+                    <button @onclick="() => PromptSign(selectedNote.DocumentId)" class="btn btn-sign">Sign</button>
+                }
+                @if (selectedNote.Status == "UNCOSIGNED")
+                {
+                    <button @onclick="() => PromptCosign(selectedNote.DocumentId)" class="btn btn-sign">Cosign</button>
+                }
+                <button @onclick="() => selectedNote = null" class="btn btn-outline">Close</button>
+            </div>
+        </div>
+        <div class="note-body">
+            <pre>@selectedNote.ReportText</pre>
+        </div>
+        @if (selectedNote.AddendumIds?.Count > 0)
+        {
+            <div class="addenda-label">Addenda (@selectedNote.AddendumIds.Count)</div>
+        }
+    </div>
+}
+
+@* ── Notes List ── *@
+@if (notes != null && selectedNote == null)
+{
+    @if (notes.Count == 0)
+    {
+        <div class="empty-state">No notes found for this patient.</div>
+    }
+    else
+    {
+        <div class="results-header">@notes.Count note(s)</div>
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>Date</th>
+                    <th>Type</th>
+                    <th>Subject</th>
+                    <th>Author</th>
+                    <th>Status</th>
+                    <th>Location</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var note in notes)
+                {
+                    <tr class="clickable" @onclick="() => ViewNote(note.DocumentId)">
+                        <td class="date-cell">@note.ReferenceDate.ToString("MM/dd/yyyy HH:mm")</td>
+                        <td class="doc-type">@note.DocumentType</td>
+                        <td>@(note.Subject ?? "---") @(note.HasAddenda ? "[+]" : "")</td>
+                        <td>@(note.AuthorName ?? "---")</td>
+                        <td><span class="badge badge-status @StatusClass(note.Status)">@note.Status</span></td>
+                        <td>@(note.LocationName ?? "---")</td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    }
+}
+
+@code {
+    [SupplyParameterFromQuery] public string? patientId { get; set; }
+
+    private List<TiuNoteSummary>? notes;
+    private TiuDocumentState? selectedNote;
+    private bool loading, saving;
+    private bool showNewNote;
+    private string? error, successMessage;
+
+    private string newNoteDocType = "PROGRESS NOTE";
+    private string? newNoteSubject;
+    private string? newNoteAuthor;
+    private string? newNoteLocation;
+    private string newNoteText = "";
+
+    // E-sig modal state
+    private bool showEsigModal;
+    private bool esigSubmitting;
+    private string? esigError;
+    private string esigCode = "";
+    private string esigSignerId = "";
+    private string esigAction = "sign";
+    private string esigDocumentId = "";
+
+    // History
+    private bool showHistory;
+    private DateTime historyFrom = DateTime.Now.AddDays(-90);
+    private DateTime historyTo = DateTime.Now;
+    private int historyMaxResults = 100;
+    private bool historyLoading;
+    private List<TiuNoteSummary>? historyNotes;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (!string.IsNullOrWhiteSpace(patientId)) await LoadNotes();
+    }
+
+    private async Task HandleKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter") await LoadNotes();
+    }
+
+    private async Task HandleEsigKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter") await SubmitEsig();
+    }
+
+    private async Task LoadNotes()
+    {
+        if (string.IsNullOrWhiteSpace(patientId)) return;
+        loading = true; error = null; successMessage = null; selectedNote = null;
+        try
+        {
+            var grain = Grains.GetGrain<IPatientWorkflowGrain>(patientId.Trim());
+            notes = await grain.GetNotesAsync(null, 100);
+        }
+        catch (Exception ex) { error = $"Error loading notes: {ex.Message}"; }
+        finally { loading = false; }
+    }
+
+    private async Task ViewNote(string documentId)
+    {
+        error = null;
+        try
+        {
+            var grain = Grains.GetGrain<IPatientWorkflowGrain>(patientId!.Trim());
+            selectedNote = await grain.GetNoteAsync(documentId);
+        }
+        catch (Exception ex) { error = $"Error loading note: {ex.Message}"; }
+    }
+
+    private void ShowNewNoteForm()
+    {
+        newNoteDocType = "PROGRESS NOTE";
+        newNoteSubject = null;
+        newNoteAuthor = null;
+        newNoteLocation = null;
+        newNoteText = "";
+        showNewNote = true;
+        selectedNote = null;
+        successMessage = null;
+    }
+
+    private async Task SaveNote()
+    {
+        if (string.IsNullOrWhiteSpace(newNoteText)) { error = "Note text is required."; return; }
+        saving = true; error = null;
+        try
+        {
+            var grain = Grains.GetGrain<IPatientWorkflowGrain>(patientId!.Trim());
+            await grain.CreateNoteAsync(
+                newNoteDocType, null, newNoteText, newNoteSubject,
+                null, newNoteAuthor, null, null,
+                null, newNoteLocation, null, DateTime.UtcNow);
+            showNewNote = false;
+            successMessage = "Note created successfully.";
+            await LoadNotes();
+        }
+        catch (Exception ex) { error = $"Error: {ex.Message}"; }
+        finally { saving = false; }
+    }
+
+    private void PromptSign(string documentId) => PromptEsig(documentId, "sign");
+
+    private void PromptCosign(string documentId) => PromptEsig(documentId, "cosign");
+
+    private void PromptEsig(string documentId, string action)
+    {
+        esigDocumentId = documentId;
+        esigAction = action;
+        esigCode = "";
+        esigSignerId = "";
+        esigError = null;
+        showEsigModal = true;
+    }
+
+    private void CancelEsig()
+    {
+        showEsigModal = false;
+        esigError = null;
+    }
+
+    private async Task SubmitEsig()
+    {
+        if (string.IsNullOrWhiteSpace(esigCode))
+        {
+            esigError = "Electronic signature code is required.";
+            return;
+        }
+        if (string.IsNullOrWhiteSpace(esigSignerId))
+        {
+            esigError = "Signer ID is required.";
+            return;
+        }
+
+        esigSubmitting = true;
+        esigError = null;
+        try
+        {
+            var grain = Grains.GetGrain<IPatientWorkflowGrain>(patientId!.Trim());
+            if (esigAction == "cosign")
+            {
+                await grain.CosignNoteAsync(esigDocumentId);
+            }
+            else
+            {
+                await grain.SignNoteAsync(esigDocumentId);
+            }
+            showEsigModal = false;
+            successMessage = esigAction == "cosign" ? "Note cosigned." : "Note signed.";
+            await ViewNote(esigDocumentId);
+            await LoadNotes();
+        }
+        catch (Exception ex) { esigError = $"Error: {ex.Message}"; }
+        finally { esigSubmitting = false; }
+    }
+
+    private void ToggleHistory()
+    {
+        showHistory = !showHistory;
+        if (showHistory) { showNewNote = false; selectedNote = null; }
+    }
+
+    private async Task LoadHistory()
+    {
+        if (string.IsNullOrWhiteSpace(patientId)) return;
+        historyLoading = true; error = null; historyNotes = null;
+        try
+        {
+            var grain = Grains.GetGrain<IPatientWorkflowGrain>(patientId.Trim());
+            historyNotes = await grain.GetNoteHistoryAsync(historyFrom, historyTo, historyMaxResults);
+        }
+        catch (Exception ex) { error = $"Error: {ex.Message}"; }
+        finally { historyLoading = false; }
+    }
+
+    private static string StatusClass(string status) => status switch
+    {
+        "UNSIGNED" => "status-unsigned",
+        "UNCOSIGNED" => "status-uncosigned",
+        "COMPLETED" => "status-completed",
+        "AMENDED" => "status-amended",
+        "RETRACTED" => "status-retracted",
+        _ => ""
+    };
+}
+
+<style>
+    .lookup-bar { display: flex; gap: 0.5rem; margin-bottom: 1.5rem; align-items: center; }
+    .lookup-input { width: 280px; padding: 0.5rem 0.75rem; border: 1px solid #ccc; border-radius: 4px; font-size: 0.9rem; }
+    .btn { padding: 0.5rem 1.25rem; border: none; border-radius: 4px; cursor: pointer; font-size: 0.85rem; }
+    .btn-primary { background: #003f72; color: white; }
+    .btn-primary:hover { background: #002a4e; }
+    .btn-primary:disabled { background: #999; cursor: not-allowed; }
+    .btn-secondary { background: #16a34a; color: white; }
+    .btn-secondary:hover { background: #15803d; }
+    .btn-secondary:disabled { background: #999; cursor: not-allowed; }
+    .btn-outline { background: white; border: 1px solid #ccc; color: #333; }
+    .btn-outline:hover { background: #f4f6f9; }
+    .btn-sign { background: #2563eb; color: white; }
+    .btn-sign:hover { background: #1d4ed8; }
+
+    .alert { padding: 0.75rem 1rem; border-radius: 4px; margin-bottom: 1rem; font-size: 0.85rem; }
+    .alert-error { background: #fde8e8; color: #b91c1c; border: 1px solid #f5c6c6; }
+    .alert-success { background: #dcfce7; color: #166534; border: 1px solid #bbf7d0; }
+
+    .empty-state { color: #999; font-style: italic; padding: 2rem 0; }
+    .results-header { font-size: 0.8rem; color: #666; margin-bottom: 0.5rem; }
+
+    .data-table { width: 100%; border-collapse: collapse; font-size: 0.85rem; border: 1px solid #d4d9e0; }
+    .data-table thead { background: #f4f6f9; }
+    .data-table th { text-align: left; padding: 0.5rem; font-weight: 600; color: #003f72; border-bottom: 2px solid #d4d9e0; font-size: 0.75rem; text-transform: uppercase; }
+    .data-table td { padding: 0.4rem 0.5rem; border-bottom: 1px solid #f0f0f0; }
+    .data-table tr.clickable { cursor: pointer; }
+    .data-table tr.clickable:hover { background: #eef3f9; }
+    .date-cell { color: #888; font-size: 0.8rem; white-space: nowrap; }
+    .doc-type { color: #003f72; font-weight: 500; font-size: 0.8rem; }
+
+    .badge { padding: 2px 8px; border-radius: 3px; font-size: 0.7rem; font-weight: 600; }
+    .badge-type { background: #dbeafe; color: #1e40af; }
+    .badge-status { display: inline-block; }
+    .status-unsigned { background: #fef3c7; color: #92400e; }
+    .status-uncosigned { background: #fed7aa; color: #9a3412; }
+    .status-completed { background: #dcfce7; color: #166534; }
+    .status-amended { background: #dbeafe; color: #1e40af; }
+    .status-retracted { background: #fde8e8; color: #b91c1c; }
+
+    .note-form { border: 1px solid #d4d9e0; border-radius: 6px; padding: 1.25rem; margin-bottom: 1.5rem; background: #f9fafb; }
+    .note-form h3 { margin-bottom: 1rem; color: #003f72; }
+    .form-row { display: flex; flex-direction: column; gap: 0.25rem; margin-bottom: 0.75rem; max-width: 400px; }
+    .form-row.full { max-width: 100%; }
+    .form-row label { font-size: 0.8rem; font-weight: 600; color: #555; }
+    .form-row input, .form-row select { padding: 0.4rem 0.6rem; border: 1px solid #ccc; border-radius: 4px; font-size: 0.85rem; }
+    .form-row textarea { padding: 0.5rem 0.6rem; border: 1px solid #ccc; border-radius: 4px; font-size: 0.85rem; font-family: monospace; resize: vertical; }
+    .form-actions { display: flex; gap: 0.5rem; margin-top: 0.5rem; }
+
+    .note-detail { border: 1px solid #d4d9e0; border-radius: 6px; overflow: hidden; margin-bottom: 1.5rem; }
+    .detail-header { background: #f4f6f9; padding: 0.75rem 1rem; border-bottom: 1px solid #d4d9e0; }
+    .detail-title { display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.35rem; }
+    .detail-meta { display: flex; gap: 1.5rem; font-size: 0.8rem; color: #555; margin-bottom: 0.5rem; }
+    .detail-actions { display: flex; gap: 0.5rem; }
+    .note-body { padding: 1rem; }
+    .note-body pre { white-space: pre-wrap; word-wrap: break-word; font-family: -apple-system, sans-serif; font-size: 0.85rem; margin: 0; line-height: 1.6; }
+    .addenda-label { padding: 0.5rem 1rem; background: #fef3c7; font-size: 0.8rem; font-weight: 600; color: #92400e; border-top: 1px solid #f5d68a; }
+
+    /* E-sig modal */
+    .modal-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; z-index: 1000; }
+    .modal-dialog { background: white; border-radius: 8px; padding: 1.5rem; width: 400px; max-width: 90vw; box-shadow: 0 4px 24px rgba(0,0,0,0.2); }
+    .modal-dialog h3 { margin: 0 0 0.5rem; color: #003f72; }
+    .esig-prompt { font-size: 0.85rem; color: #555; margin-bottom: 1rem; }
+
+    .history-filters { display: flex; gap: 1rem; align-items: flex-end; flex-wrap: wrap; margin-bottom: 1rem; }
+    .history-result-count { margin-top: 0.5rem; }
+</style>

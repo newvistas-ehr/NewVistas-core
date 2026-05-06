@@ -1,0 +1,70 @@
+<UserControl x:Class="NewVistas.WpfDelphiUI.Views.LabsView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="clr-namespace:NewVistas.WpfDelphiUI.ViewModels"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             mc:Ignorable="d"
+             d:DataContext="{d:DesignInstance vm:LabsViewModel}"
+             Background="White">
+
+    <DockPanel>
+        <Border DockPanel.Dock="Top" Style="{StaticResource CprsPanelHeader}">
+            <DockPanel>
+                <TextBlock Text="Lab Results" Style="{StaticResource CprsPanelHeaderText}"/>
+                <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" HorizontalAlignment="Right">
+                    <Button Content="Abnormal Only" Margin="4,0" Padding="8,2"
+                            Command="{Binding ToggleAbnormalCommand}"/>
+                    <Button Content="Order Lab" Margin="4,0" Padding="8,2"
+                            Command="{Binding ToggleOrderFormCommand}"/>
+                </StackPanel>
+            </DockPanel>
+        </Border>
+        <TextBlock DockPanel.Dock="Top" Text="{Binding ErrorText}"
+                   Style="{StaticResource ErrorText}"
+                   Visibility="{Binding ErrorText, Converter={StaticResource NullToVis}}"/>
+
+        <!-- Order Lab Form -->
+        <Border DockPanel.Dock="Top" Background="#F0F0F0" BorderBrush="#C0C0C0" BorderThickness="0,0,0,1"
+                Padding="8" Visibility="{Binding ShowOrderForm, Converter={StaticResource BoolToVis}}">
+            <StackPanel>
+                <StackPanel Orientation="Horizontal" Margin="0,2">
+                    <TextBlock Text="Test Name:" Width="75" VerticalAlignment="Center"/>
+                    <TextBox Text="{Binding NewTestName, UpdateSourceTrigger=PropertyChanged}" Width="200" Margin="0,0,8,0"/>
+                    <TextBlock Text="LOINC:" Width="50" VerticalAlignment="Center"/>
+                    <TextBox Text="{Binding NewLoincCode, UpdateSourceTrigger=PropertyChanged}" Width="100" Margin="0,0,8,0"/>
+                    <TextBlock Text="Priority:" Width="55" VerticalAlignment="Center"/>
+                    <ComboBox ItemsSource="{Binding Priorities}" SelectedItem="{Binding NewPriority}" Width="100"/>
+                </StackPanel>
+                <StackPanel Orientation="Horizontal" Margin="0,4,0,0">
+                    <Button Content="Order" Padding="16,2" Margin="0,0,4,0"
+                            Command="{Binding OrderLabCommand}"/>
+                    <Button Content="Cancel" Padding="16,2"
+                            Command="{Binding ToggleOrderFormCommand}"/>
+                </StackPanel>
+            </StackPanel>
+        </Border>
+
+        <ListView ItemsSource="{Binding Results}" BorderThickness="0"
+                  FontFamily="Courier New" FontSize="11">
+            <ListView.View>
+                <GridView>
+                    <GridViewColumn Header="Test"          Width="200"
+                                    DisplayMemberBinding="{Binding TestName}"/>
+                    <GridViewColumn Header="Result"        Width="100"
+                                    DisplayMemberBinding="{Binding Value}"/>
+                    <GridViewColumn Header="Units"         Width="80"
+                                    DisplayMemberBinding="{Binding Units}"/>
+                    <GridViewColumn Header="Ref Range"     Width="100"
+                                    DisplayMemberBinding="{Binding ReferenceRange}"/>
+                    <GridViewColumn Header="Flag"          Width="50"
+                                    DisplayMemberBinding="{Binding AbnormalFlag}"/>
+                    <GridViewColumn Header="Collected"     Width="120"
+                                    DisplayMemberBinding="{Binding CollectionDate}"/>
+                    <GridViewColumn Header="Status"        Width="90"
+                                    DisplayMemberBinding="{Binding Status}"/>
+                </GridView>
+            </ListView.View>
+        </ListView>
+    </DockPanel>
+</UserControl>

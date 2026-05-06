@@ -1,0 +1,76 @@
+<UserControl x:Class="NewVistas.Wpf_UI.Views.PatientPortalView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <ScrollViewer VerticalScrollBarVisibility="Auto">
+        <StackPanel Margin="24">
+            <TextBlock Style="{StaticResource PageTitle}" Text="Patient Portal"/>
+            <TextBlock Style="{StaticResource ErrorText}" Text="{Binding Error}"
+                       Visibility="{Binding Error, Converter={StaticResource NullToVisibility}}"/>
+
+            <StackPanel Orientation="Horizontal" Margin="0,0,0,12">
+                <Button Content="Load" Style="{StaticResource PrimaryButton}"
+                        Command="{Binding LoadCommand}" Margin="0,0,8,0"/>
+                <ProgressBar IsIndeterminate="True" Width="120" Height="20"
+                             Visibility="{Binding IsLoading, Converter={StaticResource BoolToVisibility}}"/>
+            </StackPanel>
+
+            <!-- Tab buttons -->
+            <StackPanel Orientation="Horizontal" Margin="0,0,0,12">
+                <Button Content="Submissions" Style="{StaticResource PrimaryButton}"
+                        Command="{Binding ShowSubmissionsCommand}" Margin="0,0,8,0"/>
+                <Button Content="Messages" Style="{StaticResource SecondaryButton}"
+                        Command="{Binding ShowMessagesCommand}" Margin="0,0,8,0"/>
+                <Button Content="Review Queue" Style="{StaticResource SecondaryButton}"
+                        Command="{Binding ShowQueueCommand}" Margin="0,0,8,0"/>
+            </StackPanel>
+
+            <!-- Submissions tab -->
+            <StackPanel Visibility="{Binding IsSubmissionsTab, Converter={StaticResource BoolToVisibility}}">
+                <TextBlock Style="{StaticResource SectionHeader}" Text="Health Information Submissions"/>
+                <DataGrid ItemsSource="{Binding Submissions}" AutoGenerateColumns="False" IsReadOnly="True">
+                    <DataGrid.Columns>
+                        <DataGridTextColumn Header="Submission ID" Binding="{Binding SubmissionId}" Width="140"/>
+                        <DataGridTextColumn Header="Type" Binding="{Binding SubmissionType}" Width="140"/>
+                        <DataGridTextColumn Header="Status" Binding="{Binding Status}" Width="110"/>
+                        <DataGridTextColumn Header="Submitted" Binding="{Binding SubmittedDate, StringFormat=g}" Width="160"/>
+                        <DataGridTextColumn Header="Reviewed By" Binding="{Binding ReviewedBy}" Width="140"/>
+                        <DataGridTextColumn Header="Reviewed" Binding="{Binding ReviewedDate, StringFormat=g}" Width="160"/>
+                    </DataGrid.Columns>
+                </DataGrid>
+            </StackPanel>
+
+            <!-- Messages tab -->
+            <StackPanel Visibility="{Binding IsMessagesTab, Converter={StaticResource BoolToVisibility}}">
+                <TextBlock Style="{StaticResource SectionHeader}" Text="Secure Messages"/>
+                <DataGrid ItemsSource="{Binding Threads}" AutoGenerateColumns="False" IsReadOnly="True">
+                    <DataGrid.Columns>
+                        <DataGridTextColumn Header="Thread ID" Binding="{Binding ThreadId}" Width="140"/>
+                        <DataGridTextColumn Header="Subject" Binding="{Binding Subject}" Width="*"/>
+                        <DataGridTextColumn Header="Status" Binding="{Binding Status}" Width="110"/>
+                        <DataGridTextColumn Header="Last Message" Binding="{Binding LastMessageDate, StringFormat=g}" Width="160"/>
+                        <DataGridTextColumn Header="Messages" Binding="{Binding MessageCount}" Width="80"/>
+                    </DataGrid.Columns>
+                </DataGrid>
+            </StackPanel>
+
+            <!-- Review Queue tab -->
+            <StackPanel Visibility="{Binding IsQueueTab, Converter={StaticResource BoolToVisibility}}">
+                <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+                    <TextBlock Style="{StaticResource SectionHeader}" Text="Pending Review Queue"/>
+                    <Button Content="Load Queue" Style="{StaticResource SecondaryButton}"
+                            Command="{Binding LoadQueueCommand}" Margin="12,0,0,0" VerticalAlignment="Center"/>
+                </StackPanel>
+                <DataGrid ItemsSource="{Binding QueueItems}" AutoGenerateColumns="False" IsReadOnly="True">
+                    <DataGrid.Columns>
+                        <DataGridTextColumn Header="Submission ID" Binding="{Binding SubmissionId}" Width="140"/>
+                        <DataGridTextColumn Header="Patient" Binding="{Binding PatientId}" Width="140"/>
+                        <DataGridTextColumn Header="Type" Binding="{Binding SubmissionType}" Width="140"/>
+                        <DataGridTextColumn Header="Status" Binding="{Binding Status}" Width="110"/>
+                        <DataGridTextColumn Header="Submitted" Binding="{Binding SubmittedDate, StringFormat=g}" Width="160"/>
+                    </DataGrid.Columns>
+                </DataGrid>
+            </StackPanel>
+
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>

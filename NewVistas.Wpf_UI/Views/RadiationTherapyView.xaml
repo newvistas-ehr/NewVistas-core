@@ -1,0 +1,47 @@
+<UserControl x:Class="NewVistas.Wpf_UI.Views.RadiationTherapyView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <ScrollViewer VerticalScrollBarVisibility="Auto">
+        <StackPanel Margin="24">
+            <TextBlock Style="{StaticResource PageTitle}" Text="Radiation Therapy"/>
+            <TextBlock Style="{StaticResource ErrorText}" Text="{Binding Error}"
+                       Visibility="{Binding Error, Converter={StaticResource NullToVisibility}}"/>
+            <StackPanel Orientation="Horizontal" Margin="0,0,0,12">
+                <Button Content="Load" Style="{StaticResource PrimaryButton}"
+                        Command="{Binding LoadCommand}" Margin="0,0,8,0"/>
+                <ProgressBar IsIndeterminate="True" Width="120" Height="20"
+                             Visibility="{Binding IsLoading, Converter={StaticResource BoolToVisibility}}"/>
+            </StackPanel>
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="380"/>
+                </Grid.ColumnDefinitions>
+                <StackPanel>
+                    <TextBlock Style="{StaticResource SectionHeader}" Text="Treatment Courses"/>
+                    <DataGrid ItemsSource="{Binding Courses}" SelectedItem="{Binding SelectedCourse}" AutoGenerateColumns="False">
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Header="Treatment Site" Binding="{Binding TreatmentSite}" Width="*"/>
+                            <DataGridTextColumn Header="Modality" Binding="{Binding Modality}" Width="100"/>
+                            <DataGridTextColumn Header="Status" Binding="{Binding Status}" Width="100"/>
+                            <DataGridTextColumn Header="Fractions" Binding="{Binding FractionsDelivered}" Width="80"/>
+                            <DataGridTextColumn Header="Total Dose" Binding="{Binding TotalDoseCgy, StringFormat='{}{0} cGy'}" Width="100"/>
+                        </DataGrid.Columns>
+                    </DataGrid>
+                </StackPanel>
+                <StackPanel Grid.Column="1" Margin="16,0,0,0"
+                            Visibility="{Binding SelectedCourse, Converter={StaticResource NullToVisibility}}">
+                    <TextBlock Style="{StaticResource SectionHeader}" Text="Fraction Log"/>
+                    <DataGrid ItemsSource="{Binding Fractions}" AutoGenerateColumns="False" MaxHeight="400">
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Header="#" Binding="{Binding FractionNumber}" Width="40"/>
+                            <DataGridTextColumn Header="Date" Binding="{Binding TreatmentDate, StringFormat=d}" Width="100"/>
+                            <DataGridTextColumn Header="Dose (cGy)" Binding="{Binding DoseCgy}" Width="90"/>
+                            <DataGridTextColumn Header="Status" Binding="{Binding Status}" Width="90"/>
+                        </DataGrid.Columns>
+                    </DataGrid>
+                </StackPanel>
+            </Grid>
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>

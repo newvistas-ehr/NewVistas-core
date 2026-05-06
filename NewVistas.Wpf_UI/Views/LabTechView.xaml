@@ -1,0 +1,48 @@
+<UserControl x:Class="NewVistas.Wpf_UI.Views.LabTechView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <ScrollViewer VerticalScrollBarVisibility="Auto">
+        <StackPanel Margin="24">
+            <TextBlock Style="{StaticResource PageTitle}" Text="Lab Technologist Worklist"/>
+            <TextBlock Style="{StaticResource ErrorText}" Text="{Binding Error}"
+                       Visibility="{Binding Error, Converter={StaticResource NullToVisibility}}"/>
+            <TextBlock Foreground="Green" Text="{Binding ActionMessage}"
+                       Visibility="{Binding ActionMessage, Converter={StaticResource NullToVisibility}}" Margin="0,0,0,8"/>
+
+            <StackPanel Orientation="Horizontal" Margin="0,0,0,12">
+                <Button Content="Load Worklist" Style="{StaticResource PrimaryButton}"
+                        Command="{Binding LoadCommand}" Margin="0,0,8,0"/>
+                <ProgressBar IsIndeterminate="True" Width="120" Height="20"
+                             Visibility="{Binding IsLoading, Converter={StaticResource BoolToVisibility}}"/>
+            </StackPanel>
+
+            <TextBlock Text="Worklist" FontWeight="Bold" Margin="0,0,0,4"/>
+            <DataGrid ItemsSource="{Binding Worklist.Items}" AutoGenerateColumns="False" IsReadOnly="True" Height="250">
+                <DataGrid.Columns>
+                    <DataGridTextColumn Header="Test" Binding="{Binding TestName}" Width="*"/>
+                    <DataGridTextColumn Header="Patient" Binding="{Binding PatientId}" Width="140"/>
+                    <DataGridTextColumn Header="Category" Binding="{Binding WorklistCategory}" Width="120"/>
+                    <DataGridTextColumn Header="Status" Binding="{Binding Status}" Width="100"/>
+                    <DataGridTextColumn Header="Specimen" Binding="{Binding SpecimenType}" Width="100"/>
+                    <DataGridTextColumn Header="Ordered" Binding="{Binding OrderedDate, StringFormat=g}" Width="140"/>
+                </DataGrid.Columns>
+            </DataGrid>
+
+            <TextBlock Text="Accessions" FontWeight="Bold" Margin="0,12,0,4"/>
+            <DataGrid ItemsSource="{Binding Accessions}" AutoGenerateColumns="False" IsReadOnly="True" Height="200">
+                <DataGrid.Columns>
+                    <DataGridTextColumn Header="Accession #" Binding="{Binding AccessionNumber}" Width="140"/>
+                    <DataGridTextColumn Header="Specimen" Binding="{Binding SpecimenType}" Width="100"/>
+                    <DataGridTextColumn Header="Status" Binding="{Binding Status}" Width="100"/>
+                    <DataGridTextColumn Header="Tests" Binding="{Binding TestCount}" Width="60"/>
+                    <DataGridTextColumn Header="Collected" Binding="{Binding CollectionDateTime, StringFormat=g}" Width="140"/>
+                </DataGrid.Columns>
+            </DataGrid>
+
+            <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
+                <Button Content="Accession" Style="{StaticResource PrimaryButton}"
+                        Command="{Binding AccessionSpecimenCommand}"/>
+            </StackPanel>
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>

@@ -1,0 +1,197 @@
+@* Copyright 2026 James Smyth. All rights reserved. *@
+@page "/auto-refill"
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+@rendermode InteractiveServer
+@using NewVistas.BlazorWeb.Services
+@using NewVistas.Abstractions.GrainInterfaces
+@using NewVistas.Abstractions.GrainStates
+@inject OrleansGrainService Grains
+
+<PageTitle>Auto Refill</PageTitle>
+<h1>Automated Prescription Refill</h1>
+
+@if (loading) { <div class="empty-state">Loading feature status...</div> }
+else if (featureChecked && !featureEnabled)
+{ <div class="alert alert-warning">The <strong>AUTO_REFILL</strong> feature is not enabled. Enable it in <a href="/site-parameters">Site Parameters</a>.</div> }
+@if (error != null) { <div class="alert alert-error">@error</div> }
+
+@if (!loading)
+{
+    <div class="tab-bar">
+        <button class="tab-btn @(activeTab == 0 ? "active" : "")" @onclick="() => activeTab = 0">Patient Enrollments</button>
+        <button class="tab-btn @(activeTab == 1 ? "active" : "")" @onclick="() => activeTab = 1">Due for Refill</button>
+        <button class="tab-btn @(activeTab == 2 ? "active" : "")" @onclick="() => activeTab = 2">Dashboard</button>
+    </div>
+
+    @if (activeTab == 0)
+    {
+        <div class="form-section">
+            <div class="form-row">
+                <label>Patient ID</label>
+                <input type="text" class="form-input" @bind="patientId" @bind:event="oninput" placeholder="Enter patient ID" />
+                <button @onclick="LoadEnrollments" disabled="@(string.IsNullOrWhiteSpace(patientId) || loadingEntries)" class="btn btn-primary">
+                    @if (loadingEntries) { <span>Loading...</span> } else { <span>Load</span> }
+                </button>
+            </div>
+        </div>
+        @if (enrollments != null)
+        {
+            <h3 style="color:#003f72;font-size:1rem;">Enrollments (@enrollments.Count)</h3>
+            @if (enrollments.Count > 0)
+            {
+                <table class="data-table">
+                    <thead><tr><th>Drug</th><th>Status</th><th>Next Refill</th><th>Refills Left</th><th>Pharmacy</th><th>Auto-Refills</th></tr></thead>
+                    <tbody>
+                        @foreach (var e in enrollments)
+                        {
+                            <tr>
+                                <td><strong>@e.DrugName</strong></td>
+                                <td><span class="status-badge" style="@GetStatusStyle(e.Status)">@e.Status</span></td>
+                                <td>@e.NextRefillDate.ToString("MM/dd/yyyy")</td>
+                                <td>@e.RefillsRemaining</td>
+                                <td>@e.PharmacyName</td>
+                                <td>@e.TotalRefillsGenerated</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            }
+            else { <div class="empty-state">No auto-refill enrollments for this patient.</div> }
+        }
+    }
+
+    @if (activeTab == 1)
+    {
+        <div class="form-actions">
+            <button @onclick="LoadDue" disabled="@loadingDue" class="btn btn-primary">
+                @if (loadingDue) { <span>Loading...</span> } else { <span>Load Due Refills</span> }
+            </button>
+        </div>
+        @if (dueEntries != null && dueEntries.Count > 0)
+        {
+            <table class="data-table">
+                <thead><tr><th>Patient</th><th>Drug</th><th>Next Refill</th><th>Refills Left</th><th>Pharmacy</th></tr></thead>
+                <tbody>
+                    @foreach (var e in dueEntries)
+                    {
+                        <tr>
+                            <td>@e.PatientName <span class="patient-id-small">(@e.PatientId)</span></td>
+                            <td><strong>@e.DrugName</strong></td>
+                            <td>@e.NextRefillDate.ToString("MM/dd/yyyy")</td>
+                            <td>@e.RefillsRemaining</td>
+                            <td>@e.PharmacyName</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        }
+        else if (dueEntries != null) { <div class="empty-state">No refills currently due.</div> }
+    }
+
+    @if (activeTab == 2)
+    {
+        <div class="form-section">
+            <div class="form-row"><label>Status</label>
+                <select class="form-input" @bind="dashStatus">
+                    <option value="">All</option><option value="ACTIVE">ACTIVE</option><option value="REFILL_PENDING">REFILL_PENDING</option>
+                    <option value="SUSPENDED">SUSPENDED</option><option value="NO_REFILLS">NO_REFILLS</option>
+                    <option value="DISENROLLED">DISENROLLED</option><option value="EXPIRED">EXPIRED</option>
+                </select>
+            </div>
+            <div class="form-actions">
+                <button @onclick="SearchDashboard" disabled="@loadingDashboard" class="btn btn-primary">
+                    @if (loadingDashboard) { <span>Searching...</span> } else { <span>Search</span> }
+                </button>
+            </div>
+        </div>
+        @if (dashboardResults != null && dashboardResults.Count > 0)
+        {
+            <table class="data-table">
+                <thead><tr><th>Patient</th><th>Drug</th><th>Status</th><th>Next Refill</th><th>Refills Left</th><th>Pharmacy</th><th>Auto-Refills</th></tr></thead>
+                <tbody>
+                    @foreach (var e in dashboardResults)
+                    {
+                        <tr>
+                            <td>@e.PatientName <span class="patient-id-small">(@e.PatientId)</span></td>
+                            <td><strong>@e.DrugName</strong></td>
+                            <td><span class="status-badge" style="@GetStatusStyle(e.Status)">@e.Status</span></td>
+                            <td>@e.NextRefillDate.ToString("MM/dd/yyyy")</td>
+                            <td>@e.RefillsRemaining</td>
+                            <td>@e.PharmacyName</td>
+                            <td>@e.TotalRefillsGenerated</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        }
+        else if (dashboardResults != null) { <div class="empty-state">No enrollments match.</div> }
+    }
+}
+
+@code {
+    private int activeTab; private bool loading = true, featureEnabled, featureChecked; private string? error;
+    private string? patientId; private bool loadingEntries;
+    private List<AutoRefillIndexEntry>? enrollments;
+    private bool loadingDue; private List<AutoRefillIndexEntry>? dueEntries;
+    private string dashStatus = ""; private bool loadingDashboard; private List<AutoRefillIndexEntry>? dashboardResults;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try { featureEnabled = await Grains.GetGrain<ISiteParametersGrain>("SITE:DEFAULT").IsFeatureEnabledAsync("AUTO_REFILL"); }
+        catch (Exception ex) { error = ex.Message; } finally { loading = false; featureChecked = true; }
+    }
+
+    private async Task LoadEnrollments()
+    {
+        if (string.IsNullOrWhiteSpace(patientId)) return;
+        loadingEntries = true; error = null;
+        try { enrollments = await Grains.GetGrain<IAutoRefillIndexGrain>("RX-AUTOREFILL-IDX").GetByPatientAsync(patientId.Trim()); }
+        catch (Exception ex) { error = ex.Message; } finally { loadingEntries = false; }
+    }
+
+    private async Task LoadDue()
+    {
+        loadingDue = true; error = null;
+        try { dueEntries = await Grains.GetGrain<IAutoRefillIndexGrain>("RX-AUTOREFILL-IDX").GetDueForRefillAsync(DateTime.UtcNow, 50); }
+        catch (Exception ex) { error = ex.Message; } finally { loadingDue = false; }
+    }
+
+    private async Task SearchDashboard()
+    {
+        loadingDashboard = true; error = null;
+        try { dashboardResults = await Grains.GetGrain<IAutoRefillIndexGrain>("RX-AUTOREFILL-IDX").SearchAsync(null, string.IsNullOrEmpty(dashStatus) ? null : dashStatus, null, 50); }
+        catch (Exception ex) { error = ex.Message; } finally { loadingDashboard = false; }
+    }
+
+    private string GetStatusStyle(string s) => s.ToUpperInvariant() switch
+    {
+        "ACTIVE" => "background:#dcfce7;color:#166534;border:1px solid #bbf7d0;",
+        "REFILL_PENDING" => "background:#f3e8ff;color:#7c3aed;border:1px solid #c4b5fd;",
+        "SUSPENDED" => "background:#fff7ed;color:#c2410c;border:1px solid #fed7aa;",
+        "NO_REFILLS" => "background:#fde8e8;color:#b91c1c;border:1px solid #f5c6c6;",
+        "DISENROLLED" => "background:#f3f4f6;color:#6b7280;border:1px solid #d1d5db;",
+        "EXPIRED" => "background:#f3f4f6;color:#6b7280;border:1px solid #d1d5db;",
+        _ => "background:#dbeafe;color:#1e40af;border:1px solid #93c5fd;"
+    };
+}
+
+<style>
+    .btn { padding: 0.5rem 1.25rem; border: none; border-radius: 4px; cursor: pointer; font-size: 0.85rem; }
+    .btn-primary { background: #003f72; color: white; } .btn-primary:disabled { background: #999; cursor: not-allowed; }
+    .alert { padding: 0.75rem 1rem; border-radius: 4px; margin-bottom: 1rem; }
+    .alert-error { background: #fde8e8; color: #b91c1c; border: 1px solid #f5c6c6; }
+    .alert-warning { background: #fef3c7; color: #92400e; border: 1px solid #fde68a; } .alert-warning a { color: #003f72; font-weight: 600; }
+    .empty-state { color: #999; font-style: italic; padding: 2rem 0; }
+    .tab-bar { display: flex; gap: 0; border-bottom: 2px solid #d4d9e0; margin-bottom: 1.5rem; }
+    .tab-btn { padding: 0.6rem 1.25rem; border: none; background: transparent; cursor: pointer; font-size: 0.85rem; font-weight: 500; color: #666; border-bottom: 2px solid transparent; margin-bottom: -2px; }
+    .tab-btn.active { color: #003f72; border-bottom-color: #003f72; font-weight: 600; }
+    .form-section { max-width: 700px; } .form-row { display: flex; align-items: center; gap: 1rem; margin-bottom: 0.75rem; }
+    .form-row label:first-child { width: 160px; font-size: 0.85rem; font-weight: 500; color: #333; flex-shrink: 0; }
+    .form-input { flex: 1; padding: 0.4rem 0.6rem; border: 1px solid #ccc; border-radius: 4px; font-size: 0.85rem; max-width: 350px; }
+    .form-actions { display: flex; gap: 0.75rem; margin-top: 1rem; margin-bottom: 1.5rem; }
+    .data-table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+    .data-table th { text-align: left; padding: 0.5rem; font-weight: 600; color: #003f72; border-bottom: 2px solid #d4d9e0; font-size: 0.75rem; text-transform: uppercase; background: #f4f6f9; }
+    .data-table td { padding: 0.4rem 0.5rem; border-bottom: 1px solid #f0f0f0; } .data-table tr:hover { background: #f9fafb; }
+    .status-badge { display: inline-block; padding: 0.2rem 0.6rem; border-radius: 3px; font-size: 0.75rem; font-weight: 600; text-transform: uppercase; }
+    .patient-id-small { font-size: 0.75rem; color: #999; }
+</style>

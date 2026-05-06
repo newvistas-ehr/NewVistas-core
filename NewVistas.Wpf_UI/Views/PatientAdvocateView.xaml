@@ -1,0 +1,18 @@
+<UserControl x:Class="NewVistas.Wpf_UI.Views.PatientAdvocateView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <StackPanel Margin="24">
+        <TextBlock Style="{StaticResource PageTitle}" Text="Patient Advocate"/>
+        <Border Background="{StaticResource VaLightBlueBrush}" BorderBrush="{StaticResource VaBorderBrush}"
+                BorderThickness="1" CornerRadius="4" Padding="16" Margin="0,16,0,0">
+            <StackPanel>
+                <TextBlock FontSize="16" FontWeight="SemiBold" Text="Patient Advocate Services"
+                           Foreground="{StaticResource VaBlueBrush}" Margin="0,0,0,8"/>
+                <TextBlock TextWrapping="Wrap" FontSize="13">
+                    The Patient Advocate module facilitates complaint resolution and patient rights management.
+                    Access the full Patient Advocate functionality through the NewVistas web interface.
+                </TextBlock>
+            </StackPanel>
+        </Border>
+    </StackPanel>
+</UserControl>

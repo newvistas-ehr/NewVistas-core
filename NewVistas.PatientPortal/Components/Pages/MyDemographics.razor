@@ -1,0 +1,67 @@
+@page "/my-demographics"
+@rendermode InteractiveServer
+@inject HttpClient Http
+
+<PageTitle>My Demographics</PageTitle>
+<h1>My Demographics</h1>
+
+@if (error != null) { <div class="alert alert-error">@error</div> }
+
+@if (loading) { <p>Loading...</p> }
+else if (data != null)
+{
+    <div class="info-card">
+        <div class="info-grid">
+            <div><strong>Name:</strong> @(data.Name ?? "—")</div>
+            <div><strong>Date of Birth:</strong> @(data.DateOfBirth ?? "—")</div>
+            <div><strong>Sex:</strong> @(data.Sex ?? "—")</div>
+            <div><strong>Marital Status:</strong> @(data.MaritalStatus ?? "—")</div>
+            <div><strong>Phone:</strong> @(data.PhoneNumber ?? "—")</div>
+            <div><strong>Preferred Language:</strong> @(data.PreferredLanguage ?? "—")</div>
+            <div class="full"><strong>Address:</strong> @(data.Address ?? "—"), @(data.City ?? "") @(data.State ?? "") @(data.ZipCode ?? "")</div>
+            <div><strong>Ethnicity:</strong> @(data.Ethnicity ?? "—")</div>
+            <div><strong>Race:</strong> @(data.Race ?? "—")</div>
+            <div><strong>Emergency Contact:</strong> @(data.EmergencyContactName ?? "—") @(!string.IsNullOrEmpty(data.EmergencyContactPhone) ? $"({data.EmergencyContactPhone})" : "")</div>
+        </div>
+    </div>
+    <p class="note">To update your information, please submit a health information update or contact your care team.</p>
+}
+
+@code {
+    bool loading = true;
+    string? error;
+    DemographicsDto? data;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try { data = await Http.GetFromJsonAsync<DemographicsDto>("api/my/health/demographics"); }
+        catch (Exception ex) { error = $"Error: {ex.Message}"; }
+        finally { loading = false; }
+    }
+
+    private class DemographicsDto
+    {
+        public string? Name { get; set; }
+        public string? DateOfBirth { get; set; }
+        public string? Sex { get; set; }
+        public string? Address { get; set; }
+        public string? City { get; set; }
+        public string? State { get; set; }
+        public string? ZipCode { get; set; }
+        public string? PhoneNumber { get; set; }
+        public string? MaritalStatus { get; set; }
+        public string? Ethnicity { get; set; }
+        public string? Race { get; set; }
+        public string? PreferredLanguage { get; set; }
+        public string? EmergencyContactName { get; set; }
+        public string? EmergencyContactPhone { get; set; }
+    }
+}
+
+<style>
+    .info-card { background: #fff; border: 1px solid #e0e0e0; border-radius: 6px; padding: 1rem; margin-bottom: 1rem; }
+    .info-grid { display: grid; grid-template-columns: 1fr 1fr; gap: .4rem .75rem; font-size: .9rem; }
+    .info-grid .full { grid-column: span 2; }
+    .note { font-size: .85rem; color: #666; font-style: italic; }
+    .alert-error { background: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; padding: .5rem .75rem; border-radius: 4px; margin-bottom: .5rem; }
+</style>

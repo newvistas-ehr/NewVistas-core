@@ -1,0 +1,584 @@
+@page "/immunizations"
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+@rendermode InteractiveServer
+@using NewVistas.BlazorWeb.Services
+@using NewVistas.Abstractions.GrainInterfaces
+@using NewVistas.Abstractions.GrainStates
+@inject OrleansGrainService Grains
+
+<PageTitle>Immunizations</PageTitle>
+<h1>Immunizations</h1>
+
+<div class="lookup-bar">
+    <input type="text" @bind="patientId" @bind:event="oninput" @onkeydown="HandleKeyDown" placeholder="Patient ID" class="lookup-input" />
+    <button @onclick="Load" disabled="@(string.IsNullOrWhiteSpace(patientId) || loading)" class="btn btn-primary">@(loading ? "Loading..." : "Load")</button>
+    <button @onclick="ShowForm" disabled="@(string.IsNullOrWhiteSpace(patientId))" class="btn btn-secondary">+ Record Immunization</button>
+</div>
+
+@if (error != null) { <div class="alert alert-error">@error</div> }
+@if (success != null) { <div class="alert alert-success">@success</div> }
+
+@if (items != null || detail != null)
+{
+    <div class="tab-bar">
+        <button class="tab @(activeTab == "list" ? "tab-active" : "")" @onclick='() => SetTab("list")'>Immunizations</button>
+        @if (detail != null)
+        {
+            <button class="tab @(activeTab == "detail" ? "tab-active" : "")" @onclick='() => SetTab("detail")'>Detail</button>
+        }
+    </div>
+}
+
+@if (showNew)
+{
+    <div class="entry-form">
+        <h3>Record Immunization</h3>
+        <div class="form-grid">
+            <div class="form-row"><label>Immunization Name *</label><input type="text" @bind="f_name" placeholder="e.g. Influenza Vaccine" /></div>
+            <div class="form-row"><label>CVX Code</label><input type="text" @bind="f_cvx" placeholder="e.g. 158" /></div>
+            <div class="form-row"><label>Date Given *</label><input type="datetime-local" @bind="f_date" /></div>
+            <div class="form-row"><label>Series</label><input type="text" @bind="f_series" placeholder="e.g. 1, Booster" /></div>
+            <div class="form-row"><label>Lot Number</label><input type="text" @bind="f_lot" /></div>
+            <div class="form-row"><label>Manufacturer</label><input type="text" @bind="f_mfr" /></div>
+            <div class="form-row"><label>Administered By</label><input type="text" @bind="f_nurse" /></div>
+            <div class="form-row"><label>Site</label>
+                <select @bind="f_site"><option value="">--</option><option>LEFT DELTOID</option><option>RIGHT DELTOID</option><option>LEFT THIGH</option><option>RIGHT THIGH</option></select>
+            </div>
+            <div class="form-row"><label>Route</label>
+                <select @bind="f_route"><option>IM</option><option>SUBQ</option><option>PO</option><option>INTRANASAL</option><option>ID</option></select>
+            </div>
+            <div class="form-row"><label>Dose</label><input type="text" @bind="f_dose" placeholder="e.g. 0.5 mL" /></div>
+            <div class="form-row"><label>Location</label><input type="text" @bind="f_location" /></div>
+            <div class="form-row full"><label>Comments</label><textarea @bind="f_comments" rows="2"></textarea></div>
+        </div>
+        <div class="form-actions">
+            <button @onclick="Submit" disabled="@saving" class="btn btn-primary">@(saving ? "Saving..." : "Record")</button>
+            <button @onclick="() => showNew = false" class="btn btn-outline">Cancel</button>
+        </div>
+    </div>
+}
+
+@if (activeTab == "list" && items != null)
+{
+    @if (items.Count == 0) { <div class="empty-state">No immunizations found.</div> }
+    else
+    {
+        <table class="data-table">
+            <thead><tr><th>Date</th><th>Immunization</th><th>CVX</th><th>Series</th><th>Lot</th><th>Manufacturer</th><th>Site</th></tr></thead>
+            <tbody>
+                @foreach (var s in items)
+                {
+                    <tr class="clickable" @onclick="() => ViewDetail(s.ImmunizationId)">
+                        <td class="date">@s.EventDateTime.ToString("MM/dd/yyyy")</td>
+                        <td>@s.ImmunizationName</td><td>@s.CvxCode</td><td>@s.Series</td>
+                        <td>@s.LotNumber</td><td>@s.Manufacturer</td><td>@s.AdministrationSite</td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    }
+}
+
+@if (activeTab == "detail" && detail != null)
+{
+    <div class="detail-panel">
+        <div class="detail-header">
+            <h3>@detail.ImmunizationName</h3>
+            <button @onclick="CloseDetail" class="btn btn-outline btn-sm-action">Close</button>
+        </div>
+        <div class="detail-grid">
+            <div><strong>ID:</strong> @detail.ImmunizationId</div>
+            <div><strong>CVX Code:</strong> @(detail.CvxCode ?? "--")</div>
+            <div><strong>Date:</strong> @detail.EventDateTime.ToString("MM/dd/yyyy HH:mm")</div>
+            <div><strong>Series:</strong> @(detail.Series ?? "--")</div>
+            <div><strong>Lot Number:</strong> @(detail.LotNumber ?? "--")</div>
+            <div><strong>Manufacturer:</strong> @(detail.Manufacturer ?? "--")</div>
+            <div><strong>Site:</strong> @(detail.AdministrationSite ?? "--")</div>
+            <div><strong>Route:</strong> @(detail.Route ?? "--")</div>
+            <div><strong>Dose:</strong> @(detail.Dose ?? "--")</div>
+            <div><strong>Administered By:</strong> @(detail.AdministeredByName ?? "--")</div>
+            <div><strong>Location:</strong> @(detail.LocationName ?? "--")</div>
+            <div><strong>VIS Offered:</strong> @(detail.VisDateOffered?.ToString("MM/dd/yyyy") ?? "--")</div>
+            <div><strong>VIS Published:</strong> @(detail.VisDatePublished?.ToString("MM/dd/yyyy") ?? "--")</div>
+            <div><strong>Dose Number:</strong> @(detail.DoseNumber?.ToString() ?? "--")</div>
+            <div><strong>Doses In Series:</strong> @(detail.DosesInSeries?.ToString() ?? "--")</div>
+            <div><strong>Series Complete:</strong> @(detail.SeriesComplete.HasValue ? (detail.SeriesComplete.Value ? "Yes" : "No") : "--")</div>
+            <div><strong>Vaccine Group:</strong> @(detail.VaccineGroupName ?? "--")</div>
+            <div><strong>Group Code:</strong> @(detail.VaccineGroupCode ?? "--")</div>
+            <div><strong>Mfr Name:</strong> @(detail.ManufacturerName ?? "--")</div>
+            <div><strong>Mfr Code:</strong> @(detail.ManufacturerCode ?? "--")</div>
+            <div><strong>Registry Status:</strong> @(detail.RegistryStatus ?? "--")</div>
+            <div><strong>Information Source:</strong> @(detail.InformationSource ?? "--")</div>
+            @if (!string.IsNullOrEmpty(detail.Comments))
+            {
+                <div class="full"><strong>Comments:</strong> @detail.Comments</div>
+            }
+        </div>
+
+        @* -- Series Info -- *@
+        <div class="section">
+            <h4>Series Information</h4>
+            <div class="entry-form compact">
+                <div class="form-grid">
+                    <div class="form-row"><label>Dose Number *</label><input type="number" @bind="si_doseNum" min="1" /></div>
+                    <div class="form-row"><label>Doses In Series *</label><input type="number" @bind="si_dosesInSeries" min="1" /></div>
+                    <div class="form-row"><label>Series Complete</label>
+                        <select @bind="si_complete"><option value="false">No</option><option value="true">Yes</option></select>
+                    </div>
+                </div>
+                <div class="form-actions">
+                    <button @onclick="SubmitSeriesInfo" disabled="@saving" class="btn btn-primary">Set Series Info</button>
+                </div>
+            </div>
+        </div>
+
+        @* -- Admin Details -- *@
+        <div class="section">
+            <h4>Administration Details</h4>
+            <div class="entry-form compact">
+                <div class="form-grid">
+                    <div class="form-row"><label>Site *</label>
+                        <select @bind="ad_site"><option value="">--</option><option>LEFT DELTOID</option><option>RIGHT DELTOID</option><option>LEFT THIGH</option><option>RIGHT THIGH</option></select>
+                    </div>
+                    <div class="form-row"><label>Route *</label>
+                        <select @bind="ad_route"><option>IM</option><option>SUBQ</option><option>PO</option><option>INTRANASAL</option><option>ID</option></select>
+                    </div>
+                </div>
+                <div class="form-actions">
+                    <button @onclick="SubmitAdminDetails" disabled="@saving" class="btn btn-primary">Set Admin Details</button>
+                </div>
+            </div>
+        </div>
+
+        @* -- VIS -- *@
+        <div class="section">
+            <h4>Vaccine Information Statement (VIS)</h4>
+            <div class="entry-form compact">
+                <div class="form-grid">
+                    <div class="form-row"><label>Date Offered *</label><input type="date" @bind="vis_offered" /></div>
+                    <div class="form-row"><label>Date Published *</label><input type="date" @bind="vis_published" /></div>
+                </div>
+                <div class="form-actions">
+                    <button @onclick="SubmitVIS" disabled="@saving" class="btn btn-primary">Record VIS</button>
+                </div>
+            </div>
+        </div>
+
+        @* -- Vaccine Group -- *@
+        <div class="section">
+            <h4>Vaccine Group</h4>
+            <div class="entry-form compact">
+                <div class="form-grid">
+                    <div class="form-row"><label>Group Name *</label><input type="text" @bind="vg_name" placeholder="e.g. Influenza" /></div>
+                    <div class="form-row"><label>Group Code *</label><input type="text" @bind="vg_code" placeholder="e.g. 88" /></div>
+                </div>
+                <div class="form-actions">
+                    <button @onclick="SubmitVaccineGroup" disabled="@saving" class="btn btn-primary">Set Vaccine Group</button>
+                </div>
+            </div>
+        </div>
+
+        @* -- Manufacturer -- *@
+        <div class="section">
+            <h4>Manufacturer</h4>
+            <div class="entry-form compact">
+                <div class="form-grid">
+                    <div class="form-row"><label>Manufacturer Name *</label><input type="text" @bind="mf_name" placeholder="e.g. Pfizer" /></div>
+                    <div class="form-row"><label>Manufacturer Code *</label><input type="text" @bind="mf_code" placeholder="e.g. PFR" /></div>
+                </div>
+                <div class="form-actions">
+                    <button @onclick="SubmitManufacturer" disabled="@saving" class="btn btn-primary">Set Manufacturer</button>
+                </div>
+            </div>
+        </div>
+
+        @* -- Registry Status -- *@
+        <div class="section">
+            <h4>Registry Status</h4>
+            <div class="entry-form compact">
+                <div class="form-grid">
+                    <div class="form-row"><label>Status *</label>
+                        <select @bind="reg_status"><option value="">--</option><option>SUBMITTED</option><option>ACCEPTED</option><option>REJECTED</option><option>PENDING</option></select>
+                    </div>
+                </div>
+                <div class="form-actions">
+                    <button @onclick="SubmitRegistryStatus" disabled="@saving" class="btn btn-primary">Update Registry Status</button>
+                </div>
+            </div>
+        </div>
+
+        @* -- Mark Historical -- *@
+        <div class="section">
+            <h4>Mark as Historical</h4>
+            <div class="entry-form compact">
+                <div class="form-grid">
+                    <div class="form-row"><label>Information Source *</label><input type="text" @bind="hist_source" placeholder="e.g. Patient recall, School record" /></div>
+                </div>
+                <div class="form-actions">
+                    <button @onclick="SubmitHistorical" disabled="@saving" class="btn btn-primary">Mark Historical</button>
+                </div>
+            </div>
+        </div>
+
+        @* -- Comments -- *@
+        <div class="section">
+            <h4>Comments (@immComments.Count)</h4>
+            @if (immComments.Count > 0)
+            {
+                <table class="data-table">
+                    <thead><tr><th>Date</th><th>Author</th><th>Comment</th></tr></thead>
+                    <tbody>
+                        @foreach (var c in immComments)
+                        {
+                            <tr>
+                                <td class="date">@c.DateTime.ToString("MM/dd/yyyy HH:mm")</td>
+                                <td>@c.AuthorName</td><td>@c.CommentText</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            }
+            <div class="entry-form compact">
+                <div class="form-grid">
+                    <div class="form-row"><label>Author *</label><input type="text" @bind="cm_author" /></div>
+                    <div class="form-row full"><label>Comment *</label><textarea @bind="cm_text" rows="2"></textarea></div>
+                </div>
+                <div class="form-actions">
+                    <button @onclick="SubmitComment" disabled="@saving" class="btn btn-primary">Add Comment</button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    [SupplyParameterFromQuery] public string? patientId { get; set; }
+    private List<ImmListDto>? items;
+    private ImmDetailDto? detail;
+    private List<ImmCommentDto> immComments = new();
+    private bool loading, saving, showNew;
+    private string? error, success;
+    private string activeTab = "list";
+
+    // New form
+    private string f_name = "", f_cvx = "", f_series = "", f_lot = "", f_mfr = "", f_nurse = "", f_site = "", f_route = "IM", f_dose = "", f_location = "", f_comments = "";
+    private DateTime f_date = DateTime.Now;
+
+    // Series info form
+    private int si_doseNum = 1, si_dosesInSeries = 1;
+    private string si_complete = "false";
+
+    // Admin details form
+    private string ad_site = "", ad_route = "IM";
+
+    // VIS form
+    private DateTime vis_offered = DateTime.Today, vis_published = DateTime.Today;
+
+    // Vaccine group form
+    private string vg_name = "", vg_code = "";
+
+    // Manufacturer form
+    private string mf_name = "", mf_code = "";
+
+    // Registry status
+    private string reg_status = "";
+
+    // Historical
+    private string hist_source = "";
+
+    // Comment form
+    private string cm_author = "", cm_text = "";
+
+    private IPatientWorkflowGrain GetWorkflow() => Grains.GetGrain<IPatientWorkflowGrain>(patientId!.Trim());
+
+    protected override async Task OnParametersSetAsync() { if (!string.IsNullOrWhiteSpace(patientId)) await Load(); }
+    private async Task HandleKeyDown(KeyboardEventArgs e) { if (e.Key == "Enter") await Load(); }
+    private void SetTab(string tab) { activeTab = tab; success = null; }
+    private void ShowForm() { showNew = true; success = null; f_name = ""; f_cvx = ""; f_series = ""; f_lot = ""; f_mfr = ""; f_nurse = ""; f_site = ""; f_route = "IM"; f_dose = ""; f_location = ""; f_comments = ""; f_date = DateTime.Now; }
+    private void CloseDetail() { detail = null; activeTab = "list"; }
+
+    private async Task Load()
+    {
+        if (string.IsNullOrWhiteSpace(patientId)) return;
+        loading = true; error = null;
+        try
+        {
+            var summaries = await GetWorkflow().GetImmunizationsAsync();
+            items = summaries.Select(s => new ImmListDto
+            {
+                ImmunizationId = s.ImmunizationId, ImmunizationName = s.ImmunizationName,
+                CvxCode = s.CvxCode, EventDateTime = s.EventDateTime,
+                Series = s.Series
+            }).ToList();
+        }
+        catch (Exception ex) { error = $"Error: {ex.Message}"; } finally { loading = false; }
+    }
+
+    private async Task ViewDetail(string immunizationId)
+    {
+        error = null;
+        try
+        {
+            var patient = Grains.GetGrain<IPatientGrain>(patientId!.Trim());
+            var entry = await patient.GetImmunizationAsync(immunizationId);
+            if (entry != null)
+            {
+                detail = new ImmDetailDto
+                {
+                    ImmunizationId = entry.ImmunizationId,
+                    ImmunizationName = entry.ImmunizationName,
+                    CvxCode = entry.CvxCode,
+                    EventDateTime = entry.EventDateTime,
+                    Series = entry.Series,
+                    LotNumber = entry.LotNumber,
+                    Manufacturer = entry.Manufacturer,
+                    AdministrationSite = entry.AdministrationSite,
+                    Route = entry.Route,
+                    Dose = entry.Dose,
+                    AdministeredByName = entry.AdministeredByName,
+                    LocationName = entry.LocationName,
+                    Comments = entry.Comments,
+                    VisDateOffered = entry.VisDateOffered,
+                    VisDatePublished = entry.VisDatePublished,
+                    DoseNumber = entry.DoseNumber,
+                    DosesInSeries = entry.DosesInSeries,
+                    SeriesComplete = entry.SeriesComplete,
+                    VaccineGroupName = entry.VaccineGroupName,
+                    VaccineGroupCode = entry.VaccineGroupCode,
+                    ManufacturerName = entry.ManufacturerName,
+                    ManufacturerCode = entry.ManufacturerCode,
+                    RegistryStatus = entry.RegistryStatus,
+                    InformationSource = entry.InformationSource
+                };
+            }
+            activeTab = "detail";
+            ResetDetailForms();
+            await LoadComments(immunizationId);
+        }
+        catch (Exception ex) { error = $"Error: {ex.Message}"; }
+    }
+
+    private async Task LoadComments(string immunizationId)
+    {
+        try
+        {
+            var comments = await GetWorkflow().GetImmunizationCommentsAsync(immunizationId);
+            immComments = comments.Select(c => new ImmCommentDto
+            {
+                AuthorName = c.AuthorName, CommentText = c.CommentText, DateTime = c.CommentDateTime
+            }).ToList();
+        }
+        catch { immComments = new(); }
+    }
+
+    private void ResetDetailForms()
+    {
+        si_doseNum = 1; si_dosesInSeries = 1; si_complete = "false";
+        ad_site = ""; ad_route = "IM";
+        vis_offered = DateTime.Today; vis_published = DateTime.Today;
+        vg_name = ""; vg_code = "";
+        mf_name = ""; mf_code = "";
+        reg_status = ""; hist_source = "";
+        cm_author = ""; cm_text = "";
+    }
+
+    private async Task Submit()
+    {
+        if (string.IsNullOrWhiteSpace(f_name)) { error = "Immunization name is required."; return; }
+        saving = true; error = null;
+        try
+        {
+            await GetWorkflow().RecordImmunizationAsync(
+                f_name, NullIfEmpty(f_cvx), f_date, NullIfEmpty(f_series), NullIfEmpty(f_lot), NullIfEmpty(f_mfr),
+                null, NullIfEmpty(f_nurse), NullIfEmpty(f_site), f_route, NullIfEmpty(f_dose),
+                null, NullIfEmpty(f_location), NullIfEmpty(f_comments));
+            showNew = false; success = "Immunization recorded."; await Load();
+        }
+        catch (Exception ex) { error = $"Error: {ex.Message}"; } finally { saving = false; }
+    }
+
+    private async Task SubmitSeriesInfo()
+    {
+        saving = true; error = null;
+        try
+        {
+            await GetWorkflow().SetImmunizationSeriesInfoAsync(detail!.ImmunizationId, si_doseNum, si_dosesInSeries, bool.Parse(si_complete));
+            success = "Series info set.";
+        }
+        catch (Exception ex) { error = $"Error: {ex.Message}"; } finally { saving = false; }
+    }
+
+    private async Task SubmitAdminDetails()
+    {
+        if (string.IsNullOrWhiteSpace(ad_site)) { error = "Site is required."; return; }
+        saving = true; error = null;
+        try
+        {
+            await GetWorkflow().SetImmunizationAdministrationDetailsAsync(detail!.ImmunizationId, ad_site, ad_route);
+            success = "Administration details set.";
+        }
+        catch (Exception ex) { error = $"Error: {ex.Message}"; } finally { saving = false; }
+    }
+
+    private async Task SubmitVIS()
+    {
+        saving = true; error = null;
+        try
+        {
+            await GetWorkflow().RecordImmunizationVISAsync(detail!.ImmunizationId, vis_offered, vis_published);
+            success = "VIS recorded.";
+        }
+        catch (Exception ex) { error = $"Error: {ex.Message}"; } finally { saving = false; }
+    }
+
+    private async Task SubmitVaccineGroup()
+    {
+        if (string.IsNullOrWhiteSpace(vg_name) || string.IsNullOrWhiteSpace(vg_code)) { error = "Group name and code are required."; return; }
+        saving = true; error = null;
+        try
+        {
+            await GetWorkflow().SetImmunizationVaccineGroupAsync(detail!.ImmunizationId, vg_name, vg_code);
+            success = "Vaccine group set.";
+        }
+        catch (Exception ex) { error = $"Error: {ex.Message}"; } finally { saving = false; }
+    }
+
+    private async Task SubmitManufacturer()
+    {
+        if (string.IsNullOrWhiteSpace(mf_name) || string.IsNullOrWhiteSpace(mf_code)) { error = "Manufacturer name and code are required."; return; }
+        saving = true; error = null;
+        try
+        {
+            await GetWorkflow().SetImmunizationManufacturerAsync(detail!.ImmunizationId, mf_name, mf_code);
+            success = "Manufacturer set.";
+        }
+        catch (Exception ex) { error = $"Error: {ex.Message}"; } finally { saving = false; }
+    }
+
+    private async Task SubmitRegistryStatus()
+    {
+        if (string.IsNullOrWhiteSpace(reg_status)) { error = "Status is required."; return; }
+        saving = true; error = null;
+        try
+        {
+            await GetWorkflow().UpdateImmunizationRegistryStatusAsync(detail!.ImmunizationId, reg_status);
+            success = "Registry status updated.";
+        }
+        catch (Exception ex) { error = $"Error: {ex.Message}"; } finally { saving = false; }
+    }
+
+    private async Task SubmitHistorical()
+    {
+        if (string.IsNullOrWhiteSpace(hist_source)) { error = "Information source is required."; return; }
+        saving = true; error = null;
+        try
+        {
+            await GetWorkflow().MarkImmunizationHistoricalAsync(detail!.ImmunizationId, hist_source);
+            success = "Marked as historical.";
+        }
+        catch (Exception ex) { error = $"Error: {ex.Message}"; } finally { saving = false; }
+    }
+
+    private async Task SubmitComment()
+    {
+        if (string.IsNullOrWhiteSpace(cm_author) || string.IsNullOrWhiteSpace(cm_text)) { error = "Author and comment text are required."; return; }
+        saving = true; error = null;
+        try
+        {
+            await GetWorkflow().AddImmunizationCommentAsync(detail!.ImmunizationId, cm_author, cm_text);
+            success = "Comment added."; cm_author = ""; cm_text = ""; await LoadComments(detail.ImmunizationId);
+        }
+        catch (Exception ex) { error = $"Error: {ex.Message}"; } finally { saving = false; }
+    }
+
+    private static string? NullIfEmpty(string s) => string.IsNullOrWhiteSpace(s) ? null : s;
+
+    private class ImmListDto
+    {
+        public string ImmunizationId { get; set; } = "";
+        public string ImmunizationName { get; set; } = "";
+        public string? CvxCode { get; set; }
+        public DateTime EventDateTime { get; set; }
+        public string? Series { get; set; }
+        public string? LotNumber { get; set; }
+        public string? Manufacturer { get; set; }
+        public string? AdministrationSite { get; set; }
+    }
+
+    private class ImmDetailDto
+    {
+        public string ImmunizationId { get; set; } = "";
+        public string ImmunizationName { get; set; } = "";
+        public string? CvxCode { get; set; }
+        public DateTime EventDateTime { get; set; }
+        public string? Series { get; set; }
+        public string? LotNumber { get; set; }
+        public string? Manufacturer { get; set; }
+        public string? AdministrationSite { get; set; }
+        public string? Route { get; set; }
+        public string? Dose { get; set; }
+        public string? AdministeredByName { get; set; }
+        public string? LocationName { get; set; }
+        public string? Comments { get; set; }
+        public DateTime? VisDateOffered { get; set; }
+        public DateTime? VisDatePublished { get; set; }
+        public int? DoseNumber { get; set; }
+        public int? DosesInSeries { get; set; }
+        public bool? SeriesComplete { get; set; }
+        public string? VaccineGroupName { get; set; }
+        public string? VaccineGroupCode { get; set; }
+        public string? ManufacturerName { get; set; }
+        public string? ManufacturerCode { get; set; }
+        public string? RegistryStatus { get; set; }
+        public string? InformationSource { get; set; }
+    }
+
+    private class ImmCommentDto
+    {
+        public string AuthorName { get; set; } = "";
+        public string CommentText { get; set; } = "";
+        public DateTime DateTime { get; set; }
+    }
+}
+
+<style>
+    h1 { color: #003f72; margin-bottom: 1.25rem; font-size: 1.4rem; }
+    .lookup-bar { display: flex; gap: .5rem; margin-bottom: 1.5rem; align-items: center; }
+    .lookup-input { width: 280px; padding: .5rem .75rem; border: 1px solid #ccc; border-radius: 4px; font-size: .9rem; }
+    .btn { padding: .5rem 1.25rem; border: none; border-radius: 4px; cursor: pointer; font-size: .85rem; }
+    .btn-primary { background: #003f72; color: white; } .btn-primary:hover { background: #002a4e; } .btn-primary:disabled { background: #999; cursor: not-allowed; }
+    .btn-secondary { background: #16a34a; color: white; } .btn-secondary:disabled { background: #999; }
+    .btn-outline { background: white; border: 1px solid #ccc; color: #333; }
+    .btn-sm-action { padding: 4px 12px; font-size: .8rem; }
+    .alert { padding: .75rem 1rem; border-radius: 4px; margin-bottom: 1rem; font-size: .85rem; }
+    .alert-error { background: #fde8e8; color: #b91c1c; border: 1px solid #f5c6c6; }
+    .alert-success { background: #dcfce7; color: #166534; border: 1px solid #bbf7d0; }
+    .empty-state { color: #999; font-style: italic; padding: 2rem 0; }
+    .tab-bar { display: flex; gap: 0; border-bottom: 2px solid #d4d9e0; margin-bottom: 1.25rem; }
+    .tab { background: none; border: none; padding: .6rem 1.25rem; cursor: pointer; font-size: .85rem; color: #555; border-bottom: 2px solid transparent; margin-bottom: -2px; }
+    .tab-active { color: #003f72; font-weight: 600; border-bottom-color: #003f72; }
+    .entry-form { border: 1px solid #d4d9e0; border-radius: 6px; padding: 1.25rem; margin-bottom: 1.5rem; background: #f9fafb; }
+    .entry-form.compact { margin-top: .75rem; padding: 1rem; }
+    .entry-form h3 { margin-bottom: 1rem; color: #003f72; }
+    .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: .75rem; }
+    .form-row { display: flex; flex-direction: column; gap: .25rem; }
+    .form-row.full { grid-column: 1 / -1; }
+    .form-row label { font-size: .8rem; font-weight: 600; color: #555; }
+    .form-row input, .form-row select, .form-row textarea { padding: .4rem .6rem; border: 1px solid #ccc; border-radius: 4px; font-size: .85rem; }
+    .form-row textarea { resize: vertical; }
+    .form-actions { display: flex; gap: .5rem; margin-top: .75rem; }
+    .data-table { width: 100%; border-collapse: collapse; font-size: .85rem; border: 1px solid #d4d9e0; }
+    .data-table thead { background: #f4f6f9; }
+    .data-table th { text-align: left; padding: .5rem; font-weight: 600; color: #003f72; border-bottom: 2px solid #d4d9e0; font-size: .75rem; text-transform: uppercase; }
+    .data-table td { padding: .4rem .5rem; border-bottom: 1px solid #f0f0f0; }
+    .data-table tr.clickable { cursor: pointer; }
+    .data-table tr.clickable:hover { background: #eef3f9; }
+    .date { color: #888; font-size: .8rem; white-space: nowrap; }
+    .detail-panel { border: 1px solid #d4d9e0; border-radius: 6px; padding: 1.25rem; margin-bottom: 1.5rem; }
+    .detail-header { display: flex; align-items: center; gap: .75rem; margin-bottom: 1rem; }
+    .detail-header h3 { margin: 0; color: #003f72; flex: 1; }
+    .detail-grid { display: grid; grid-template-columns: 1fr 1fr; gap: .5rem; font-size: .85rem; margin-bottom: .5rem; }
+    .detail-grid .full { grid-column: 1 / -1; }
+    .section { border-top: 1px solid #e5e7eb; padding-top: 1rem; margin-top: 1rem; }
+    .section h4 { color: #003f72; margin-bottom: .75rem; font-size: .95rem; }
+</style>

@@ -1,0 +1,81 @@
+<UserControl x:Class="NewVistas.Wpf_UI.Views.SecurityView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <ScrollViewer VerticalScrollBarVisibility="Auto">
+        <StackPanel Margin="24">
+            <TextBlock Style="{StaticResource PageTitle}" Text="Security — Patient Access Control"/>
+            <TextBlock Style="{StaticResource ErrorText}" Text="{Binding Error}"
+                       Visibility="{Binding Error, Converter={StaticResource NullToVisibility}}"/>
+
+            <StackPanel Orientation="Horizontal" Margin="0,0,0,12">
+                <Button Content="Load" Style="{StaticResource PrimaryButton}"
+                        Command="{Binding LoadCommand}" Margin="0,0,8,0"/>
+                <ProgressBar IsIndeterminate="True" Width="120" Height="20"
+                             Visibility="{Binding IsLoading, Converter={StaticResource BoolToVisibility}}"/>
+            </StackPanel>
+
+            <!-- Sensitivity Settings -->
+            <TextBlock Style="{StaticResource SectionHeader}" Text="Patient Sensitivity"/>
+            <Border Style="{StaticResource FormPanel}">
+                <StackPanel>
+                    <CheckBox Content="Sensitive Patient" IsChecked="{Binding IsSensitive}" Margin="0,0,0,8"/>
+                    <TextBlock Style="{StaticResource FieldLabel}" Text="Sensitivity Level"/>
+                    <ComboBox ItemsSource="{Binding SensitivityLevels}" SelectedItem="{Binding SensitivityLevel}"
+                              Width="200" HorizontalAlignment="Left" Margin="0,0,0,8"/>
+                    <TextBlock Style="{StaticResource FieldLabel}" Text="Categories"/>
+                    <TextBox Text="{Binding SensitivityCategories, UpdateSourceTrigger=PropertyChanged}"
+                             Width="400" HorizontalAlignment="Left" Margin="0,0,0,8"/>
+                    <Button Content="Update Sensitivity" Style="{StaticResource PrimaryButton}"
+                            Command="{Binding UpdateSensitivityCommand}" HorizontalAlignment="Left"/>
+                </StackPanel>
+            </Border>
+
+            <!-- Access Log -->
+            <TextBlock Style="{StaticResource SectionHeader}" Text="Access Audit Trail" Margin="0,16,0,0"/>
+            <DataGrid ItemsSource="{Binding AccessLog}" AutoGenerateColumns="False" MaxHeight="200">
+                <DataGrid.Columns>
+                    <DataGridTextColumn Header="Date/Time" Binding="{Binding DateTime}" Width="160"/>
+                    <DataGridTextColumn Header="User" Binding="{Binding User}" Width="160"/>
+                    <DataGridTextColumn Header="Reason" Binding="{Binding Reason}" Width="*"/>
+                    <DataGridCheckBoxColumn Header="BTG" Binding="{Binding IsBtg}" Width="50"/>
+                    <DataGridTextColumn Header="Justification" Binding="{Binding Justification}" Width="200"/>
+                </DataGrid.Columns>
+            </DataGrid>
+
+            <!-- Break the Glass -->
+            <TextBlock Style="{StaticResource SectionHeader}" Text="Break-the-Glass Access" Margin="0,16,0,0"/>
+            <Border Style="{StaticResource FormPanel}">
+                <StackPanel>
+                    <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+                        <StackPanel Margin="0,0,16,0">
+                            <TextBlock Style="{StaticResource FieldLabel}" Text="User ID"/>
+                            <TextBox Text="{Binding BtgUserId, UpdateSourceTrigger=PropertyChanged}" Width="160"/>
+                        </StackPanel>
+                        <StackPanel>
+                            <TextBlock Style="{StaticResource FieldLabel}" Text="User Name"/>
+                            <TextBox Text="{Binding BtgUserName, UpdateSourceTrigger=PropertyChanged}" Width="200"/>
+                        </StackPanel>
+                    </StackPanel>
+                    <TextBlock Style="{StaticResource FieldLabel}" Text="Justification"/>
+                    <TextBox Text="{Binding BtgJustification, UpdateSourceTrigger=PropertyChanged}"
+                             AcceptsReturn="True" Height="60" TextWrapping="Wrap"/>
+                    <Button Content="Record BTG Access" Style="{StaticResource DangerButton}"
+                            Command="{Binding RecordBtgCommand}" Margin="0,12,0,0" HorizontalAlignment="Left"/>
+                </StackPanel>
+            </Border>
+
+            <!-- Authorized Providers -->
+            <TextBlock Style="{StaticResource SectionHeader}" Text="Authorized Providers" Margin="0,16,0,0"/>
+            <ListBox ItemsSource="{Binding AuthorizedProviders}" SelectedItem="{Binding SelectedProvider}"
+                     MaxHeight="120"/>
+            <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
+                <TextBox Text="{Binding NewProviderId, UpdateSourceTrigger=PropertyChanged}" Width="200" Margin="0,0,8,0"/>
+                <Button Content="Add Provider" Style="{StaticResource SecondaryButton}"
+                        Command="{Binding AddProviderCommand}" Margin="0,0,8,0"/>
+                <Button Content="Remove" Style="{StaticResource DangerButton}"
+                        Command="{Binding RemoveProviderCommand}"
+                        Visibility="{Binding SelectedProvider, Converter={StaticResource NullToVisibility}}"/>
+            </StackPanel>
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>

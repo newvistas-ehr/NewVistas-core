@@ -1,0 +1,319 @@
+@page "/care-team"
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+@rendermode InteractiveServer
+@using NewVistas.BlazorWeb.Services
+@using NewVistas.Abstractions.GrainInterfaces
+@using NewVistas.Abstractions.GrainStates
+@inject OrleansGrainService Grains
+
+<PageTitle>Care Team — PCMM</PageTitle>
+
+<h2>Care Team</h2>
+<p class="subtitle">VistA PCMM File #404.43 — Patient-Team Assignment</p>
+
+<div class="tabs">
+    <button class="@TabClass("team")" @onclick='() => SetTab("team")'>Care Team</button>
+    <button class="@TabClass("add")" @onclick='() => SetTab("add")'>Add Member</button>
+    <button class="@TabClass("pcp")" @onclick='() => SetTab("pcp")'>PCP</button>
+</div>
+
+@if (!string.IsNullOrEmpty(error))
+{
+    <div class="error">@error</div>
+}
+
+@if (successMessage != null)
+{
+    <div class="success">@successMessage</div>
+}
+
+@* ─── Tab: Care Team ──────────────────────────────────────────────────── *@
+
+@if (activeTab == "team")
+{
+    <div class="toolbar">
+        <input @bind="patientId" placeholder="Patient ID" class="input-id" />
+        <button @onclick="LoadCareTeam" disabled="@loading">Load Team</button>
+    </div>
+
+    @if (loading) { <p>Loading...</p> }
+
+    @if (members is not null)
+    {
+        <h3>Care Team — @patientId</h3>
+
+        @if (members.Count == 0)
+        {
+            <p class="empty-msg">No care team members found.</p>
+        }
+        else
+        {
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Provider Name</th>
+                        <th>Role</th>
+                        <th>Specialty</th>
+                        <th>Source</th>
+                        <th>Assigned</th>
+                        <th>Last Seen</th>
+                        <th>Expires</th>
+                        <th>Status</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var m in members)
+                    {
+                        <tr class="@(m.IsActive ? "" : "inactive-row")">
+                            <td>@m.ProviderName</td>
+                            <td><span class="badge @RoleBadgeClass(m.Role)">@m.Role</span></td>
+                            <td>@(m.Specialty ?? "—")</td>
+                            <td>@m.AssignmentSource</td>
+                            <td>@m.AssignmentDate.ToString("yyyy-MM-dd")</td>
+                            <td>@(m.LastSeenDate?.ToString("yyyy-MM-dd") ?? "—")</td>
+                            <td>@(m.ExpirationDate?.ToString("yyyy-MM-dd") ?? "No expiry")</td>
+                            <td>@(m.IsActive ? "Active" : "Inactive")</td>
+                            <td>
+                                @if (m.IsActive)
+                                {
+                                    <button class="btn-sm btn-danger" @onclick="() => RemoveMember(m.ProviderId)">Remove</button>
+                                }
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        }
+    }
+}
+
+@* ─── Tab: Add Member ─────────────────────────────────────────────────── *@
+
+@if (activeTab == "add")
+{
+    <div class="toolbar">
+        <input @bind="patientId" placeholder="Patient ID" class="input-id" />
+    </div>
+
+    <div class="form-panel">
+        <h3>Add Care Team Member</h3>
+        <div class="form-row">
+            <label>Provider ID</label>
+            <input @bind="newProviderId" placeholder="Provider ID" />
+        </div>
+        <div class="form-row">
+            <label>Provider Name</label>
+            <input @bind="newProviderName" placeholder="LAST,FIRST MI" />
+        </div>
+        <div class="form-row">
+            <label>Role</label>
+            <select @bind="newRole">
+                <option value="SPECIALIST">SPECIALIST</option>
+                <option value="NURSE">NURSE</option>
+                <option value="ATTENDING">ATTENDING</option>
+                <option value="CONSULTING">CONSULTING</option>
+                <option value="SOCIAL_WORKER">SOCIAL WORKER</option>
+                <option value="PHARMACIST">PHARMACIST</option>
+            </select>
+        </div>
+        <div class="form-row">
+            <label>Specialty</label>
+            <input @bind="newSpecialty" placeholder="e.g. CARDIOLOGY" />
+        </div>
+        <div class="form-row">
+            <label>Source</label>
+            <select @bind="newSource">
+                <option value="MANUAL">MANUAL</option>
+                <option value="APPOINTMENT">APPOINTMENT</option>
+                <option value="CONSULT">CONSULT</option>
+                <option value="ADMISSION">ADMISSION</option>
+            </select>
+        </div>
+        <div class="form-row">
+            <label>Expiration Date</label>
+            <input type="date" @bind="newExpiration" />
+        </div>
+        <button @onclick="AddMember" disabled="@loading">Add Member</button>
+    </div>
+}
+
+@* ─── Tab: PCP ────────────────────────────────────────────────────────── *@
+
+@if (activeTab == "pcp")
+{
+    <div class="toolbar">
+        <input @bind="patientId" placeholder="Patient ID" class="input-id" />
+        <button @onclick="LoadPcp" disabled="@loading">Load PCP</button>
+    </div>
+
+    @if (loading) { <p>Loading...</p> }
+
+    @if (pcpLoaded)
+    {
+        @if (currentPcp != null)
+        {
+            <div class="detail-panel">
+                <h3>Current PCP</h3>
+                <p><strong>Name:</strong> @currentPcp.ProviderName</p>
+                <p><strong>Specialty:</strong> @(currentPcp.Specialty ?? "—")</p>
+                <p><strong>Assigned:</strong> @currentPcp.AssignmentDate.ToString("yyyy-MM-dd")</p>
+                <p><strong>Last Seen:</strong> @(currentPcp.LastSeenDate?.ToString("yyyy-MM-dd") ?? "—")</p>
+            </div>
+        }
+        else
+        {
+            <p class="empty-msg">No PCP assigned.</p>
+        }
+    }
+
+    <div class="form-panel">
+        <h3>Set PCP</h3>
+        <div class="form-row">
+            <label>Provider ID</label>
+            <input @bind="pcpProviderId" placeholder="Provider ID" />
+        </div>
+        <div class="form-row">
+            <label>Provider Name</label>
+            <input @bind="pcpProviderName" placeholder="LAST,FIRST MI" />
+        </div>
+        <div class="form-row">
+            <label>Specialty</label>
+            <input @bind="pcpSpecialty" placeholder="e.g. INTERNAL MEDICINE" />
+        </div>
+        <button @onclick="SetPcp" disabled="@loading">Set PCP</button>
+    </div>
+}
+
+@code {
+    private string activeTab = "team";
+    private string? error;
+    private string? successMessage;
+    private bool loading;
+
+    private string patientId = "";
+
+    // Team tab
+    private List<CareTeamMember>? members;
+
+    // Add tab
+    private string newProviderId = "";
+    private string newProviderName = "";
+    private string newRole = "SPECIALIST";
+    private string newSpecialty = "";
+    private string newSource = "MANUAL";
+    private DateTime? newExpiration;
+
+    // PCP tab
+    private CareTeamMember? currentPcp;
+    private bool pcpLoaded;
+    private string pcpProviderId = "";
+    private string pcpProviderName = "";
+    private string pcpSpecialty = "";
+
+    private void SetTab(string tab) { activeTab = tab; error = null; successMessage = null; }
+    private string TabClass(string tab) => activeTab == tab ? "tab active" : "tab";
+    private string RoleBadgeClass(string role) => role == "PCP" ? "badge-pcp" : "badge-default";
+
+    private async Task LoadCareTeam()
+    {
+        if (string.IsNullOrWhiteSpace(patientId)) return;
+        loading = true; error = null; successMessage = null;
+        try
+        {
+            var workflow = Grains.GetGrain<IPatientWorkflowGrain>(patientId.Trim());
+            members = await workflow.GetCareTeamAsync();
+        }
+        catch (Exception ex) { error = $"Error: {ex.Message}"; }
+        finally { loading = false; }
+    }
+
+    private async Task RemoveMember(string providerId)
+    {
+        if (string.IsNullOrWhiteSpace(patientId)) return;
+        loading = true; error = null;
+        try
+        {
+            var workflow = Grains.GetGrain<IPatientWorkflowGrain>(patientId.Trim());
+            await workflow.RemoveCareTeamMemberAsync(providerId);
+            successMessage = $"Removed {providerId} from care team.";
+            await LoadCareTeam();
+        }
+        catch (Exception ex) { error = $"Error: {ex.Message}"; }
+        finally { loading = false; }
+    }
+
+    private async Task AddMember()
+    {
+        if (string.IsNullOrWhiteSpace(patientId) || string.IsNullOrWhiteSpace(newProviderId)) return;
+        loading = true; error = null; successMessage = null;
+        try
+        {
+            var workflow = Grains.GetGrain<IPatientWorkflowGrain>(patientId.Trim());
+            await workflow.AddCareTeamMemberAsync(newProviderId, newProviderName, newRole,
+                string.IsNullOrWhiteSpace(newSpecialty) ? null : newSpecialty,
+                newSource, newExpiration);
+            successMessage = $"Added {newProviderName} to care team.";
+            newProviderId = ""; newProviderName = ""; newSpecialty = ""; newExpiration = null;
+        }
+        catch (Exception ex) { error = $"Error: {ex.Message}"; }
+        finally { loading = false; }
+    }
+
+    private async Task LoadPcp()
+    {
+        if (string.IsNullOrWhiteSpace(patientId)) return;
+        loading = true; error = null; successMessage = null;
+        try
+        {
+            var workflow = Grains.GetGrain<IPatientWorkflowGrain>(patientId.Trim());
+            currentPcp = await workflow.GetPcpAsync();
+            pcpLoaded = true;
+        }
+        catch (Exception ex) { error = $"Error: {ex.Message}"; }
+        finally { loading = false; }
+    }
+
+    private async Task SetPcp()
+    {
+        if (string.IsNullOrWhiteSpace(patientId) || string.IsNullOrWhiteSpace(pcpProviderId)) return;
+        loading = true; error = null; successMessage = null;
+        try
+        {
+            var workflow = Grains.GetGrain<IPatientWorkflowGrain>(patientId.Trim());
+            await workflow.SetPcpAsync(pcpProviderId, pcpProviderName,
+                string.IsNullOrWhiteSpace(pcpSpecialty) ? null : pcpSpecialty);
+            successMessage = $"Set {pcpProviderName} as PCP.";
+            await LoadPcp();
+        }
+        catch (Exception ex) { error = $"Error: {ex.Message}"; }
+        finally { loading = false; }
+    }
+}
+
+<style>
+    .subtitle { color: #666; margin-top: -8px; }
+    .tabs { display: flex; gap: 4px; margin: 16px 0; }
+    .tab { padding: 8px 16px; border: 1px solid #ccc; background: #f5f5f5; cursor: pointer; border-radius: 4px 4px 0 0; }
+    .tab.active { background: #fff; border-bottom-color: #fff; font-weight: bold; }
+    .toolbar { display: flex; gap: 8px; align-items: center; margin: 12px 0; }
+    .input-id { width: 240px; padding: 6px 8px; }
+    .data-table { width: 100%; border-collapse: collapse; margin: 12px 0; }
+    .data-table th, .data-table td { padding: 6px 10px; border: 1px solid #ddd; text-align: left; font-size: 0.9em; }
+    .data-table th { background: #f0f0f0; }
+    .inactive-row { opacity: 0.5; }
+    .badge { padding: 2px 8px; border-radius: 4px; font-size: 0.8em; }
+    .badge-pcp { background: #d4edda; color: #155724; }
+    .badge-default { background: #e2e3e5; color: #383d41; }
+    .error { color: #d32f2f; padding: 8px; background: #fdecea; border-radius: 4px; margin: 8px 0; }
+    .success { color: #2e7d32; padding: 8px; background: #e8f5e9; border-radius: 4px; margin: 8px 0; }
+    .empty-msg { color: #888; font-style: italic; }
+    .form-panel { max-width: 500px; margin: 16px 0; }
+    .form-row { display: flex; gap: 8px; align-items: center; margin: 8px 0; }
+    .form-row label { min-width: 140px; font-weight: 600; }
+    .form-row input, .form-row select { flex: 1; padding: 6px 8px; }
+    .detail-panel { background: #f8f9fa; padding: 12px; border-radius: 4px; margin: 12px 0; }
+    .btn-sm { padding: 4px 8px; font-size: 0.8em; cursor: pointer; }
+    .btn-danger { background: #dc3545; color: #fff; border: none; border-radius: 3px; }
+    .btn-demo { background: #6c757d; color: #fff; border: none; border-radius: 4px; }
+</style>

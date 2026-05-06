@@ -1,0 +1,297 @@
+@page "/consult-services"
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+@rendermode InteractiveServer
+@using NewVistas.BlazorWeb.Services
+@using NewVistas.Abstractions.GrainInterfaces
+@using NewVistas.Abstractions.GrainStates
+@inject OrleansGrainService Grains
+
+<PageTitle>Consult Service Directory</PageTitle>
+
+<h2>Consult Service Directory</h2>
+<p class="subtitle">VistA File #49 — available consult services and specialties</p>
+
+<div class="tabs">
+    <button class="@TabClass("list")" @onclick='() => SetTab("list")'>Service List</button>
+    <button class="@TabClass("search")" @onclick='() => SetTab("search")'>Search</button>
+    <button class="@TabClass("add")" @onclick='() => SetTab("add")'>Add Service</button>
+</div>
+
+@if (!string.IsNullOrEmpty(error))
+{
+    <div class="error">@error</div>
+}
+
+@if (!string.IsNullOrEmpty(successMsg))
+{
+    <div class="success">@successMsg</div>
+}
+
+@* ── Tab 1: Service List ──────────────────────────────────── *@
+@if (activeTab == "list")
+{
+    <div class="toolbar">
+        <button @onclick="LoadServices" disabled="@loading">Refresh</button>
+        <button @onclick="SeedDemo" disabled="@loading" class="btn-demo">Seed Demo Data</button>
+    </div>
+
+    @if (loading) { <p class="loading-msg">Loading...</p> }
+
+    @if (services is not null)
+    {
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>Service ID</th>
+                    <th>Service Name</th>
+                    <th>Specialty</th>
+                    <th>Provider</th>
+                    <th>Location</th>
+                    <th>Status</th>
+                    <th>Interfacility</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (ConsultServiceEntry svc in services)
+                {
+                    <tr>
+                        <td>@svc.ServiceId</td>
+                        <td>@svc.ServiceName</td>
+                        <td>@(svc.Specialty ?? "—")</td>
+                        <td>@(svc.DefaultProviderName ?? svc.DefaultProviderId ?? "—")</td>
+                        <td>@(svc.LocationName ?? svc.LocationId ?? "—")</td>
+                        <td>
+                            @if (svc.IsActive)
+                            {
+                                <span class="badge badge-active">ACTIVE</span>
+                            }
+                            else
+                            {
+                                <span class="badge badge-inactive">INACTIVE</span>
+                            }
+                        </td>
+                        <td>
+                            @if (svc.AcceptsInterfacility)
+                            {
+                                <span class="badge badge-if">YES</span>
+                            }
+                            else
+                            {
+                                <span>—</span>
+                            }
+                        </td>
+                        <td>
+                            <button class="btn-sm btn-remove" @onclick="() => RemoveService(svc.ServiceId)">Remove</button>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+        <p class="count-label">@services.Count service(s)</p>
+    }
+}
+
+@* ── Tab 2: Search ──────────────────────────────────── *@
+@if (activeTab == "search")
+{
+    <div class="toolbar">
+        <input @bind="searchQuery" @bind:event="oninput" placeholder="Search by name or specialty..." class="input-search" />
+        <button @onclick="SearchServices" disabled="@loading">Search</button>
+    </div>
+
+    @if (loading) { <p class="loading-msg">Searching...</p> }
+
+    @if (searchResults is not null)
+    {
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>Service ID</th>
+                    <th>Service Name</th>
+                    <th>Specialty</th>
+                    <th>Interfacility</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (ConsultServiceEntry svc in searchResults)
+                {
+                    <tr>
+                        <td>@svc.ServiceId</td>
+                        <td>@svc.ServiceName</td>
+                        <td>@(svc.Specialty ?? "—")</td>
+                        <td>@(svc.AcceptsInterfacility ? "Yes" : "No")</td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+        <p class="count-label">@searchResults.Count result(s)</p>
+    }
+}
+
+@* ── Tab 3: Add Service ──────────────────────────────────── *@
+@if (activeTab == "add")
+{
+    <div class="form-panel">
+        <h3>Add Consult Service</h3>
+        <label>Service ID: <input @bind="newServiceId" placeholder="e.g. SVC-NEWSERVICE" /></label>
+        <label>Service Name: <input @bind="newServiceName" /></label>
+        <label>Specialty: <input @bind="newSpecialty" placeholder="(optional)" /></label>
+        <label>Default Provider ID: <input @bind="newProviderId" placeholder="(optional)" /></label>
+        <label>Default Provider Name: <input @bind="newProviderName" placeholder="(optional)" /></label>
+        <label>Location ID: <input @bind="newLocationId" placeholder="(optional)" /></label>
+        <label>Location Name: <input @bind="newLocationName" placeholder="(optional)" /></label>
+        <label>
+            <input type="checkbox" @bind="newIsActive" /> Active
+        </label>
+        <label>
+            <input type="checkbox" @bind="newAcceptsInterfacility" /> Accepts Interfacility Consults
+        </label>
+        <button @onclick="SubmitAddService" disabled="@(string.IsNullOrWhiteSpace(newServiceId) || string.IsNullOrWhiteSpace(newServiceName))">Add Service</button>
+    </div>
+}
+
+@code {
+    string activeTab = "list";
+    bool loading;
+    string? error;
+    string? successMsg;
+
+    // List
+    List<ConsultServiceEntry>? services;
+
+    // Search
+    string searchQuery = string.Empty;
+    List<ConsultServiceEntry>? searchResults;
+
+    // Add
+    string newServiceId = string.Empty;
+    string newServiceName = string.Empty;
+    string? newSpecialty;
+    string? newProviderId;
+    string? newProviderName;
+    string? newLocationId;
+    string? newLocationName;
+    bool newIsActive = true;
+    bool newAcceptsInterfacility;
+
+    string TabClass(string tab) => activeTab == tab ? "tab-btn active" : "tab-btn";
+
+    void SetTab(string tab) { activeTab = tab; error = null; successMsg = null; }
+
+    private IConsultServiceDirectoryGrain GetDirectory() =>
+        Grains.GetGrain<IConsultServiceDirectoryGrain>("CONSULT-SVC-DIR");
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadServices();
+    }
+
+    async Task LoadServices()
+    {
+        loading = true; error = null;
+        try
+        {
+            services = await GetDirectory().GetAllServicesAsync();
+        }
+        catch (Exception ex) { error = ex.Message; }
+        finally { loading = false; }
+    }
+
+    async Task SearchServices()
+    {
+        if (string.IsNullOrWhiteSpace(searchQuery)) return;
+        loading = true; error = null;
+        try
+        {
+            searchResults = await GetDirectory().SearchServicesAsync(searchQuery, 20);
+        }
+        catch (Exception ex) { error = ex.Message; }
+        finally { loading = false; }
+    }
+
+    async Task RemoveService(string serviceId)
+    {
+        error = null; successMsg = null;
+        try
+        {
+            await GetDirectory().RemoveServiceAsync(serviceId);
+            successMsg = $"Service {serviceId} removed.";
+            await LoadServices();
+        }
+        catch (Exception ex) { error = ex.Message; }
+    }
+
+    async Task SubmitAddService()
+    {
+        if (string.IsNullOrWhiteSpace(newServiceId) || string.IsNullOrWhiteSpace(newServiceName)) return;
+        error = null; successMsg = null;
+        try
+        {
+            ConsultServiceEntry entry = new()
+            {
+                ServiceId = newServiceId,
+                ServiceName = newServiceName,
+                Specialty = newSpecialty,
+                DefaultProviderId = newProviderId,
+                DefaultProviderName = newProviderName,
+                LocationId = newLocationId,
+                LocationName = newLocationName,
+                IsActive = newIsActive,
+                AcceptsInterfacility = newAcceptsInterfacility
+            };
+            await GetDirectory().AddServiceAsync(entry);
+            successMsg = $"Service {newServiceId} added.";
+            newServiceId = string.Empty; newServiceName = string.Empty;
+            newSpecialty = null; newProviderId = null; newProviderName = null;
+            newLocationId = null; newLocationName = null;
+            activeTab = "list";
+            await LoadServices();
+        }
+        catch (Exception ex) { error = ex.Message; }
+    }
+
+    async Task SeedDemo()
+    {
+        loading = true; error = null; successMsg = null;
+        try
+        {
+            await GetDirectory().SeedDemoDataAsync();
+            successMsg = "Demo consult services seeded.";
+            await LoadServices();
+        }
+        catch (Exception ex) { error = ex.Message; }
+        finally { loading = false; }
+    }
+}
+
+<style>
+    .subtitle { color: #888; margin-top: -8px; font-size: 0.9em; }
+    .tabs { display: flex; gap: 4px; margin: 16px 0 12px; }
+    .tab-btn { padding: 8px 18px; border: 1px solid #555; border-bottom: none; border-radius: 6px 6px 0 0; cursor: pointer; background: #333; color: #ccc; }
+    .tab-btn.active { background: #1a1a2e; color: #fff; font-weight: bold; border-color: #667; }
+    .toolbar { display: flex; gap: 8px; margin: 12px 0; align-items: center; }
+    .input-search { padding: 6px; border: 1px solid #555; border-radius: 4px; width: 300px; background: #1a1a2e; color: #eee; }
+    button { padding: 6px 14px; border: 1px solid #555; border-radius: 4px; cursor: pointer; background: #2a2a3e; color: #eee; }
+    button:hover:not(:disabled) { background: #3a3a5e; }
+    button:disabled { opacity: .5; cursor: not-allowed; }
+    .btn-demo { background: #1a3a5a; }
+    .btn-sm { padding: 2px 7px; font-size: 0.78em; }
+    .btn-remove { background: #4a1a1a; color: #faa; }
+    .loading-msg { color: #aaa; }
+    .error { color: #f66; margin: 8px 0; padding: 8px; background: #3a1a1a; border-radius: 4px; }
+    .success { color: #6f6; margin: 8px 0; padding: 8px; background: #1a3a1a; border-radius: 4px; }
+    .data-table { width: 100%; border-collapse: collapse; font-size: 0.88em; margin-top: 10px; }
+    .data-table th { background: #2a2a4e; color: #ddd; padding: 6px 10px; text-align: left; }
+    .data-table td { padding: 5px 10px; border-bottom: 1px solid #333; color: #ccc; }
+    .data-table tr:hover { background: #252540; cursor: pointer; }
+    .selected-row td { background: #1a2a4a !important; }
+    .badge { padding: 2px 8px; border-radius: 10px; font-size: 0.78em; font-weight: bold; }
+    .badge-active { background: #4a4; color: #fff; }
+    .badge-inactive { background: #666; color: #fff; }
+    .badge-if { background: #46b; color: #fff; }
+    .count-label { color: #888; font-size: 0.85em; margin-top: 4px; }
+    .form-panel { padding: 16px; background: #1a1a2e; border: 1px solid #444; border-radius: 6px; display: flex; flex-direction: column; gap: 10px; max-width: 520px; }
+    .form-panel label { display: flex; gap: 10px; align-items: center; color: #ccc; }
+    .form-panel input[type="text"], .form-panel input:not([type]) { flex: 1; padding: 4px; border: 1px solid #555; border-radius: 3px; background: #12122a; color: #eee; }
+</style>

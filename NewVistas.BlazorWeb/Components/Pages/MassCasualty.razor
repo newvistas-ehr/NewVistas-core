@@ -1,0 +1,176 @@
+@* Copyright 2026 James Smyth. All rights reserved. *@
+@page "/mass-casualty"
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+@rendermode InteractiveServer
+@using NewVistas.BlazorWeb.Services
+@using NewVistas.Abstractions.GrainInterfaces
+@using NewVistas.Abstractions.GrainStates
+@inject OrleansGrainService Grains
+
+<PageTitle>Mass Casualty Mode</PageTitle>
+<h1>Mass Casualty Incident — Disaster Operations</h1>
+
+@if (loading) { <div class="empty-state">Loading...</div> }
+else if (featureChecked && !featureEnabled)
+{ <div class="alert alert-warning">The <strong>MASS_CASUALTY</strong> feature is not enabled. Enable it in <a href="/site-parameters">Site Parameters</a>.</div> }
+@if (error != null) { <div class="alert alert-error">@error</div> }
+
+@if (!loading)
+{
+    <div class="tab-bar">
+        <button class="tab-btn @(activeTab == 0 ? "active" : "")" @onclick="() => activeTab = 0">Active Incidents</button>
+        <button class="tab-btn @(activeTab == 1 ? "active" : "")" @onclick="() => activeTab = 1">Casualty Board</button>
+        <button class="tab-btn @(activeTab == 2 ? "active" : "")" @onclick="() => activeTab = 2">All Incidents</button>
+    </div>
+
+    @if (activeTab == 0)
+    {
+        <div class="form-actions">
+            <button @onclick="LoadActive" disabled="@loadingActive" class="btn btn-primary">
+                @if (loadingActive) { <span>Loading...</span> } else { <span>Load Active Incidents</span> }
+            </button>
+        </div>
+        @if (activeIncidents != null && activeIncidents.Count > 0)
+        {
+            @foreach (var inc in activeIncidents)
+            {
+                <div class="mci-card mci-active">
+                    <div class="mci-header">
+                        <strong>@inc.IncidentName</strong>
+                        <span class="severity-badge severity-@inc.Severity.ToLower().Replace("_","")">@inc.Severity</span>
+                        <span class="status-badge" style="background:#fde8e8;color:#b91c1c;border:1px solid #f5c6c6;">ACTIVE</span>
+                    </div>
+                    <div class="mci-details">
+                        Type: <span class="code">@inc.IncidentType</span> |
+                        Est. Casualties: @inc.EstimatedCasualties |
+                        Registered: @inc.RegisteredCasualtyCount |
+                        Activated: @inc.ActivatedDate.ToString("MM/dd/yyyy HH:mm")
+                    </div>
+                </div>
+            }
+        }
+        else if (activeIncidents != null) { <div class="empty-state">No active mass casualty incidents.</div> }
+    }
+
+    @if (activeTab == 1)
+    {
+        <div class="form-section">
+            <div class="form-row">
+                <label>Incident ID</label>
+                <input type="text" class="form-input" @bind="casualtyIncidentId" @bind:event="oninput" placeholder="MCI:{id}" />
+                <button @onclick="LoadCasualties" disabled="@(string.IsNullOrWhiteSpace(casualtyIncidentId) || loadingCasualties)" class="btn btn-primary">
+                    @if (loadingCasualties) { <span>Loading...</span> } else { <span>Load Board</span> }
+                </button>
+            </div>
+        </div>
+        @if (casualties != null && casualties.Count > 0)
+        {
+            <div class="triage-summary">
+                <span class="triage-count triage-immediate">IMMEDIATE: @casualties.Count(c => c.TriageCategory == "IMMEDIATE")</span>
+                <span class="triage-count triage-delayed">DELAYED: @casualties.Count(c => c.TriageCategory == "DELAYED")</span>
+                <span class="triage-count triage-minor">MINOR: @casualties.Count(c => c.TriageCategory == "MINOR")</span>
+                <span class="triage-count triage-expectant">EXPECTANT: @casualties.Count(c => c.TriageCategory == "EXPECTANT")</span>
+            </div>
+            <table class="data-table">
+                <thead><tr><th>Tag</th><th>Triage</th><th>Patient</th><th>Injury</th><th>Area</th><th>Disposition</th><th>Registered</th></tr></thead>
+                <tbody>
+                    @foreach (var c in casualties)
+                    {
+                        <tr>
+                            <td class="code">@c.TriageTag</td>
+                            <td><span class="triage-badge triage-@c.TriageCategory.ToLower()">@c.TriageCategory</span></td>
+                            <td>@c.PatientName</td>
+                            <td>---</td>
+                            <td>@(c.TreatmentArea ?? "---")</td>
+                            <td>@c.Disposition</td>
+                            <td>@c.RegisteredDate.ToString("HH:mm")</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        }
+        else if (casualties != null) { <div class="empty-state">No casualties registered for this incident.</div> }
+    }
+
+    @if (activeTab == 2)
+    {
+        <div class="form-actions">
+            <button @onclick="LoadAll" disabled="@loadingAll" class="btn btn-primary">
+                @if (loadingAll) { <span>Loading...</span> } else { <span>Load All Incidents</span> }
+            </button>
+        </div>
+        @if (allIncidents != null && allIncidents.Count > 0)
+        {
+            <table class="data-table">
+                <thead><tr><th>Name</th><th>Type</th><th>Severity</th><th>Status</th><th>Est.</th><th>Registered</th><th>Activated</th></tr></thead>
+                <tbody>
+                    @foreach (var inc in allIncidents)
+                    {
+                        <tr>
+                            <td><strong>@inc.IncidentName</strong></td>
+                            <td class="code">@inc.IncidentType</td>
+                            <td><span class="severity-badge severity-@inc.Severity.ToLower().Replace("_","")">@inc.Severity</span></td>
+                            <td><span class="status-badge" style="@(inc.Status == "ACTIVE" ? "background:#fde8e8;color:#b91c1c;border:1px solid #f5c6c6;" : "background:#dcfce7;color:#166534;border:1px solid #bbf7d0;")">@inc.Status</span></td>
+                            <td>@inc.EstimatedCasualties</td>
+                            <td>@inc.RegisteredCasualtyCount</td>
+                            <td>@inc.ActivatedDate.ToString("MM/dd/yyyy HH:mm")</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        }
+        else if (allIncidents != null) { <div class="empty-state">No incidents found.</div> }
+    }
+}
+
+@code {
+    private int activeTab; private bool loading = true, featureEnabled, featureChecked; private string? error;
+    private bool loadingActive; private List<MassCasualtyIncidentIndexEntry>? activeIncidents;
+    private string? casualtyIncidentId; private bool loadingCasualties; private List<MassCasualtyCasualtyIndexEntry>? casualties;
+    private bool loadingAll; private List<MassCasualtyIncidentIndexEntry>? allIncidents;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try { featureEnabled = await Grains.GetGrain<ISiteParametersGrain>("SITE:DEFAULT").IsFeatureEnabledAsync("MASS_CASUALTY"); }
+        catch (Exception ex) { error = ex.Message; } finally { loading = false; featureChecked = true; }
+    }
+
+    private async Task LoadActive() { loadingActive = true; error = null; try { activeIncidents = await Grains.GetGrain<IMassCasualtyIncidentIndexGrain>("MCI-IDX").GetActiveAsync(); } catch (Exception ex) { error = ex.Message; } finally { loadingActive = false; } }
+    private async Task LoadCasualties() { if (string.IsNullOrWhiteSpace(casualtyIncidentId)) return; loadingCasualties = true; error = null; try { casualties = await Grains.GetGrain<IMassCasualtyCasualtyIndexGrain>("MCI-CASUALTY-IDX").GetByIncidentAsync(casualtyIncidentId.Trim()); } catch (Exception ex) { error = ex.Message; } finally { loadingCasualties = false; } }
+    private async Task LoadAll() { loadingAll = true; error = null; try { allIncidents = await Grains.GetGrain<IMassCasualtyIncidentIndexGrain>("MCI-IDX").GetAllAsync(50); } catch (Exception ex) { error = ex.Message; } finally { loadingAll = false; } }
+}
+
+<style>
+    .btn { padding: 0.5rem 1.25rem; border: none; border-radius: 4px; cursor: pointer; font-size: 0.85rem; }
+    .btn-primary { background: #003f72; color: white; } .btn-primary:disabled { background: #999; cursor: not-allowed; }
+    .alert { padding: 0.75rem 1rem; border-radius: 4px; margin-bottom: 1rem; }
+    .alert-error { background: #fde8e8; color: #b91c1c; border: 1px solid #f5c6c6; }
+    .alert-warning { background: #fef3c7; color: #92400e; border: 1px solid #fde68a; } .alert-warning a { color: #003f72; font-weight: 600; }
+    .empty-state { color: #999; font-style: italic; padding: 2rem 0; }
+    .tab-bar { display: flex; gap: 0; border-bottom: 2px solid #d4d9e0; margin-bottom: 1.5rem; }
+    .tab-btn { padding: 0.6rem 1.25rem; border: none; background: transparent; cursor: pointer; font-size: 0.85rem; font-weight: 500; color: #666; border-bottom: 2px solid transparent; margin-bottom: -2px; }
+    .tab-btn.active { color: #003f72; border-bottom-color: #003f72; font-weight: 600; }
+    .form-section { max-width: 700px; } .form-row { display: flex; align-items: center; gap: 1rem; margin-bottom: 0.75rem; }
+    .form-row label:first-child { width: 160px; font-size: 0.85rem; font-weight: 500; color: #333; flex-shrink: 0; }
+    .form-input { flex: 1; padding: 0.4rem 0.6rem; border: 1px solid #ccc; border-radius: 4px; font-size: 0.85rem; max-width: 350px; }
+    .form-actions { display: flex; gap: 0.75rem; margin-top: 1rem; margin-bottom: 1.5rem; }
+    .data-table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+    .data-table th { text-align: left; padding: 0.5rem; font-weight: 600; color: #003f72; border-bottom: 2px solid #d4d9e0; font-size: 0.75rem; text-transform: uppercase; background: #f4f6f9; }
+    .data-table td { padding: 0.4rem 0.5rem; border-bottom: 1px solid #f0f0f0; } .data-table tr:hover { background: #f9fafb; }
+    .code { font-family: monospace; color: #003f72; }
+    .status-badge { display: inline-block; padding: 0.2rem 0.6rem; border-radius: 3px; font-size: 0.75rem; font-weight: 600; text-transform: uppercase; }
+    .mci-card { border: 2px solid #d1d5db; border-radius: 6px; padding: 1rem; margin-bottom: 1rem; }
+    .mci-active { border-color: #dc2626; background: #fef2f2; }
+    .mci-header { display: flex; align-items: center; gap: 0.75rem; margin-bottom: 0.5rem; font-size: 1rem; }
+    .mci-details { font-size: 0.85rem; color: #555; }
+    .severity-badge { padding: 0.15rem 0.5rem; border-radius: 3px; font-size: 0.75rem; font-weight: 700; }
+    .severity-level1 { background: #fef3c7; color: #92400e; } .severity-level2 { background: #fed7aa; color: #c2410c; } .severity-level3 { background: #fde8e8; color: #b91c1c; }
+    .triage-summary { display: flex; gap: 1rem; margin-bottom: 1rem; }
+    .triage-count { padding: 0.4rem 0.8rem; border-radius: 4px; font-size: 0.85rem; font-weight: 700; }
+    .triage-immediate { background: #dc2626; color: white; } .triage-delayed { background: #eab308; color: #422006; }
+    .triage-minor { background: #16a34a; color: white; } .triage-expectant { background: #1f2937; color: white; }
+    .triage-badge { display: inline-block; padding: 0.2rem 0.6rem; border-radius: 3px; font-size: 0.75rem; font-weight: 700; color: white; }
+    .triage-badge.triage-immediate { background: #dc2626; } .triage-badge.triage-delayed { background: #eab308; color: #422006; }
+    .triage-badge.triage-minor { background: #16a34a; } .triage-badge.triage-expectant { background: #1f2937; }
+    .patient-id-small { font-size: 0.75rem; color: #999; }
+</style>

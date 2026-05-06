@@ -1,0 +1,38 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+  <!-- Exclude RPMS GUI Source — reference material only, duplicate .resx files cause MSB3577 -->
+  <ItemGroup>
+    <Compile Remove="RPMS\GUI Source\**" />
+    <EmbeddedResource Remove="RPMS\GUI Source\**" />
+    <None Remove="RPMS\GUI Source\**" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="Docs\Domain\genetics-and-family-modeling.md" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Orleans.Core.Abstractions" Version="10.1.0" />
+    <PackageReference Include="Microsoft.Orleans.Runtime" Version="10.1.0" />
+    <PackageReference Include="Microsoft.Orleans.Sdk" Version="10.1.0" />
+    <PackageReference Include="Microsoft.Orleans.Streaming" Version="10.1.0" />
+    <PackageReference Include="Microsoft.Orleans.EventSourcing" Version="10.1.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Folder Include="Docs\Human-Test-Scripts\Blazor\Doctors\" />
+    <Folder Include="Docs\Human-Test-Scripts\Blazor\Pharmacist\" />
+    <Folder Include="Docs\Human-Test-Scripts\Blazor\Nurses\" />
+    <Folder Include="Docs\Human-Test-Scripts\CharUI\Doctors\" />
+    <Folder Include="Docs\Human-Test-Scripts\CharUI\Pharmacist\" />
+    <Folder Include="Docs\Human-Test-Scripts\CharUI\Nurses\" />
+    <Folder Include="Docs\Human-Test-Scripts\CPRS\" />
+    <Folder Include="Docs\Wpf_UI\" />
+  </ItemGroup>
+
+</Project>

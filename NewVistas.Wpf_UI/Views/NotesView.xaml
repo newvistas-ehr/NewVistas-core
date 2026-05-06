@@ -1,0 +1,104 @@
+<UserControl x:Class="NewVistas.Wpf_UI.Views.NotesView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <Grid>
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="320"/>
+            <ColumnDefinition Width="*"/>
+        </Grid.ColumnDefinitions>
+
+        <!-- Note list -->
+        <StackPanel Margin="24,24,8,24">
+            <TextBlock Style="{StaticResource PageTitle}" Text="TIU Notes"/>
+            <TextBlock Style="{StaticResource ErrorText}" Text="{Binding Error}"
+                       Visibility="{Binding Error, Converter={StaticResource NullToVisibility}}"/>
+            <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+                <Button Content="Load" Style="{StaticResource PrimaryButton}"
+                        Command="{Binding LoadCommand}" Margin="0,0,8,0"/>
+                <Button Content="+ New Note" Style="{StaticResource SecondaryButton}"
+                        Command="{Binding ToggleCreateFormCommand}" Margin="0,0,8,0"/>
+                <Button Content="Show History" Style="{StaticResource SecondaryButton}"
+                        Command="{Binding ToggleHistoryCommand}"/>
+            </StackPanel>
+            <ProgressBar IsIndeterminate="True" Height="16"
+                         Visibility="{Binding IsLoading, Converter={StaticResource BoolToVisibility}}" Margin="0,0,0,4"/>
+            <ListBox ItemsSource="{Binding Notes}" SelectedItem="{Binding SelectedNote}" Height="500">
+                <ListBox.ItemTemplate>
+                    <DataTemplate>
+                        <StackPanel Margin="4">
+                            <TextBlock FontWeight="SemiBold" Text="{Binding Title}" TextWrapping="Wrap" FontSize="12"/>
+                            <TextBlock Foreground="#666" FontSize="11" Text="{Binding AuthorName}"/>
+                            <TextBlock Foreground="#888" FontSize="11" Text="{Binding EntryDate, StringFormat=d}"/>
+                        </StackPanel>
+                    </DataTemplate>
+                </ListBox.ItemTemplate>
+            </ListBox>
+        </StackPanel>
+
+        <!-- Note detail / create form -->
+        <ScrollViewer Grid.Column="1" VerticalScrollBarVisibility="Auto" Margin="8,24,24,24">
+            <StackPanel>
+                <!-- Create form -->
+                <Border Style="{StaticResource FormPanel}"
+                        Visibility="{Binding ShowCreateForm, Converter={StaticResource BoolToVisibility}}">
+                    <StackPanel>
+                        <TextBlock Style="{StaticResource SectionHeader}" Text="New Note"/>
+                        <TextBlock Style="{StaticResource FieldLabel}" Text="Title"/>
+                        <TextBox Text="{Binding NewTitle, UpdateSourceTrigger=PropertyChanged}" Width="400" HorizontalAlignment="Left"/>
+                        <TextBlock Style="{StaticResource FieldLabel}" Text="Note Text"/>
+                        <TextBox Text="{Binding NewBody, UpdateSourceTrigger=PropertyChanged}"
+                                 AcceptsReturn="True" Height="200" VerticalScrollBarVisibility="Auto" TextWrapping="Wrap"/>
+                        <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
+                            <Button Content="Save Draft" Style="{StaticResource PrimaryButton}"
+                                    Command="{Binding CreateNoteCommand}" Margin="0,0,8,0"/>
+                            <Button Content="Cancel" Style="{StaticResource SecondaryButton}"
+                                    Command="{Binding ToggleCreateFormCommand}"/>
+                        </StackPanel>
+                    </StackPanel>
+                </Border>
+
+                <!-- Note History -->
+                <Border Style="{StaticResource FormPanel}"
+                        Visibility="{Binding ShowHistory, Converter={StaticResource BoolToVisibility}}">
+                    <StackPanel>
+                        <TextBlock Style="{StaticResource SectionHeader}" Text="Note History"/>
+                        <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+                            <StackPanel Margin="0,0,16,0">
+                                <TextBlock Style="{StaticResource FieldLabel}" Text="From"/>
+                                <DatePicker SelectedDate="{Binding HistoryFrom}" Width="160"/>
+                            </StackPanel>
+                            <StackPanel Margin="0,0,16,0">
+                                <TextBlock Style="{StaticResource FieldLabel}" Text="To"/>
+                                <DatePicker SelectedDate="{Binding HistoryTo}" Width="160"/>
+                            </StackPanel>
+                            <Button Content="Load History" Style="{StaticResource PrimaryButton}"
+                                    Command="{Binding LoadHistoryCommand}" VerticalAlignment="Bottom"/>
+                        </StackPanel>
+                        <DataGrid ItemsSource="{Binding HistoryNotes}" AutoGenerateColumns="False"
+                                  IsReadOnly="True" MaxHeight="300"
+                                  HeadersVisibility="Column" GridLinesVisibility="Horizontal">
+                            <DataGrid.Columns>
+                                <DataGridTextColumn Header="Date" Binding="{Binding ReferenceDate, StringFormat=g}" Width="160"/>
+                                <DataGridTextColumn Header="Type" Binding="{Binding DocumentType}" Width="120"/>
+                                <DataGridTextColumn Header="Subject" Binding="{Binding Subject}" Width="*"/>
+                                <DataGridTextColumn Header="Author" Binding="{Binding AuthorName}" Width="160"/>
+                                <DataGridTextColumn Header="Status" Binding="{Binding Status}" Width="100"/>
+                            </DataGrid.Columns>
+                        </DataGrid>
+                    </StackPanel>
+                </Border>
+
+                <!-- Selected note detail -->
+                <StackPanel Visibility="{Binding SelectedNoteDetail, Converter={StaticResource NullToVisibility}}">
+                    <TextBlock Style="{StaticResource SectionHeader}" Text="{Binding SelectedNoteDetail.Title}"/>
+                    <TextBlock FontSize="12" Foreground="#666" Text="{Binding SelectedNoteDetail.AuthorName}"/>
+                    <TextBlock FontSize="12" Foreground="#888" Text="{Binding SelectedNoteDetail.EntryDate, StringFormat=d}" Margin="0,0,0,8"/>
+                    <TextBlock Text="{Binding SelectedNoteDetail.NoteText}" TextWrapping="Wrap" FontSize="13"/>
+                    <Button Content="Sign Note" Style="{StaticResource PrimaryButton}"
+                            Command="{Binding SignNoteCommand}" Margin="0,12,0,0"
+                            HorizontalAlignment="Left"/>
+                </StackPanel>
+            </StackPanel>
+        </ScrollViewer>
+    </Grid>
+</UserControl>

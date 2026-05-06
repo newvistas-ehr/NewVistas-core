@@ -1,0 +1,378 @@
+@page "/mpi"
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+@rendermode InteractiveServer
+@using NewVistas.BlazorWeb.Services
+@using NewVistas.Abstractions.GrainInterfaces
+@using NewVistas.Abstractions.GrainStates
+@inject OrleansGrainService Grains
+
+<PageTitle>Master Patient Index (MPI)</PageTitle>
+
+<h2>Master Patient Index</h2>
+<p class="subtitle">VistA MPI — Patient Identity Management, Cross-Facility Correlation, and Matching</p>
+
+<div class="tabs">
+    <button class="@TabClass("search")" @onclick='() => SetTab("search")'>Patient Search</button>
+    <button class="@TabClass("match")" @onclick='() => SetTab("match")'>Patient Match</button>
+    <button class="@TabClass("status")" @onclick='() => SetTab("status")'>MPI Status</button>
+</div>
+
+@if (!string.IsNullOrEmpty(error))
+{
+    <div class="error">@error</div>
+}
+@if (!string.IsNullOrEmpty(successMsg))
+{
+    <div class="success">@successMsg</div>
+}
+
+@* ── Patient Search Tab ───────────────────────────────────────────────────── *@
+@if (activeTab == "search")
+{
+    <div class="toolbar">
+        <input @bind="searchQuery" placeholder="Search by name, SSN, or ICN" class="input-wide" />
+        <button @onclick="SearchPatients" disabled="@loading">Search</button>
+    </div>
+
+    @if (loading) { <p>Loading...</p> }
+
+    @if (searchResults is not null)
+    {
+        <h3>Results (@searchResults.Count found)</h3>
+
+        @if (searchResults.Count == 0)
+        {
+            <p class="empty-msg">No patients found.</p>
+        }
+        else
+        {
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>ICN</th>
+                        <th>Name</th>
+                        <th>SSN</th>
+                        <th>DOB</th>
+                        <th>Sex</th>
+                        <th>Facilities</th>
+                        <th>Deceased</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (MpiPatient p in searchResults)
+                    {
+                        <tr class="@(selectedIcn == p.Icn ? "selected-row" : "")"
+                            @onclick="() => selectedIcn = p.Icn">
+                            <td><code>@p.Icn</code></td>
+                            <td>@p.Name</td>
+                            <td>@MaskSsn(p.Ssn)</td>
+                            <td>@(p.DateOfBirth?.ToString("MM/dd/yyyy") ?? "—")</td>
+                            <td>@(p.Sex ?? "—")</td>
+                            <td>
+                                @if (p.Facilities is not null && p.Facilities.Count > 0)
+                                {
+                                    @string.Join(", ", p.Facilities)
+                                }
+                                else
+                                {
+                                    <span>—</span>
+                                }
+                            </td>
+                            <td>
+                                @if (p.IsDeceased)
+                                {
+                                    <span class="badge badge-deceased">Deceased</span>
+                                }
+                                else
+                                {
+                                    <span class="badge badge-alive">Active</span>
+                                }
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        }
+    }
+}
+
+@* ── Patient Match Tab ────────────────────────────────────────────────────── *@
+@if (activeTab == "match")
+{
+    <div class="form-card">
+        <h3>Patient Match Request</h3>
+        <p class="form-hint">Enter patient demographics to find potential matches in the MPI.</p>
+        <div class="form-grid">
+            <label>Name</label>
+            <input @bind="matchName" placeholder="Last,First (e.g. SMITH,JOHN)" />
+
+            <label>SSN</label>
+            <input @bind="matchSsn" placeholder="SSN (e.g. 123-45-6789)" />
+
+            <label>Date of Birth</label>
+            <input @bind="matchDob" type="date" />
+
+            <label>Sex</label>
+            <select @bind="matchSex">
+                <option value="">— select —</option>
+                <option value="M">Male</option>
+                <option value="F">Female</option>
+            </select>
+        </div>
+        <div class="form-actions">
+            <button @onclick="FindMatch" disabled="@loading" class="btn-primary">Find Match</button>
+        </div>
+    </div>
+
+    @if (loading) { <p>Loading...</p> }
+
+    @if (matchResult is not null)
+    {
+        <div class="match-result">
+            <h3>Match Result</h3>
+            <div class="match-summary">
+                <span class="badge @ConfidenceBadge(matchResult.Confidence)">
+                    Confidence: @matchResult.Confidence.ToString("P0")
+                </span>
+                <span class="badge @MatchStatusBadge(matchResult.MatchStatus)">@matchResult.MatchStatus</span>
+            </div>
+
+            @if (matchResult.Candidates is not null && matchResult.Candidates.Count > 0)
+            {
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>ICN</th>
+                            <th>Name</th>
+                            <th>SSN</th>
+                            <th>DOB</th>
+                            <th>Sex</th>
+                            <th>Score</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (MatchCandidate c in matchResult.Candidates)
+                        {
+                            <tr>
+                                <td><code>@c.Icn</code></td>
+                                <td>@c.Name</td>
+                                <td>@MaskSsn(c.Ssn)</td>
+                                <td>@(c.DateOfBirth?.ToString("MM/dd/yyyy") ?? "—")</td>
+                                <td>@(c.Sex ?? "—")</td>
+                                <td>
+                                    <span class="badge @ConfidenceBadge(c.Score)">@c.Score.ToString("P0")</span>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            }
+            else
+            {
+                <p class="empty-msg">No candidates found.</p>
+            }
+        </div>
+    }
+}
+
+@* ── MPI Status Tab ───────────────────────────────────────────────────────── *@
+@if (activeTab == "status")
+{
+    <div class="toolbar">
+        <button @onclick="LoadStatus" disabled="@loading">Refresh Status</button>
+        <button @onclick="SeedDemo" disabled="@loading" class="btn-demo">Seed Demo Data</button>
+    </div>
+
+    @if (loading) { <p>Loading...</p> }
+
+    @if (mpiStatus is not null)
+    {
+        <div class="detail-card">
+            <h3>MPI Status</h3>
+            <div class="detail-grid">
+                <label>Total Patients</label>
+                <span>@mpiStatus.TotalPatients</span>
+
+                <label>Active Patients</label>
+                <span>@mpiStatus.ActivePatients</span>
+
+                <label>Deceased</label>
+                <span>@mpiStatus.DeceasedPatients</span>
+
+                <label>Facilities</label>
+                <span>@mpiStatus.FacilityCount</span>
+
+                <label>Duplicate Pairs</label>
+                <span>@mpiStatus.DuplicatePairCount</span>
+
+                <label>Last Updated</label>
+                <span>@(mpiStatus.LastUpdated?.ToLocalTime().ToString("MM/dd/yyyy HH:mm") ?? "—")</span>
+            </div>
+        </div>
+    }
+}
+
+<style>
+    .subtitle { color: #666; margin-top: -0.5rem; margin-bottom: 1rem; font-size: 0.9rem; }
+    .tabs { display: flex; gap: 0.25rem; margin-bottom: 1rem; }
+    .tabs button { padding: 0.4rem 1rem; border: 1px solid #ccc; background: #f5f5f5; cursor: pointer; border-radius: 4px 4px 0 0; }
+    .tabs button.active { background: white; border-bottom-color: white; font-weight: bold; }
+    .tabs button:disabled { opacity: 0.5; cursor: not-allowed; }
+    .toolbar { display: flex; gap: 0.5rem; align-items: center; margin-bottom: 1rem; }
+    .input-wide { flex: 1; min-width: 250px; padding: 0.3rem 0.5rem; max-width: 400px; }
+    .error { color: darkred; background: #fff0f0; border: 1px solid #fcc; padding: 0.5rem; margin-bottom: 1rem; border-radius: 4px; }
+    .success { color: darkgreen; background: #f0fff0; border: 1px solid #cfc; padding: 0.5rem; margin-bottom: 1rem; border-radius: 4px; }
+    .data-table { width: 100%; border-collapse: collapse; font-size: 0.88rem; }
+    .data-table th { background: #2c5282; color: white; padding: 0.4rem 0.6rem; text-align: left; }
+    .data-table td { padding: 0.35rem 0.6rem; border-bottom: 1px solid #e2e8f0; }
+    .data-table tr:hover td { background: #ebf8ff; }
+    .selected-row td { background: #bee3f8 !important; }
+    .badge { display: inline-block; padding: 0.15rem 0.45rem; border-radius: 3px; font-size: 0.78rem; font-weight: bold; margin-right: 0.3rem; }
+    .badge-alive { background: #c6f6d5; color: #22543d; }
+    .badge-deceased { background: #fed7d7; color: #742a2a; }
+    .badge-high { background: #c6f6d5; color: #22543d; }
+    .badge-medium { background: #fefcbf; color: #744210; }
+    .badge-low { background: #fed7d7; color: #742a2a; }
+    .badge-exact { background: #2c5282; color: white; }
+    .badge-probable { background: #38a169; color: white; }
+    .badge-possible { background: #d69e2e; color: white; }
+    .badge-nomatch { background: #a0aec0; color: white; }
+    .btn-demo { background: #e9d8fd; border-color: #b794f4; }
+    .btn-primary { background: #2c5282; color: white; border: none; padding: 0.5rem 1.5rem; border-radius: 4px; cursor: pointer; }
+    .empty-msg { color: #718096; font-style: italic; }
+    .form-card { max-width: 600px; background: #f7fafc; border: 1px solid #e2e8f0; border-radius: 4px; padding: 1.5rem; }
+    .form-hint { color: #718096; font-size: 0.85rem; margin-bottom: 1rem; }
+    .form-grid { display: grid; grid-template-columns: 130px 1fr; gap: 0.5rem; align-items: center; margin-bottom: 1rem; }
+    .form-grid label { font-weight: 500; color: #4a5568; }
+    .form-grid input, .form-grid select { padding: 0.3rem 0.5rem; border: 1px solid #cbd5e0; border-radius: 3px; }
+    .form-actions { margin-top: 0.5rem; }
+    .match-result { margin-top: 1.5rem; background: #f7fafc; border: 1px solid #e2e8f0; border-radius: 4px; padding: 1rem; }
+    .match-summary { margin-bottom: 1rem; }
+    .detail-card { max-width: 500px; background: #f7fafc; border: 1px solid #e2e8f0; border-radius: 4px; padding: 1.5rem; }
+    .detail-grid { display: grid; grid-template-columns: 160px 1fr; gap: 0.5rem; align-items: center; }
+    .detail-grid label { font-weight: 500; color: #4a5568; }
+    code { background: #edf2f7; padding: 0.1rem 0.3rem; border-radius: 3px; font-size: 0.85rem; }
+</style>
+
+@code {
+    string activeTab = "search";
+    bool loading;
+    string? error;
+    string? successMsg;
+
+    // Search
+    string searchQuery = string.Empty;
+    List<MpiPatient>? searchResults;
+    string? selectedIcn;
+
+    // Match
+    string matchName = string.Empty;
+    string matchSsn = string.Empty;
+    DateTime? matchDob;
+    string matchSex = string.Empty;
+    MatchResult? matchResult;
+
+    // Status
+    MpiStatus? mpiStatus;
+
+    string TabClass(string tab) => activeTab == tab ? "active" : string.Empty;
+
+    void SetTab(string tab) { activeTab = tab; error = null; successMsg = null; }
+
+    string MaskSsn(string? ssn)
+    {
+        if (string.IsNullOrEmpty(ssn) || ssn.Length < 4) return "—";
+        return "***-**-" + ssn[^4..];
+    }
+
+    string ConfidenceBadge(double score) => score switch
+    {
+        >= 0.9 => "badge-high",
+        >= 0.6 => "badge-medium",
+        _ => "badge-low"
+    };
+
+    string MatchStatusBadge(string status) => status.ToUpperInvariant() switch
+    {
+        "EXACT" => "badge-exact",
+        "PROBABLE" => "badge-probable",
+        "POSSIBLE" => "badge-possible",
+        _ => "badge-nomatch"
+    };
+
+    async Task SearchPatients()
+    {
+        if (string.IsNullOrWhiteSpace(searchQuery)) { error = "Enter a search term."; return; }
+        error = null; loading = true; searchResults = null; selectedIcn = null;
+        try
+        {
+            var mpiSearch = Grains.GetGrain<IMpiSearchGrain>("MPI-INDEX");
+            List<MpiSearchResult> results = await mpiSearch.SearchAsync(searchQuery.Trim(), 25);
+            searchResults = results.Select(r => new MpiPatient(r.Icn, r.PatientName, r.Ssn, r.DateOfBirth,
+                r.Sex, r.TreatingFacilities, r.IsDeceased)).ToList();
+        }
+        catch (Exception ex) { error = $"Error: {ex.Message}"; }
+        finally { loading = false; }
+    }
+
+    async Task FindMatch()
+    {
+        if (string.IsNullOrWhiteSpace(matchName) && string.IsNullOrWhiteSpace(matchSsn))
+        {
+            error = "Provide at least a name or SSN.";
+            return;
+        }
+        error = null; loading = true; matchResult = null;
+        try
+        {
+            var mpiMatcher = Grains.GetGrain<IMpiMatchGrain>("MPI-MATCHER");
+            List<MpiMatchCandidate> candidates = await mpiMatcher.FindCandidatesAsync(
+                matchName.Trim(), string.IsNullOrWhiteSpace(matchSsn) ? null : matchSsn.Trim(),
+                matchDob, string.IsNullOrEmpty(matchSex) ? null : matchSex, 0.3);
+            double confidence = candidates.Count > 0 ? candidates[0].Score : 0;
+            string status = confidence >= 0.9 ? "EXACT" : confidence >= 0.7 ? "PROBABLE" : confidence >= 0.5 ? "POSSIBLE" : "NO_MATCH";
+            matchResult = new MatchResult(confidence, status,
+                candidates.Select(c => new MatchCandidate(c.Icn, c.PatientName, c.Ssn, c.DateOfBirth, c.Sex, c.Score)).ToList());
+        }
+        catch (Exception ex) { error = $"Error: {ex.Message}"; }
+        finally { loading = false; }
+    }
+
+    async Task LoadStatus()
+    {
+        error = null; loading = true;
+        try
+        {
+            var mpiSearch = Grains.GetGrain<IMpiSearchGrain>("MPI-INDEX");
+            MpiIndexStatus status = await mpiSearch.GetStatusAsync();
+            mpiStatus = new MpiStatus(status.TotalPatients, status.TotalPatients, 0, status.TotalCorrelations, 0, status.LastUpdated);
+        }
+        catch (Exception ex) { error = $"Error: {ex.Message}"; }
+        finally { loading = false; }
+    }
+
+    async Task SeedDemo()
+    {
+        error = null; successMsg = null; loading = true;
+        try
+        {
+            var mpiSearch = Grains.GetGrain<IMpiSearchGrain>("MPI-INDEX");
+            await mpiSearch.SeedDemoDataAsync();
+            successMsg = "Demo data seeded successfully.";
+            await LoadStatus();
+        }
+        catch (Exception ex) { error = $"Error: {ex.Message}"; }
+        finally { loading = false; }
+    }
+
+    record MpiPatient(string Icn, string Name, string? Ssn, DateTime? DateOfBirth,
+        string? Sex, List<string>? Facilities, bool IsDeceased);
+
+    record MatchCandidate(string Icn, string Name, string? Ssn, DateTime? DateOfBirth,
+        string? Sex, double Score);
+
+    record MatchResult(double Confidence, string MatchStatus, List<MatchCandidate>? Candidates);
+
+    record MpiStatus(int TotalPatients, int ActivePatients, int DeceasedPatients,
+        int FacilityCount, int DuplicatePairCount, DateTime? LastUpdated);
+}

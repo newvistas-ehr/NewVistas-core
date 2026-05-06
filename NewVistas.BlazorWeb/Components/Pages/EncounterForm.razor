@@ -1,0 +1,207 @@
+@* Copyright 2026 James Smyth. All rights reserved. *@
+@page "/encounter-forms"
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+@rendermode InteractiveServer
+@using NewVistas.BlazorWeb.Services
+@using NewVistas.Abstractions.GrainInterfaces
+@using NewVistas.Abstractions.GrainStates
+@inject OrleansGrainService Grains
+
+<PageTitle>Encounter Form Templates</PageTitle>
+<h1>Encounter Form Templates</h1>
+
+@if (loading) { <div class="empty-state">Loading feature status...</div> }
+else if (featureChecked && !featureEnabled)
+{
+    <div class="alert alert-warning">The <strong>ENCOUNTER_FORM_TEMPLATES</strong> feature is not enabled. Enable it in <a href="/site-parameters">Site Parameters</a>.</div>
+}
+@if (error != null) { <div class="alert alert-error">@error</div> }
+
+@if (!loading)
+{
+    <div class="tab-bar">
+        <button class="tab-btn @(activeTab == 0 ? "active" : "")" @onclick="() => activeTab = 0">Templates</button>
+        <button class="tab-btn @(activeTab == 1 ? "active" : "")" @onclick="() => activeTab = 1">Patient Forms</button>
+        <button class="tab-btn @(activeTab == 2 ? "active" : "")" @onclick="() => activeTab = 2">Dashboard</button>
+    </div>
+
+    @if (activeTab == 0)
+    {
+        <div class="form-actions">
+            <button @onclick="LoadTemplates" disabled="@loadingTemplates" class="btn btn-primary">
+                @if (loadingTemplates) { <span>Loading...</span> } else { <span>Load Templates</span> }
+            </button>
+        </div>
+        @if (templates != null && templates.Count > 0)
+        {
+            <table class="data-table">
+                <thead><tr><th>Name</th><th>Type</th><th>Status</th><th>Version</th><th>Fields</th><th>Clinic</th><th>Created</th></tr></thead>
+                <tbody>
+                    @foreach (var t in templates)
+                    {
+                        <tr>
+                            <td><strong>@t.Name</strong></td>
+                            <td class="code">@t.FormType</td>
+                            <td><span class="status-badge" style="@GetTemplateStatusStyle(t.Status)">@t.Status</span></td>
+                            <td>v@t.Version</td>
+                            <td>@t.FieldCount</td>
+                            <td>@(t.ClinicId ?? "All")</td>
+                            <td>@t.CreatedDate.ToString("MM/dd/yyyy")</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        }
+        else if (templates != null) { <div class="empty-state">No templates found.</div> }
+    }
+
+    @if (activeTab == 1)
+    {
+        <div class="form-section">
+            <div class="form-row">
+                <label>Patient ID</label>
+                <input type="text" class="form-input" @bind="patientId" @bind:event="oninput" placeholder="Enter patient ID" />
+                <button @onclick="LoadPatientForms" disabled="@(string.IsNullOrWhiteSpace(patientId) || loadingForms)" class="btn btn-primary">
+                    @if (loadingForms) { <span>Loading...</span> } else { <span>Load</span> }
+                </button>
+            </div>
+        </div>
+        @if (patientForms != null && patientForms.Count > 0)
+        {
+            <table class="data-table">
+                <thead><tr><th>Template</th><th>Status</th><th>Provider</th><th>Created</th><th>Submitted</th></tr></thead>
+                <tbody>
+                    @foreach (var f in patientForms)
+                    {
+                        <tr>
+                            <td>@f.TemplateName</td>
+                            <td><span class="status-badge" style="@GetInstanceStatusStyle(f.Status)">@f.Status</span></td>
+                            <td>@f.CreatedByProviderName</td>
+                            <td>@f.CreatedDate.ToString("MM/dd/yyyy")</td>
+                            <td>@(f.SubmittedDate?.ToString("MM/dd/yyyy") ?? "---")</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        }
+        else if (patientForms != null) { <div class="empty-state">No forms for this patient.</div> }
+    }
+
+    @if (activeTab == 2)
+    {
+        <div class="form-section">
+            <div class="form-row"><label>Status</label>
+                <select class="form-input" @bind="dashStatus">
+                    <option value="">All</option>
+                    <option value="DRAFT">DRAFT</option>
+                    <option value="SUBMITTED">SUBMITTED</option>
+                    <option value="AMENDED">AMENDED</option>
+                    <option value="VOIDED">VOIDED</option>
+                </select>
+            </div>
+            <div class="form-actions">
+                <button @onclick="SearchDashboard" disabled="@loadingDashboard" class="btn btn-primary">
+                    @if (loadingDashboard) { <span>Searching...</span> } else { <span>Search</span> }
+                </button>
+            </div>
+        </div>
+        @if (dashboardResults != null && dashboardResults.Count > 0)
+        {
+            <table class="data-table">
+                <thead><tr><th>Patient</th><th>Template</th><th>Status</th><th>Provider</th><th>Created</th><th>Submitted</th></tr></thead>
+                <tbody>
+                    @foreach (var f in dashboardResults)
+                    {
+                        <tr>
+                            <td>@f.PatientName <span class="patient-id-small">(@f.PatientId)</span></td>
+                            <td>@f.TemplateName</td>
+                            <td><span class="status-badge" style="@GetInstanceStatusStyle(f.Status)">@f.Status</span></td>
+                            <td>@f.CreatedByProviderName</td>
+                            <td>@f.CreatedDate.ToString("MM/dd/yyyy")</td>
+                            <td>@(f.SubmittedDate?.ToString("MM/dd/yyyy") ?? "---")</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        }
+        else if (dashboardResults != null) { <div class="empty-state">No forms match.</div> }
+    }
+}
+
+@code {
+    private int activeTab;
+    private bool loading = true, featureEnabled, featureChecked;
+    private string? error;
+
+    private bool loadingTemplates;
+    private List<EncounterFormTemplateIndexEntry>? templates;
+
+    private string? patientId;
+    private bool loadingForms;
+    private List<EncounterFormInstanceIndexEntry>? patientForms;
+
+    private string dashStatus = "";
+    private bool loadingDashboard;
+    private List<EncounterFormInstanceIndexEntry>? dashboardResults;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try { featureEnabled = await Grains.GetGrain<ISiteParametersGrain>("SITE:DEFAULT").IsFeatureEnabledAsync("ENCOUNTER_FORM_TEMPLATES"); }
+        catch (Exception ex) { error = ex.Message; featureEnabled = false; }
+        finally { loading = false; featureChecked = true; }
+    }
+
+    private async Task LoadTemplates()
+    {
+        loadingTemplates = true; error = null;
+        try { templates = await Grains.GetGrain<IEncounterFormTemplateIndexGrain>("EF-TPL-IDX").GetAllAsync(50); }
+        catch (Exception ex) { error = ex.Message; }
+        finally { loadingTemplates = false; }
+    }
+
+    private async Task LoadPatientForms()
+    {
+        if (string.IsNullOrWhiteSpace(patientId)) return;
+        loadingForms = true; error = null;
+        try { patientForms = await Grains.GetGrain<IEncounterFormInstanceIndexGrain>("EF-INST-IDX").GetByPatientAsync(patientId.Trim()); }
+        catch (Exception ex) { error = ex.Message; }
+        finally { loadingForms = false; }
+    }
+
+    private async Task SearchDashboard()
+    {
+        loadingDashboard = true; error = null;
+        try { dashboardResults = await Grains.GetGrain<IEncounterFormInstanceIndexGrain>("EF-INST-IDX").SearchAsync(null, null, string.IsNullOrEmpty(dashStatus) ? null : dashStatus, 50); }
+        catch (Exception ex) { error = ex.Message; }
+        finally { loadingDashboard = false; }
+    }
+
+    private string GetTemplateStatusStyle(string s) => s switch { "DRAFT" => "background:#dbeafe;color:#1e40af;border:1px solid #93c5fd;", "PUBLISHED" => "background:#dcfce7;color:#166534;border:1px solid #bbf7d0;", "RETIRED" => "background:#f3f4f6;color:#6b7280;border:1px solid #d1d5db;", _ => "" };
+    private string GetInstanceStatusStyle(string s) => s switch { "DRAFT" => "background:#dbeafe;color:#1e40af;border:1px solid #93c5fd;", "SUBMITTED" => "background:#dcfce7;color:#166534;border:1px solid #bbf7d0;", "AMENDED" => "background:#fff7ed;color:#c2410c;border:1px solid #fed7aa;", "VOIDED" => "background:#fde8e8;color:#b91c1c;border:1px solid #f5c6c6;", _ => "" };
+}
+
+<style>
+    .btn { padding: 0.5rem 1.25rem; border: none; border-radius: 4px; cursor: pointer; font-size: 0.85rem; }
+    .btn-primary { background: #003f72; color: white; }
+    .btn-primary:disabled { background: #999; cursor: not-allowed; }
+    .alert { padding: 0.75rem 1rem; border-radius: 4px; margin-bottom: 1rem; }
+    .alert-error { background: #fde8e8; color: #b91c1c; border: 1px solid #f5c6c6; }
+    .alert-warning { background: #fef3c7; color: #92400e; border: 1px solid #fde68a; }
+    .alert-warning a { color: #003f72; font-weight: 600; }
+    .empty-state { color: #999; font-style: italic; padding: 2rem 0; }
+    .tab-bar { display: flex; gap: 0; border-bottom: 2px solid #d4d9e0; margin-bottom: 1.5rem; }
+    .tab-btn { padding: 0.6rem 1.25rem; border: none; background: transparent; cursor: pointer; font-size: 0.85rem; font-weight: 500; color: #666; border-bottom: 2px solid transparent; margin-bottom: -2px; }
+    .tab-btn.active { color: #003f72; border-bottom-color: #003f72; font-weight: 600; }
+    .form-section { max-width: 700px; }
+    .form-row { display: flex; align-items: center; gap: 1rem; margin-bottom: 0.75rem; }
+    .form-row label:first-child { width: 160px; font-size: 0.85rem; font-weight: 500; color: #333; flex-shrink: 0; }
+    .form-input { flex: 1; padding: 0.4rem 0.6rem; border: 1px solid #ccc; border-radius: 4px; font-size: 0.85rem; max-width: 350px; }
+    .form-actions { display: flex; gap: 0.75rem; margin-top: 1rem; margin-bottom: 1.5rem; }
+    .data-table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+    .data-table th { text-align: left; padding: 0.5rem; font-weight: 600; color: #003f72; border-bottom: 2px solid #d4d9e0; font-size: 0.75rem; text-transform: uppercase; background: #f4f6f9; }
+    .data-table td { padding: 0.4rem 0.5rem; border-bottom: 1px solid #f0f0f0; }
+    .data-table tr:hover { background: #f9fafb; }
+    .code { font-family: monospace; color: #003f72; }
+    .status-badge { display: inline-block; padding: 0.2rem 0.6rem; border-radius: 3px; font-size: 0.75rem; font-weight: 600; text-transform: uppercase; }
+    .patient-id-small { font-size: 0.75rem; color: #999; }
+</style>

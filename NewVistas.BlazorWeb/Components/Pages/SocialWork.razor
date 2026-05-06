@@ -1,0 +1,673 @@
+@page "/social-work"
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+@rendermode InteractiveServer
+@using NewVistas.BlazorWeb.Services
+@using NewVistas.Abstractions.GrainInterfaces
+@using NewVistas.Abstractions.GrainStates
+@inject OrleansGrainService Grains
+
+<PageTitle>Social Work</PageTitle>
+
+<h1>Social Work</h1>
+
+<div class="lookup-bar">
+    <input type="text" @bind="patientId" @bind:event="oninput" @onkeydown="HandleKeyDown"
+           placeholder="Patient ID" class="lookup-input" />
+    <button @onclick="LoadData" disabled="@(string.IsNullOrWhiteSpace(patientId) || loading)" class="btn btn-primary">
+        @if (loading) { <span>Loading...</span> } else { <span>Load Record</span> }
+    </button>
+</div>
+
+@if (error != null) { <div class="alert alert-error">@error</div> }
+@if (successMessage != null) { <div class="alert alert-success">@successMessage</div> }
+
+@if (dataLoaded)
+{
+    <div class="tabs">
+        <button class="tab @(activeTab == "assessments" ? "active" : "")" @onclick='() => activeTab = "assessments"'>
+            Assessments (@assessments.Count)
+        </button>
+        <button class="tab @(activeTab == "referrals" ? "active" : "")" @onclick='() => activeTab = "referrals"'>
+            Referrals (@referrals.Count)
+        </button>
+    </div>
+
+    @* ── Assessments Tab ── *@
+    @if (activeTab == "assessments")
+    {
+        <div class="tab-content">
+            <div class="section-header">
+                <h3>Social Work Assessments</h3>
+                <button @onclick="ShowNewAssessmentForm" class="btn btn-secondary">+ New Assessment</button>
+            </div>
+
+            @if (showNewAssessment)
+            {
+                <div class="sw-form">
+                    <h4>New Social Work Assessment</h4>
+                    <div class="form-grid">
+                        <div class="form-row">
+                            <label>Assessment Type *</label>
+                            <select @bind="newAssessmentType">
+                                <option value="Psychosocial">Psychosocial</option>
+                                <option value="FunctionalStatus">Functional Status</option>
+                                <option value="DischargeRisk">Discharge Risk</option>
+                                <option value="HomelessRisk">Homeless Risk</option>
+                                <option value="SubstanceUse">Substance Use</option>
+                                <option value="DomesticViolence">Domestic Violence</option>
+                                <option value="Bereavement">Bereavement</option>
+                                <option value="CaregiverStress">Caregiver Stress</option>
+                                <option value="Other">Other</option>
+                            </select>
+                        </div>
+                        <div class="form-row">
+                            <label>Assessment Date *</label>
+                            <input type="datetime-local" @bind="newAssessmentDate" />
+                        </div>
+                        <div class="form-row">
+                            <label>Social Worker Name</label>
+                            <input type="text" @bind="newSocialWorkerName" placeholder="Name" />
+                        </div>
+                        <div class="form-row">
+                            <label>Risk Level</label>
+                            <select @bind="newRiskLevel">
+                                <option value="Unknown">Unknown</option>
+                                <option value="Low">Low</option>
+                                <option value="Moderate">Moderate</option>
+                                <option value="High">High</option>
+                                <option value="Critical">Critical</option>
+                            </select>
+                        </div>
+                        <div class="form-row">
+                            <label>Housing Status</label>
+                            <input type="text" @bind="newHousingStatus" placeholder="HOUSED / HOMELESS / AT RISK" />
+                        </div>
+                        <div class="form-row">
+                            <label>Employment Status</label>
+                            <input type="text" @bind="newEmploymentStatus" placeholder="EMPLOYED / UNEMPLOYED / RETIRED" />
+                        </div>
+                        <div class="form-row">
+                            <label>Social Support</label>
+                            <input type="text" @bind="newSocialSupport" placeholder="STRONG / ADEQUATE / POOR" />
+                        </div>
+                        <div class="form-row">
+                            <label>Discharge Disposition</label>
+                            <input type="text" @bind="newDischargeDisposition" placeholder="HOME / NURSING FACILITY / etc." />
+                        </div>
+                        <div class="form-row full">
+                            <label>Discharge Plan</label>
+                            <textarea @bind="newDischargePlan" rows="3" placeholder="Discharge plan summary..."></textarea>
+                        </div>
+                        <div class="form-row full">
+                            <label>Recommendations</label>
+                            <textarea @bind="newRecommendations" rows="3" placeholder="Clinical recommendations..."></textarea>
+                        </div>
+                        <div class="form-row full">
+                            <label>Assessment Notes</label>
+                            <textarea @bind="newNotes" rows="4" placeholder="Narrative assessment notes..."></textarea>
+                        </div>
+                    </div>
+                    <div class="form-actions">
+                        <button @onclick="SubmitAssessment" disabled="@saving" class="btn btn-primary">
+                            @if (saving) { <span>Saving...</span> } else { <span>Save Assessment</span> }
+                        </button>
+                        <button @onclick="() => showNewAssessment = false" class="btn btn-outline">Cancel</button>
+                    </div>
+                </div>
+            }
+
+            @if (selectedAssessment != null)
+            {
+                <div class="sw-detail">
+                    <div class="detail-header">
+                        <span class="badge badge-type">@selectedAssessment.AssessmentType</span>
+                        <span class="badge badge-status status-@selectedAssessment.Status.ToString().ToLowerInvariant()">@selectedAssessment.Status</span>
+                        <span class="badge badge-risk risk-@selectedAssessment.RiskLevel.ToString().ToLowerInvariant()">Risk: @selectedAssessment.RiskLevel</span>
+                        <button @onclick="() => selectedAssessment = null" class="btn btn-sm btn-outline">Close</button>
+                    </div>
+                    <div class="detail-grid">
+                        <div><strong>Social Worker:</strong> @(selectedAssessment.SocialWorkerName ?? "—")</div>
+                        <div><strong>Assessment Date:</strong> @selectedAssessment.AssessmentDate.ToString("MM/dd/yyyy HH:mm")</div>
+                        <div><strong>Housing:</strong> @(selectedAssessment.HousingStatus ?? "—")</div>
+                        <div><strong>Employment:</strong> @(selectedAssessment.EmploymentStatus ?? "—")</div>
+                        <div><strong>Social Support:</strong> @(selectedAssessment.SocialSupport ?? "—")</div>
+                        @if (selectedAssessment.AbuseConcernsIdentified == true)
+                        {
+                            <div class="abuse-alert full"><strong>&#9888; Abuse Concerns Identified</strong> — Safety Plan: @(selectedAssessment.SafetyPlanInPlace == true ? "Yes" : "No")</div>
+                        }
+                        @if (!string.IsNullOrEmpty(selectedAssessment.DischargeDisposition))
+                        {
+                            <div><strong>Discharge Disposition:</strong> @selectedAssessment.DischargeDisposition</div>
+                        }
+                        @if (!string.IsNullOrEmpty(selectedAssessment.DischargePlan))
+                        {
+                            <div class="full"><strong>Discharge Plan:</strong><br /><pre>@selectedAssessment.DischargePlan</pre></div>
+                        }
+                        @if (!string.IsNullOrEmpty(selectedAssessment.Recommendations))
+                        {
+                            <div class="full"><strong>Recommendations:</strong><br /><pre>@selectedAssessment.Recommendations</pre></div>
+                        }
+                        @if (!string.IsNullOrEmpty(selectedAssessment.Notes))
+                        {
+                            <div class="full"><strong>Notes:</strong><br /><pre>@selectedAssessment.Notes</pre></div>
+                        }
+                    </div>
+                    @if (selectedAssessment.Status == SocialWorkAssessmentStatus.Draft)
+                    {
+                        <div class="detail-actions">
+                            <button @onclick="() => CompleteAssessment(selectedAssessment.AssessmentId)" class="btn btn-accept">Complete</button>
+                            <button @onclick="() => CloseAssessment(selectedAssessment.AssessmentId)" class="btn btn-cancel-action">Close</button>
+                        </div>
+                    }
+                </div>
+            }
+
+            @if (assessments.Count == 0)
+            {
+                <p class="empty-state">No assessments on record.</p>
+            }
+            else
+            {
+                <table class="sw-table">
+                    <thead>
+                        <tr>
+                            <th>Date</th>
+                            <th>Type</th>
+                            <th>Risk</th>
+                            <th>Housing</th>
+                            <th>Social Worker</th>
+                            <th>Status</th>
+                            <th></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (SocialWorkAssessmentIndexEntry a in assessments)
+                        {
+                            <tr class="@(selectedAssessment?.AssessmentId == a.AssessmentId ? "selected" : "")">
+                                <td>@a.AssessmentDate.ToString("MM/dd/yyyy")</td>
+                                <td>@a.AssessmentType</td>
+                                <td><span class="badge badge-risk risk-@a.RiskLevel.ToString().ToLowerInvariant()">@a.RiskLevel</span></td>
+                                <td>@(a.HousingStatus ?? "—")</td>
+                                <td>@(a.SocialWorkerName ?? "—")</td>
+                                <td><span class="badge badge-status status-@a.Status.ToString().ToLowerInvariant()">@a.Status</span></td>
+                                <td><button @onclick="() => ViewAssessment(a.AssessmentId)" class="btn btn-sm btn-outline">View</button></td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            }
+        </div>
+    }
+
+    @* ── Referrals Tab ── *@
+    @if (activeTab == "referrals")
+    {
+        <div class="tab-content">
+            <div class="section-header">
+                <h3>Social Work Referrals</h3>
+                <button @onclick="ShowNewReferralForm" class="btn btn-secondary">+ New Referral</button>
+            </div>
+
+            @if (showNewReferral)
+            {
+                <div class="sw-form">
+                    <h4>New Social Work Referral</h4>
+                    <div class="form-grid">
+                        <div class="form-row">
+                            <label>Service Type *</label>
+                            <select @bind="newServiceType">
+                                <option value="Housing">Housing</option>
+                                <option value="Transportation">Transportation</option>
+                                <option value="Food">Food</option>
+                                <option value="CommunityMentalHealth">Community Mental Health</option>
+                                <option value="SubstanceAbuseTreatment">Substance Abuse Treatment</option>
+                                <option value="VocationalRehabilitation">Vocational Rehabilitation</option>
+                                <option value="FinancialAssistance">Financial Assistance</option>
+                                <option value="LegalServices">Legal Services</option>
+                                <option value="HomeHealth">Home Health</option>
+                                <option value="HomelessServices">Homeless Services</option>
+                                <option value="Caregiver">Caregiver</option>
+                                <option value="AdultProtectiveServices">Adult Protective Services</option>
+                                <option value="Other">Other</option>
+                            </select>
+                        </div>
+                        <div class="form-row">
+                            <label>Referral Date *</label>
+                            <input type="datetime-local" @bind="newReferralDate" />
+                        </div>
+                        <div class="form-row">
+                            <label>Agency Name</label>
+                            <input type="text" @bind="newAgencyName" placeholder="Agency or program name" />
+                        </div>
+                        <div class="form-row">
+                            <label>Agency Contact</label>
+                            <input type="text" @bind="newAgencyContact" placeholder="Contact person" />
+                        </div>
+                        <div class="form-row">
+                            <label>Agency Phone</label>
+                            <input type="text" @bind="newAgencyPhone" placeholder="Phone number" />
+                        </div>
+                        <div class="form-row">
+                            <label>Social Worker Name</label>
+                            <input type="text" @bind="newReferralSocialWorkerName" placeholder="Name" />
+                        </div>
+                        <div class="form-row">
+                            <label>Follow-Up Date</label>
+                            <input type="date" @bind="newFollowUpDate" />
+                        </div>
+                        <div class="form-row full">
+                            <label>Referral Reason</label>
+                            <textarea @bind="newReferralReason" rows="3" placeholder="Reason for referral..."></textarea>
+                        </div>
+                        <div class="form-row full">
+                            <label>Comments</label>
+                            <textarea @bind="newReferralComments" rows="2" placeholder="Additional comments..."></textarea>
+                        </div>
+                    </div>
+                    <div class="form-actions">
+                        <button @onclick="SubmitReferral" disabled="@saving" class="btn btn-primary">
+                            @if (saving) { <span>Saving...</span> } else { <span>Submit Referral</span> }
+                        </button>
+                        <button @onclick="() => showNewReferral = false" class="btn btn-outline">Cancel</button>
+                    </div>
+                </div>
+            }
+
+            @if (selectedReferral != null)
+            {
+                <div class="sw-detail">
+                    <div class="detail-header">
+                        <span class="badge badge-type">@selectedReferral.ServiceType</span>
+                        <span class="badge badge-status status-@selectedReferral.Status.ToString().ToLowerInvariant()">@selectedReferral.Status</span>
+                        <strong>@(selectedReferral.AgencyName ?? "Agency TBD")</strong>
+                        <button @onclick="() => selectedReferral = null" class="btn btn-sm btn-outline">Close</button>
+                    </div>
+                    <div class="detail-grid">
+                        <div><strong>Referral Date:</strong> @selectedReferral.ReferralDate.ToString("MM/dd/yyyy")</div>
+                        <div><strong>Social Worker:</strong> @(selectedReferral.SocialWorkerName ?? "—")</div>
+                        <div><strong>Agency Contact:</strong> @(selectedReferral.AgencyContact ?? "—")</div>
+                        <div><strong>Phone:</strong> @(selectedReferral.AgencyPhone ?? "—")</div>
+                        @if (selectedReferral.FollowUpDate.HasValue)
+                        {
+                            <div><strong>Follow-Up:</strong> @selectedReferral.FollowUpDate.Value.ToString("MM/dd/yyyy")</div>
+                        }
+                        @if (!string.IsNullOrEmpty(selectedReferral.ReferralReason))
+                        {
+                            <div class="full"><strong>Reason:</strong><br /><pre>@selectedReferral.ReferralReason</pre></div>
+                        }
+                        @if (!string.IsNullOrEmpty(selectedReferral.OutcomeNotes))
+                        {
+                            <div class="full"><strong>Outcome:</strong><br /><pre>@selectedReferral.OutcomeNotes</pre></div>
+                        }
+                    </div>
+                    @if (selectedReferral.Status != SocialWorkReferralStatus.Closed)
+                    {
+                        <div class="detail-actions">
+                            @if (selectedReferral.Status == SocialWorkReferralStatus.Pending)
+                            {
+                                <button @onclick='() => UpdateReferralStatus(selectedReferral.ReferralId, "Active")' class="btn btn-accept">Activate</button>
+                            }
+                            @if (selectedReferral.Status == SocialWorkReferralStatus.Active)
+                            {
+                                <button @onclick='() => UpdateReferralStatus(selectedReferral.ReferralId, "Complete")' class="btn btn-accept">Complete</button>
+                            }
+                            <button @onclick='() => UpdateReferralStatus(selectedReferral.ReferralId, "FollowUpNeeded")' class="btn btn-outline">Follow-Up Needed</button>
+                            <button @onclick="() => CloseReferral(selectedReferral.ReferralId)" class="btn btn-cancel-action">Close</button>
+                        </div>
+                    }
+                </div>
+            }
+
+            @if (referrals.Count == 0)
+            {
+                <p class="empty-state">No referrals on record.</p>
+            }
+            else
+            {
+                <table class="sw-table">
+                    <thead>
+                        <tr>
+                            <th>Date</th>
+                            <th>Service Type</th>
+                            <th>Agency</th>
+                            <th>Social Worker</th>
+                            <th>Follow-Up</th>
+                            <th>Status</th>
+                            <th></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (SocialWorkReferralIndexEntry r in referrals)
+                        {
+                            <tr class="@(selectedReferral?.ReferralId == r.ReferralId ? "selected" : "")">
+                                <td>@r.ReferralDate.ToString("MM/dd/yyyy")</td>
+                                <td>@r.ServiceType</td>
+                                <td>@(r.AgencyName ?? "—")</td>
+                                <td>@(r.SocialWorkerName ?? "—")</td>
+                                <td>@(r.FollowUpDate?.ToString("MM/dd/yyyy") ?? "—")</td>
+                                <td><span class="badge badge-status status-@r.Status.ToString().ToLowerInvariant()">@r.Status</span></td>
+                                <td><button @onclick="() => ViewReferral(r.ReferralId)" class="btn btn-sm btn-outline">View</button></td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            }
+        </div>
+    }
+}
+
+@code {
+    // ── State ─────────────────────────────────────────────────────────────────
+    string patientId = string.Empty;
+    string activeTab = "assessments";
+    bool loading;
+    bool saving;
+    bool dataLoaded;
+    string? error;
+    string? successMessage;
+
+    List<SocialWorkAssessmentIndexEntry> assessments = new();
+    List<SocialWorkReferralIndexEntry> referrals = new();
+
+    SocialWorkAssessmentState? selectedAssessment;
+    SocialWorkReferralState? selectedReferral;
+
+    // ── New Assessment form fields ────────────────────────────────────────────
+    bool showNewAssessment;
+    string newAssessmentType = "Psychosocial";
+    DateTime newAssessmentDate = DateTime.Now;
+    string? newSocialWorkerName;
+    string newRiskLevel = "Unknown";
+    string? newHousingStatus;
+    string? newEmploymentStatus;
+    string? newSocialSupport;
+    string? newDischargePlan;
+    string? newDischargeDisposition;
+    string? newRecommendations;
+    string? newNotes;
+
+    // ── New Referral form fields ──────────────────────────────────────────────
+    bool showNewReferral;
+    string newServiceType = "Housing";
+    DateTime newReferralDate = DateTime.Now;
+    string? newAgencyName;
+    string? newAgencyContact;
+    string? newAgencyPhone;
+    string? newReferralSocialWorkerName;
+    DateTime? newFollowUpDate;
+    string? newReferralReason;
+    string? newReferralComments;
+
+    // ── Helpers ───────────────────────────────────────────────────────────────
+
+    void ClearMessages() { error = null; successMessage = null; }
+
+    async Task HandleKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter") await LoadData();
+    }
+
+    async Task LoadData()
+    {
+        if (string.IsNullOrWhiteSpace(patientId)) return;
+        ClearMessages();
+        loading = true;
+        dataLoaded = false;
+        selectedAssessment = null;
+        selectedReferral = null;
+        try
+        {
+            var workflow = Grains.GetGrain<IPatientWorkflowGrain>(patientId.Trim());
+            assessments = await workflow.GetSocialWorkAssessmentsAsync();
+            referrals = await workflow.GetSocialWorkReferralsAsync();
+            dataLoaded = true;
+        }
+        catch (Exception ex)
+        {
+            error = $"Error loading social work data: {ex.Message}";
+        }
+        finally { loading = false; }
+    }
+
+    // ── Assessment actions ────────────────────────────────────────────────────
+
+    void ShowNewAssessmentForm()
+    {
+        ClearMessages();
+        newAssessmentType = "Psychosocial";
+        newAssessmentDate = DateTime.Now;
+        newSocialWorkerName = null;
+        newRiskLevel = "Unknown";
+        newHousingStatus = null;
+        newEmploymentStatus = null;
+        newSocialSupport = null;
+        newDischargePlan = null;
+        newDischargeDisposition = null;
+        newRecommendations = null;
+        newNotes = null;
+        showNewAssessment = true;
+    }
+
+    async Task SubmitAssessment()
+    {
+        ClearMessages();
+        saving = true;
+        try
+        {
+            var workflow = Grains.GetGrain<IPatientWorkflowGrain>(patientId.Trim());
+            await workflow.CreateSocialWorkAssessmentAsync(
+                Enum.Parse<SocialWorkAssessmentType>(newAssessmentType),
+                newAssessmentDate,
+                null,
+                newSocialWorkerName,
+                Enum.Parse<SocialWorkRiskLevel>(newRiskLevel),
+                newHousingStatus,
+                newEmploymentStatus,
+                newSocialSupport,
+                null,
+                null,
+                null,
+                null,
+                null,
+                newDischargeDisposition,
+                newDischargePlan,
+                null,
+                newRecommendations,
+                newNotes,
+                null,
+                null);
+            successMessage = "Assessment saved successfully.";
+            showNewAssessment = false;
+            await LoadData();
+        }
+        catch (Exception ex) { error = $"Error: {ex.Message}"; }
+        finally { saving = false; }
+    }
+
+    async Task ViewAssessment(string assessmentId)
+    {
+        ClearMessages();
+        try
+        {
+            var workflow = Grains.GetGrain<IPatientWorkflowGrain>(patientId.Trim());
+            selectedAssessment = await workflow.GetSocialWorkAssessmentAsync(assessmentId);
+        }
+        catch (Exception ex) { error = $"Error loading assessment: {ex.Message}"; }
+    }
+
+    async Task CompleteAssessment(string assessmentId)
+    {
+        ClearMessages();
+        try
+        {
+            var workflow = Grains.GetGrain<IPatientWorkflowGrain>(patientId.Trim());
+            await workflow.CompleteSocialWorkAssessmentAsync(assessmentId, DateTime.UtcNow, null, null);
+            successMessage = "Assessment completed.";
+            selectedAssessment = null;
+            await LoadData();
+        }
+        catch (Exception ex) { error = $"Error: {ex.Message}"; }
+    }
+
+    async Task CloseAssessment(string assessmentId)
+    {
+        ClearMessages();
+        try
+        {
+            var workflow = Grains.GetGrain<IPatientWorkflowGrain>(patientId.Trim());
+            await workflow.CloseSocialWorkAssessmentAsync(assessmentId, "Closed by clinician");
+            successMessage = "Assessment closed.";
+            selectedAssessment = null;
+            await LoadData();
+        }
+        catch (Exception ex) { error = $"Error: {ex.Message}"; }
+    }
+
+    // ── Referral actions ──────────────────────────────────────────────────────
+
+    void ShowNewReferralForm()
+    {
+        ClearMessages();
+        newServiceType = "Housing";
+        newReferralDate = DateTime.Now;
+        newAgencyName = null;
+        newAgencyContact = null;
+        newAgencyPhone = null;
+        newReferralSocialWorkerName = null;
+        newFollowUpDate = null;
+        newReferralReason = null;
+        newReferralComments = null;
+        showNewReferral = true;
+    }
+
+    async Task SubmitReferral()
+    {
+        ClearMessages();
+        saving = true;
+        try
+        {
+            var workflow = Grains.GetGrain<IPatientWorkflowGrain>(patientId.Trim());
+            await workflow.CreateSocialWorkReferralAsync(
+                newReferralDate,
+                null,
+                newReferralReason,
+                Enum.Parse<SocialWorkReferralServiceType>(newServiceType),
+                newAgencyName,
+                newAgencyContact,
+                newAgencyPhone,
+                null,
+                newReferralSocialWorkerName,
+                newFollowUpDate,
+                null,
+                null,
+                null,
+                newReferralComments);
+            successMessage = "Referral submitted successfully.";
+            showNewReferral = false;
+            await LoadData();
+        }
+        catch (Exception ex) { error = $"Error: {ex.Message}"; }
+        finally { saving = false; }
+    }
+
+    async Task ViewReferral(string referralId)
+    {
+        ClearMessages();
+        try
+        {
+            var workflow = Grains.GetGrain<IPatientWorkflowGrain>(patientId.Trim());
+            selectedReferral = await workflow.GetSocialWorkReferralAsync(referralId);
+        }
+        catch (Exception ex) { error = $"Error: {ex.Message}"; }
+    }
+
+    async Task UpdateReferralStatus(string referralId, string status)
+    {
+        ClearMessages();
+        try
+        {
+            var workflow = Grains.GetGrain<IPatientWorkflowGrain>(patientId.Trim());
+            await workflow.UpdateSocialWorkReferralStatusAsync(
+                referralId,
+                Enum.Parse<SocialWorkReferralStatus>(status),
+                null,
+                null);
+            successMessage = $"Referral status updated to {status}.";
+            selectedReferral = null;
+            await LoadData();
+        }
+        catch (Exception ex) { error = $"Error: {ex.Message}"; }
+    }
+
+    async Task CloseReferral(string referralId)
+    {
+        ClearMessages();
+        try
+        {
+            var workflow = Grains.GetGrain<IPatientWorkflowGrain>(patientId.Trim());
+            await workflow.CloseSocialWorkReferralAsync(referralId, null);
+            successMessage = "Referral closed.";
+            selectedReferral = null;
+            await LoadData();
+        }
+        catch (Exception ex) { error = $"Error: {ex.Message}"; }
+    }
+
+}
+
+<style>
+    .lookup-bar { display: flex; gap: .5rem; margin-bottom: 1rem; align-items: center; }
+    .lookup-input { flex: 1; max-width: 320px; padding: .4rem .6rem; border: 1px solid #ccc; border-radius: 4px; }
+    .tabs { display: flex; gap: 0; border-bottom: 2px solid #ddd; margin-bottom: 1rem; }
+    .tab { padding: .5rem 1.2rem; background: none; border: none; border-bottom: 2px solid transparent; margin-bottom: -2px; cursor: pointer; font-size: .95rem; }
+    .tab.active { border-bottom-color: #0066cc; color: #0066cc; font-weight: 600; }
+    .tab-content { padding-top: .5rem; }
+    .section-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: .75rem; }
+    .section-header h3 { margin: 0; }
+    .sw-form { background: #f8f9fa; border: 1px solid #dee2e6; border-radius: 6px; padding: 1rem; margin-bottom: 1rem; }
+    .sw-form h4 { margin: 0 0 .75rem; }
+    .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: .5rem 1rem; }
+    .form-row { display: flex; flex-direction: column; gap: .25rem; }
+    .form-row.full { grid-column: span 2; }
+    .form-row label { font-size: .85rem; font-weight: 600; }
+    .form-row input, .form-row select, .form-row textarea { padding: .35rem .5rem; border: 1px solid #ccc; border-radius: 4px; font-size: .9rem; }
+    .form-actions { display: flex; gap: .5rem; margin-top: .75rem; }
+    .sw-detail { background: #fff; border: 1px solid #c8d6e5; border-radius: 6px; padding: 1rem; margin-bottom: 1rem; }
+    .detail-header { display: flex; align-items: center; gap: .5rem; flex-wrap: wrap; margin-bottom: .75rem; }
+    .detail-grid { display: grid; grid-template-columns: 1fr 1fr; gap: .4rem .75rem; font-size: .9rem; margin-bottom: .75rem; }
+    .detail-grid .full { grid-column: span 2; }
+    .detail-grid pre { margin: .25rem 0 0; white-space: pre-wrap; word-break: break-word; }
+    .detail-actions { display: flex; gap: .5rem; flex-wrap: wrap; }
+    .abuse-alert { background: #fff3cd; border: 1px solid #ffc107; border-radius: 4px; padding: .4rem .6rem; }
+    .sw-table { width: 100%; border-collapse: collapse; font-size: .9rem; }
+    .sw-table th { background: #f1f3f5; text-align: left; padding: .4rem .6rem; border-bottom: 2px solid #dee2e6; }
+    .sw-table td { padding: .4rem .6rem; border-bottom: 1px solid #eee; }
+    .sw-table tr.selected td { background: #e8f0fe; }
+    .sw-table tr:hover td { background: #f5f7fb; }
+    .badge { display: inline-block; padding: .15rem .5rem; border-radius: 3px; font-size: .78rem; font-weight: 600; }
+    .badge-type { background: #e9ecef; color: #495057; }
+    .badge-risk.risk-low { background: #d4edda; color: #155724; }
+    .badge-risk.risk-moderate { background: #fff3cd; color: #856404; }
+    .badge-risk.risk-high { background: #f8d7da; color: #721c24; }
+    .badge-risk.risk-critical { background: #dc3545; color: #fff; }
+    .badge-risk.risk-unknown { background: #e9ecef; color: #495057; }
+    .badge-status.status-draft { background: #e9ecef; color: #495057; }
+    .badge-status.status-complete { background: #d4edda; color: #155724; }
+    .badge-status.status-closed { background: #6c757d; color: #fff; }
+    .badge-status.status-pending { background: #fff3cd; color: #856404; }
+    .badge-status.status-active { background: #cce5ff; color: #004085; }
+    .badge-status.status-declined { background: #f8d7da; color: #721c24; }
+    .badge-status.status-followupneeded { background: #f8d7da; color: #721c24; }
+    .btn { padding: .35rem .75rem; border-radius: 4px; border: 1px solid transparent; cursor: pointer; font-size: .9rem; }
+    .btn-primary { background: #0066cc; color: #fff; border-color: #0066cc; }
+    .btn-secondary { background: #6c757d; color: #fff; border-color: #6c757d; }
+    .btn-outline { background: transparent; color: #0066cc; border-color: #0066cc; }
+    .btn-accept { background: #28a745; color: #fff; border-color: #28a745; }
+    .btn-cancel-action { background: #dc3545; color: #fff; border-color: #dc3545; }
+    .btn-sm { padding: .2rem .5rem; font-size: .8rem; }
+    .btn:disabled { opacity: .6; cursor: not-allowed; }
+    .alert { padding: .5rem .75rem; border-radius: 4px; margin-bottom: .5rem; }
+    .alert-error { background: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
+    .alert-success { background: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
+    .empty-state { color: #888; font-style: italic; padding: 1rem 0; }
+</style>

@@ -1,0 +1,745 @@
+@page "/labs"
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+@rendermode InteractiveServer
+@using NewVistas.BlazorWeb.Services
+@using NewVistas.Abstractions.GrainInterfaces
+@using NewVistas.Abstractions.GrainStates
+@inject OrleansGrainService Grains
+
+<PageTitle>Laboratory — LR</PageTitle>
+
+<h2>Laboratory Information System (LR)</h2>
+<p class="subtitle">VistA File #63 — lab orders, results, and panels</p>
+
+<div class="tabs">
+    <button class="@TabClass("results")" @onclick='() => SetTab("results")'>Results</button>
+    <button class="@TabClass("summary")" @onclick='() => SetTab("summary")'>Current Summary</button>
+    <button class="@TabClass("order")" @onclick='() => SetTab("order")'>Order / Submit</button>
+</div>
+
+@if (!string.IsNullOrEmpty(error))
+{
+    <div class="error">@error</div>
+}
+
+@if (!string.IsNullOrEmpty(successMsg))
+{
+    <div class="success">@successMsg</div>
+}
+
+@* ── Tab 1: Results ─────────────────────────────────────────── *@
+@if (activeTab == "results")
+{
+    <div class="toolbar">
+        <input @bind="patientId" placeholder="Patient ID" class="input-id" />
+        <button @onclick="LoadResults" disabled="@loading">Load Results</button>
+        <button @onclick="LoadDemo" disabled="@loading" class="btn-demo">Load Demo</button>
+    </div>
+
+    @if (loading) { <p class="loading-msg">Loading…</p> }
+
+    @if (results is not null)
+    {
+        <div class="summary-cards">
+            <div class="card">
+                <span class="card-num">@results.Count</span>
+                <span class="card-label">Total Orders</span>
+            </div>
+            <div class="card card-warn">
+                <span class="card-num">@results.Count(r => !string.IsNullOrEmpty(r.Flag))</span>
+                <span class="card-label">Abnormal</span>
+            </div>
+            <div class="card card-pending">
+                <span class="card-num">@results.Count(r => r.Status is "Ordered" or "Collected" or "Pending")</span>
+                <span class="card-label">Pending</span>
+            </div>
+        </div>
+
+        @if (results.Count == 0)
+        {
+            <p class="empty-msg">No lab orders found for this patient.</p>
+        }
+        else
+        {
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Test</th>
+                        <th>Result</th>
+                        <th>Units</th>
+                        <th>Flag</th>
+                        <th>Status</th>
+                        <th>Collected</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (LabResult r in results)
+                    {
+                        <tr class="@RowClass(r)">
+                            <td class="test-name">@r.TestName</td>
+                            <td class="result-val @(string.IsNullOrEmpty(r.Flag) ? "" : "flagged")">@(r.ResultValue ?? "—")</td>
+                            <td>@(r.Units ?? "—")</td>
+                            <td>@if (!string.IsNullOrEmpty(r.Flag)) { <span class="badge @FlagBadge(r.Flag)">@r.Flag</span> } else { <span>—</span> }</td>
+                            <td><span class="badge @StatusBadge(r.Status)">@r.Status</span></td>
+                            <td class="date-col">@r.CollectionDate?.ToString("MM/dd/yy HH:mm")</td>
+                            <td>
+                                @if (r.Status == "Ordered")
+                                {
+                                    <button class="btn-sm" @onclick="() => OpenCollect(r.LabTestId)" disabled="@loading">Collect</button>
+                                }
+                                @if (r.Status == "Collected")
+                                {
+                                    <button class="btn-sm btn-result" @onclick="() => OpenResult(r.LabTestId, r.TestName)" disabled="@loading">Enter Result</button>
+                                }
+                                @if (r.Status == "Completed" && string.IsNullOrEmpty(r.VerifyingProviderName))
+                                {
+                                    <button class="btn-sm btn-verify" @onclick="() => OpenVerify(r.LabTestId)" disabled="@loading">Verify</button>
+                                }
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        }
+    }
+
+    @* Inline collect/result/verify panels *@
+    @if (collectLabTestId is not null)
+    {
+        <div class="action-panel">
+            <h4>Record Specimen Collection</h4>
+            <div class="form-row">
+                <label>Collection Time</label>
+                <input type="datetime-local" @bind="collectDateTime" />
+            </div>
+            <div class="form-row">
+                <label>Collection Sample</label>
+                <input @bind="collectSample" placeholder="e.g. LAVENDER" />
+            </div>
+            <div class="form-row">
+                <label>Performing Lab</label>
+                <input @bind="collectLab" placeholder="e.g. Hematology Lab" />
+            </div>
+            <div class="panel-actions">
+                <button @onclick="SubmitCollect" disabled="@loading" class="btn-primary">Submit</button>
+                <button @onclick="() => collectLabTestId = null">Cancel</button>
+            </div>
+        </div>
+    }
+
+    @if (resultLabTestId is not null)
+    {
+        <div class="action-panel">
+            <h4>Enter Result — @resultTestName</h4>
+            <div class="form-row">
+                <label>Result Value</label>
+                <input @bind="resultValue" placeholder="e.g. 7.5" />
+            </div>
+            <div class="form-row">
+                <label>Units</label>
+                <input @bind="resultUnit" placeholder="e.g. K/cmm" />
+            </div>
+            <div class="form-row">
+                <label>Reference Low</label>
+                <input @bind="resultRefLow" placeholder="e.g. 4.5" />
+            </div>
+            <div class="form-row">
+                <label>Reference High</label>
+                <input @bind="resultRefHigh" placeholder="e.g. 11.0" />
+            </div>
+            <div class="form-row">
+                <label>Abnormal Flag</label>
+                <select @bind="resultFlag">
+                    <option value="">Normal</option>
+                    <option value="H">H — High</option>
+                    <option value="L">L — Low</option>
+                    <option value="CH">CH — Critical High</option>
+                    <option value="CL">CL — Critical Low</option>
+                    <option value="A">A — Abnormal</option>
+                </select>
+            </div>
+            <div class="panel-actions">
+                <button @onclick="SubmitResult" disabled="@loading" class="btn-primary">Submit</button>
+                <button @onclick="() => resultLabTestId = null">Cancel</button>
+            </div>
+        </div>
+    }
+
+    @if (verifyLabTestId is not null)
+    {
+        <div class="action-panel">
+            <h4>Verify Result</h4>
+            <div class="form-row">
+                <label>Verifying Provider ID</label>
+                <input @bind="verifyProviderId" placeholder="Provider ID" />
+            </div>
+            <div class="form-row">
+                <label>Verifying Provider Name</label>
+                <input @bind="verifyProviderName" placeholder="Dr. Name" />
+            </div>
+            <div class="panel-actions">
+                <button @onclick="SubmitVerify" disabled="@loading" class="btn-primary">Verify</button>
+                <button @onclick="() => verifyLabTestId = null">Cancel</button>
+            </div>
+        </div>
+    }
+}
+
+@* ── Tab 2: Current Summary ──────────────────────────────────── *@
+@if (activeTab == "summary")
+{
+    <div class="toolbar">
+        <input @bind="patientId" placeholder="Patient ID" class="input-id" />
+        <button @onclick="LoadSummary" disabled="@loading">Load Summary</button>
+    </div>
+
+    @if (loading) { <p class="loading-msg">Loading…</p> }
+
+    @if (summary is not null)
+    {
+        @if (summary.Count == 0)
+        {
+            <p class="empty-msg">No ingested lab results found. Use the Order/Submit tab or Load Demo.</p>
+        }
+        else
+        {
+            @if (AbnormalSummary.Count > 0)
+            {
+                <div class="abnormal-banner">
+                    <strong>Abnormal Results (@AbnormalSummary.Count):</strong>
+                    @foreach (LabSummary a in AbnormalSummary)
+                    {
+                        <span class="badge @FlagBadge(a.AbnormalFlag)">@a.TestName @a.Value @a.Units</span>
+                    }
+                </div>
+            }
+
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Test</th>
+                        <th>LOINC</th>
+                        <th>Value</th>
+                        <th>Units</th>
+                        <th>Ref Range</th>
+                        <th>Flag</th>
+                        <th>Date</th>
+                        <th>Trend (last 3)</th>
+                        <th>Facility</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (LabSummary s in summary)
+                    {
+                        <tr>
+                            <td class="test-name">@s.TestName</td>
+                            <td class="loinc-col">@s.LoincCode</td>
+                            <td class="result-val @(s.AbnormalFlag is not "Normal" and not "" ? "flagged" : "")">@s.Value</td>
+                            <td>@s.Units</td>
+                            <td class="ref-range">@s.ReferenceRange</td>
+                            <td>@if (s.AbnormalFlag is not "Normal" and not "") { <span class="badge @FlagBadge(s.AbnormalFlag)">@s.AbnormalFlag</span> } else { <span>—</span> }</td>
+                            <td class="date-col">@s.ResultDate.ToString("MM/dd/yy")</td>
+                            <td class="trend-col">@TrendDisplay(s.RecentTrend)</td>
+                            <td>@s.FacilityCode</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        }
+    }
+}
+
+@* ── Tab 3: Order / Submit ───────────────────────────────────── *@
+@if (activeTab == "order")
+{
+    <div class="form-section">
+        <div class="form-row">
+            <label>Patient ID</label>
+            <input @bind="patientId" placeholder="Patient ID" class="input-id" />
+        </div>
+    </div>
+
+    <div class="form-card">
+        <h3>Order New Lab Test</h3>
+        <div class="form-grid">
+            <label>Test Name</label>
+            <input @bind="newTestName" placeholder="e.g. CBC, BMP, Creatinine" />
+
+            <label>LOINC / Test Code</label>
+            <input @bind="newTestCode" placeholder="e.g. 2160-0" />
+
+            <label>Category</label>
+            <select @bind="newCategory">
+                <option value="">— Select —</option>
+                <option value="HEMATOLOGY">HEMATOLOGY</option>
+                <option value="CHEMISTRY">CHEMISTRY</option>
+                <option value="MICROBIOLOGY">MICROBIOLOGY</option>
+                <option value="COAGULATION">COAGULATION</option>
+                <option value="URINALYSIS">URINALYSIS</option>
+                <option value="SEROLOGY">SEROLOGY</option>
+                <option value="BLOOD BANK">BLOOD BANK</option>
+            </select>
+
+            <label>Specimen Type</label>
+            <select @bind="newSpecimen">
+                <option value="">— Select —</option>
+                <option value="Blood">Blood</option>
+                <option value="Serum">Serum</option>
+                <option value="Urine">Urine</option>
+                <option value="CSF">CSF</option>
+                <option value="Tissue">Tissue</option>
+                <option value="Stool">Stool</option>
+                <option value="Sputum">Sputum</option>
+                <option value="Swab">Swab</option>
+            </select>
+
+            <label>Ordering Provider</label>
+            <input @bind="newOrderingProvider" placeholder="Provider name" />
+        </div>
+        <div class="form-actions">
+            <button @onclick="SubmitOrder" disabled="@loading" class="btn-primary">Place Order</button>
+        </div>
+    </div>
+
+    <div class="form-card">
+        <h3>Ingest Result (HL7-style)</h3>
+        <p class="form-hint">Use this to submit a completed result directly — e.g., from a HL7 feed or external lab.</p>
+        <div class="form-grid">
+            <label>LOINC Code</label>
+            <input @bind="ingestLoinc" placeholder="e.g. 2160-0" />
+
+            <label>Test Name</label>
+            <input @bind="ingestTestName" placeholder="e.g. Creatinine" />
+
+            <label>Value</label>
+            <input @bind="ingestValue" placeholder="e.g. 1.1" />
+
+            <label>Units</label>
+            <input @bind="ingestUnits" placeholder="e.g. mg/dL" />
+
+            <label>Reference Range</label>
+            <input @bind="ingestRefRange" placeholder="e.g. 0.7-1.3" />
+
+            <label>Abnormal Flag</label>
+            <select @bind="ingestFlag">
+                <option value="Normal">Normal</option>
+                <option value="High">High</option>
+                <option value="Low">Low</option>
+                <option value="CriticalHigh">Critical High</option>
+                <option value="CriticalLow">Critical Low</option>
+                <option value="Abnormal">Abnormal</option>
+            </select>
+
+            <label>Facility Code</label>
+            <input @bind="ingestFacilityCode" placeholder="e.g. 688" />
+
+            <label>Panel Name</label>
+            <input @bind="ingestPanel" placeholder="e.g. CBC, BMP (optional)" />
+        </div>
+        <div class="form-actions">
+            <button @onclick="SubmitIngest" disabled="@loading" class="btn-primary">Ingest Result</button>
+        </div>
+    </div>
+}
+
+<style>
+    .subtitle { color: #666; font-size: 0.85rem; margin-bottom: 1rem; }
+    .tabs { display: flex; border-bottom: 2px solid #d4d9e0; margin-bottom: 1rem; gap: 0; }
+    .tabs button { padding: 0.4rem 1.1rem; border: 1px solid #ccc; border-bottom: none; background: #f4f6f9; cursor: pointer; font-size: 0.85rem; margin-right: 2px; }
+    .tabs button.active { background: white; border-top: 2px solid #2c5282; color: #2c5282; font-weight: 600; }
+    .toolbar { display: flex; gap: 0.5rem; margin-bottom: 1rem; flex-wrap: wrap; align-items: center; }
+    .input-id { width: 260px; padding: 0.35rem 0.6rem; border: 1px solid #ccc; border-radius: 3px; font-size: 0.85rem; }
+    button { padding: 0.35rem 0.9rem; border: 1px solid #2c5282; background: #2c5282; color: white; border-radius: 3px; cursor: pointer; font-size: 0.83rem; }
+    button:hover { background: #1a3a5c; }
+    button:disabled { background: #999; border-color: #999; cursor: not-allowed; }
+    .btn-demo { background: #4a5568; border-color: #4a5568; }
+    .btn-demo:hover { background: #2d3748; }
+    .btn-sm { padding: 0.2rem 0.55rem; font-size: 0.75rem; }
+    .btn-result { background: #276749; border-color: #276749; }
+    .btn-verify { background: #744210; border-color: #744210; }
+    .btn-primary { background: #2c5282; border-color: #2c5282; }
+    .error { background: #fff5f5; border: 1px solid #fc8181; color: #c53030; padding: 0.6rem 0.9rem; border-radius: 4px; margin-bottom: 0.75rem; }
+    .success { background: #f0fff4; border: 1px solid #68d391; color: #276749; padding: 0.6rem 0.9rem; border-radius: 4px; margin-bottom: 0.75rem; }
+    .loading-msg { color: #666; font-style: italic; }
+    .empty-msg { color: #999; font-style: italic; padding: 1.5rem 0; }
+
+    .summary-cards { display: flex; gap: 0.75rem; margin-bottom: 1rem; }
+    .card { padding: 0.6rem 1.1rem; border: 1px solid #d4d9e0; border-radius: 6px; text-align: center; min-width: 90px; }
+    .card-num { display: block; font-size: 1.6rem; font-weight: 700; color: #2c5282; }
+    .card-label { font-size: 0.72rem; color: #666; text-transform: uppercase; letter-spacing: 0.04em; }
+    .card-warn .card-num { color: #c05621; }
+    .card-pending .card-num { color: #744210; }
+
+    .data-table { width: 100%; border-collapse: collapse; font-size: 0.84rem; }
+    .data-table th { background: #2c5282; color: white; padding: 0.4rem 0.6rem; text-align: left; font-size: 0.77rem; text-transform: uppercase; }
+    .data-table td { padding: 0.38rem 0.6rem; border-bottom: 1px solid #edf2f7; }
+    .data-table tr:hover { background: #f7fafc; }
+    .row-abnormal { background: #fffbeb; }
+    .row-critical { background: #fff5f5; }
+    .test-name { font-weight: 500; }
+    .result-val.flagged { color: #c53030; font-weight: 600; }
+    .date-col { color: #888; font-size: 0.78rem; white-space: nowrap; }
+    .loinc-col { color: #666; font-size: 0.78rem; font-family: monospace; }
+    .ref-range { color: #666; font-size: 0.78rem; }
+    .trend-col { font-family: monospace; font-size: 0.82rem; color: #444; }
+
+    .badge { display: inline-block; padding: 0.15rem 0.45rem; border-radius: 3px; font-size: 0.73rem; font-weight: 700; }
+    .badge-normal { background: #c6f6d5; color: #22543d; }
+    .badge-high { background: #fed7aa; color: #7b341e; }
+    .badge-low { background: #bee3f8; color: #2c5282; }
+    .badge-critical { background: #fc8181; color: #63171b; }
+    .badge-ordered { background: #e9d8fd; color: #44337a; }
+    .badge-collected { background: #bee3f8; color: #2a4365; }
+    .badge-completed { background: #c6f6d5; color: #22543d; }
+    .badge-cancelled { background: #e2e8f0; color: #4a5568; }
+    .badge-verified { background: #c6f6d5; color: #22543d; }
+
+    .abnormal-banner { background: #fff9c4; border: 1px solid #f6e05e; padding: 0.6rem 1rem; border-radius: 4px; margin-bottom: 1rem; display: flex; gap: 0.5rem; flex-wrap: wrap; align-items: center; }
+
+    .action-panel { border: 1px solid #bee3f8; background: #ebf8ff; border-radius: 6px; padding: 1rem 1.25rem; margin-top: 1rem; max-width: 500px; }
+    .action-panel h4 { margin: 0 0 0.75rem; color: #2c5282; }
+    .form-row { display: flex; gap: 0.75rem; margin-bottom: 0.5rem; align-items: center; }
+    .form-row label { width: 140px; font-size: 0.83rem; color: #555; text-align: right; flex-shrink: 0; }
+    .form-row input, .form-row select { flex: 1; padding: 0.3rem 0.5rem; border: 1px solid #ccc; border-radius: 3px; font-size: 0.83rem; }
+    .panel-actions { display: flex; gap: 0.5rem; margin-top: 0.75rem; }
+
+    .form-card { border: 1px solid #d4d9e0; border-radius: 6px; padding: 1.25rem; margin-bottom: 1.25rem; max-width: 560px; }
+    .form-card h3 { margin: 0 0 1rem; font-size: 1rem; color: #2c5282; }
+    .form-grid { display: grid; grid-template-columns: 160px 1fr; gap: 0.5rem 0.75rem; align-items: center; margin-bottom: 0.75rem; }
+    .form-grid label { font-size: 0.83rem; color: #555; text-align: right; }
+    .form-grid input, .form-grid select { padding: 0.3rem 0.5rem; border: 1px solid #ccc; border-radius: 3px; font-size: 0.83rem; }
+    .form-actions { display: flex; justify-content: flex-end; margin-top: 0.5rem; }
+    .form-section { margin-bottom: 0.75rem; }
+    .form-hint { font-size: 0.8rem; color: #666; margin-bottom: 0.75rem; }
+</style>
+
+@code {
+    string activeTab = "results";
+    string patientId = string.Empty;
+    bool loading;
+    string? error;
+    string? successMsg;
+
+    // Tab 1 — Results
+    List<LabResult>? results;
+
+    // Tab 1 — Collect panel
+    string? collectLabTestId;
+    DateTime collectDateTime = DateTime.Now;
+    string collectSample = string.Empty;
+    string collectLab = string.Empty;
+
+    // Tab 1 — Record result panel
+    string? resultLabTestId;
+    string? resultTestName;
+    DateTime resultDateTime = DateTime.Now;
+    string resultValue = string.Empty;
+    string resultUnit = string.Empty;
+    string resultRefLow = string.Empty;
+    string resultRefHigh = string.Empty;
+    string resultFlag = string.Empty;
+
+    // Tab 1 — Verify panel
+    string? verifyLabTestId;
+    string verifyProviderId = string.Empty;
+    string verifyProviderName = string.Empty;
+
+    // Tab 2 — Summary
+    List<LabSummary>? summary;
+
+    // Tab 3 — New order form
+    string newTestName = string.Empty;
+    string newTestCode = string.Empty;
+    string newCategory = string.Empty;
+    string newSpecimen = string.Empty;
+    string newOrderingProvider = string.Empty;
+
+    // Tab 3 — Ingest form
+    string ingestLoinc = string.Empty;
+    string ingestTestName = string.Empty;
+    string ingestValue = string.Empty;
+    string ingestUnits = string.Empty;
+    string ingestRefRange = string.Empty;
+    string ingestFlag = "Normal";
+    string ingestFacilityCode = "688";
+    string ingestPanel = string.Empty;
+
+    List<LabSummary> AbnormalSummary =>
+        summary?.Where(s => s.AbnormalFlag is not "Normal" and not "").ToList() ?? new();
+
+    string TabClass(string tab) => activeTab == tab ? "active" : string.Empty;
+
+    void SetTab(string tab)
+    {
+        activeTab = tab;
+        error = null;
+        successMsg = null;
+    }
+
+    void ClearMessages() { error = null; successMsg = null; }
+
+    string RowClass(LabResult r)
+    {
+        if (r.Flag is "CH" or "CL") return "row-critical";
+        if (!string.IsNullOrEmpty(r.Flag)) return "row-abnormal";
+        return string.Empty;
+    }
+
+    string FlagBadge(string? flag) => flag switch
+    {
+        "H" or "High" => "badge-high",
+        "L" or "Low" => "badge-low",
+        "CH" or "CriticalHigh" or "Critical" => "badge-critical",
+        "CL" or "CriticalLow" => "badge-critical",
+        "A" or "Abnormal" => "badge-high",
+        _ => "badge-normal"
+    };
+
+    string StatusBadge(string status) => status switch
+    {
+        "Ordered" => "badge-ordered",
+        "Collected" => "badge-collected",
+        "Pending" => "badge-collected",
+        "Completed" => "badge-completed",
+        "Verified" => "badge-verified",
+        "Cancelled" => "badge-cancelled",
+        _ => "badge-normal"
+    };
+
+    string TrendDisplay(List<TrendPoint> trend)
+    {
+        if (trend.Count == 0) return "—";
+        return string.Join(" → ", trend.Select(t =>
+        {
+            string indicator = t.AbnormalFlag is not "Normal" and not "" ? "!" : "";
+            return $"{t.Value}{indicator}";
+        }));
+    }
+
+    // ── Results tab ──────────────────────────────────────────────────────
+
+    async Task LoadResults()
+    {
+        if (string.IsNullOrWhiteSpace(patientId)) { error = "Patient ID required."; return; }
+        ClearMessages();
+        loading = true;
+        results = null;
+        try
+        {
+            var grain = Grains.GetGrain<IPatientWorkflowGrain>(patientId.Trim());
+            var labResults = await grain.GetLabResultsAsync();
+            results = labResults.Select(r => new LabResult(
+                r.LabTestId, r.TestName, r.ResultValue, r.Units, r.Flag, r.Status, r.CollectionDate)).ToList();
+        }
+        catch (Exception ex) { error = ex.Message; }
+        finally { loading = false; }
+    }
+
+    async Task LoadDemo()
+    {
+        if (string.IsNullOrWhiteSpace(patientId)) patientId = "PATIENT-DEMO-001";
+        ClearMessages();
+        loading = true;
+        try
+        {
+            // Demo load requires specific lab orders to be placed — seed a few via grain calls
+            var grain = Grains.GetGrain<IPatientWorkflowGrain>(patientId.Trim());
+            await grain.OrderLabTestAsync("LR-CBC", "CBC", "58410-2", null, null, "Demo Provider", "Blood", "HEMATOLOGY");
+            await grain.OrderLabTestAsync("LR-BMP", "Basic Metabolic Panel", "51990-0", null, null, "Demo Provider", "Serum", "CHEMISTRY");
+            successMsg = "Demo data loaded successfully.";
+            await LoadResults();
+        }
+        catch (Exception ex) { error = ex.Message; }
+        finally { loading = false; }
+    }
+
+    void OpenCollect(string labTestId)
+    {
+        ClearMessages();
+        collectLabTestId = labTestId;
+        collectDateTime = DateTime.Now;
+        collectSample = string.Empty;
+        collectLab = string.Empty;
+        resultLabTestId = null;
+        verifyLabTestId = null;
+    }
+
+    void OpenResult(string labTestId, string testName)
+    {
+        ClearMessages();
+        resultLabTestId = labTestId;
+        resultTestName = testName;
+        resultDateTime = DateTime.Now;
+        resultValue = string.Empty;
+        resultUnit = string.Empty;
+        resultRefLow = string.Empty;
+        resultRefHigh = string.Empty;
+        resultFlag = string.Empty;
+        collectLabTestId = null;
+        verifyLabTestId = null;
+    }
+
+    void OpenVerify(string labTestId)
+    {
+        ClearMessages();
+        verifyLabTestId = labTestId;
+        verifyProviderId = string.Empty;
+        verifyProviderName = string.Empty;
+        collectLabTestId = null;
+        resultLabTestId = null;
+    }
+
+    async Task SubmitCollect()
+    {
+        if (collectLabTestId is null) return;
+        loading = true;
+        try
+        {
+            var grain = Grains.GetGrain<IPatientWorkflowGrain>(patientId.Trim());
+            await grain.CollectSpecimenAsync(collectLabTestId, collectDateTime.ToUniversalTime(), collectSample, collectLab);
+            collectLabTestId = null;
+            successMsg = "Specimen collection recorded.";
+            await LoadResults();
+        }
+        catch (Exception ex) { error = ex.Message; }
+        finally { loading = false; }
+    }
+
+    async Task SubmitResult()
+    {
+        if (resultLabTestId is null) return;
+        loading = true;
+        try
+        {
+            var grain = Grains.GetGrain<IPatientWorkflowGrain>(patientId.Trim());
+            await grain.RecordLabResultAsync(
+                resultLabTestId,
+                resultDateTime.ToUniversalTime(),
+                resultValue,
+                string.IsNullOrWhiteSpace(resultUnit) ? null : resultUnit,
+                string.IsNullOrWhiteSpace(resultRefLow) ? null : resultRefLow,
+                string.IsNullOrWhiteSpace(resultRefHigh) ? null : resultRefHigh,
+                string.IsNullOrWhiteSpace(resultFlag) ? null : resultFlag);
+            resultLabTestId = null;
+            successMsg = "Lab result recorded.";
+            await LoadResults();
+        }
+        catch (Exception ex) { error = ex.Message; }
+        finally { loading = false; }
+    }
+
+    async Task SubmitVerify()
+    {
+        if (verifyLabTestId is null) return;
+        loading = true;
+        try
+        {
+            var grain = Grains.GetGrain<IPatientWorkflowGrain>(patientId.Trim());
+            await grain.VerifyLabResultAsync(verifyLabTestId, verifyProviderId, verifyProviderName, DateTime.UtcNow);
+            verifyLabTestId = null;
+            successMsg = "Lab result verified.";
+            await LoadResults();
+        }
+        catch (Exception ex) { error = ex.Message; }
+        finally { loading = false; }
+    }
+
+    // ── Summary tab ──────────────────────────────────────────────────────
+
+    async Task LoadSummary()
+    {
+        if (string.IsNullOrWhiteSpace(patientId)) { error = "Patient ID required."; return; }
+        ClearMessages();
+        loading = true;
+        summary = null;
+        try
+        {
+            var grain = Grains.GetGrain<IPatientWorkflowGrain>(patientId.Trim());
+            var entries = await grain.GetLabSummaryAsync();
+            summary = entries.Select(e => new LabSummary(
+                e.LoincCode, e.TestName, e.Value, e.Units, e.ReferenceRange,
+                e.AbnormalFlag.ToString(), e.ResultDate, e.FacilityCode,
+                e.RecentTrend.Select(t => new TrendPoint(t.Value, t.ResultDate, t.AbnormalFlag.ToString())).ToList()
+            )).ToList();
+        }
+        catch (Exception ex) { error = ex.Message; }
+        finally { loading = false; }
+    }
+
+    // ── Order tab ────────────────────────────────────────────────────────
+
+    async Task SubmitOrder()
+    {
+        if (string.IsNullOrWhiteSpace(patientId)) { error = "Patient ID required."; return; }
+        if (string.IsNullOrWhiteSpace(newTestName)) { error = "Test name required."; return; }
+        ClearMessages();
+        loading = true;
+        try
+        {
+            var grain = Grains.GetGrain<IPatientWorkflowGrain>(patientId.Trim());
+            await grain.OrderLabTestAsync(
+                $"LR-{newTestCode}", newTestName,
+                string.IsNullOrWhiteSpace(newTestCode) ? null : newTestCode,
+                null, null,
+                string.IsNullOrWhiteSpace(newOrderingProvider) ? null : newOrderingProvider,
+                string.IsNullOrWhiteSpace(newSpecimen) ? null : newSpecimen,
+                string.IsNullOrWhiteSpace(newCategory) ? null : newCategory);
+            successMsg = $"Lab order placed: {newTestName}";
+            newTestName = string.Empty;
+            newTestCode = string.Empty;
+        }
+        catch (Exception ex) { error = ex.Message; }
+        finally { loading = false; }
+    }
+
+    async Task SubmitIngest()
+    {
+        if (string.IsNullOrWhiteSpace(patientId)) { error = "Patient ID required."; return; }
+        if (string.IsNullOrWhiteSpace(ingestLoinc) || string.IsNullOrWhiteSpace(ingestValue)) { error = "LOINC code and value required."; return; }
+        ClearMessages();
+        loading = true;
+        try
+        {
+            var grain = Grains.GetGrain<IPatientWorkflowGrain>(patientId.Trim());
+            await grain.IngestLabResultAsync(
+                $"MANUAL-{Guid.NewGuid()}", ingestLoinc, ingestTestName, ingestValue, ingestUnits,
+                string.IsNullOrWhiteSpace(ingestRefRange) ? null : ingestRefRange,
+                Enum.Parse<LabAbnormalFlag>(ingestFlag),
+                DateTimeOffset.UtcNow, ingestFacilityCode, null, null,
+                string.IsNullOrWhiteSpace(ingestPanel) ? null : ingestPanel);
+            successMsg = $"Result ingested: {ingestTestName} = {ingestValue} {ingestUnits}";
+            ingestLoinc = string.Empty;
+            ingestTestName = string.Empty;
+            ingestValue = string.Empty;
+            ingestUnits = string.Empty;
+        }
+        catch (Exception ex) { error = ex.Message; }
+        finally { loading = false; }
+    }
+
+    // ── DTOs ─────────────────────────────────────────────────────────────
+
+    record LabResult(
+        string LabTestId,
+        string TestName,
+        string? ResultValue,
+        string? Units,
+        string? Flag,
+        string Status,
+        DateTime? CollectionDate,
+        string? VerifyingProviderName = null);
+
+    record LabSummary(
+        string LoincCode,
+        string TestName,
+        string Value,
+        string Units,
+        string ReferenceRange,
+        string AbnormalFlag,
+        DateTimeOffset ResultDate,
+        string FacilityCode,
+        List<TrendPoint> RecentTrend);
+
+    record TrendPoint(string Value, DateTimeOffset ResultDate, string AbnormalFlag);
+}

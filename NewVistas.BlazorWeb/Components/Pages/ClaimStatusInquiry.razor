@@ -1,0 +1,163 @@
+@page "/claim-status"
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+@rendermode InteractiveServer
+@using NewVistas.BlazorWeb.Services
+@using NewVistas.Abstractions.GrainInterfaces
+@using NewVistas.Abstractions.GrainStates
+@inject OrleansGrainService Grains
+
+<PageTitle>Claim Status Inquiry (EDI 276/277)</PageTitle>
+
+<h3>Claim Status Inquiry</h3>
+<p class="text-muted">EDI 276 Inquiry / 277 Response — VistA IB Claim Status (IBCSC*.m)</p>
+
+<div class="mb-3 d-flex gap-2">
+    <input class="form-control" style="max-width:260px" placeholder="Patient ID" @bind="patientId" @bind:event="oninput" />
+    <button class="btn btn-primary" @onclick="LoadInquiries" disabled="@loading">Load</button>
+</div>
+
+@if (error != null) { <div class="alert alert-danger">@error</div> }
+
+<ul class="nav nav-tabs mb-3">
+    <li class="nav-item"><button class="nav-link @(tab == "list" ? "active" : "")" @onclick='() => tab = "list"'>Inquiry History</button></li>
+    <li class="nav-item"><button class="nav-link @(tab == "detail" ? "active" : "")" @onclick='() => tab = "detail"'>Inquiry Detail</button></li>
+    <li class="nav-item"><button class="nav-link @(tab == "new" ? "active" : "")" @onclick='() => tab = "new"'>New Inquiry</button></li>
+</ul>
+
+@if (tab == "list" && inquiries != null)
+{
+    <table class="table table-sm table-striped">
+        <thead><tr><th>Claim ID</th><th>Payer</th><th>Status</th><th>Claim Status</th><th>Submitted</th><th>Response</th><th></th></tr></thead>
+        <tbody>
+            @foreach (var i in inquiries)
+            {
+                <tr>
+                    <td class="font-monospace small">@i.ClaimId[..Math.Min(12, i.ClaimId.Length)]...</td>
+                    <td>@i.PayerName</td>
+                    <td><span class="badge @InqBadge(i.Status)">@i.Status</span></td>
+                    <td><span class="badge @CatBadge(i.ClaimStatusCategory)">@i.ClaimStatusCategory</span></td>
+                    <td>@i.SubmittedDate?.ToString("MM/dd HH:mm")</td>
+                    <td>@i.ResponseDate?.ToString("MM/dd HH:mm")</td>
+                    <td><button class="btn btn-sm btn-outline-primary" @onclick="() => ViewDetail(i.InquiryId)">View</button></td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+
+@if (tab == "detail" && selected != null)
+{
+    <div class="card mb-3">
+        <div class="card-header"><strong>Inquiry:</strong> @selected.InquiryId <span class="badge @InqBadge(selected.Status) ms-2">@selected.Status</span></div>
+        <div class="card-body">
+            <div class="row">
+                <div class="col-md-6">
+                    <dl class="row mb-0">
+                        <dt class="col-sm-5">Claim ID</dt><dd class="col-sm-7 font-monospace">@selected.ClaimId</dd>
+                        <dt class="col-sm-5">Payer</dt><dd class="col-sm-7">@selected.PayerName</dd>
+                        <dt class="col-sm-5">Billed Amount</dt><dd class="col-sm-7">@(selected.TotalBilledAmount?.ToString("C") ?? "—")</dd>
+                        <dt class="col-sm-5">Trace #</dt><dd class="col-sm-7">@(selected.TraceNumber ?? "—")</dd>
+                    </dl>
+                </div>
+                <div class="col-md-6">
+                    <dl class="row mb-0">
+                        <dt class="col-sm-5">Claim Status</dt><dd class="col-sm-7"><span class="badge @CatBadge(selected.ClaimStatusCategory)">@selected.ClaimStatusCategory</span></dd>
+                        <dt class="col-sm-5">Paid Amount</dt><dd class="col-sm-7">@(selected.ReportedPaidAmount?.ToString("C") ?? "—")</dd>
+                        <dt class="col-sm-5">Payer Message</dt><dd class="col-sm-7">@(selected.PayerMessage ?? "—")</dd>
+                    </dl>
+                </div>
+            </div>
+            @if (selected.StatusDetails.Count > 0)
+            {
+                <h6 class="mt-3">Status Details (STC Segments)</h6>
+                <table class="table table-sm table-bordered">
+                    <thead><tr><th>Category</th><th>Description</th><th>Charge</th><th>Payment</th><th>Date</th><th>Message</th></tr></thead>
+                    <tbody>
+                        @foreach (var d in selected.StatusDetails)
+                        {
+                            <tr>
+                                <td>@d.StatusCategoryCode</td><td>@d.StatusCategoryDescription</td>
+                                <td>@(d.TotalChargeAmount?.ToString("C") ?? "—")</td>
+                                <td>@(d.PaymentAmount?.ToString("C") ?? "—")</td>
+                                <td>@(d.EffectiveDate?.ToString("yyyy-MM-dd") ?? "—")</td>
+                                <td>@(d.Message ?? "—")</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            }
+        </div>
+    </div>
+}
+
+@if (tab == "new")
+{
+    <div class="card">
+        <div class="card-header">Submit Claim Status Inquiry (EDI 276)</div>
+        <div class="card-body">
+            <div class="row g-2 mb-3">
+                <div class="col-md-4"><label class="form-label">Claim ID</label><input class="form-control" @bind="newClaimId" /></div>
+                <div class="col-md-4"><label class="form-label">Payer ID</label><input class="form-control" @bind="newPayerId" /></div>
+                <div class="col-md-4"><label class="form-label">Payer Name</label><input class="form-control" @bind="newPayerName" /></div>
+            </div>
+            <button class="btn btn-success" @onclick="Submit" disabled="@submitting">@(submitting ? "Submitting..." : "Submit 276 Inquiry")</button>
+            @if (submitResult != null) { <div class="alert alert-success mt-2">@submitResult</div> }
+        </div>
+    </div>
+}
+
+@code {
+    private string patientId = string.Empty;
+    private string tab = "list";
+    private bool loading;
+    private string? error;
+    private List<ClaimStatusInquiryIndexEntry>? inquiries;
+    private ClaimStatusInquiryState? selected;
+    private string newClaimId = string.Empty, newPayerId = string.Empty, newPayerName = string.Empty;
+    private bool submitting;
+    private string? submitResult;
+
+    private async Task LoadInquiries()
+    {
+        if (string.IsNullOrWhiteSpace(patientId)) return;
+        loading = true; error = null;
+        try { inquiries = await Grains.GetGrain<IPatientWorkflowGrain>(patientId.Trim()).GetClaimStatusInquiriesAsync(); }
+        catch (Exception ex) { error = ex.Message; }
+        finally { loading = false; }
+    }
+
+    private async Task ViewDetail(string id)
+    {
+        try { selected = await Grains.GetGrain<IPatientWorkflowGrain>(patientId.Trim()).GetClaimStatusInquiryAsync(id); tab = "detail"; }
+        catch (Exception ex) { error = ex.Message; }
+    }
+
+    private async Task Submit()
+    {
+        if (string.IsNullOrWhiteSpace(patientId) || string.IsNullOrWhiteSpace(newClaimId)) return;
+        submitting = true; error = null; submitResult = null;
+        try
+        {
+            string id = await Grains.GetGrain<IPatientWorkflowGrain>(patientId.Trim())
+                .SubmitClaimStatusInquiryAsync(newClaimId, newPayerId, newPayerName, null, null, null);
+            submitResult = $"Inquiry submitted: {id}";
+            await LoadInquiries();
+        }
+        catch (Exception ex) { error = ex.Message; }
+        finally { submitting = false; }
+    }
+
+    private string InqBadge(ClaimStatusInquiryStatus s) => s switch
+    {
+        ClaimStatusInquiryStatus.ResponseReceived => "bg-success", ClaimStatusInquiryStatus.Submitted => "bg-info",
+        ClaimStatusInquiryStatus.Error => "bg-danger", _ => "bg-secondary",
+    };
+
+    private string CatBadge(ClaimStatusCategory c) => c switch
+    {
+        ClaimStatusCategory.Finalized => "bg-success", ClaimStatusCategory.Pending => "bg-info",
+        ClaimStatusCategory.Received => "bg-primary", ClaimStatusCategory.Rejected => "bg-warning text-dark",
+        ClaimStatusCategory.Denied => "bg-danger", ClaimStatusCategory.AdditionalInfoRequested => "bg-warning text-dark",
+        _ => "bg-secondary",
+    };
+}

@@ -1,0 +1,547 @@
+@page "/service-connected"
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+@rendermode InteractiveServer
+@using NewVistas.BlazorWeb.Services
+@using NewVistas.Abstractions.GrainInterfaces
+@using NewVistas.Abstractions.GrainStates
+@inject OrleansGrainService Grains
+
+<PageTitle>Service Connected</PageTitle>
+<h1>Service Connected Conditions</h1>
+
+<div class="lookup-bar">
+    <input type="text" @bind="patientId" @bind:event="oninput" @onkeydown="HandleKeyDown" placeholder="Patient ID" class="lookup-input" />
+    <button @onclick="Load" disabled="@(string.IsNullOrWhiteSpace(patientId) || loading)" class="btn btn-primary">@(loading ? "Loading..." : "Load")</button>
+    <button @onclick="ShowForm" disabled="@(string.IsNullOrWhiteSpace(patientId))" class="btn btn-secondary">+ Record Condition</button>
+</div>
+
+@if (error != null) { <div class="alert alert-error">@error</div> }
+@if (success != null) { <div class="alert alert-success">@success</div> }
+
+@if (items != null || detail != null)
+{
+    <div class="tab-bar">
+        <button class="tab @(activeTab == "list" ? "tab-active" : "")" @onclick='() => SetTab("list")'>Conditions</button>
+        @if (detail != null)
+        {
+            <button class="tab @(activeTab == "detail" ? "tab-active" : "")" @onclick='() => SetTab("detail")'>Detail</button>
+        }
+    </div>
+}
+
+@if (showNew)
+{
+    <div class="entry-form">
+        <h3>Record Service Connected Condition</h3>
+        <div class="form-grid">
+            <div class="form-row"><label>Condition *</label><input type="text" @bind="f_condition" placeholder="e.g. Hearing Loss, Bilateral" /></div>
+            <div class="form-row"><label>Diagnosis Code (ICD-10)</label><input type="text" @bind="f_icd" placeholder="e.g. H90.3" /></div>
+            <div class="form-row"><label>Disability %</label><input type="number" @bind="f_pct" min="0" max="100" step="10" /></div>
+            <div class="form-row"><label>Service Connected?</label>
+                <select @bind="f_sc"><option value="true">Yes</option><option value="false">No</option></select>
+            </div>
+            <div class="form-row"><label>Effective Date</label><input type="date" @bind="f_date" /></div>
+            <div class="form-row"><label>Extremity Affected</label><input type="text" @bind="f_extremity" /></div>
+            <div class="form-row full"><label>Comments</label><textarea @bind="f_comments" rows="2" placeholder="Additional details..."></textarea></div>
+        </div>
+        <div class="form-actions">
+            <button @onclick="Submit" disabled="@saving" class="btn btn-primary">@(saving ? "Saving..." : "Record")</button>
+            <button @onclick="() => showNew = false" class="btn btn-outline">Cancel</button>
+        </div>
+    </div>
+}
+
+@if (activeTab == "list" && items != null)
+{
+    @if (items.Count == 0) { <div class="empty-state">No service connected conditions found.</div> }
+    else
+    {
+        <table class="data-table">
+            <thead><tr><th>Condition</th><th>ICD-10</th><th>Disability %</th><th>SC</th><th>Effective</th><th>Status</th></tr></thead>
+            <tbody>
+                @foreach (var s in items)
+                {
+                    <tr class="clickable" @onclick="() => ViewDetail(s.ConditionId)">
+                        <td>@s.Condition</td><td>@s.DiagnosisCode</td>
+                        <td>@(s.DisabilityPercentage.HasValue ? $"{s.DisabilityPercentage}%" : "--")</td>
+                        <td>@(s.IsServiceConnected ? "SC" : "NSC")</td>
+                        <td class="date">@s.EffectiveDate?.ToString("MM/dd/yyyy")</td>
+                        <td><span class="badge @(s.Status == "ACTIVE" ? "badge-green" : "badge-red")">@s.Status</span></td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    }
+}
+
+@if (activeTab == "detail" && detail != null)
+{
+    <div class="detail-panel">
+        <div class="detail-header">
+            <h3>@detail.Condition</h3>
+            <span class="badge @(detail.Status == "ACTIVE" ? "badge-green" : "badge-red")">@detail.Status</span>
+            <button @onclick="CloseDetail" class="btn btn-outline btn-sm-action">Close</button>
+        </div>
+        <div class="detail-grid">
+            <div><strong>ID:</strong> @detail.ConditionId</div>
+            <div><strong>ICD-10:</strong> @(detail.DiagnosisCode ?? "--")</div>
+            <div><strong>Disability %:</strong> @(detail.DisabilityPercentage.HasValue ? $"{detail.DisabilityPercentage}%" : "--")</div>
+            <div><strong>SC:</strong> @(detail.IsServiceConnected ? "Yes" : "No")</div>
+            <div><strong>Effective Date:</strong> @(detail.EffectiveDate?.ToString("MM/dd/yyyy") ?? "--")</div>
+            <div><strong>Extremity:</strong> @(detail.ExtremityAffected ?? "--")</div>
+            <div><strong>Combined Rating:</strong> @(detail.CombinedRating.HasValue ? $"{detail.CombinedRating}%" : "--")</div>
+            <div><strong>P&amp;T:</strong> @(detail.IsPermanentAndTotal.HasValue ? (detail.IsPermanentAndTotal.Value ? "Yes" : "No") : "--")</div>
+            <div><strong>SMC Level:</strong> @(detail.SmcLevel ?? "--")</div>
+            <div><strong>Appeal Status:</strong> @(detail.AppealStatus ?? "--")</div>
+            <div><strong>Appeal Filed:</strong> @(detail.AppealFiledDate?.ToString("MM/dd/yyyy") ?? "--")</div>
+            <div><strong>Rating Decision Date:</strong> @(detail.RatingDecisionDate?.ToString("MM/dd/yyyy") ?? "--")</div>
+            <div><strong>Exam Date:</strong> @(detail.LastExamDate?.ToString("MM/dd/yyyy") ?? "--")</div>
+            <div><strong>Next Exam Due:</strong> @(detail.NextExamDueDate?.ToString("MM/dd/yyyy") ?? "--")</div>
+            @if (!string.IsNullOrEmpty(detail.Comments))
+            {
+                <div class="full"><strong>Comments:</strong> @detail.Comments</div>
+            }
+        </div>
+
+        @* -- SC Percentage -- *@
+        <div class="section">
+            <h4>SC Percentage</h4>
+            <div class="entry-form compact">
+                <div class="form-grid">
+                    <div class="form-row"><label>Percentage (0-100) *</label><input type="number" @bind="pct_val" min="0" max="100" step="10" /></div>
+                </div>
+                <div class="form-actions">
+                    <button @onclick="SubmitPercentage" disabled="@saving" class="btn btn-primary">Set Percentage</button>
+                </div>
+            </div>
+        </div>
+
+        @* -- Rating Decision -- *@
+        <div class="section">
+            <h4>Rating Decision</h4>
+            <div class="entry-form compact">
+                <div class="form-grid">
+                    <div class="form-row"><label>Decision Date *</label><input type="date" @bind="rd_date" /></div>
+                    <div class="form-row"><label>Decision ID</label><input type="text" @bind="rd_id" /></div>
+                </div>
+                <div class="form-actions">
+                    <button @onclick="SubmitRatingDecision" disabled="@saving" class="btn btn-primary">Record Rating Decision</button>
+                </div>
+            </div>
+        </div>
+
+        @* -- Rated Disabilities -- *@
+        <div class="section">
+            <h4>Rated Disabilities (@disabilities.Count)</h4>
+            @if (disabilities.Count > 0)
+            {
+                <table class="data-table">
+                    <thead><tr><th>Condition</th><th>Rating %</th><th>Effective</th><th>Diagnostic Code</th><th>Static</th></tr></thead>
+                    <tbody>
+                        @foreach (var d in disabilities)
+                        {
+                            <tr>
+                                <td>@d.ConditionName</td><td>@d.RatingPercentage%</td>
+                                <td class="date">@d.EffectiveDate.ToString("MM/dd/yyyy")</td>
+                                <td>@d.DiagnosticCode</td>
+                                <td>@(d.IsStatic ? "Yes" : "No")</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            }
+            <div class="entry-form compact">
+                <div class="form-grid">
+                    <div class="form-row"><label>Condition Name *</label><input type="text" @bind="dis_name" /></div>
+                    <div class="form-row"><label>Rating % *</label><input type="number" @bind="dis_pct" min="0" max="100" step="10" /></div>
+                    <div class="form-row"><label>Effective Date *</label><input type="date" @bind="dis_date" /></div>
+                    <div class="form-row"><label>Diagnostic Code</label><input type="text" @bind="dis_code" /></div>
+                    <div class="form-row"><label>Static?</label>
+                        <select @bind="dis_static"><option value="false">No</option><option value="true">Yes</option></select>
+                    </div>
+                </div>
+                <div class="form-actions">
+                    <button @onclick="SubmitDisability" disabled="@saving" class="btn btn-primary">Add Rated Disability</button>
+                </div>
+            </div>
+        </div>
+
+        @* -- Calculate Combined Rating -- *@
+        <div class="section">
+            <h4>Calculate Combined Rating</h4>
+            <div class="form-actions">
+                <button @onclick="CalculateCombined" disabled="@saving" class="btn btn-primary">Calculate Combined Rating</button>
+            </div>
+        </div>
+
+        @* -- Appeal Status -- *@
+        <div class="section">
+            <h4>Appeal Status</h4>
+            <div class="entry-form compact">
+                <div class="form-grid">
+                    <div class="form-row"><label>Status *</label>
+                        <select @bind="ap_status"><option value="">--</option><option>PENDING</option><option>IN_REVIEW</option><option>APPROVED</option><option>DENIED</option><option>REMANDED</option></select>
+                    </div>
+                    <div class="form-row"><label>Appeal Filed Date</label><input type="date" @bind="ap_date" /></div>
+                </div>
+                <div class="form-actions">
+                    <button @onclick="SubmitAppealStatus" disabled="@saving" class="btn btn-primary">Set Appeal Status</button>
+                </div>
+            </div>
+        </div>
+
+        @* -- Exam -- *@
+        <div class="section">
+            <h4>C&amp;P Exam</h4>
+            <div class="entry-form compact">
+                <div class="form-grid">
+                    <div class="form-row"><label>Exam Date *</label><input type="date" @bind="ex_date" /></div>
+                    <div class="form-row"><label>Examining Facility</label><input type="text" @bind="ex_facility" /></div>
+                    <div class="form-row"><label>Next Exam Due Date</label><input type="date" @bind="ex_nextDate" /></div>
+                </div>
+                <div class="form-actions">
+                    <button @onclick="SubmitExam" disabled="@saving" class="btn btn-primary">Record Exam</button>
+                </div>
+            </div>
+        </div>
+
+        @* -- P&T -- *@
+        <div class="section">
+            <h4>Permanent &amp; Total</h4>
+            <div class="entry-form compact">
+                <div class="form-grid">
+                    <div class="form-row"><label>Permanent and Total</label>
+                        <select @bind="pt_val"><option value="false">No</option><option value="true">Yes</option></select>
+                    </div>
+                </div>
+                <div class="form-actions">
+                    <button @onclick="SubmitPT" disabled="@saving" class="btn btn-primary">Set P&amp;T</button>
+                </div>
+            </div>
+        </div>
+
+        @* -- SMC -- *@
+        <div class="section">
+            <h4>Special Monthly Compensation (SMC)</h4>
+            <div class="entry-form compact">
+                <div class="form-grid">
+                    <div class="form-row"><label>SMC Level</label><input type="text" @bind="smc_level" placeholder="e.g. K, L, M, N, O, R, S, T" /></div>
+                </div>
+                <div class="form-actions">
+                    <button @onclick="SubmitSMC" disabled="@saving" class="btn btn-primary">Set SMC</button>
+                </div>
+            </div>
+        </div>
+
+        @* -- Notes -- *@
+        <div class="section">
+            <h4>Notes</h4>
+            <div class="entry-form compact">
+                <div class="form-grid">
+                    <div class="form-row"><label>Author *</label><input type="text" @bind="nt_author" /></div>
+                    <div class="form-row full"><label>Note *</label><textarea @bind="nt_text" rows="2"></textarea></div>
+                </div>
+                <div class="form-actions">
+                    <button @onclick="SubmitNote" disabled="@saving" class="btn btn-primary">Add Note</button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    [SupplyParameterFromQuery] public string? patientId { get; set; }
+    private List<ScListDto>? items;
+    private ScDetailDto? detail;
+    private List<RatedDisability> disabilities = new();
+    private bool loading, saving, showNew;
+    private string? error, success;
+    private string activeTab = "list";
+
+    // New form
+    private string f_condition = "", f_icd = "", f_sc = "true", f_extremity = "", f_comments = "";
+    private int? f_pct; private DateTime? f_date = DateTime.Today;
+
+    // Detail forms
+    private int pct_val;
+    private DateTime rd_date = DateTime.Today; private string rd_id = "";
+    private string dis_name = "", dis_code = "", dis_static = "false"; private int dis_pct; private DateTime dis_date = DateTime.Today;
+    private string ap_status = ""; private DateTime? ap_date;
+    private DateTime ex_date = DateTime.Today; private string ex_facility = ""; private DateTime? ex_nextDate;
+    private string pt_val = "false";
+    private string smc_level = "";
+    private string nt_author = "", nt_text = "";
+
+    protected override async Task OnParametersSetAsync() { if (!string.IsNullOrWhiteSpace(patientId)) await Load(); }
+    private async Task HandleKeyDown(KeyboardEventArgs e) { if (e.Key == "Enter") await Load(); }
+    private void SetTab(string tab) { activeTab = tab; success = null; }
+    private void ShowForm() { showNew = true; success = null; f_condition = ""; f_icd = ""; f_sc = "true"; f_extremity = ""; f_comments = ""; f_pct = null; f_date = DateTime.Today; }
+    private void CloseDetail() { detail = null; activeTab = "list"; }
+
+    private async Task Load()
+    {
+        if (string.IsNullOrWhiteSpace(patientId)) return; loading = true; error = null;
+        try
+        {
+            var workflow = Grains.GetGrain<IPatientWorkflowGrain>(patientId.Trim());
+            List<ServiceConnectedSummary> summaries = await workflow.GetServiceConnectedConditionsAsync();
+            items = summaries.Select(s => new ScListDto
+            {
+                ConditionId = s.ConditionId, Condition = s.Condition, DiagnosisCode = s.DiagnosisCode,
+                DisabilityPercentage = s.DisabilityPercentage, IsServiceConnected = s.IsServiceConnected,
+                Status = s.Status
+            }).ToList();
+        }
+        catch (Exception ex) { error = $"Error: {ex.Message}"; } finally { loading = false; }
+    }
+
+    private async Task ViewDetail(string conditionId)
+    {
+        error = null;
+        try
+        {
+            var match = items?.FirstOrDefault(i => i.ConditionId == conditionId);
+            if (match != null)
+            {
+                detail = new ScDetailDto
+                {
+                    ConditionId = match.ConditionId, Condition = match.Condition,
+                    DiagnosisCode = match.DiagnosisCode, DisabilityPercentage = match.DisabilityPercentage,
+                    IsServiceConnected = match.IsServiceConnected,
+                    Status = match.Status
+                };
+            }
+            activeTab = "detail";
+            ResetDetailForms();
+            await LoadDisabilities(conditionId);
+        }
+        catch (Exception ex) { error = ex.Message; }
+    }
+
+    private async Task LoadDisabilities(string conditionId)
+    {
+        try
+        {
+            var workflow = Grains.GetGrain<IPatientWorkflowGrain>(patientId!.Trim());
+            disabilities = await workflow.GetScRatedDisabilitiesAsync(conditionId);
+        }
+        catch { disabilities = new(); }
+    }
+
+    private void ResetDetailForms()
+    {
+        pct_val = 0;
+        rd_date = DateTime.Today; rd_id = "";
+        dis_name = ""; dis_pct = 0; dis_date = DateTime.Today; dis_code = ""; dis_static = "false";
+        ap_status = ""; ap_date = null;
+        ex_date = DateTime.Today; ex_facility = ""; ex_nextDate = null;
+        pt_val = "false"; smc_level = "";
+        nt_author = ""; nt_text = "";
+    }
+
+    private async Task Submit()
+    {
+        if (string.IsNullOrWhiteSpace(f_condition)) { error = "Condition is required."; return; }
+        saving = true; error = null;
+        try
+        {
+            var workflow = Grains.GetGrain<IPatientWorkflowGrain>(patientId!.Trim());
+            await workflow.RecordServiceConnectedConditionAsync(
+                f_condition, NullIfEmpty(f_icd), f_pct,
+                bool.Parse(f_sc), f_date, NullIfEmpty(f_extremity), NullIfEmpty(f_comments));
+            showNew = false; success = "Condition recorded."; await Load();
+        }
+        catch (Exception ex) { error = $"Error: {ex.Message}"; } finally { saving = false; }
+    }
+
+    private async Task SubmitPercentage()
+    {
+        saving = true; error = null;
+        try
+        {
+            var workflow = Grains.GetGrain<IPatientWorkflowGrain>(patientId!.Trim());
+            await workflow.SetServiceConnectedPercentageAsync(detail!.ConditionId, pct_val);
+            success = "Percentage set.";
+        }
+        catch (Exception ex) { error = $"Error: {ex.Message}"; } finally { saving = false; }
+    }
+
+    private async Task SubmitRatingDecision()
+    {
+        saving = true; error = null;
+        try
+        {
+            var workflow = Grains.GetGrain<IPatientWorkflowGrain>(patientId!.Trim());
+            await workflow.RecordScRatingDecisionAsync(detail!.ConditionId, rd_date, NullIfEmpty(rd_id));
+            success = "Rating decision recorded.";
+        }
+        catch (Exception ex) { error = $"Error: {ex.Message}"; } finally { saving = false; }
+    }
+
+    private async Task SubmitDisability()
+    {
+        if (string.IsNullOrWhiteSpace(dis_name)) { error = "Condition name is required."; return; }
+        saving = true; error = null;
+        try
+        {
+            var workflow = Grains.GetGrain<IPatientWorkflowGrain>(patientId!.Trim());
+            await workflow.AddRatedDisabilityAsync(detail!.ConditionId, dis_name, dis_pct, dis_date, NullIfEmpty(dis_code), bool.Parse(dis_static));
+            success = "Rated disability added."; dis_name = ""; dis_pct = 0; dis_code = "";
+            await LoadDisabilities(detail.ConditionId);
+        }
+        catch (Exception ex) { error = $"Error: {ex.Message}"; } finally { saving = false; }
+    }
+
+    private async Task CalculateCombined()
+    {
+        saving = true; error = null;
+        try
+        {
+            var workflow = Grains.GetGrain<IPatientWorkflowGrain>(patientId!.Trim());
+            await workflow.CalculateScCombinedRatingAsync(detail!.ConditionId);
+            success = "Combined rating calculated.";
+        }
+        catch (Exception ex) { error = $"Error: {ex.Message}"; } finally { saving = false; }
+    }
+
+    private async Task SubmitAppealStatus()
+    {
+        if (string.IsNullOrWhiteSpace(ap_status)) { error = "Appeal status is required."; return; }
+        saving = true; error = null;
+        try
+        {
+            var workflow = Grains.GetGrain<IPatientWorkflowGrain>(patientId!.Trim());
+            await workflow.SetScAppealStatusAsync(detail!.ConditionId, ap_status, ap_date);
+            success = "Appeal status set.";
+        }
+        catch (Exception ex) { error = $"Error: {ex.Message}"; } finally { saving = false; }
+    }
+
+    private async Task SubmitExam()
+    {
+        saving = true; error = null;
+        try
+        {
+            var workflow = Grains.GetGrain<IPatientWorkflowGrain>(patientId!.Trim());
+            await workflow.RecordScExamAsync(detail!.ConditionId, ex_date, NullIfEmpty(ex_facility), ex_nextDate);
+            success = "Exam recorded.";
+        }
+        catch (Exception ex) { error = $"Error: {ex.Message}"; } finally { saving = false; }
+    }
+
+    private async Task SubmitPT()
+    {
+        saving = true; error = null;
+        try
+        {
+            var workflow = Grains.GetGrain<IPatientWorkflowGrain>(patientId!.Trim());
+            await workflow.SetScPermanentAndTotalAsync(detail!.ConditionId, bool.Parse(pt_val));
+            success = "P&T status set.";
+        }
+        catch (Exception ex) { error = $"Error: {ex.Message}"; } finally { saving = false; }
+    }
+
+    private async Task SubmitSMC()
+    {
+        saving = true; error = null;
+        try
+        {
+            var workflow = Grains.GetGrain<IPatientWorkflowGrain>(patientId!.Trim());
+            await workflow.SetScSpecialMonthlyCompensationAsync(detail!.ConditionId, NullIfEmpty(smc_level));
+            success = "SMC level set.";
+        }
+        catch (Exception ex) { error = $"Error: {ex.Message}"; } finally { saving = false; }
+    }
+
+    private async Task SubmitNote()
+    {
+        if (string.IsNullOrWhiteSpace(nt_author) || string.IsNullOrWhiteSpace(nt_text)) { error = "Author and note text are required."; return; }
+        saving = true; error = null;
+        try
+        {
+            var workflow = Grains.GetGrain<IPatientWorkflowGrain>(patientId!.Trim());
+            await workflow.AddScConditionNoteAsync(detail!.ConditionId, nt_author, nt_text);
+            success = "Note added."; nt_author = ""; nt_text = "";
+        }
+        catch (Exception ex) { error = $"Error: {ex.Message}"; } finally { saving = false; }
+    }
+
+    private static string? NullIfEmpty(string s) => string.IsNullOrWhiteSpace(s) ? null : s;
+
+    private class ScListDto
+    {
+        public string ConditionId { get; set; } = "";
+        public string Condition { get; set; } = "";
+        public string? DiagnosisCode { get; set; }
+        public int? DisabilityPercentage { get; set; }
+        public bool IsServiceConnected { get; set; }
+        public DateTime? EffectiveDate { get; set; }
+        public string Status { get; set; } = "";
+    }
+
+    private class ScDetailDto
+    {
+        public string ConditionId { get; set; } = "";
+        public string Condition { get; set; } = "";
+        public string? DiagnosisCode { get; set; }
+        public int? DisabilityPercentage { get; set; }
+        public bool IsServiceConnected { get; set; }
+        public DateTime? EffectiveDate { get; set; }
+        public string? ExtremityAffected { get; set; }
+        public string Status { get; set; } = "";
+        public string? Comments { get; set; }
+        public int? CombinedRating { get; set; }
+        public bool? IsPermanentAndTotal { get; set; }
+        public string? SmcLevel { get; set; }
+        public string? AppealStatus { get; set; }
+        public DateTime? AppealFiledDate { get; set; }
+        public DateTime? RatingDecisionDate { get; set; }
+        public DateTime? LastExamDate { get; set; }
+        public DateTime? NextExamDueDate { get; set; }
+    }
+}
+
+<style>
+    h1 { color: #003f72; margin-bottom: 1.25rem; font-size: 1.4rem; }
+    .lookup-bar { display: flex; gap: .5rem; margin-bottom: 1.5rem; align-items: center; }
+    .lookup-input { width: 280px; padding: .5rem .75rem; border: 1px solid #ccc; border-radius: 4px; font-size: .9rem; }
+    .btn { padding: .5rem 1.25rem; border: none; border-radius: 4px; cursor: pointer; font-size: .85rem; }
+    .btn-primary { background: #003f72; color: white; } .btn-primary:hover { background: #002a4e; } .btn-primary:disabled { background: #999; cursor: not-allowed; }
+    .btn-secondary { background: #16a34a; color: white; } .btn-secondary:disabled { background: #999; }
+    .btn-outline { background: white; border: 1px solid #ccc; color: #333; }
+    .btn-sm-action { padding: 4px 12px; font-size: .8rem; }
+    .alert { padding: .75rem 1rem; border-radius: 4px; margin-bottom: 1rem; font-size: .85rem; }
+    .alert-error { background: #fde8e8; color: #b91c1c; border: 1px solid #f5c6c6; }
+    .alert-success { background: #dcfce7; color: #166534; border: 1px solid #bbf7d0; }
+    .empty-state { color: #999; font-style: italic; padding: 2rem 0; }
+    .tab-bar { display: flex; gap: 0; border-bottom: 2px solid #d4d9e0; margin-bottom: 1.25rem; }
+    .tab { background: none; border: none; padding: .6rem 1.25rem; cursor: pointer; font-size: .85rem; color: #555; border-bottom: 2px solid transparent; margin-bottom: -2px; }
+    .tab-active { color: #003f72; font-weight: 600; border-bottom-color: #003f72; }
+    .entry-form { border: 1px solid #d4d9e0; border-radius: 6px; padding: 1.25rem; margin-bottom: 1.5rem; background: #f9fafb; }
+    .entry-form.compact { margin-top: .75rem; padding: 1rem; }
+    .entry-form h3 { margin-bottom: 1rem; color: #003f72; }
+    .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: .75rem; }
+    .form-row { display: flex; flex-direction: column; gap: .25rem; }
+    .form-row.full { grid-column: 1 / -1; }
+    .form-row label { font-size: .8rem; font-weight: 600; color: #555; }
+    .form-row input, .form-row select, .form-row textarea { padding: .4rem .6rem; border: 1px solid #ccc; border-radius: 4px; font-size: .85rem; }
+    .form-row textarea { resize: vertical; }
+    .form-actions { display: flex; gap: .5rem; margin-top: .75rem; }
+    .data-table { width: 100%; border-collapse: collapse; font-size: .85rem; border: 1px solid #d4d9e0; }
+    .data-table thead { background: #f4f6f9; }
+    .data-table th { text-align: left; padding: .5rem; font-weight: 600; color: #003f72; border-bottom: 2px solid #d4d9e0; font-size: .75rem; text-transform: uppercase; }
+    .data-table td { padding: .4rem .5rem; border-bottom: 1px solid #f0f0f0; }
+    .data-table tr.clickable { cursor: pointer; }
+    .data-table tr.clickable:hover { background: #eef3f9; }
+    .date { color: #888; font-size: .8rem; white-space: nowrap; }
+    .badge { padding: 2px 8px; border-radius: 3px; font-size: .7rem; font-weight: 600; }
+    .badge-green { background: #dcfce7; color: #166534; }
+    .badge-red { background: #fde8e8; color: #b91c1c; }
+    .detail-panel { border: 1px solid #d4d9e0; border-radius: 6px; padding: 1.25rem; margin-bottom: 1.5rem; }
+    .detail-header { display: flex; align-items: center; gap: .75rem; margin-bottom: 1rem; }
+    .detail-header h3 { margin: 0; color: #003f72; flex: 1; }
+    .detail-grid { display: grid; grid-template-columns: 1fr 1fr; gap: .5rem; font-size: .85rem; margin-bottom: .5rem; }
+    .detail-grid .full { grid-column: 1 / -1; }
+    .section { border-top: 1px solid #e5e7eb; padding-top: 1rem; margin-top: 1rem; }
+    .section h4 { color: #003f72; margin-bottom: .75rem; font-size: .95rem; }
+</style>

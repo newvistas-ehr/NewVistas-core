@@ -1,0 +1,587 @@
+@* Copyright 2026 James Smyth. All rights reserved. *@
+@page "/icare-dashboard"
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+@rendermode InteractiveServer
+@using NewVistas.BlazorWeb.Services
+@using NewVistas.Abstractions.GrainInterfaces
+@using NewVistas.Abstractions.GrainStates
+@inject OrleansGrainService Grains
+
+<PageTitle>iCare Dashboard</PageTitle>
+
+<h1>iCare Dashboard</h1>
+
+@if (loading)
+{
+    <div class="empty-state">Loading feature status...</div>
+}
+else if (featureChecked && !featureEnabled)
+{
+    <div class="alert alert-warning">
+        The <strong>ICARE_DASHBOARD</strong> feature is not enabled for this site.
+        Please enable it in <a href="/site-parameters">Site Parameters</a> before using the iCare Dashboard.
+    </div>
+}
+
+@if (error != null) { <div class="alert alert-error">@error</div> }
+@if (successMessage != null) { <div class="alert alert-success">@successMessage</div> }
+
+@if (!loading)
+{
+    <div class="tab-bar">
+        <button class="tab-btn @(activeTab == 0 ? "active" : "")" @onclick="() => activeTab = 0">Dashboard</button>
+        <button class="tab-btn @(activeTab == 1 ? "active" : "")" @onclick="() => activeTab = 1">Panel Management</button>
+        <button class="tab-btn @(activeTab == 2 ? "active" : "")" @onclick="() => activeTab = 2">Patient Detail</button>
+    </div>
+
+    @* ───── Tab 0: Dashboard ───── *@
+    @if (activeTab == 0)
+    {
+        <div class="form-section">
+            <div class="form-row">
+                <label>Provider ID</label>
+                <input type="text" class="form-input" @bind="providerId" @bind:event="oninput"
+                       placeholder="Enter provider ID" />
+            </div>
+            <div class="form-actions">
+                <button @onclick="GenerateDashboard"
+                        disabled="@(string.IsNullOrWhiteSpace(providerId) || generating)"
+                        class="btn btn-primary">
+                    @if (generating) { <span>Generating...</span> } else { <span>Generate</span> }
+                </button>
+            </div>
+        </div>
+
+        @if (dashboardResult != null)
+        {
+            <div class="summary-banner">
+                <div class="summary-item summary-total">
+                    <span class="summary-count">@dashboardResult.TotalPatients</span>
+                    <span class="summary-label">Total Patients</span>
+                </div>
+                <div class="summary-item summary-gaps">
+                    <span class="summary-count">@dashboardResult.PatientsWithGaps</span>
+                    <span class="summary-label">Patients With Gaps</span>
+                </div>
+                <div class="summary-item summary-due">
+                    <span class="summary-count">@dashboardResult.DueReminders</span>
+                    <span class="summary-label">Due Reminders</span>
+                </div>
+                <div class="summary-item summary-quality">
+                    <span class="summary-count">@dashboardResult.QualityGaps</span>
+                    <span class="summary-label">Quality Gaps</span>
+                </div>
+                <div class="summary-date">
+                    Generated: @dashboardResult.GeneratedDate.ToString("MM/dd/yyyy HH:mm")
+                </div>
+            </div>
+
+            @if (dashboardResult.Patients.Count > 0)
+            {
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>Patient</th>
+                            <th>Status</th>
+                            <th>Due Reminders</th>
+                            <th>Quality Gaps</th>
+                            <th>Registries</th>
+                            <th>Last Visit</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var pt in dashboardResult.Patients)
+                        {
+                            <tr>
+                                <td class="patient-name">@pt.PatientName</td>
+                                <td><span class="status-dot" style="background: @GetStatusColor(pt.Status);" title="@pt.Status"></span></td>
+                                <td class="code">@pt.DueReminderCount</td>
+                                <td class="code">@pt.QualityGapCount</td>
+                                <td class="code">@pt.RegistryCount</td>
+                                <td>@(pt.LastVisitDate?.ToString("MM/dd/yyyy") ?? "---")</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            }
+            else
+            {
+                <div class="empty-state">No patients found for this provider panel.</div>
+            }
+        }
+    }
+
+    @* ───── Tab 1: Panel Management ───── *@
+    @if (activeTab == 1)
+    {
+        <div class="form-section">
+            <div class="form-row">
+                <label>Provider ID</label>
+                <input type="text" class="form-input" @bind="providerId" @bind:event="oninput"
+                       placeholder="Enter provider ID" />
+            </div>
+            <div class="form-actions">
+                <button @onclick="LoadPanel"
+                        disabled="@(string.IsNullOrWhiteSpace(providerId) || loadingPanel)"
+                        class="btn btn-primary">
+                    @if (loadingPanel) { <span>Loading...</span> } else { <span>Load Panel</span> }
+                </button>
+            </div>
+        </div>
+
+        @if (panelLoaded)
+        {
+            <h3>Add Patient to Panel</h3>
+            <div class="form-section">
+                <div class="form-row">
+                    <label>Patient ID</label>
+                    <input type="text" class="form-input" @bind="newPanelPatientId" @bind:event="oninput"
+                           placeholder="Patient ID" />
+                </div>
+                <div class="form-row">
+                    <label>Patient Name</label>
+                    <input type="text" class="form-input" @bind="newPanelPatientName" @bind:event="oninput"
+                           placeholder="Patient name" />
+                </div>
+                <div class="form-actions">
+                    <button @onclick="AddPatientToPanel"
+                            disabled="@(string.IsNullOrWhiteSpace(newPanelPatientId) || string.IsNullOrWhiteSpace(newPanelPatientName) || addingPatient)"
+                            class="btn btn-primary">
+                        @if (addingPatient) { <span>Adding...</span> } else { <span>Add Patient</span> }
+                    </button>
+                </div>
+            </div>
+
+            <h3>Current Panel</h3>
+            @if (panelPatients.Count > 0)
+            {
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>Patient ID</th>
+                            <th>Patient Name</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var pp in panelPatients)
+                        {
+                            <tr>
+                                <td class="code">@pp.PatientId</td>
+                                <td>@pp.PatientName</td>
+                                <td>
+                                    <button class="btn btn-danger btn-sm" @onclick="() => RemovePatientFromPanel(pp.PatientId)">Remove</button>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            }
+            else
+            {
+                <div class="empty-state">No patients in this provider's panel.</div>
+            }
+        }
+    }
+
+    @* ───── Tab 2: Patient Detail ───── *@
+    @if (activeTab == 2)
+    {
+        <div class="form-section">
+            <div class="form-row">
+                <label>Provider ID</label>
+                <input type="text" class="form-input" @bind="providerId" @bind:event="oninput"
+                       placeholder="Enter provider ID" />
+            </div>
+            <div class="form-row">
+                <label>Patient ID</label>
+                <input type="text" class="form-input" @bind="detailPatientId" @bind:event="oninput"
+                       placeholder="Enter patient ID" />
+            </div>
+            <div class="form-actions">
+                <button @onclick="LoadPatientDetail"
+                        disabled="@(string.IsNullOrWhiteSpace(providerId) || string.IsNullOrWhiteSpace(detailPatientId) || loadingDetail)"
+                        class="btn btn-primary">
+                    @if (loadingDetail) { <span>Loading...</span> } else { <span>Load Detail</span> }
+                </button>
+            </div>
+        </div>
+
+        @if (patientDetail != null)
+        {
+            <h3>Due Reminders</h3>
+            @if (patientDetail.DueReminders.Count > 0)
+            {
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>Reminder</th>
+                            <th>Due Date</th>
+                            <th>Priority</th>
+                            <th>Status</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var rem in patientDetail.DueReminders)
+                        {
+                            <tr>
+                                <td>@rem.ReminderName</td>
+                                <td>@(rem.DueDate?.ToString("MM/dd/yyyy") ?? "---")</td>
+                                <td>@rem.Priority</td>
+                                <td><span class="status-badge" style="@GetReminderStatusStyle(rem.Status)">@rem.Status</span></td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            }
+            else
+            {
+                <div class="empty-state">No due reminders for this patient.</div>
+            }
+
+            <h3>Quality Gaps</h3>
+            @if (patientDetail.QualityGaps.Count > 0)
+            {
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>Measure</th>
+                            <th>Gap</th>
+                            <th>Last Action</th>
+                            <th>Due Date</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var gap in patientDetail.QualityGaps)
+                        {
+                            <tr>
+                                <td>@gap.MeasureName</td>
+                                <td>@gap.GapDescription</td>
+                                <td>@(gap.LastActionDate?.ToString("MM/dd/yyyy") ?? "---")</td>
+                                <td>@(gap.DueDate?.ToString("MM/dd/yyyy") ?? "---")</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            }
+            else
+            {
+                <div class="empty-state">No quality gaps identified for this patient.</div>
+            }
+
+            <h3>Registry Enrollments</h3>
+            @if (patientDetail.RegistryEnrollments.Count > 0)
+            {
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>Registry</th>
+                            <th>Enrolled Date</th>
+                            <th>Status</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var reg in patientDetail.RegistryEnrollments)
+                        {
+                            <tr>
+                                <td>@reg.RegistryName</td>
+                                <td>@(reg.EnrolledDate?.ToString("MM/dd/yyyy") ?? "---")</td>
+                                <td><span class="status-badge" style="@GetRegistryStatusStyle(reg.Status)">@reg.Status</span></td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            }
+            else
+            {
+                <div class="empty-state">No registry enrollments for this patient.</div>
+            }
+        }
+    }
+}
+
+@code {
+    private int activeTab;
+    private string? providerId;
+    private bool loading = true;
+    private bool generating;
+    private bool featureEnabled;
+    private bool featureChecked;
+    private string? error;
+    private string? successMessage;
+
+    // Dashboard tab
+    private DashboardResultDto? dashboardResult;
+
+    // Panel Management tab
+    private bool loadingPanel;
+    private bool panelLoaded;
+    private bool addingPatient;
+    private string? newPanelPatientId;
+    private string? newPanelPatientName;
+    private List<PanelPatientDto> panelPatients = new();
+
+    // Patient Detail tab
+    private string? detailPatientId;
+    private bool loadingDetail;
+    private PatientSummaryDto? patientDetail;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await CheckFeatureStatus();
+    }
+
+    private async Task CheckFeatureStatus()
+    {
+        loading = true; error = null;
+        try
+        {
+            var siteGrain = Grains.GetGrain<ISiteParametersGrain>("SITE:DEFAULT");
+            featureEnabled = await siteGrain.IsFeatureEnabledAsync("ICARE_DASHBOARD");
+        }
+        catch (Exception ex) { error = $"Error checking feature status: {ex.Message}"; featureEnabled = false; }
+        finally { loading = false; featureChecked = true; }
+    }
+
+    private IiCareDashboardGrain GetDashboardGrain() => Grains.GetGrain<IiCareDashboardGrain>($"ICARE:{providerId!.Trim()}");
+
+    private async Task GenerateDashboard()
+    {
+        if (string.IsNullOrWhiteSpace(providerId)) return;
+        generating = true; error = null; successMessage = null; dashboardResult = null;
+        try
+        {
+            var grain = GetDashboardGrain();
+            var result = await grain.GenerateDashboardAsync();
+            dashboardResult = new DashboardResultDto
+            {
+                TotalPatients = result.TotalPatients, PatientsWithGaps = result.PatientsWithGaps,
+                DueReminders = result.TotalDueReminders, QualityGaps = result.TotalQualityGaps,
+                GeneratedDate = result.GeneratedDate,
+                Patients = result.PatientSummaries?.Select(p => new PatientSummaryDto
+                {
+                    PatientId = p.PatientId, PatientName = p.PatientName, Status = p.OverallStatus,
+                    DueReminderCount = p.DueReminderCount, QualityGapCount = p.QualityGapCount,
+                    RegistryCount = p.Registries.Count, LastVisitDate = p.LastVisitDate
+                }).ToList() ?? new()
+            };
+        }
+        catch (Exception ex) { error = $"Error generating dashboard: {ex.Message}"; }
+        finally { generating = false; }
+    }
+
+    private async Task LoadPanel()
+    {
+        if (string.IsNullOrWhiteSpace(providerId)) return;
+        loadingPanel = true; error = null; successMessage = null;
+        try
+        {
+            var grain = GetDashboardGrain();
+            var panel = await grain.GetPanelAsync();
+            panelPatients = panel.Select(p => new PanelPatientDto { PatientId = p.PatientId, PatientName = p.PatientName }).ToList();
+            panelLoaded = true;
+        }
+        catch (Exception ex) { error = $"Error loading panel: {ex.Message}"; }
+        finally { loadingPanel = false; }
+    }
+
+    private async Task AddPatientToPanel()
+    {
+        if (string.IsNullOrWhiteSpace(providerId) || string.IsNullOrWhiteSpace(newPanelPatientId) || string.IsNullOrWhiteSpace(newPanelPatientName)) return;
+        addingPatient = true; error = null; successMessage = null;
+        try
+        {
+            var grain = GetDashboardGrain();
+            await grain.AddPatientToPanelAsync(newPanelPatientId.Trim(), newPanelPatientName.Trim());
+            successMessage = $"Patient {newPanelPatientId.Trim()} added to panel.";
+            newPanelPatientId = null;
+            newPanelPatientName = null;
+            await LoadPanel();
+        }
+        catch (Exception ex) { error = $"Error adding patient: {ex.Message}"; }
+        finally { addingPatient = false; }
+    }
+
+    private async Task RemovePatientFromPanel(string patientId)
+    {
+        if (string.IsNullOrWhiteSpace(providerId)) return;
+        error = null; successMessage = null;
+        try
+        {
+            var grain = GetDashboardGrain();
+            await grain.RemovePatientFromPanelAsync(patientId.Trim());
+            successMessage = $"Patient {patientId} removed from panel.";
+            await LoadPanel();
+        }
+        catch (Exception ex) { error = $"Error removing patient: {ex.Message}"; }
+    }
+
+    private async Task LoadPatientDetail()
+    {
+        if (string.IsNullOrWhiteSpace(providerId) || string.IsNullOrWhiteSpace(detailPatientId)) return;
+        loadingDetail = true; error = null; successMessage = null; patientDetail = null;
+        try
+        {
+            var grain = GetDashboardGrain();
+            var summary = await grain.GetPatientSummaryAsync(detailPatientId.Trim());
+            patientDetail = new PatientSummaryDto
+            {
+                PatientId = summary.PatientId, PatientName = summary.PatientName, Status = summary.OverallStatus,
+                DueReminderCount = summary.DueReminderCount, QualityGapCount = summary.QualityGapCount,
+                RegistryCount = summary.Registries.Count, LastVisitDate = summary.LastVisitDate,
+                DueReminders = summary.DueReminders?.Select(r => new ReminderItemDto
+                    { ReminderName = r.ReminderName, DueDate = r.DueDate, Priority = r.Priority, Status = r.Category }).ToList() ?? new(),
+                QualityGaps = summary.QualityGaps?.Select(g => new QualityGapDto
+                    { MeasureName = g.MeasureTitle, GapDescription = g.GapDescription }).ToList() ?? new(),
+                RegistryEnrollments = summary.Registries?.Select(r => new RegistryEntryDto
+                    { RegistryName = r.RegistryType, Status = r.EnrollmentStatus }).ToList() ?? new()
+            };
+        }
+        catch (Exception ex) { error = $"Error loading patient detail: {ex.Message}"; }
+        finally { loadingDetail = false; }
+    }
+
+    private string GetStatusColor(string status)
+    {
+        return status.ToUpperInvariant() switch
+        {
+            "GREEN" => "#16a34a",
+            "YELLOW" => "#d97706",
+            "RED" => "#dc2626",
+            _ => "#6b7280"
+        };
+    }
+
+    private string GetReminderStatusStyle(string status)
+    {
+        return status.ToUpperInvariant() switch
+        {
+            "DUE" => "background: #dbeafe; color: #1e40af; border: 1px solid #93c5fd;",
+            "OVERDUE" => "background: #fde8e8; color: #b91c1c; border: 1px solid #f5c6c6;",
+            "UPCOMING" => "background: #f3f4f6; color: #6b7280; border: 1px solid #d1d5db;",
+            _ => "background: #f3f4f6; color: #6b7280; border: 1px solid #d1d5db;"
+        };
+    }
+
+    private string GetRegistryStatusStyle(string status)
+    {
+        return status.ToUpperInvariant() switch
+        {
+            "ACTIVE" => "background: #dcfce7; color: #166534; border: 1px solid #bbf7d0;",
+            "INACTIVE" => "background: #f3f4f6; color: #6b7280; border: 1px solid #d1d5db;",
+            _ => "background: #f3f4f6; color: #6b7280; border: 1px solid #d1d5db;"
+        };
+    }
+
+    // ── DTOs ──
+
+    private class FeatureStatusResponse { public string Feature { get; set; } = ""; public bool Enabled { get; set; } }
+
+    private class DashboardResultDto
+    {
+        public int TotalPatients { get; set; }
+        public int PatientsWithGaps { get; set; }
+        public int DueReminders { get; set; }
+        public int QualityGaps { get; set; }
+        public DateTime GeneratedDate { get; set; }
+        public List<PatientSummaryDto> Patients { get; set; } = new();
+    }
+
+    private class PatientSummaryDto
+    {
+        public string PatientId { get; set; } = "";
+        public string PatientName { get; set; } = "";
+        public string Status { get; set; } = "";
+        public int DueReminderCount { get; set; }
+        public int QualityGapCount { get; set; }
+        public int RegistryCount { get; set; }
+        public DateTime? LastVisitDate { get; set; }
+        public List<ReminderItemDto> DueReminders { get; set; } = new();
+        public List<QualityGapDto> QualityGaps { get; set; } = new();
+        public List<RegistryEntryDto> RegistryEnrollments { get; set; } = new();
+    }
+
+    private class ReminderItemDto
+    {
+        public string ReminderName { get; set; } = "";
+        public DateTime? DueDate { get; set; }
+        public string Priority { get; set; } = "";
+        public string Status { get; set; } = "";
+    }
+
+    private class QualityGapDto
+    {
+        public string MeasureName { get; set; } = "";
+        public string GapDescription { get; set; } = "";
+        public DateTime? LastActionDate { get; set; }
+        public DateTime? DueDate { get; set; }
+    }
+
+    private class RegistryEntryDto
+    {
+        public string RegistryName { get; set; } = "";
+        public DateTime? EnrolledDate { get; set; }
+        public string Status { get; set; } = "";
+    }
+
+    private class PanelPatientDto
+    {
+        public string PatientId { get; set; } = "";
+        public string PatientName { get; set; } = "";
+    }
+}
+
+<style>
+    .btn { padding: 0.5rem 1.25rem; border: none; border-radius: 4px; cursor: pointer; font-size: 0.85rem; }
+    .btn-primary { background: #003f72; color: white; }
+    .btn-primary:disabled { background: #999; cursor: not-allowed; }
+    .btn-danger { background: #dc2626; color: white; }
+    .btn-sm { padding: 0.25rem 0.75rem; font-size: 0.78rem; }
+    .alert { padding: 0.75rem 1rem; border-radius: 4px; margin-bottom: 1rem; }
+    .alert-error { background: #fde8e8; color: #b91c1c; border: 1px solid #f5c6c6; }
+    .alert-success { background: #dcfce7; color: #166534; border: 1px solid #bbf7d0; }
+    .alert-warning { background: #fef3c7; color: #92400e; border: 1px solid #fde68a; }
+    .alert-warning a { color: #003f72; font-weight: 600; }
+    .empty-state { color: #999; font-style: italic; padding: 2rem 0; }
+
+    .tab-bar { display: flex; gap: 0; border-bottom: 2px solid #d4d9e0; margin-bottom: 1.5rem; }
+    .tab-btn { padding: 0.6rem 1.25rem; border: none; background: transparent; cursor: pointer; font-size: 0.85rem; font-weight: 500; color: #666; border-bottom: 2px solid transparent; margin-bottom: -2px; }
+    .tab-btn.active { color: #003f72; border-bottom-color: #003f72; font-weight: 600; }
+    .tab-btn:hover { color: #003f72; }
+
+    .form-section { max-width: 700px; }
+    .form-row { display: flex; align-items: center; gap: 1rem; margin-bottom: 0.75rem; }
+    .form-row label:first-child { width: 140px; font-size: 0.85rem; font-weight: 500; color: #333; flex-shrink: 0; }
+    .form-input { flex: 1; padding: 0.4rem 0.6rem; border: 1px solid #ccc; border-radius: 4px; font-size: 0.85rem; max-width: 350px; }
+    .form-actions { display: flex; gap: 0.75rem; margin-top: 1rem; margin-bottom: 1.5rem; }
+
+    .summary-banner { display: flex; align-items: center; gap: 1.5rem; padding: 1rem 1.25rem; background: #f4f6f9; border: 1px solid #d4d9e0; border-radius: 4px; margin-bottom: 1.5rem; flex-wrap: wrap; }
+    .summary-item { display: flex; flex-direction: column; align-items: center; padding: 0.5rem 1rem; border-radius: 4px; min-width: 80px; }
+    .summary-total { background: #dbeafe; border: 1px solid #93c5fd; }
+    .summary-gaps { background: #fde8e8; border: 1px solid #f5c6c6; }
+    .summary-due { background: #fef3c7; border: 1px solid #fde68a; }
+    .summary-quality { background: #fce7f3; border: 1px solid #f9a8d4; }
+    .summary-count { font-size: 1.5rem; font-weight: 700; line-height: 1; }
+    .summary-total .summary-count { color: #1e40af; }
+    .summary-gaps .summary-count { color: #b91c1c; }
+    .summary-due .summary-count { color: #92400e; }
+    .summary-quality .summary-count { color: #be185d; }
+    .summary-label { font-size: 0.7rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; margin-top: 0.25rem; }
+    .summary-total .summary-label { color: #1e40af; }
+    .summary-gaps .summary-label { color: #b91c1c; }
+    .summary-due .summary-label { color: #92400e; }
+    .summary-quality .summary-label { color: #be185d; }
+    .summary-date { margin-left: auto; font-size: 0.8rem; color: #666; }
+
+    .data-table { width: 100%; border-collapse: collapse; font-size: 0.85rem; margin-bottom: 1.5rem; }
+    .data-table th { text-align: left; padding: 0.5rem; font-weight: 600; color: #003f72; border-bottom: 2px solid #d4d9e0; font-size: 0.75rem; text-transform: uppercase; background: #f4f6f9; }
+    .data-table td { padding: 0.4rem 0.5rem; border-bottom: 1px solid #f0f0f0; }
+    .data-table tr:hover { background: #f9fafb; }
+    .code { font-family: monospace; color: #003f72; }
+    .patient-name { font-weight: 500; }
+
+    .status-dot { display: inline-block; width: 12px; height: 12px; border-radius: 50%; }
+    .status-badge { display: inline-block; padding: 0.2rem 0.6rem; border-radius: 3px; font-size: 0.75rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.03em; }
+
+    h3 { color: #003f72; font-size: 1rem; margin-top: 1.5rem; margin-bottom: 0.75rem; }
+</style>

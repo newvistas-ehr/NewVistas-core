@@ -1,0 +1,467 @@
+@page "/pt/goals"
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+@rendermode InteractiveServer
+@using NewVistas.BlazorWeb.Services
+@using NewVistas.PT.GrainInterfaces
+@using NewVistas.PT.GrainStates
+@using NewVistas.PT.Models
+@inject OrleansGrainService Grains
+@inject PatientContextService PatientContext
+@inject NavigationManager Nav
+
+<PageTitle>PT Goals</PageTitle>
+
+<div class="page-header">
+    <button class="btn btn-back" @onclick='() => Nav.NavigateTo($"/pt?patientId={Uri.EscapeDataString(patientId ?? "")}")'>Back to PT Hub</button>
+    <h1>PT Goals</h1>
+</div>
+
+<div class="lookup-bar">
+    <input type="text" @bind="patientId" @bind:event="oninput" @onkeydown="HandleKeyDown"
+           placeholder="Patient ID" class="lookup-input" />
+    <button @onclick="Load" disabled="@(string.IsNullOrWhiteSpace(patientId) || loading)" class="btn btn-primary">
+        @if (loading) { <span>Loading...</span> } else { <span>Load</span> }
+    </button>
+</div>
+
+@if (error != null) { <div class="alert alert-error">@error</div> }
+@if (successMessage != null) { <div class="alert alert-success">@successMessage</div> }
+
+@if (loaded)
+{
+    <div class="tab-bar">
+        <button class="tab @(activeTab == "active" ? "active" : "")" @onclick="LoadActiveGoals">Active Goals</button>
+        <button class="tab @(activeTab == "add" ? "active" : "")" @onclick='() => SetTab("add")'>Add Goal</button>
+        <button class="tab @(activeTab == "all" ? "active" : "")" @onclick='() => SetTab("all")'>All Goals</button>
+    </div>
+
+    @if (activeTab == "active")
+    {
+        @if (activeGoals != null && activeGoals.Count > 0)
+        {
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Body Group</th>
+                        <th>Type</th>
+                        <th>Movement</th>
+                        <th>Description</th>
+                        <th>Baseline</th>
+                        <th>Current</th>
+                        <th>Target</th>
+                        <th>Progress</th>
+                        <th>Target Date</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var g in activeGoals)
+                    {
+                        <tr>
+                            <td>@FormatBodyGroup(g.BodyGroup)</td>
+                            <td><span class="badge badge-@g.GoalType.ToString().ToLower()">@g.GoalType</span></td>
+                            <td>@(g.Movement.HasValue ? FormatMovement(g.Movement.Value) : "—")</td>
+                            <td>@g.Description</td>
+                            <td>@FormatValue(g.BaselineValue, g.GoalType)</td>
+                            <td>@FormatValue(g.CurrentValue, g.GoalType)</td>
+                            <td>@FormatValue(g.TargetValue, g.GoalType)</td>
+                            <td><span class="progress-bar-container"><span class="progress-fill" style="width: @(CalcProgress(g))%"></span></span> @CalcProgress(g)%</td>
+                            <td>@(g.TargetDate?.ToString("MM/dd/yyyy") ?? "—")</td>
+                            <td>
+                                <button class="btn btn-sm btn-primary" @onclick="() => ShowProgressForm(g)">Update</button>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        }
+        else
+        {
+            <div class="empty-state">No active goals. Use the "Add Goal" tab to create one.</div>
+        }
+
+        @if (showProgressForm && selectedGoal != null)
+        {
+            <div class="form-section progress-form">
+                <h3>Update Goal: @selectedGoal.Description</h3>
+                <div class="form-grid">
+                    <div class="form-row">
+                        <label>New Value</label>
+                        <input type="number" step="0.01" @bind="progressValue" class="form-input" />
+                    </div>
+                    <div class="form-row">
+                        <label>Status</label>
+                        <select @bind="progressStatus" class="form-input">
+                            <option value="">No Change</option>
+                            <option value="@GoalStatus.Active">Active</option>
+                            <option value="@GoalStatus.Achieved">Achieved</option>
+                            <option value="@GoalStatus.OnHold">On Hold</option>
+                            <option value="@GoalStatus.Discontinued">Discontinued</option>
+                        </select>
+                    </div>
+                    <div class="form-row">
+                        <label>Notes</label>
+                        <input type="text" @bind="progressNotes" placeholder="Progress notes" class="form-input" />
+                    </div>
+                </div>
+                <div class="form-actions">
+                    <button @onclick="SubmitProgress" disabled="@submitting" class="btn btn-primary">
+                        @(submitting ? "Saving..." : "Record Progress")
+                    </button>
+                    <button @onclick="() => showProgressForm = false" class="btn btn-secondary">Cancel</button>
+                </div>
+            </div>
+        }
+    }
+
+    @if (activeTab == "add")
+    {
+        <div class="form-section">
+            <div class="form-grid">
+                <div class="form-row">
+                    <label>Body Group</label>
+                    <select @bind="newGoalBodyGroup" class="form-input">
+                        @foreach (var bg in allBodyGroups)
+                        {
+                            <option value="@bg">@FormatBodyGroup(bg)</option>
+                        }
+                    </select>
+                </div>
+                <div class="form-row">
+                    <label>Goal Type</label>
+                    <select @bind="newGoalType" class="form-input">
+                        <option value="@GoalType.ROM">ROM</option>
+                        <option value="@GoalType.Strength">Strength</option>
+                        <option value="@GoalType.PainReduction">Pain Reduction</option>
+                        <option value="@GoalType.Functional">Functional</option>
+                        <option value="@GoalType.Balance">Balance</option>
+                        <option value="@GoalType.Endurance">Endurance</option>
+                    </select>
+                </div>
+                <div class="form-row">
+                    <label>Movement (optional)</label>
+                    <select @bind="newGoalMovement" class="form-input">
+                        <option value="">— None —</option>
+                        @foreach (var m in BodyGroupDefinitions.GetMovements(newGoalBodyGroup))
+                        {
+                            <option value="@m">@FormatMovement(m)</option>
+                        }
+                    </select>
+                </div>
+                <div class="form-row">
+                    <label>Side</label>
+                    <select @bind="newGoalSide" class="form-input">
+                        <option value="@Laterality.Bilateral">Bilateral</option>
+                        <option value="@Laterality.Left">Left</option>
+                        <option value="@Laterality.Right">Right</option>
+                    </select>
+                </div>
+                <div class="form-row">
+                    <label>Description</label>
+                    <input type="text" @bind="newGoalDescription" placeholder="e.g., Achieve 150° shoulder flexion" class="form-input" />
+                </div>
+                <div class="form-row">
+                    <label>Baseline Value</label>
+                    <input type="number" step="0.01" @bind="newGoalBaseline" class="form-input" />
+                </div>
+                <div class="form-row">
+                    <label>Target Value</label>
+                    <input type="number" step="0.01" @bind="newGoalTarget" class="form-input" />
+                </div>
+                <div class="form-row">
+                    <label>Target Date</label>
+                    <input type="date" @bind="newGoalTargetDate" class="form-input" />
+                </div>
+                <div class="form-row">
+                    <label>Notes</label>
+                    <textarea @bind="newGoalNotes" placeholder="Additional notes..." class="form-input" rows="2"></textarea>
+                </div>
+            </div>
+            <div class="form-actions">
+                <button @onclick="SubmitGoal" disabled="@submitting" class="btn btn-primary">
+                    @(submitting ? "Saving..." : "Add Goal")
+                </button>
+            </div>
+        </div>
+    }
+
+    @if (activeTab == "all")
+    {
+        <div class="form-section">
+            <div class="form-row">
+                <label>Filter by Body Group</label>
+                <select @bind="filterBodyGroup" class="form-input" style="width:200px">
+                    @foreach (var bg in allBodyGroups)
+                    {
+                        <option value="@bg">@FormatBodyGroup(bg)</option>
+                    }
+                </select>
+                <button @onclick="LoadAllGoals" disabled="@loading" class="btn btn-primary" style="margin-left:0.5rem">Load</button>
+            </div>
+        </div>
+
+        @if (allGoals != null && allGoals.Count > 0)
+        {
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Type</th>
+                        <th>Movement</th>
+                        <th>Description</th>
+                        <th>Baseline</th>
+                        <th>Current</th>
+                        <th>Target</th>
+                        <th>Status</th>
+                        <th>Created</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var g in allGoals)
+                    {
+                        <tr>
+                            <td><span class="badge badge-@g.GoalType.ToString().ToLower()">@g.GoalType</span></td>
+                            <td>@(g.Movement.HasValue ? FormatMovement(g.Movement.Value) : "—")</td>
+                            <td>@g.Description</td>
+                            <td>@FormatValue(g.BaselineValue, g.GoalType)</td>
+                            <td>@FormatValue(g.CurrentValue, g.GoalType)</td>
+                            <td>@FormatValue(g.TargetValue, g.GoalType)</td>
+                            <td><span class="status status-@g.Status.ToString().ToLower()">@g.Status</span></td>
+                            <td>@g.CreatedDate.ToString("MM/dd/yyyy")</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        }
+        else if (allGoals != null)
+        {
+            <div class="empty-state">No goals found for this body group.</div>
+        }
+    }
+}
+
+@code {
+    [SupplyParameterFromQuery] public string? patientId { get; set; }
+    private bool loading, loaded, submitting;
+    private string? error, successMessage;
+    private string activeTab = "active";
+    private List<BodyGroup> allBodyGroups = BodyGroupDefinitions.GetAllBodyGroups().ToList();
+
+    // Active goals tab
+    private List<PTGoal>? activeGoals;
+
+    // Progress update form
+    private bool showProgressForm;
+    private PTGoal? selectedGoal;
+    private decimal progressValue;
+    private GoalStatus? progressStatus;
+    private string? progressNotes;
+
+    // Add goal form
+    private BodyGroup newGoalBodyGroup = BodyGroup.Shoulder;
+    private GoalType newGoalType = GoalType.ROM;
+    private Movement? newGoalMovement;
+    private Laterality newGoalSide = Laterality.Bilateral;
+    private string? newGoalDescription;
+    private decimal newGoalBaseline;
+    private decimal newGoalTarget;
+    private DateTime? newGoalTargetDate;
+    private string? newGoalNotes;
+
+    // All goals tab
+    private BodyGroup filterBodyGroup = BodyGroup.Shoulder;
+    private List<PTGoal>? allGoals;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (string.IsNullOrWhiteSpace(patientId) && !string.IsNullOrWhiteSpace(PatientContext.PatientId))
+            patientId = PatientContext.PatientId;
+        if (!string.IsNullOrWhiteSpace(patientId))
+            await Load();
+    }
+
+    private async Task HandleKeyDown(KeyboardEventArgs e) { if (e.Key == "Enter") await Load(); }
+
+    private async Task Load()
+    {
+        if (string.IsNullOrWhiteSpace(patientId)) return;
+        loading = true; error = null;
+        try
+        {
+            PatientContext.SetPatient(patientId.Trim());
+            loaded = true;
+            await LoadActiveGoals();
+        }
+        catch (Exception ex) { error = ex.Message; }
+        finally { loading = false; }
+    }
+
+    private void SetTab(string tab) { activeTab = tab; error = null; successMessage = null; }
+
+    private async Task LoadActiveGoals()
+    {
+        activeTab = "active"; error = null; successMessage = null;
+        if (string.IsNullOrWhiteSpace(patientId)) return;
+        loading = true;
+        try
+        {
+            var grain = Grains.GetGrain<IPTWorkflowGrain>(patientId.Trim());
+            activeGoals = await grain.GetAllActiveGoalsAsync();
+        }
+        catch (Exception ex) { error = ex.Message; }
+        finally { loading = false; }
+    }
+
+    private async Task LoadAllGoals()
+    {
+        if (string.IsNullOrWhiteSpace(patientId)) return;
+        loading = true; error = null;
+        try
+        {
+            var grain = Grains.GetGrain<IPTWorkflowGrain>(patientId.Trim());
+            allGoals = await grain.GetGoalsForBodyGroupAsync(filterBodyGroup);
+        }
+        catch (Exception ex) { error = ex.Message; }
+        finally { loading = false; }
+    }
+
+    private void ShowProgressForm(PTGoal goal)
+    {
+        selectedGoal = goal;
+        progressValue = goal.CurrentValue;
+        progressStatus = null;
+        progressNotes = null;
+        showProgressForm = true;
+    }
+
+    private async Task SubmitProgress()
+    {
+        if (selectedGoal == null || string.IsNullOrWhiteSpace(patientId)) return;
+        submitting = true; error = null;
+        try
+        {
+            var grain = Grains.GetGrain<IPTWorkflowGrain>(patientId.Trim());
+            await grain.AddGoalProgressAsync(selectedGoal.BodyGroup, selectedGoal.GoalId, progressValue, progressNotes);
+            if (progressStatus.HasValue)
+                await grain.UpdateGoalAsync(selectedGoal.BodyGroup, selectedGoal.GoalId, progressStatus, null, null);
+
+            showProgressForm = false;
+            successMessage = "Progress recorded.";
+            await LoadActiveGoals();
+        }
+        catch (Exception ex) { error = ex.Message; }
+        finally { submitting = false; }
+    }
+
+    private async Task SubmitGoal()
+    {
+        if (string.IsNullOrWhiteSpace(patientId)) return;
+        if (string.IsNullOrWhiteSpace(newGoalDescription)) { error = "Description is required."; return; }
+        submitting = true; error = null; successMessage = null;
+        try
+        {
+            var grain = Grains.GetGrain<IPTWorkflowGrain>(patientId.Trim());
+            await grain.AddGoalAsync(newGoalBodyGroup, new PTGoal
+            {
+                GoalType = newGoalType,
+                Movement = newGoalMovement,
+                Side = newGoalSide,
+                Description = newGoalDescription,
+                TargetValue = newGoalTarget,
+                BaselineValue = newGoalBaseline,
+                CurrentValue = newGoalBaseline,
+                TargetDate = newGoalTargetDate,
+                Notes = newGoalNotes
+            });
+
+            successMessage = "Goal added successfully.";
+            newGoalDescription = null; newGoalNotes = null;
+            newGoalBaseline = 0; newGoalTarget = 0; newGoalTargetDate = null;
+            activeTab = "active";
+            await LoadActiveGoals();
+        }
+        catch (Exception ex) { error = ex.Message; }
+        finally { submitting = false; }
+    }
+
+    private int CalcProgress(PTGoal g)
+    {
+        if (g.TargetValue == g.BaselineValue) return g.Status == GoalStatus.Achieved ? 100 : 0;
+        decimal range = Math.Abs(g.TargetValue - g.BaselineValue);
+        decimal progress = Math.Abs(g.CurrentValue - g.BaselineValue);
+        return Math.Clamp((int)(progress / range * 100), 0, 100);
+    }
+
+    private static string FormatValue(decimal val, GoalType type) => type switch
+    {
+        GoalType.ROM => $"{val}°",
+        GoalType.Strength => $"{val}/5",
+        GoalType.PainReduction => $"{val}/10",
+        _ => val.ToString("0.##")
+    };
+
+    private static string FormatBodyGroup(BodyGroup bg) => bg switch
+    {
+        BodyGroup.Cervical => "Cervical (Neck)",
+        BodyGroup.ThoracicSpine => "Thoracic Spine",
+        BodyGroup.LumbarSpine => "Lumbar Spine",
+        BodyGroup.TMJ => "TMJ",
+        _ => bg.ToString()
+    };
+
+    private static string FormatMovement(Movement m) =>
+        System.Text.RegularExpressions.Regex.Replace(m.ToString(), "(\\B[A-Z])", " $1");
+}
+
+<style>
+    .page-header { display: flex; align-items: center; gap: 1rem; margin-bottom: 1rem; }
+    .page-header h1 { margin: 0; }
+    .btn-back { background: none; border: 1px solid #ccc; border-radius: 4px; padding: 0.3rem 0.75rem; cursor: pointer; font-size: 0.8rem; color: #003f72; }
+    .btn-back:hover { background: #f4f6f9; }
+    .lookup-bar { display: flex; gap: 0.5rem; margin-bottom: 1.5rem; }
+    .lookup-input { width: 280px; padding: 0.5rem 0.75rem; border: 1px solid #ccc; border-radius: 4px; font-size: 0.9rem; }
+    .btn { padding: 0.5rem 1.25rem; border: none; border-radius: 4px; cursor: pointer; font-size: 0.85rem; }
+    .btn-primary { background: #003f72; color: white; }
+    .btn-primary:disabled { background: #999; cursor: not-allowed; }
+    .btn-secondary { background: white; color: #003f72; border: 1px solid #003f72; }
+    .btn-sm { padding: 0.25rem 0.6rem; font-size: 0.75rem; }
+    .alert-error { background: #fde8e8; color: #b91c1c; border: 1px solid #f5c6c6; padding: 0.75rem 1rem; border-radius: 4px; margin-bottom: 1rem; }
+    .alert-success { background: #dcfce7; color: #166534; border: 1px solid #bbf7d0; padding: 0.75rem 1rem; border-radius: 4px; margin-bottom: 1rem; }
+    .empty-state { color: #999; font-style: italic; padding: 2rem 0; }
+
+    .tab-bar { display: flex; gap: 0; margin-bottom: 1.5rem; border-bottom: 2px solid #d4d9e0; }
+    .tab { padding: 0.5rem 1.25rem; border: none; background: none; cursor: pointer; font-size: 0.85rem; color: #555; border-bottom: 2px solid transparent; margin-bottom: -2px; }
+    .tab.active { color: #003f72; border-bottom-color: #003f72; font-weight: 600; }
+
+    .form-section { max-width: 700px; margin-bottom: 1.5rem; }
+    .form-grid { display: flex; flex-direction: column; gap: 0.5rem; }
+    .form-row { display: flex; align-items: center; gap: 1rem; }
+    .form-row label { width: 140px; font-size: 0.85rem; font-weight: 500; color: #333; flex-shrink: 0; }
+    .form-input { flex: 1; padding: 0.4rem 0.6rem; border: 1px solid #ccc; border-radius: 4px; font-size: 0.85rem; }
+    .form-actions { margin-top: 1rem; display: flex; gap: 0.5rem; }
+
+    .progress-form { margin-top: 1.5rem; padding: 1rem; background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 6px; }
+    .progress-form h3 { font-size: 0.9rem; color: #003f72; margin-bottom: 0.75rem; }
+
+    .data-table { width: 100%; border-collapse: collapse; font-size: 0.85rem; border: 1px solid #d4d9e0; margin-bottom: 1rem; }
+    .data-table thead { background: #f4f6f9; }
+    .data-table th { text-align: left; padding: 0.5rem; font-weight: 600; color: #003f72; border-bottom: 2px solid #d4d9e0; font-size: 0.75rem; text-transform: uppercase; }
+    .data-table td { padding: 0.35rem 0.5rem; border-bottom: 1px solid #f0f0f0; }
+    .data-table tr:hover { background: #f9fafb; }
+
+    .badge { display: inline-block; padding: 0.15rem 0.5rem; border-radius: 8px; font-size: 0.7rem; font-weight: 600; }
+    .badge-rom { background: #dbeafe; color: #1d4ed8; }
+    .badge-strength { background: #fef3c7; color: #92400e; }
+    .badge-painreduction { background: #fce7f3; color: #9d174d; }
+    .badge-functional { background: #d1fae5; color: #065f46; }
+    .badge-balance { background: #ede9fe; color: #5b21b6; }
+    .badge-endurance { background: #ffedd5; color: #9a3412; }
+
+    .status { font-size: 0.75rem; font-weight: 500; }
+    .status-active { color: #166534; }
+    .status-achieved { color: #1d4ed8; }
+    .status-discontinued { color: #b91c1c; }
+    .status-onhold { color: #92400e; }
+
+    .progress-bar-container { display: inline-block; width: 60px; height: 8px; background: #e5e7eb; border-radius: 4px; vertical-align: middle; margin-right: 4px; }
+    .progress-fill { display: block; height: 100%; background: #2563eb; border-radius: 4px; }
+</style>

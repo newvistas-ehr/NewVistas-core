@@ -1,0 +1,41 @@
+<UserControl x:Class="NewVistas.Wpf_UI.Views.InteractionBlockingView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <ScrollViewer VerticalScrollBarVisibility="Auto">
+        <StackPanel Margin="24">
+            <TextBlock Style="{StaticResource PageTitle}" Text="Drug Interaction Blocking"/>
+            <TextBlock Style="{StaticResource ErrorText}" Text="{Binding Error}"
+                       Visibility="{Binding Error, Converter={StaticResource NullToVisibility}}"/>
+            <TextBlock Foreground="Green" Text="{Binding ActionMessage}"
+                       Visibility="{Binding ActionMessage, Converter={StaticResource NullToVisibility}}" Margin="0,0,0,8"/>
+
+            <StackPanel Orientation="Horizontal" Margin="0,0,0,12">
+                <Button Content="Load Screenings" Style="{StaticResource PrimaryButton}"
+                        Command="{Binding LoadCommand}" Margin="0,0,8,0"/>
+                <ProgressBar IsIndeterminate="True" Width="120" Height="20"
+                             Visibility="{Binding IsLoading, Converter={StaticResource BoolToVisibility}}"/>
+            </StackPanel>
+
+            <DataGrid ItemsSource="{Binding Screenings}" AutoGenerateColumns="False" IsReadOnly="True" Height="250">
+                <DataGrid.Columns>
+                    <DataGridTextColumn Header="Date" Binding="{Binding ScreenedDate, StringFormat=g}" Width="140"/>
+                    <DataGridTextColumn Header="Drug" Binding="{Binding DrugName}" Width="*"/>
+                    <DataGridTextColumn Header="Rx ID" Binding="{Binding PrescriptionId}" Width="120"/>
+                    <DataGridTextColumn Header="Status" Binding="{Binding Status}" Width="120"/>
+                    <DataGridTextColumn Header="Blocking" Binding="{Binding BlockingCount}" Width="70"/>
+                    <DataGridTextColumn Header="Total" Binding="{Binding TotalInteractionCount}" Width="70"/>
+                </DataGrid.Columns>
+            </DataGrid>
+
+            <TextBlock Text="Blocked Screenings" FontWeight="Bold" Margin="0,12,0,4"/>
+            <DataGrid ItemsSource="{Binding BlockedScreenings}" AutoGenerateColumns="False" IsReadOnly="True" Height="150">
+                <DataGrid.Columns>
+                    <DataGridTextColumn Header="Date" Binding="{Binding ScreenedDate, StringFormat=g}" Width="140"/>
+                    <DataGridTextColumn Header="Drug" Binding="{Binding DrugName}" Width="*"/>
+                    <DataGridTextColumn Header="Status" Binding="{Binding Status}" Width="120"/>
+                    <DataGridTextColumn Header="Blocking" Binding="{Binding BlockingCount}" Width="70"/>
+                </DataGrid.Columns>
+            </DataGrid>
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>

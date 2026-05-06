@@ -1,0 +1,1121 @@
+@page "/accounts-receivable"
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+@rendermode InteractiveServer
+@using NewVistas.BlazorWeb.Services
+@using NewVistas.Abstractions.GrainInterfaces
+@using NewVistas.Abstractions.GrainStates
+@inject OrleansGrainService Grains
+
+<PageTitle>Accounts Receivable</PageTitle>
+
+<div class="ar-container">
+    <div class="ar-header">
+        <h2>Accounts Receivable</h2>
+        <div class="patient-lookup">
+            <input class="form-control" placeholder="Patient ID" @bind="patientId" />
+            <button class="btn btn-primary" @onclick="LoadPatient">Load</button>
+        </div>
+    </div>
+
+    @if (error != null)
+    {
+        <div class="alert alert-danger">@error</div>
+    }
+
+    @if (loaded)
+    {
+        <div class="debtor-summary">
+            <div class="summary-card">
+                <span class="label">Total Owed</span>
+                <span class="value">@debtor?.TotalAmountOwed.ToString("C")</span>
+            </div>
+            <div class="summary-card">
+                <span class="label">Total Paid</span>
+                <span class="value paid">@debtor?.TotalAmountPaid.ToString("C")</span>
+            </div>
+            <div class="summary-card @(debtor?.CurrentBalance > 0 ? "balance-due" : "")">
+                <span class="label">Balance Due</span>
+                <span class="value">@debtor?.CurrentBalance.ToString("C")</span>
+            </div>
+            @if (debtor?.IsDelinquent == true)
+            {
+                <span class="badge badge-danger">DELINQUENT</span>
+            }
+            @if (debtor?.IsInCollection == true)
+            {
+                <span class="badge badge-warning">IN COLLECTION</span>
+            }
+        </div>
+
+        <div class="ar-tabs">
+            <button class="tab-btn @(activeTab == "accounts" ? "active" : "")" @onclick='() => activeTab = "accounts"'>AR Accounts</button>
+            <button class="tab-btn @(activeTab == "batch" ? "active" : "")" @onclick='() => activeTab = "batch"'>Batch Payments</button>
+            <button class="tab-btn @(activeTab == "site" ? "active" : "")" @onclick='() => activeTab = "site"'>Site Parameters</button>
+            <button class="tab-btn @(activeTab == "top" ? "active" : "")" @onclick='async () => { activeTab = "top"; await LoadTopReferrals(); }'>Treasury Offset</button>
+        </div>
+
+        <!-- ─── AR Accounts Tab ──────────────────────────────────────────────── -->
+        @if (activeTab == "accounts")
+        {
+            <div class="tab-panel">
+                <h3>AR Accounts</h3>
+
+                @if (accounts == null || accounts.Count == 0)
+                {
+                    <p class="text-muted">No AR accounts found for this patient.</p>
+                }
+                else
+                {
+                    <table class="table ar-table">
+                        <thead>
+                            <tr>
+                                <th>Category</th>
+                                <th>Original</th>
+                                <th>Balance</th>
+                                <th>Status</th>
+                                <th>Established</th>
+                                <th></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var acct in accounts)
+                            {
+                                <tr class="@(selectedAccountId == acct.ARAccountId ? "selected-row" : "")">
+                                    <td>@acct.ARCategory</td>
+                                    <td>@acct.OriginalAmount.ToString("C")</td>
+                                    <td>@acct.CurrentBalance.ToString("C")</td>
+                                    <td><span class="badge @StatusBadgeClass(acct.ARStatus)">@acct.ARStatus</span></td>
+                                    <td>@acct.DateEstablished.ToString("MM/dd/yyyy")</td>
+                                    <td>
+                                        <button class="btn btn-sm btn-outline-primary" @onclick="() => SelectAccount(acct.ARAccountId)">Details</button>
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                }
+
+                <button class="btn btn-success btn-sm" @onclick='() => showCreateAccount = !showCreateAccount'>+ New AR Account</button>
+
+                @if (showCreateAccount)
+                {
+                    <div class="form-panel">
+                        <h4>Create AR Account</h4>
+                        <div class="form-row">
+                            <label>Category</label>
+                            <select class="form-control" @bind="newCategory">
+                                <option value="CopayOutpatient">Copay — Outpatient</option>
+                                <option value="CopayInpatient">Copay — Inpatient</option>
+                                <option value="CopayPharmacy">Copay — Pharmacy</option>
+                                <option value="CopayLongTermCare">Copay — Long-Term Care</option>
+                                <option value="MedicareDeductible">Medicare Deductible</option>
+                                <option value="Administrative">Administrative</option>
+                                <option value="Other">Other</option>
+                            </select>
+                        </div>
+                        <div class="form-row">
+                            <label>Original Amount ($)</label>
+                            <input class="form-control" type="number" step="0.01" @bind="newAmount" />
+                        </div>
+                        <div class="form-row">
+                            <label>Billing Action ID (optional)</label>
+                            <input class="form-control" @bind="newBillingActionId" />
+                        </div>
+                        <div class="form-row">
+                            <label>Due Date (optional)</label>
+                            <input class="form-control" type="date" @bind="newDueDate" />
+                        </div>
+                        <button class="btn btn-primary" @onclick="CreateAccount">Create Account</button>
+                        @if (createAccountMsg != null)
+                        {
+                            <span class="form-msg">@createAccountMsg</span>
+                        }
+                    </div>
+                }
+
+                <!-- Account Detail Panel -->
+                @if (selectedAccountId != null && selectedAccount != null)
+                {
+                    <div class="detail-panel">
+                        <h4>Account Detail — @selectedAccountId</h4>
+                        <div class="detail-grid">
+                            <div><strong>Status:</strong> <span class="badge @StatusBadgeClass(selectedAccount.ARStatus.ToString())">@selectedAccount.ARStatus</span></div>
+                            <div><strong>Category:</strong> @selectedAccount.ARCategory</div>
+                            <div><strong>Original Amount:</strong> @selectedAccount.OriginalAmount.ToString("C")</div>
+                            <div><strong>Current Balance:</strong> @selectedAccount.CurrentBalance.ToString("C")</div>
+                            <div><strong>Amount Paid:</strong> @selectedAccount.AmountPaid.ToString("C")</div>
+                            <div><strong>Amount Waived:</strong> @selectedAccount.AmountWaived.ToString("C")</div>
+                            <div><strong>Interest Accrued:</strong> @selectedAccount.InterestAccrued.ToString("C")</div>
+                            <div><strong>Established:</strong> @selectedAccount.DateEstablished.ToString("MM/dd/yyyy")</div>
+                            @if (selectedAccount.DueDate.HasValue)
+                            {
+                                <div><strong>Due Date:</strong> @selectedAccount.DueDate.Value.ToString("MM/dd/yyyy")</div>
+                            }
+                            @if (selectedAccount.TransactionIds.Count > 0)
+                            {
+                                <div class="txn-list"><strong>Transactions (@selectedAccount.TransactionIds.Count):</strong>
+                                    @foreach (var t in selectedAccount.TransactionIds)
+                                    {
+                                        <span class="txn-id">@t</span>
+                                    }
+                                </div>
+                            }
+                        </div>
+
+                        <!-- Post Payment -->
+                        <div class="action-section">
+                            <h5>Post Payment</h5>
+                            <div class="form-row">
+                                <input class="form-control" type="number" step="0.01" placeholder="Amount" @bind="payAmount" />
+                                <select class="form-control" @bind="payMethod">
+                                    <option value="CASH">Cash</option>
+                                    <option value="CHECK">Check</option>
+                                    <option value="CREDIT_CARD">Credit Card</option>
+                                    <option value="EFT">EFT</option>
+                                </select>
+                                <input class="form-control" placeholder="Receipt #" @bind="payReceipt" />
+                                <input class="form-control" placeholder="Check #" @bind="payCheck" />
+                                <input class="form-control" placeholder="Applied By User ID" @bind="payUserId" />
+                                <input class="form-control" placeholder="Applied By Name" @bind="payUserName" />
+                                <button class="btn btn-primary" @onclick="PostPayment">Post Payment</button>
+                            </div>
+                            @if (payMsg != null)
+                            {
+                                <span class="form-msg">@payMsg</span>
+                            }
+                        </div>
+
+                        <!-- Post Adjustment -->
+                        <div class="action-section">
+                            <h5>Post Adjustment</h5>
+                            <div class="form-row">
+                                <input class="form-control" type="number" step="0.01" placeholder="Amount (credit = positive)" @bind="adjAmount" />
+                                <input class="form-control" placeholder="Adjustment Type / Reason" @bind="adjType" />
+                                <input class="form-control" placeholder="Applied By User ID" @bind="adjUserId" />
+                                <input class="form-control" placeholder="Applied By Name" @bind="adjUserName" />
+                                <button class="btn btn-warning" @onclick="PostAdjustment">Post Adjustment</button>
+                            </div>
+                            @if (adjMsg != null)
+                            {
+                                <span class="form-msg">@adjMsg</span>
+                            }
+                        </div>
+
+                        <!-- Waive Account -->
+                        <div class="action-section">
+                            <h5>Waive Balance</h5>
+                            <div class="form-row">
+                                <input class="form-control" type="number" step="0.01" placeholder="Waived Amount" @bind="waiveAmount" />
+                                <input class="form-control" placeholder="Reason" @bind="waiveReason" />
+                                <input class="form-control" placeholder="Waived By User ID" @bind="waiveUserId" />
+                                <input class="form-control" placeholder="Waived By Name" @bind="waiveUserName" />
+                                <button class="btn btn-danger" @onclick="WaiveAccount">Waive</button>
+                            </div>
+                            @if (waiveMsg != null)
+                            {
+                                <span class="form-msg">@waiveMsg</span>
+                            }
+                        </div>
+
+                        <!-- Accrue Charges -->
+                        <div class="action-section">
+                            <h5>Accrue Charges</h5>
+                            <div class="form-row">
+                                <input class="form-control" placeholder="Applied By User ID" @bind="accrueUserId" />
+                            </div>
+                            <div class="form-row">
+                                <input class="form-control" type="number" step="0.01" placeholder="Interest Amount ($)" @bind="accrueInterestAmount" />
+                                <button class="btn btn-warning" @onclick="AccrueInterest">Apply Interest</button>
+                            </div>
+                            <div class="form-row">
+                                <input class="form-control" type="number" step="0.01" placeholder="Penalty Amount ($)" @bind="accruePenaltyAmount" />
+                                <button class="btn btn-warning" @onclick="AccruePenalty">Apply Penalty</button>
+                            </div>
+                            <div class="form-row">
+                                <input class="form-control" type="number" step="0.01" placeholder="Admin Cost Amount ($)" @bind="accrueAdminCostAmount" />
+                                <button class="btn btn-warning" @onclick="AccrueAdminCost">Apply Admin Cost</button>
+                            </div>
+                            @if (accrueMsg != null)
+                            {
+                                <span class="form-msg">@accrueMsg</span>
+                            }
+                        </div>
+                    </div>
+                }
+            </div>
+        }
+
+        <!-- ─── Batch Payments Tab ────────────────────────────────────────────── -->
+        @if (activeTab == "batch")
+        {
+            <div class="tab-panel">
+                <h3>Batch Payments</h3>
+
+                @if (batches == null || batches.Count == 0)
+                {
+                    <p class="text-muted">No batch payments found.</p>
+                }
+                else
+                {
+                    <table class="table ar-table">
+                        <thead>
+                            <tr>
+                                <th>Batch Date</th>
+                                <th>Facility</th>
+                                <th>Method</th>
+                                <th>Total</th>
+                                <th>Payments</th>
+                                <th>Status</th>
+                                <th></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var b in batches)
+                            {
+                                <tr>
+                                    <td>@b.BatchDate.ToString("MM/dd/yyyy")</td>
+                                    <td>@(b.FacilityName ?? "—")</td>
+                                    <td>@b.PaymentMethod</td>
+                                    <td>@b.TotalAmount.ToString("C")</td>
+                                    <td>@b.PaymentCount</td>
+                                    <td><span class="badge @(b.IsPosted ? "badge-success" : "badge-secondary")">@(b.IsPosted ? "Posted" : "Open")</span></td>
+                                    <td>
+                                        @if (!b.IsPosted)
+                                        {
+                                            <button class="btn btn-sm btn-primary" @onclick="() => PostBatch(b.BatchId)">Post Batch</button>
+                                        }
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                }
+
+                <button class="btn btn-success btn-sm" @onclick='() => showCreateBatch = !showCreateBatch'>+ New Batch</button>
+
+                @if (showCreateBatch)
+                {
+                    <div class="form-panel">
+                        <h4>Create Batch Payment</h4>
+                        <div class="form-row">
+                            <input class="form-control" placeholder="Facility ID (optional)" @bind="batchFacilityId" />
+                            <input class="form-control" placeholder="Facility Name (optional)" @bind="batchFacilityName" />
+                        </div>
+                        <div class="form-row">
+                            <label>Batch Date</label>
+                            <input class="form-control" type="date" @bind="batchDate" />
+                        </div>
+                        <div class="form-row">
+                            <select class="form-control" @bind="batchPayMethod">
+                                <option value="CASH">Cash</option>
+                                <option value="CHECK">Check</option>
+                                <option value="EFT">EFT</option>
+                            </select>
+                            <input class="form-control" placeholder="Check # (optional)" @bind="batchCheckNumber" />
+                        </div>
+                        <div class="form-row">
+                            <input class="form-control" placeholder="Notes (optional)" @bind="batchNotes" />
+                        </div>
+                        <button class="btn btn-primary" @onclick="CreateBatch">Create Batch</button>
+                        @if (batchMsg != null)
+                        {
+                            <span class="form-msg">@batchMsg</span>
+                        }
+                    </div>
+                }
+            </div>
+        }
+
+        <!-- ─── Site Parameters Tab ──────────────────────────────────────────── -->
+        @if (activeTab == "site")
+        {
+            <div class="tab-panel">
+                <h3>AR Site Parameters</h3>
+
+                @if (siteParams != null)
+                {
+                    <div class="detail-grid">
+                        <div><strong>Site Name:</strong> @siteParams.SiteName</div>
+                        <div><strong>Facility Number:</strong> @siteParams.ARFacilityNumber</div>
+                        <div><strong>Interest Rate:</strong> @siteParams.InterestRate.ToString("P2")</div>
+                        <div><strong>Admin Cost:</strong> @siteParams.AdminCost.ToString("C")</div>
+                        <div><strong>Penalty Rate:</strong> @siteParams.PenaltyRate.ToString("P2")</div>
+                        <div><strong>Min Payment:</strong> @siteParams.MinimumPaymentAmount.ToString("C")</div>
+                        <div><strong>Max Plan Months:</strong> @siteParams.MaxPaymentPlanMonths</div>
+                        <div><strong>Statement Freq (days):</strong> @siteParams.StatementFrequencyDays</div>
+                        <div><strong>Collection Threshold:</strong> @siteParams.CollectionThreshold.ToString("C")</div>
+                        <div><strong>Auto Interest:</strong> @(siteParams.IsAutoInterestEnabled ? "Yes" : "No")</div>
+                        <div><strong>Penalty Enabled:</strong> @(siteParams.IsPenaltyEnabled ? "Yes" : "No")</div>
+                        <div><strong>FMS Enabled:</strong> @(siteParams.IsFmsEnabled ? "Yes" : "No")</div>
+                        <div><strong>Treasury Offset:</strong> @(siteParams.IsTreasuryOffsetEnabled ? "Yes" : "No")</div>
+                    </div>
+                }
+
+                <div class="form-panel">
+                    <h4>Update Site Parameters</h4>
+                    <div class="form-row">
+                        <input class="form-control" placeholder="Site Name" @bind="spSiteName" />
+                        <input class="form-control" placeholder="Facility Number" @bind="spFacilityNumber" />
+                    </div>
+                    <div class="form-row">
+                        <input class="form-control" type="number" step="0.001" placeholder="Interest Rate (decimal, e.g. 0.015)" @bind="spInterestRate" />
+                        <input class="form-control" type="number" step="0.01" placeholder="Admin Cost ($)" @bind="spAdminCost" />
+                        <input class="form-control" type="number" step="0.001" placeholder="Penalty Rate (decimal)" @bind="spPenaltyRate" />
+                    </div>
+                    <div class="form-row">
+                        <input class="form-control" type="number" step="0.01" placeholder="Min Payment ($)" @bind="spMinPayment" />
+                        <input class="form-control" type="number" placeholder="Max Plan Months" @bind="spMaxMonths" />
+                        <input class="form-control" type="number" placeholder="Statement Freq (days)" @bind="spStatementDays" />
+                        <input class="form-control" type="number" step="0.01" placeholder="Collection Threshold ($)" @bind="spCollectionThreshold" />
+                    </div>
+                    <div class="form-row checkboxes">
+                        <label><input type="checkbox" @bind="spAutoInterest" /> Auto Interest</label>
+                        <label><input type="checkbox" @bind="spPenaltyEnabled" /> Penalty Enabled</label>
+                        <label><input type="checkbox" @bind="spFmsEnabled" /> FMS Enabled</label>
+                        <label><input type="checkbox" @bind="spTreasuryOffset" /> Treasury Offset</label>
+                    </div>
+                    <div class="form-row">
+                        <input class="form-control" placeholder="Updated By User ID" @bind="spUpdatedByUserId" />
+                    </div>
+                    <button class="btn btn-primary" @onclick="UpdateSiteParams">Update Parameters</button>
+                    @if (siteParamsMsg != null)
+                    {
+                        <span class="form-msg">@siteParamsMsg</span>
+                    }
+                </div>
+            </div>
+        }
+
+        <!-- ─── Treasury Offset Tab ────────────────────────────────────────────── -->
+        @if (activeTab == "top")
+        {
+            <div class="tab-panel">
+                <h3>Treasury Offset Program (TOP)</h3>
+
+                <!-- Refer Account to TOP -->
+                <div class="form-panel">
+                    <h4>Refer Account to TOP</h4>
+                    <div class="form-row">
+                        <input class="form-control" placeholder="AR Account ID" @bind="topAccountId" />
+                        <input class="form-control" placeholder="Patient Name" @bind="topPatientName" />
+                        <input class="form-control" type="number" step="0.01" placeholder="Referred Amount ($)" @bind="topReferredAmount" />
+                    </div>
+                    <div class="form-row">
+                        <input class="form-control" placeholder="Referred By User ID" @bind="topReferUserId" />
+                        <input class="form-control" placeholder="Referred By Name" @bind="topReferUserName" />
+                        <input class="form-control" placeholder="Notes (optional)" @bind="topReferNotes" />
+                    </div>
+                    <button class="btn btn-danger" @onclick="SubmitReferToTop">Refer to TOP</button>
+                    @if (topReferMsg != null)
+                    {
+                        <span class="form-msg">@topReferMsg</span>
+                    }
+                </div>
+
+                <!-- Pending Referrals -->
+                <h4 style="margin-top:1.5rem;">Pending Referrals</h4>
+                @if (pendingReferrals == null || pendingReferrals.Count == 0)
+                {
+                    <p class="text-muted">No pending TOP referrals.</p>
+                }
+                else
+                {
+                    <table class="table ar-table">
+                        <thead>
+                            <tr>
+                                <th>Referral ID</th>
+                                <th>Account ID</th>
+                                <th>Patient</th>
+                                <th>Referred</th>
+                                <th>Offset</th>
+                                <th>Status</th>
+                                <th></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var entry in pendingReferrals)
+                            {
+                                <tr>
+                                    <td>@entry.ReferralId</td>
+                                    <td>@entry.ARAccountId</td>
+                                    <td>@entry.PatientName</td>
+                                    <td>@entry.ReferredAmount.ToString("C")</td>
+                                    <td>@entry.OffsetAmount.ToString("C")</td>
+                                    <td><span class="badge @TopStatusBadgeClass(entry.Status)">@entry.Status</span></td>
+                                    <td>
+                                        <button class="btn btn-sm btn-primary" @onclick='() => ToggleOffsetPanel(entry.ReferralId)'>Record Offset</button>
+                                        <button class="btn btn-sm btn-danger" @onclick='() => ToggleWithdrawPanel(entry.ReferralId)'>Withdraw</button>
+                                    </td>
+                                </tr>
+                                @if (recordingOffsetReferralId == entry.ReferralId)
+                                {
+                                    <tr>
+                                        <td colspan="7">
+                                            <div class="form-panel">
+                                                <div class="form-row">
+                                                    <input class="form-control" type="number" step="0.01" placeholder="Offset Amount ($)" @bind="topOffsetAmount" />
+                                                    <input class="form-control" type="date" @bind="topOffsetDate" />
+                                                    <input class="form-control" placeholder="Processed By User ID" @bind="topOffsetUserId" />
+                                                    <input class="form-control" placeholder="Processed By Name" @bind="topOffsetUserName" />
+                                                    <button class="btn btn-primary" @onclick='() => SubmitTopOffset(entry.ReferralId)'>Submit Offset</button>
+                                                </div>
+                                                @if (topOffsetMsg != null) { <span class="form-msg">@topOffsetMsg</span> }
+                                            </div>
+                                        </td>
+                                    </tr>
+                                }
+                                @if (withdrawingReferralId == entry.ReferralId)
+                                {
+                                    <tr>
+                                        <td colspan="7">
+                                            <div class="form-panel">
+                                                <div class="form-row">
+                                                    <input class="form-control" placeholder="Withdrawal Reason" @bind="topWithdrawReason" />
+                                                    <button class="btn btn-danger" @onclick='() => SubmitWithdrawTop(entry.ReferralId)'>Confirm Withdraw</button>
+                                                </div>
+                                                @if (topWithdrawMsg != null) { <span class="form-msg">@topWithdrawMsg</span> }
+                                            </div>
+                                        </td>
+                                    </tr>
+                                }
+                            }
+                        </tbody>
+                    </table>
+                }
+
+                <!-- All Referrals -->
+                <h4 style="margin-top:1.5rem;">All Referrals</h4>
+                @if (topReferrals == null || topReferrals.Count == 0)
+                {
+                    <p class="text-muted">No TOP referrals on file.</p>
+                }
+                else
+                {
+                    <table class="table ar-table">
+                        <thead>
+                            <tr>
+                                <th>Referral ID</th>
+                                <th>Account ID</th>
+                                <th>Patient</th>
+                                <th>Referred</th>
+                                <th>Offset</th>
+                                <th>Status</th>
+                                <th>Referral Date</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var entry in topReferrals)
+                            {
+                                <tr>
+                                    <td>@entry.ReferralId</td>
+                                    <td>@entry.ARAccountId</td>
+                                    <td>@entry.PatientName</td>
+                                    <td>@entry.ReferredAmount.ToString("C")</td>
+                                    <td>@entry.OffsetAmount.ToString("C")</td>
+                                    <td><span class="badge @TopStatusBadgeClass(entry.Status)">@entry.Status</span></td>
+                                    <td>@entry.ReferralDate.ToString("MM/dd/yyyy")</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                }
+            </div>
+        }
+    }
+</div>
+
+@code {
+    [SupplyParameterFromQuery] private string PatientId { get; set; } = string.Empty;
+
+    private string patientId = string.Empty;
+    private string activeTab = "accounts";
+    private bool loaded;
+    private string? error;
+
+    // ─── Data models ──────────────────────────────────────────────────────────
+
+    private ARDebtorDto? debtor;
+    private List<ARAccountIndexEntryDto>? accounts;
+    private string? selectedAccountId;
+    private ARAccountDetailDto? selectedAccount;
+    private List<ARBatchIndexEntryDto>? batches;
+    private ARSiteParamsDto? siteParams;
+
+    // ─── Create Account form ──────────────────────────────────────────────────
+
+    private bool showCreateAccount;
+    private string newCategory = "CopayOutpatient";
+    private decimal newAmount;
+    private string? newBillingActionId;
+    private DateTime? newDueDate;
+    private string? createAccountMsg;
+
+    // ─── Payment form ─────────────────────────────────────────────────────────
+
+    private decimal payAmount;
+    private string payMethod = "CASH";
+    private string? payReceipt;
+    private string? payCheck;
+    private string payUserId = string.Empty;
+    private string payUserName = string.Empty;
+    private string? payMsg;
+
+    // ─── Adjustment form ──────────────────────────────────────────────────────
+
+    private decimal adjAmount;
+    private string adjType = string.Empty;
+    private string adjUserId = string.Empty;
+    private string adjUserName = string.Empty;
+    private string? adjMsg;
+
+    // ─── Waive form ───────────────────────────────────────────────────────────
+
+    private decimal waiveAmount;
+    private string waiveReason = string.Empty;
+    private string waiveUserId = string.Empty;
+    private string waiveUserName = string.Empty;
+    private string? waiveMsg;
+
+    // ─── Accrue Charges form ─────────────────────────────────────────────────
+
+    private decimal accrueInterestAmount;
+    private decimal accruePenaltyAmount;
+    private decimal accrueAdminCostAmount;
+    private string accrueUserId = string.Empty;
+    private string? accrueMsg;
+
+    // ─── Treasury Offset form ────────────────────────────────────────────────
+
+    private List<TopReferralIndexEntryDto>? topReferrals;
+    private List<TopReferralIndexEntryDto>? pendingReferrals;
+    private string topAccountId = string.Empty;
+    private string topPatientName = string.Empty;
+    private decimal topReferredAmount;
+    private string topReferUserId = string.Empty;
+    private string topReferUserName = string.Empty;
+    private string? topReferNotes;
+    private string? topReferMsg;
+    private string? recordingOffsetReferralId;
+    private decimal topOffsetAmount;
+    private DateTime topOffsetDate = DateTime.Today;
+    private string topOffsetUserId = string.Empty;
+    private string topOffsetUserName = string.Empty;
+    private string? topOffsetMsg;
+    private string? withdrawingReferralId;
+    private string topWithdrawReason = string.Empty;
+    private string? topWithdrawMsg;
+
+    // ─── Batch form ───────────────────────────────────────────────────────────
+
+    private bool showCreateBatch;
+    private string? batchFacilityId;
+    private string? batchFacilityName;
+    private DateTime batchDate = DateTime.Today;
+    private string batchPayMethod = "CASH";
+    private string? batchCheckNumber;
+    private string? batchNotes;
+    private string? batchMsg;
+
+    // ─── Site params form ────────────────────────────────────────────────────
+
+    private string spSiteName = string.Empty;
+    private string spFacilityNumber = string.Empty;
+    private decimal spInterestRate;
+    private decimal spAdminCost;
+    private decimal spPenaltyRate;
+    private decimal spMinPayment;
+    private int spMaxMonths = 24;
+    private int spStatementDays = 30;
+    private decimal spCollectionThreshold;
+    private bool spAutoInterest;
+    private bool spPenaltyEnabled;
+    private bool spFmsEnabled;
+    private bool spTreasuryOffset;
+    private string spUpdatedByUserId = string.Empty;
+    private string? siteParamsMsg;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (!string.IsNullOrEmpty(PatientId))
+        {
+            patientId = PatientId;
+            await LoadPatient();
+        }
+    }
+
+    private async Task LoadPatient()
+    {
+        error = null;
+        loaded = false;
+        if (string.IsNullOrWhiteSpace(patientId)) { error = "Enter a Patient ID."; return; }
+        string pid = patientId.Trim();
+        try
+        {
+            var debtorGrain = Grains.GetGrain<IARDebtorGrain>($"AR-DEBTOR:{pid}");
+            ARDebtorState ds = await debtorGrain.GetAsync();
+            debtor = new ARDebtorDto(ds.DebtorId, ds.PatientId, ds.Name,
+                ds.TotalAmountOwed, ds.TotalAmountPaid, ds.CurrentBalance,
+                ds.IsDelinquent, ds.IsInCollection, ds.IsWaived, ds.LastActivityDate);
+
+            var acctIdx = Grains.GetGrain<IARAccountIndexGrain>($"AR-ACCT-IDX:{pid}");
+            List<ARAccountIndexEntry> acctEntries = await acctIdx.GetAllAsync();
+            accounts = acctEntries.Select(a => new ARAccountIndexEntryDto(
+                a.ARAccountId, a.PatientId, a.ARCategory, a.ARStatus,
+                a.OriginalAmount, a.CurrentBalance, a.DateEstablished)).ToList();
+
+            var batchIdx = Grains.GetGrain<IARBatchPaymentIndexGrain>("AR-BATCH-IDX");
+            List<ARBatchPaymentIndexEntry> batchEntries = await batchIdx.GetAllAsync();
+            batches = batchEntries.Select(b => new ARBatchIndexEntryDto(
+                b.BatchId, b.BatchDate, b.FacilityName,
+                b.PaymentMethod, b.TotalAmount, b.IsPosted, b.PaymentCount)).ToList();
+
+            var siteGrain = Grains.GetGrain<IARSiteParametersGrain>("AR-SITE-PARAMS");
+            ARSiteParametersState sp = await siteGrain.GetAsync();
+            siteParams = new ARSiteParamsDto(sp.SiteId, sp.SiteName, sp.ARFacilityNumber,
+                sp.InterestRate, sp.AdminCost, sp.PenaltyRate,
+                sp.MinimumPaymentAmount, sp.MaxPaymentPlanMonths,
+                sp.IsAutoInterestEnabled, sp.IsPenaltyEnabled,
+                sp.StatementFrequencyDays, sp.CollectionThreshold,
+                sp.IsFmsEnabled, sp.IsTreasuryOffsetEnabled,
+                sp.LastUpdatedDate, sp.LastUpdatedByUserId);
+            if (siteParams != null)
+            {
+                spSiteName          = siteParams.SiteName ?? string.Empty;
+                spFacilityNumber    = siteParams.ARFacilityNumber ?? string.Empty;
+                spInterestRate      = siteParams.InterestRate;
+                spAdminCost         = siteParams.AdminCost;
+                spPenaltyRate       = siteParams.PenaltyRate;
+                spMinPayment        = siteParams.MinimumPaymentAmount;
+                spMaxMonths         = siteParams.MaxPaymentPlanMonths;
+                spStatementDays     = siteParams.StatementFrequencyDays;
+                spCollectionThreshold = siteParams.CollectionThreshold;
+                spAutoInterest      = siteParams.IsAutoInterestEnabled;
+                spPenaltyEnabled    = siteParams.IsPenaltyEnabled;
+                spFmsEnabled        = siteParams.IsFmsEnabled;
+                spTreasuryOffset    = siteParams.IsTreasuryOffsetEnabled;
+            }
+            loaded = true;
+        }
+        catch (Exception ex)
+        {
+            error = $"Error loading patient data: {ex.Message}";
+        }
+    }
+
+    private async Task SelectAccount(string accountId)
+    {
+        selectedAccountId = accountId;
+        try
+        {
+            string grainKey = accountId.StartsWith("AR-ACCOUNT:") ? accountId : $"AR-ACCOUNT:{accountId}";
+            var acctGrain = Grains.GetGrain<IARAccountGrain>(grainKey);
+            ARAccountState s = await acctGrain.GetAsync();
+            selectedAccount = new ARAccountDetailDto(
+                s.ARAccountId, s.PatientId, s.BillingActionId,
+                s.ARCategory.ToString(), s.ARStatus.ToString(),
+                s.OriginalAmount, s.CurrentBalance,
+                s.AmountPaid, s.AmountWaived,
+                s.InterestAccrued, s.PenaltyAccrued, s.AdminCostAccrued,
+                s.DateEstablished, s.DueDate, s.TransactionIds);
+        }
+        catch (Exception ex)
+        {
+            error = $"Error loading account details: {ex.Message}";
+        }
+    }
+
+    private async Task CreateAccount()
+    {
+        createAccountMsg = null;
+        string pid = patientId.Trim();
+        try
+        {
+            string acctId = Guid.NewGuid().ToString();
+            var acctGrain = Grains.GetGrain<IARAccountGrain>($"AR-ACCOUNT:{acctId}");
+            ARAccountCategory cat = Enum.TryParse<ARAccountCategory>(newCategory, out var c) ? c : ARAccountCategory.Other;
+            await acctGrain.CreateAsync(pid, newBillingActionId, cat, newAmount, newDueDate);
+            var acctIdx = Grains.GetGrain<IARAccountIndexGrain>($"AR-ACCT-IDX:{pid}");
+            await acctIdx.AddOrUpdateAsync(new ARAccountIndexEntry
+            {
+                ARAccountId = $"AR-ACCOUNT:{acctId}",
+                PatientId = pid,
+                ARCategory = newCategory,
+                ARStatus = "Active",
+                OriginalAmount = newAmount,
+                CurrentBalance = newAmount,
+                DateEstablished = DateTime.UtcNow,
+            });
+            createAccountMsg = "Account created.";
+            showCreateAccount = false;
+            await RefreshAccountsAndDebtor(pid);
+        }
+        catch (Exception ex)
+        {
+            createAccountMsg = $"Error: {ex.Message}";
+        }
+    }
+
+    private async Task RefreshAccountsAndDebtor(string pid)
+    {
+        var acctIdx = Grains.GetGrain<IARAccountIndexGrain>($"AR-ACCT-IDX:{pid}");
+        List<ARAccountIndexEntry> acctEntries = await acctIdx.GetAllAsync();
+        accounts = acctEntries.Select(a => new ARAccountIndexEntryDto(
+            a.ARAccountId, a.PatientId, a.ARCategory, a.ARStatus,
+            a.OriginalAmount, a.CurrentBalance, a.DateEstablished)).ToList();
+        var debtorGrain = Grains.GetGrain<IARDebtorGrain>($"AR-DEBTOR:{pid}");
+        ARDebtorState ds = await debtorGrain.GetAsync();
+        debtor = new ARDebtorDto(ds.DebtorId, ds.PatientId, ds.Name,
+            ds.TotalAmountOwed, ds.TotalAmountPaid, ds.CurrentBalance,
+            ds.IsDelinquent, ds.IsInCollection, ds.IsWaived, ds.LastActivityDate);
+    }
+
+    private async Task PostPayment()
+    {
+        payMsg = null;
+        if (selectedAccountId == null) return;
+        string pid = patientId.Trim();
+        try
+        {
+            string grainKey = selectedAccountId.StartsWith("AR-ACCOUNT:") ? selectedAccountId : $"AR-ACCOUNT:{selectedAccountId}";
+            var acctGrain = Grains.GetGrain<IARAccountGrain>(grainKey);
+            await acctGrain.PostPaymentAsync(payAmount, payMethod, payUserId, payUserName, payReceipt, payCheck, null);
+            payMsg = "Payment posted.";
+            await SelectAccount(selectedAccountId);
+            await RefreshAccountsAndDebtor(pid);
+        }
+        catch (Exception ex) { payMsg = $"Error: {ex.Message}"; }
+    }
+
+    private async Task PostAdjustment()
+    {
+        adjMsg = null;
+        if (selectedAccountId == null) return;
+        string pid = patientId.Trim();
+        try
+        {
+            string grainKey = selectedAccountId.StartsWith("AR-ACCOUNT:") ? selectedAccountId : $"AR-ACCOUNT:{selectedAccountId}";
+            var acctGrain = Grains.GetGrain<IARAccountGrain>(grainKey);
+            await acctGrain.PostAdjustmentAsync(adjAmount, adjType, adjUserId, adjUserName, null);
+            adjMsg = "Adjustment posted.";
+            await SelectAccount(selectedAccountId);
+            await RefreshAccountsAndDebtor(pid);
+        }
+        catch (Exception ex) { adjMsg = $"Error: {ex.Message}"; }
+    }
+
+    private async Task WaiveAccount()
+    {
+        waiveMsg = null;
+        if (selectedAccountId == null) return;
+        string pid = patientId.Trim();
+        try
+        {
+            string grainKey = selectedAccountId.StartsWith("AR-ACCOUNT:") ? selectedAccountId : $"AR-ACCOUNT:{selectedAccountId}";
+            var acctGrain = Grains.GetGrain<IARAccountGrain>(grainKey);
+            await acctGrain.WaiveAsync(waiveAmount, waiveUserId, waiveUserName, waiveReason);
+            waiveMsg = "Balance waived.";
+            await SelectAccount(selectedAccountId);
+            await RefreshAccountsAndDebtor(pid);
+        }
+        catch (Exception ex) { waiveMsg = $"Error: {ex.Message}"; }
+    }
+
+    private async Task AccrueInterest()
+    {
+        accrueMsg = null;
+        if (selectedAccountId == null) return;
+        try
+        {
+            string grainKey = selectedAccountId.StartsWith("AR-ACCOUNT:") ? selectedAccountId : $"AR-ACCOUNT:{selectedAccountId}";
+            var acctGrain = Grains.GetGrain<IARAccountGrain>(grainKey);
+            await acctGrain.AccrueInterestAsync(accrueInterestAmount, accrueUserId);
+            accrueMsg = "Interest applied.";
+            await SelectAccount(selectedAccountId);
+        }
+        catch (Exception ex) { accrueMsg = $"Error: {ex.Message}"; }
+    }
+
+    private async Task AccruePenalty()
+    {
+        accrueMsg = null;
+        if (selectedAccountId == null) return;
+        try
+        {
+            string grainKey = selectedAccountId.StartsWith("AR-ACCOUNT:") ? selectedAccountId : $"AR-ACCOUNT:{selectedAccountId}";
+            var acctGrain = Grains.GetGrain<IARAccountGrain>(grainKey);
+            await acctGrain.AccruePenaltyAsync(accruePenaltyAmount, accrueUserId);
+            accrueMsg = "Penalty applied.";
+            await SelectAccount(selectedAccountId);
+        }
+        catch (Exception ex) { accrueMsg = $"Error: {ex.Message}"; }
+    }
+
+    private async Task AccrueAdminCost()
+    {
+        accrueMsg = null;
+        if (selectedAccountId == null) return;
+        try
+        {
+            string grainKey = selectedAccountId.StartsWith("AR-ACCOUNT:") ? selectedAccountId : $"AR-ACCOUNT:{selectedAccountId}";
+            var acctGrain = Grains.GetGrain<IARAccountGrain>(grainKey);
+            await acctGrain.AccrueAdminCostAsync(accrueAdminCostAmount, accrueUserId);
+            accrueMsg = "Admin cost applied.";
+            await SelectAccount(selectedAccountId);
+        }
+        catch (Exception ex) { accrueMsg = $"Error: {ex.Message}"; }
+    }
+
+    private async Task LoadTopReferrals()
+    {
+        try
+        {
+            var topIdx = Grains.GetGrain<ITopReferralIndexGrain>("TOP-REF-IDX");
+            List<TopReferralIndexEntry> allRefs = await topIdx.GetAllAsync();
+            topReferrals = allRefs.Select(MapTopRef).ToList();
+            List<TopReferralIndexEntry> pendingRefs = await topIdx.GetPendingAsync();
+            pendingReferrals = pendingRefs.Select(MapTopRef).ToList();
+        }
+        catch (Exception ex) { error = $"Error loading TOP referrals: {ex.Message}"; }
+    }
+
+    private static TopReferralIndexEntryDto MapTopRef(TopReferralIndexEntry e) => new(
+        e.ReferralId, e.ARAccountId, e.PatientId, e.PatientName,
+        e.ReferredAmount, e.Status.ToString(), e.ReferralDate, e.OffsetAmount);
+
+    private async Task SubmitReferToTop()
+    {
+        topReferMsg = null;
+        if (string.IsNullOrWhiteSpace(topAccountId)) { topReferMsg = "Account ID required."; return; }
+        string pid = patientId.Trim();
+        try
+        {
+            string refId = Guid.NewGuid().ToString();
+            string acctKey = topAccountId.Trim().StartsWith("AR-ACCOUNT:") ? topAccountId.Trim() : $"AR-ACCOUNT:{topAccountId.Trim()}";
+            var acctGrain = Grains.GetGrain<IARAccountGrain>(acctKey);
+            await acctGrain.ReferToTopAsync(refId, topReferredAmount, topReferUserId, topReferUserName);
+            var topGrain = Grains.GetGrain<ITopReferralGrain>($"TOP-REF:{refId}");
+            await topGrain.CreateAsync(acctKey, pid, topPatientName, topReferredAmount, topReferredAmount, topReferUserId, topReferUserName, topReferNotes);
+            topReferMsg = "Account referred to TOP.";
+            await LoadTopReferrals();
+        }
+        catch (Exception ex) { topReferMsg = $"Error: {ex.Message}"; }
+    }
+
+    private void ToggleOffsetPanel(string referralId)
+    {
+        recordingOffsetReferralId = recordingOffsetReferralId == referralId ? null : referralId;
+        withdrawingReferralId = null;
+    }
+
+    private void ToggleWithdrawPanel(string referralId)
+    {
+        withdrawingReferralId = withdrawingReferralId == referralId ? null : referralId;
+        recordingOffsetReferralId = null;
+    }
+
+    private async Task SubmitTopOffset(string referralId)
+    {
+        topOffsetMsg = null;
+        try
+        {
+            string grainKey = referralId.StartsWith("TOP-REF:") ? referralId : $"TOP-REF:{referralId}";
+            var topGrain = Grains.GetGrain<ITopReferralGrain>(grainKey);
+            await topGrain.RecordOffsetAsync(topOffsetAmount, topOffsetDate);
+            topOffsetMsg = "Offset recorded.";
+            recordingOffsetReferralId = null;
+            await LoadTopReferrals();
+        }
+        catch (Exception ex) { topOffsetMsg = $"Error: {ex.Message}"; }
+    }
+
+    private async Task SubmitWithdrawTop(string referralId)
+    {
+        topWithdrawMsg = null;
+        try
+        {
+            string grainKey = referralId.StartsWith("TOP-REF:") ? referralId : $"TOP-REF:{referralId}";
+            var topGrain = Grains.GetGrain<ITopReferralGrain>(grainKey);
+            await topGrain.WithdrawAsync(topWithdrawReason);
+            topWithdrawMsg = "Referral withdrawn.";
+            withdrawingReferralId = null;
+            await LoadTopReferrals();
+        }
+        catch (Exception ex) { topWithdrawMsg = $"Error: {ex.Message}"; }
+    }
+
+    private async Task CreateBatch()
+    {
+        batchMsg = null;
+        try
+        {
+            string batchId = Guid.NewGuid().ToString();
+            var batchGrain = Grains.GetGrain<IARBatchPaymentGrain>($"AR-BATCH:{batchId}");
+            await batchGrain.CreateAsync(batchFacilityId, batchFacilityName, batchDate, batchPayMethod, batchCheckNumber, batchNotes);
+            batchMsg = "Batch created.";
+            showCreateBatch = false;
+            await RefreshBatches();
+        }
+        catch (Exception ex) { batchMsg = $"Error: {ex.Message}"; }
+    }
+
+    private async Task PostBatch(string batchId)
+    {
+        batchMsg = null;
+        try
+        {
+            string grainKey = batchId.StartsWith("AR-BATCH:") ? batchId : $"AR-BATCH:{batchId}";
+            var batchGrain = Grains.GetGrain<IARBatchPaymentGrain>(grainKey);
+            await batchGrain.PostAsync("SYSTEM", "System");
+            batchMsg = "Batch posted.";
+            await RefreshBatches();
+            if (!string.IsNullOrEmpty(patientId)) await RefreshAccountsAndDebtor(patientId.Trim());
+        }
+        catch (Exception ex) { batchMsg = $"Error: {ex.Message}"; }
+    }
+
+    private async Task RefreshBatches()
+    {
+        var batchIdx = Grains.GetGrain<IARBatchPaymentIndexGrain>("AR-BATCH-IDX");
+        List<ARBatchPaymentIndexEntry> batchEntries = await batchIdx.GetAllAsync();
+        batches = batchEntries.Select(b => new ARBatchIndexEntryDto(
+            b.BatchId, b.BatchDate, b.FacilityName,
+            b.PaymentMethod, b.TotalAmount, b.IsPosted, b.PaymentCount)).ToList();
+    }
+
+    private async Task UpdateSiteParams()
+    {
+        siteParamsMsg = null;
+        try
+        {
+            var siteGrain = Grains.GetGrain<IARSiteParametersGrain>("AR-SITE-PARAMS");
+            await siteGrain.UpdateAsync(spSiteName, spFacilityNumber,
+                spInterestRate, spAdminCost, spPenaltyRate,
+                spMinPayment, spMaxMonths,
+                spAutoInterest, spPenaltyEnabled,
+                spStatementDays, spCollectionThreshold,
+                spFmsEnabled, spTreasuryOffset, spUpdatedByUserId);
+            siteParamsMsg = "Site parameters updated.";
+            ARSiteParametersState sp = await siteGrain.GetAsync();
+            siteParams = new ARSiteParamsDto(sp.SiteId, sp.SiteName, sp.ARFacilityNumber,
+                sp.InterestRate, sp.AdminCost, sp.PenaltyRate,
+                sp.MinimumPaymentAmount, sp.MaxPaymentPlanMonths,
+                sp.IsAutoInterestEnabled, sp.IsPenaltyEnabled,
+                sp.StatementFrequencyDays, sp.CollectionThreshold,
+                sp.IsFmsEnabled, sp.IsTreasuryOffsetEnabled,
+                sp.LastUpdatedDate, sp.LastUpdatedByUserId);
+        }
+        catch (Exception ex) { siteParamsMsg = $"Error: {ex.Message}"; }
+    }
+
+    private static string StatusBadgeClass(string status) => status switch
+    {
+        "Active"         => "badge-primary",
+        "Paid"           => "badge-success",
+        "Waived"         => "badge-info",
+        "WrittenOff"     => "badge-secondary",
+        "InCollection"   => "badge-danger",
+        "TreasuryOffset" => "badge-danger",
+        "OnPaymentPlan"  => "badge-warning",
+        "Cancelled"      => "badge-secondary",
+        _                => "badge-secondary",
+    };
+
+    private static string TopStatusBadgeClass(string status) => status switch
+    {
+        "Pending"         => "badge-warning",
+        "Certified"       => "badge-primary",
+        "Offset"          => "badge-success",
+        "PartiallyOffset" => "badge-info",
+        "Withdrawn"       => "badge-secondary",
+        "Resolved"        => "badge-success",
+        _                 => "badge-secondary",
+    };
+
+    // ─── Local DTOs ───────────────────────────────────────────────────────────
+
+    private record ARDebtorDto(
+        string DebtorId, string PatientId, string Name,
+        decimal TotalAmountOwed, decimal TotalAmountPaid, decimal CurrentBalance,
+        bool IsDelinquent, bool IsInCollection, bool IsWaived,
+        DateTime? LastActivityDate);
+
+    private record ARAccountIndexEntryDto(
+        string ARAccountId, string PatientId, string ARCategory, string ARStatus,
+        decimal OriginalAmount, decimal CurrentBalance, DateTime DateEstablished);
+
+    private record ARAccountDetailDto(
+        string ARAccountId, string PatientId, string? BillingActionId,
+        string ARCategory, string ARStatus,
+        decimal OriginalAmount, decimal CurrentBalance,
+        decimal AmountPaid, decimal AmountWaived,
+        decimal InterestAccrued, decimal PenaltyAccrued, decimal AdminCostAccrued,
+        DateTime DateEstablished, DateTime? DueDate,
+        List<string> TransactionIds);
+
+    private record ARBatchIndexEntryDto(
+        string BatchId, DateTime BatchDate, string? FacilityName,
+        string PaymentMethod, decimal TotalAmount, bool IsPosted, int PaymentCount);
+
+    private record ARSiteParamsDto(
+        string SiteId, string? SiteName, string? ARFacilityNumber,
+        decimal InterestRate, decimal AdminCost, decimal PenaltyRate,
+        decimal MinimumPaymentAmount, int MaxPaymentPlanMonths,
+        bool IsAutoInterestEnabled, bool IsPenaltyEnabled,
+        int StatementFrequencyDays, decimal CollectionThreshold,
+        bool IsFmsEnabled, bool IsTreasuryOffsetEnabled,
+        DateTime? LastUpdatedDate, string? LastUpdatedByUserId);
+
+    private record TopReferralIndexEntryDto(
+        string ReferralId, string ARAccountId, string PatientId, string PatientName,
+        decimal ReferredAmount, string Status, DateTime ReferralDate, decimal OffsetAmount);
+}
+
+<style>
+    .ar-container { padding: 1rem; font-family: 'Courier New', monospace; max-width: 1200px; }
+    .ar-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; }
+    .patient-lookup { display: flex; gap: 0.5rem; }
+    .patient-lookup input { width: 200px; }
+    .debtor-summary { display: flex; gap: 1rem; align-items: center; padding: 0.75rem; background: #1a1a2e; border-radius: 4px; margin-bottom: 1rem; }
+    .summary-card { display: flex; flex-direction: column; padding: 0.5rem 1rem; background: #16213e; border-radius: 4px; }
+    .summary-card.balance-due { background: #3d0000; }
+    .summary-card .label { font-size: 0.75rem; color: #aaa; text-transform: uppercase; }
+    .summary-card .value { font-size: 1.1rem; font-weight: bold; color: #e0e0e0; }
+    .summary-card .value.paid { color: #4caf50; }
+    .ar-tabs { display: flex; gap: 0; margin-bottom: 1rem; border-bottom: 2px solid #333; }
+    .tab-btn { padding: 0.4rem 1.2rem; background: transparent; border: none; color: #aaa; cursor: pointer; border-bottom: 2px solid transparent; margin-bottom: -2px; }
+    .tab-btn.active { color: #4fc3f7; border-bottom-color: #4fc3f7; }
+    .tab-panel { padding: 1rem 0; }
+    .ar-table { width: 100%; border-collapse: collapse; font-size: 0.875rem; }
+    .ar-table th { background: #1a1a2e; color: #aaa; padding: 0.4rem 0.6rem; text-align: left; }
+    .ar-table td { padding: 0.4rem 0.6rem; border-bottom: 1px solid #2a2a3e; }
+    .ar-table tr.selected-row td { background: #1a2a3a; }
+    .badge { padding: 0.2rem 0.5rem; border-radius: 3px; font-size: 0.75rem; font-weight: bold; }
+    .badge-primary { background: #1565c0; color: #fff; }
+    .badge-success { background: #2e7d32; color: #fff; }
+    .badge-info { background: #00838f; color: #fff; }
+    .badge-warning { background: #e65100; color: #fff; }
+    .badge-danger { background: #b71c1c; color: #fff; }
+    .badge-secondary { background: #424242; color: #ddd; }
+    .form-panel { background: #1a1a2e; padding: 1rem; border-radius: 4px; margin-top: 1rem; }
+    .form-row { display: flex; gap: 0.5rem; margin-bottom: 0.5rem; flex-wrap: wrap; }
+    .form-row label { color: #aaa; font-size: 0.85rem; min-width: 100px; padding-top: 0.4rem; }
+    .form-row.checkboxes { gap: 1rem; align-items: center; }
+    .form-row.checkboxes label { min-width: auto; display: flex; gap: 0.3rem; align-items: center; cursor: pointer; color: #ccc; }
+    .form-control { background: #0d0d1a; color: #e0e0e0; border: 1px solid #333; padding: 0.3rem 0.5rem; border-radius: 3px; font-family: inherit; }
+    .btn { padding: 0.3rem 0.8rem; border: none; border-radius: 3px; cursor: pointer; font-size: 0.85rem; }
+    .btn-primary { background: #1565c0; color: #fff; }
+    .btn-success { background: #2e7d32; color: #fff; }
+    .btn-warning { background: #e65100; color: #fff; }
+    .btn-danger { background: #b71c1c; color: #fff; }
+    .btn-outline-primary { background: transparent; border: 1px solid #1565c0; color: #4fc3f7; }
+    .btn-sm { padding: 0.2rem 0.5rem; font-size: 0.8rem; }
+    .form-msg { margin-left: 0.5rem; font-size: 0.85rem; color: #4fc3f7; }
+    .detail-panel { background: #0d1117; border: 1px solid #2a2a3e; border-radius: 4px; padding: 1rem; margin-top: 1rem; }
+    .detail-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 0.5rem; margin-bottom: 1rem; font-size: 0.875rem; color: #ccc; }
+    .txn-list { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 0.3rem; align-items: flex-start; }
+    .txn-id { background: #1a1a2e; padding: 0.1rem 0.4rem; border-radius: 3px; font-size: 0.7rem; color: #aaa; }
+    .action-section { margin-top: 1rem; padding-top: 0.75rem; border-top: 1px solid #2a2a3e; }
+    .action-section h5 { color: #aaa; font-size: 0.9rem; margin-bottom: 0.5rem; }
+    .alert-danger { background: #3d0000; color: #ff8a80; padding: 0.5rem 1rem; border-radius: 4px; margin-bottom: 1rem; }
+    .text-muted { color: #666; font-size: 0.875rem; }
+</style>

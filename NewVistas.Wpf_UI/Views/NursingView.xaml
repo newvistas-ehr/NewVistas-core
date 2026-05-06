@@ -1,0 +1,33 @@
+<UserControl x:Class="NewVistas.Wpf_UI.Views.NursingView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <ScrollViewer VerticalScrollBarVisibility="Auto">
+        <StackPanel Margin="24">
+            <TextBlock Style="{StaticResource PageTitle}" Text="Nursing"/>
+            <TextBlock Style="{StaticResource ErrorText}" Text="{Binding Error}"
+                       Visibility="{Binding Error, Converter={StaticResource NullToVisibility}}"/>
+            <StackPanel Orientation="Horizontal" Margin="0,0,0,12">
+                <Button Content="Load" Style="{StaticResource PrimaryButton}"
+                        Command="{Binding LoadCommand}" Margin="0,0,8,0"/>
+                <ProgressBar IsIndeterminate="True" Width="120" Height="20"
+                             Visibility="{Binding IsLoading, Converter={StaticResource BoolToVisibility}}"/>
+            </StackPanel>
+            <StackPanel Visibility="{Binding Acuity, Converter={StaticResource NullToVisibility}}">
+                <TextBlock Style="{StaticResource SectionHeader}" Text="Acuity"/>
+                <StackPanel Orientation="Horizontal" Margin="0,4,0,8">
+                    <TextBlock Style="{StaticResource FieldLabel}" Text="Level: " Margin="0,0,4,0"/>
+                    <TextBlock Text="{Binding Acuity.AcuityLevel}" FontWeight="Bold" FontSize="18" Foreground="{StaticResource VaBlueBrush}"/>
+                </StackPanel>
+            </StackPanel>
+            <TextBlock Style="{StaticResource SectionHeader}" Text="Nursing Assessments"/>
+            <DataGrid ItemsSource="{Binding Assessments}" AutoGenerateColumns="False" MaxHeight="240">
+                <DataGrid.Columns>
+                    <DataGridTextColumn Header="Type" Binding="{Binding AssessmentType}" Width="160"/>
+                    <DataGridTextColumn Header="Status" Binding="{Binding Status}" Width="110"/>
+                    <DataGridTextColumn Header="Date" Binding="{Binding AssessmentDate, StringFormat=d}" Width="110"/>
+                    <DataGridTextColumn Header="Nurse" Binding="{Binding NurseName}" Width="*"/>
+                </DataGrid.Columns>
+            </DataGrid>
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>

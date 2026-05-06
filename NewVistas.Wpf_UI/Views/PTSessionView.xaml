@@ -1,0 +1,187 @@
+<UserControl x:Class="NewVistas.Wpf_UI.Views.PTSessionView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <ScrollViewer VerticalScrollBarVisibility="Auto">
+        <StackPanel Margin="24" MaxWidth="1000">
+            <!-- Header -->
+            <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+                <Button Content="&lt; Back to PT Hub" Style="{StaticResource SecondaryButton}"
+                        Command="{Binding GoBackCommand}" Margin="0,0,12,0"/>
+                <TextBlock Style="{StaticResource PageTitle}" Text="{Binding BodyGroupDisplayName}"/>
+            </StackPanel>
+
+            <TextBlock Style="{StaticResource ErrorText}" Text="{Binding Error}"
+                       Visibility="{Binding Error, Converter={StaticResource NullToVisibility}}"/>
+
+            <!-- Tab-like buttons -->
+            <StackPanel Orientation="Horizontal" Margin="0,0,0,12">
+                <Button Content="Record Session" Style="{StaticResource PrimaryButton}"
+                        Command="{Binding ShowRecordCommand}" Margin="0,0,8,0"/>
+                <Button Content="Compare (Last 2)" Style="{StaticResource SecondaryButton}"
+                        Command="{Binding LoadComparisonCommand}" Margin="0,0,8,0"/>
+                <Button Content="History" Style="{StaticResource SecondaryButton}"
+                        Command="{Binding LoadHistoryCommand}" Margin="0,0,8,0"/>
+                <Button Content="Exercises" Style="{StaticResource SecondaryButton}"
+                        Command="{Binding LoadExercisesCommand}" Margin="0,0,8,0"/>
+                <ProgressBar IsIndeterminate="True" Width="120" Height="20"
+                             Visibility="{Binding IsLoading, Converter={StaticResource BoolToVisibility}}"/>
+            </StackPanel>
+
+            <!-- Record Form -->
+            <Border Style="{StaticResource FormPanel}"
+                    Visibility="{Binding ShowRecordForm, Converter={StaticResource BoolToVisibility}}">
+                <StackPanel>
+                    <TextBlock Style="{StaticResource SectionHeader}" Text="Session Details"/>
+                    <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+                        <StackPanel Margin="0,0,16,0">
+                            <TextBlock Style="{StaticResource FieldLabel}" Text="Side"/>
+                            <ComboBox SelectedItem="{Binding SelectedSide}" Width="120">
+                                <ComboBox.Items>
+                                    <x:Static Member="NewVistas.PT.Models.Laterality.Bilateral"/>
+                                    <x:Static Member="NewVistas.PT.Models.Laterality.Left"/>
+                                    <x:Static Member="NewVistas.PT.Models.Laterality.Right"/>
+                                </ComboBox.Items>
+                            </ComboBox>
+                        </StackPanel>
+                        <StackPanel Margin="0,0,16,0">
+                            <TextBlock Style="{StaticResource FieldLabel}" Text="Therapist"/>
+                            <TextBox Text="{Binding TherapistName, UpdateSourceTrigger=PropertyChanged}" Width="200"/>
+                        </StackPanel>
+                        <StackPanel>
+                            <TextBlock Style="{StaticResource FieldLabel}" Text="Location"/>
+                            <TextBox Text="{Binding LocationName, UpdateSourceTrigger=PropertyChanged}" Width="200"/>
+                        </StackPanel>
+                    </StackPanel>
+
+                    <TextBlock Style="{StaticResource SectionHeader}" Text="ROM and Strength Measurements" Margin="0,8,0,4"/>
+                    <DataGrid ItemsSource="{Binding MovementRows}" AutoGenerateColumns="False"
+                              CanUserAddRows="False" CanUserDeleteRows="False"
+                              HeadersVisibility="Column" GridLinesVisibility="Horizontal"
+                              MaxHeight="500">
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Header="Movement" Binding="{Binding DisplayName}" Width="160" IsReadOnly="True"/>
+                            <DataGridTextColumn Header="Normal" Binding="{Binding NormalRange}" Width="70" IsReadOnly="True"/>
+                            <DataGridTextColumn Header="Active ROM" Binding="{Binding ActiveRom, UpdateSourceTrigger=PropertyChanged}" Width="90"/>
+                            <DataGridTextColumn Header="Passive ROM" Binding="{Binding PassiveRom, UpdateSourceTrigger=PropertyChanged}" Width="90"/>
+                            <DataGridTextColumn Header="Pain" Binding="{Binding Pain, UpdateSourceTrigger=PropertyChanged}" Width="120"/>
+                            <DataGridTextColumn Header="Strength" Binding="{Binding StrengthGrade, UpdateSourceTrigger=PropertyChanged}" Width="80"/>
+                            <DataGridTextColumn Header="Comments" Binding="{Binding StrengthComments, UpdateSourceTrigger=PropertyChanged}" Width="*"/>
+                        </DataGrid.Columns>
+                    </DataGrid>
+
+                    <StackPanel Margin="0,8,0,0">
+                        <TextBlock Style="{StaticResource FieldLabel}" Text="Session Notes"/>
+                        <TextBox Text="{Binding SessionNotes, UpdateSourceTrigger=PropertyChanged}"
+                                 AcceptsReturn="True" TextWrapping="Wrap" Height="60"/>
+                    </StackPanel>
+
+                    <Button Content="Record Session" Style="{StaticResource PrimaryButton}"
+                            Command="{Binding RecordSessionCommand}" Margin="0,12,0,0" HorizontalAlignment="Left"/>
+                </StackPanel>
+            </Border>
+
+            <!-- Comparison View -->
+            <Border Style="{StaticResource FormPanel}"
+                    Visibility="{Binding ShowComparison, Converter={StaticResource BoolToVisibility}}">
+                <StackPanel>
+                    <TextBlock Style="{StaticResource SectionHeader}" Text="Side-by-Side Comparison (Most Recent Sessions)"/>
+                    <DataGrid ItemsSource="{Binding ComparisonSessions}" AutoGenerateColumns="False"
+                              IsReadOnly="True" MaxHeight="400"
+                              HeadersVisibility="Column" GridLinesVisibility="Horizontal">
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Header="Date" Binding="{Binding SessionDate, StringFormat=MM/dd/yyyy}" Width="100"/>
+                            <DataGridTextColumn Header="Side" Binding="{Binding Side}" Width="80"/>
+                            <DataGridTextColumn Header="Therapist" Binding="{Binding TherapistName}" Width="140"/>
+                            <DataGridTextColumn Header="ROM Count" Binding="{Binding RomMeasurements.Count}" Width="90"/>
+                            <DataGridTextColumn Header="Strength Count" Binding="{Binding StrengthMeasurements.Count}" Width="110"/>
+                            <DataGridTextColumn Header="Notes" Binding="{Binding Notes}" Width="*"/>
+                        </DataGrid.Columns>
+                    </DataGrid>
+                </StackPanel>
+            </Border>
+
+            <!-- History View -->
+            <Border Style="{StaticResource FormPanel}"
+                    Visibility="{Binding ShowHistory, Converter={StaticResource BoolToVisibility}}">
+                <StackPanel>
+                    <TextBlock Style="{StaticResource SectionHeader}" Text="Session History"/>
+                    <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+                        <StackPanel Margin="0,0,16,0">
+                            <TextBlock Style="{StaticResource FieldLabel}" Text="From"/>
+                            <DatePicker SelectedDate="{Binding HistoryFrom}" Width="160"/>
+                        </StackPanel>
+                        <StackPanel Margin="0,0,16,0">
+                            <TextBlock Style="{StaticResource FieldLabel}" Text="To"/>
+                            <DatePicker SelectedDate="{Binding HistoryTo}" Width="160"/>
+                        </StackPanel>
+                        <Button Content="Search" Style="{StaticResource PrimaryButton}"
+                                Command="{Binding LoadHistoryCommand}" VerticalAlignment="Bottom"/>
+                    </StackPanel>
+                    <DataGrid ItemsSource="{Binding HistorySessions}" AutoGenerateColumns="False"
+                              IsReadOnly="True" MaxHeight="400"
+                              HeadersVisibility="Column" GridLinesVisibility="Horizontal">
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Header="Date" Binding="{Binding SessionDate, StringFormat=g}" Width="160"/>
+                            <DataGridTextColumn Header="Side" Binding="{Binding Side}" Width="80"/>
+                            <DataGridTextColumn Header="Therapist" Binding="{Binding TherapistName}" Width="140"/>
+                            <DataGridTextColumn Header="ROM" Binding="{Binding RomMeasurements.Count}" Width="60"/>
+                            <DataGridTextColumn Header="Strength" Binding="{Binding StrengthMeasurements.Count}" Width="80"/>
+                            <DataGridTextColumn Header="Notes" Binding="{Binding Notes}" Width="*"/>
+                        </DataGrid.Columns>
+                    </DataGrid>
+                </StackPanel>
+            </Border>
+
+            <!-- Exercises View -->
+            <Border Style="{StaticResource FormPanel}"
+                    Visibility="{Binding ShowExercises, Converter={StaticResource BoolToVisibility}}">
+                <StackPanel>
+                    <TextBlock Style="{StaticResource SectionHeader}" Text="Add Exercise to Latest Session"/>
+                    <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+                        <StackPanel Margin="0,0,16,0">
+                            <TextBlock Style="{StaticResource FieldLabel}" Text="Exercise Name"/>
+                            <TextBox Text="{Binding ExName, UpdateSourceTrigger=PropertyChanged}" Width="200"/>
+                        </StackPanel>
+                        <StackPanel Margin="0,0,16,0">
+                            <TextBlock Style="{StaticResource FieldLabel}" Text="Sets"/>
+                            <TextBox Text="{Binding ExSets, UpdateSourceTrigger=PropertyChanged}" Width="60"/>
+                        </StackPanel>
+                        <StackPanel Margin="0,0,16,0">
+                            <TextBlock Style="{StaticResource FieldLabel}" Text="Reps"/>
+                            <TextBox Text="{Binding ExReps, UpdateSourceTrigger=PropertyChanged}" Width="60"/>
+                        </StackPanel>
+                        <StackPanel Margin="0,0,16,0">
+                            <TextBlock Style="{StaticResource FieldLabel}" Text="Weight (lbs)"/>
+                            <TextBox Text="{Binding ExWeight, UpdateSourceTrigger=PropertyChanged}" Width="80"/>
+                        </StackPanel>
+                        <StackPanel Margin="0,0,16,0">
+                            <TextBlock Style="{StaticResource FieldLabel}" Text="Duration (sec)"/>
+                            <TextBox Text="{Binding ExDuration, UpdateSourceTrigger=PropertyChanged}" Width="80"/>
+                        </StackPanel>
+                    </StackPanel>
+                    <StackPanel Margin="0,0,0,8">
+                        <TextBlock Style="{StaticResource FieldLabel}" Text="Notes"/>
+                        <TextBox Text="{Binding ExNotes, UpdateSourceTrigger=PropertyChanged}" Width="500" HorizontalAlignment="Left"/>
+                    </StackPanel>
+                    <Button Content="Add Exercise" Style="{StaticResource PrimaryButton}"
+                            Command="{Binding AddExerciseCommand}" HorizontalAlignment="Left" Margin="0,0,0,12"/>
+
+                    <TextBlock Style="{StaticResource SectionHeader}" Text="Exercises in Latest Session" Margin="0,8,0,4"/>
+                    <DataGrid ItemsSource="{Binding SessionExercises}" AutoGenerateColumns="False"
+                              IsReadOnly="True" MaxHeight="300"
+                              HeadersVisibility="Column" GridLinesVisibility="Horizontal">
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Header="Exercise" Binding="{Binding ExerciseName}" Width="160"/>
+                            <DataGridTextColumn Header="Category" Binding="{Binding Category}" Width="100"/>
+                            <DataGridTextColumn Header="Sets" Binding="{Binding Sets}" Width="50"/>
+                            <DataGridTextColumn Header="Reps" Binding="{Binding Reps}" Width="50"/>
+                            <DataGridTextColumn Header="Weight" Binding="{Binding WeightLbs}" Width="70"/>
+                            <DataGridTextColumn Header="Duration" Binding="{Binding DurationSeconds}" Width="70"/>
+                            <DataGridTextColumn Header="Notes" Binding="{Binding Notes}" Width="*"/>
+                        </DataGrid.Columns>
+                    </DataGrid>
+                </StackPanel>
+            </Border>
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>

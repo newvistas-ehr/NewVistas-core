@@ -1,0 +1,174 @@
+<UserControl x:Class="NewVistas.Wpf_UI.Views.PatientLookupView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <ScrollViewer VerticalScrollBarVisibility="Auto">
+        <StackPanel Margin="24" MaxWidth="1000">
+            <TextBlock Style="{StaticResource PageTitle}" Text="Patient Lookup"/>
+            <TextBlock Style="{StaticResource ErrorText}" Text="{Binding Error}"
+                       Visibility="{Binding Error, Converter={StaticResource NullToVisibility}}"/>
+
+            <ProgressBar IsIndeterminate="True" Width="120" Height="20" HorizontalAlignment="Left" Margin="0,0,0,8"
+                         Visibility="{Binding IsLoading, Converter={StaticResource BoolToVisibility}}"/>
+
+            <!-- Three-tab patient selection -->
+            <TabControl SelectedIndex="{Binding SelectedTab}" Margin="0,0,0,16">
+
+                <!-- Tab 0: My Patients -->
+                <TabItem Header="My Patients">
+                    <StackPanel Margin="12">
+                        <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+                            <Button Content="Refresh" Style="{StaticResource PrimaryButton}"
+                                    Command="{Binding LoadMyPatientsCommand}" Margin="0,0,8,0"/>
+                        </StackPanel>
+                        <DataGrid ItemsSource="{Binding MyPatients}" SelectedItem="{Binding SelectedPatient}"
+                                  AutoGenerateColumns="False" IsReadOnly="True" SelectionMode="Single"
+                                  CanUserSortColumns="True" HeadersVisibility="Column"
+                                  MaxHeight="350" VerticalScrollBarVisibility="Auto">
+                            <DataGrid.InputBindings>
+                                <MouseBinding Gesture="LeftDoubleClick"
+                                              Command="{Binding SelectPatientCommand}"
+                                              CommandParameter="{Binding SelectedPatient}"/>
+                            </DataGrid.InputBindings>
+                            <DataGrid.Columns>
+                                <DataGridTextColumn Header="Patient ID" Binding="{Binding PatientId}" Width="140"/>
+                                <DataGridTextColumn Header="Name" Binding="{Binding PatientName}" Width="200"/>
+                                <DataGridTextColumn Header="DOB" Binding="{Binding Detail1}" Width="100"/>
+                                <DataGridTextColumn Header="SSN" Binding="{Binding Detail2}" Width="110"/>
+                                <DataGridTextColumn Header="Relationship" Binding="{Binding Detail3}" Width="120"/>
+                            </DataGrid.Columns>
+                        </DataGrid>
+                        <Button Content="Select Patient" Style="{StaticResource PrimaryButton}"
+                                Command="{Binding SelectPatientCommand}"
+                                CommandParameter="{Binding SelectedPatient}"
+                                HorizontalAlignment="Left" Margin="0,8,0,0"/>
+                    </StackPanel>
+                </TabItem>
+
+                <!-- Tab 1: Ward Census -->
+                <TabItem Header="Ward Census"
+                         Visibility="{Binding HasWardAssignment, Converter={StaticResource BoolToVisibility}}">
+                    <StackPanel Margin="12">
+                        <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+                            <TextBlock Text="Ward:" FontWeight="SemiBold" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                            <TextBlock Text="{Binding WardName}" VerticalAlignment="Center" Margin="0,0,16,0"
+                                       Foreground="#003f72" FontWeight="SemiBold"/>
+                            <Button Content="Load Census" Style="{StaticResource PrimaryButton}"
+                                    Command="{Binding LoadWardCensusCommand}"/>
+                        </StackPanel>
+                        <DataGrid ItemsSource="{Binding WardPatients}" SelectedItem="{Binding SelectedPatient}"
+                                  AutoGenerateColumns="False" IsReadOnly="True" SelectionMode="Single"
+                                  CanUserSortColumns="True" HeadersVisibility="Column"
+                                  MaxHeight="350" VerticalScrollBarVisibility="Auto">
+                            <DataGrid.InputBindings>
+                                <MouseBinding Gesture="LeftDoubleClick"
+                                              Command="{Binding SelectPatientCommand}"
+                                              CommandParameter="{Binding SelectedPatient}"/>
+                            </DataGrid.InputBindings>
+                            <DataGrid.Columns>
+                                <DataGridTextColumn Header="Patient ID" Binding="{Binding PatientId}" Width="140"/>
+                                <DataGridTextColumn Header="Name" Binding="{Binding PatientName}" Width="200"/>
+                                <DataGridTextColumn Header="Room/Bed" Binding="{Binding Detail1}" Width="100"/>
+                                <DataGridTextColumn Header="Specialty" Binding="{Binding Detail2}" Width="140"/>
+                                <DataGridTextColumn Header="Attending" Binding="{Binding Detail3}" Width="160"/>
+                            </DataGrid.Columns>
+                        </DataGrid>
+                        <Button Content="Select Patient" Style="{StaticResource PrimaryButton}"
+                                Command="{Binding SelectPatientCommand}"
+                                CommandParameter="{Binding SelectedPatient}"
+                                HorizontalAlignment="Left" Margin="0,8,0,0"/>
+                    </StackPanel>
+                </TabItem>
+
+                <!-- Tab 2: Search -->
+                <TabItem Header="Search">
+                    <StackPanel Margin="12">
+                        <TextBlock Style="{StaticResource FieldLabel}" Text="Search by name, SSN last 4, or patient ID"/>
+                        <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+                            <TextBox Text="{Binding SearchQuery, UpdateSourceTrigger=PropertyChanged}"
+                                     Width="300" Padding="4,3" FontSize="12" VerticalAlignment="Center">
+                                <TextBox.InputBindings>
+                                    <KeyBinding Key="Return" Command="{Binding SearchCommand}"/>
+                                </TextBox.InputBindings>
+                            </TextBox>
+                            <Button Content="Search" Style="{StaticResource PrimaryButton}"
+                                    Command="{Binding SearchCommand}" Margin="8,0,0,0"/>
+                        </StackPanel>
+                        <DataGrid ItemsSource="{Binding SearchResults}" SelectedItem="{Binding SelectedPatient}"
+                                  AutoGenerateColumns="False" IsReadOnly="True" SelectionMode="Single"
+                                  CanUserSortColumns="True" HeadersVisibility="Column"
+                                  MaxHeight="350" VerticalScrollBarVisibility="Auto">
+                            <DataGrid.InputBindings>
+                                <MouseBinding Gesture="LeftDoubleClick"
+                                              Command="{Binding SelectPatientCommand}"
+                                              CommandParameter="{Binding SelectedPatient}"/>
+                            </DataGrid.InputBindings>
+                            <DataGrid.Columns>
+                                <DataGridTextColumn Header="Patient ID" Binding="{Binding PatientId}" Width="140"/>
+                                <DataGridTextColumn Header="Name" Binding="{Binding PatientName}" Width="200"/>
+                                <DataGridTextColumn Header="DOB" Binding="{Binding Detail1}" Width="100"/>
+                                <DataGridTextColumn Header="SSN" Binding="{Binding Detail2}" Width="110"/>
+                                <DataGridTextColumn Header="Sex" Binding="{Binding Detail3}" Width="60"/>
+                            </DataGrid.Columns>
+                        </DataGrid>
+                        <Button Content="Select Patient" Style="{StaticResource PrimaryButton}"
+                                Command="{Binding SelectPatientCommand}"
+                                CommandParameter="{Binding SelectedPatient}"
+                                HorizontalAlignment="Left" Margin="0,8,0,0"/>
+                    </StackPanel>
+                </TabItem>
+            </TabControl>
+
+            <!-- Patient detail panel — shown after selection -->
+            <StackPanel Visibility="{Binding Patient, Converter={StaticResource NullToVisibility}}">
+                <TextBlock Style="{StaticResource SectionHeader}" Text="Patient Demographics"/>
+                <Border Style="{StaticResource FormPanel}">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                        </Grid.RowDefinitions>
+
+                        <StackPanel Grid.Row="0" Grid.Column="0" Margin="0,0,16,0">
+                            <TextBlock Style="{StaticResource FieldLabel}" Text="Full Name"/>
+                            <TextBlock FontSize="14" FontWeight="SemiBold" Text="{Binding Patient.Name}"/>
+                        </StackPanel>
+                        <StackPanel Grid.Row="0" Grid.Column="1">
+                            <TextBlock Style="{StaticResource FieldLabel}" Text="Date of Birth"/>
+                            <TextBlock FontSize="14" Text="{Binding Patient.DateOfBirth, StringFormat=d}"/>
+                        </StackPanel>
+                        <StackPanel Grid.Row="1" Grid.Column="0" Margin="0,8,16,0">
+                            <TextBlock Style="{StaticResource FieldLabel}" Text="SSN"/>
+                            <TextBlock FontSize="14" Text="{Binding Patient.SocialSecurityNumber}"/>
+                        </StackPanel>
+                        <StackPanel Grid.Row="1" Grid.Column="1" Margin="0,8,0,0">
+                            <TextBlock Style="{StaticResource FieldLabel}" Text="Gender"/>
+                            <TextBlock FontSize="14" Text="{Binding Patient.Sex}"/>
+                        </StackPanel>
+                        <StackPanel Grid.Row="2" Grid.Column="0" Margin="0,8,16,0">
+                            <TextBlock Style="{StaticResource FieldLabel}" Text="Address"/>
+                            <TextBlock FontSize="14" Text="{Binding PatientAddress}" TextWrapping="Wrap"/>
+                        </StackPanel>
+                        <StackPanel Grid.Row="2" Grid.Column="1" Margin="0,8,0,0">
+                            <TextBlock Style="{StaticResource FieldLabel}" Text="Phone"/>
+                            <TextBlock FontSize="14" Text="{Binding Patient.PhoneNumberResidence}"/>
+                        </StackPanel>
+                        <StackPanel Grid.Row="3" Grid.Column="0" Margin="0,8,16,0">
+                            <TextBlock Style="{StaticResource FieldLabel}" Text="Eligibility"/>
+                            <TextBlock FontSize="14" Text="{Binding Patient.EligibilityCode}"/>
+                        </StackPanel>
+                        <StackPanel Grid.Row="3" Grid.Column="1" Margin="0,8,0,0">
+                            <TextBlock Style="{StaticResource FieldLabel}" Text="Service Branch"/>
+                            <TextBlock FontSize="14" Text="{Binding Patient.ServiceBranch}"/>
+                        </StackPanel>
+                    </Grid>
+                </Border>
+            </StackPanel>
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>

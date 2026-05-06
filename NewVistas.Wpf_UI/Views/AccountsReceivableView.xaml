@@ -1,0 +1,106 @@
+<UserControl x:Class="NewVistas.Wpf_UI.Views.AccountsReceivableView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <ScrollViewer>
+        <StackPanel Margin="16">
+
+            <TextBlock Text="Accounts Receivable" Style="{StaticResource PageTitle}"/>
+
+            <ProgressBar IsIndeterminate="True" Height="4" Margin="0,0,0,8"
+                         Visibility="{Binding IsLoading, Converter={StaticResource BoolToVisibility}}"/>
+            <TextBlock Text="{Binding Error}" Style="{StaticResource ErrorText}"
+                       Visibility="{Binding Error, Converter={StaticResource NullToVisibility}}"/>
+
+            <!-- Patient Lookup -->
+            <StackPanel Orientation="Horizontal" Margin="0,0,0,12">
+                <TextBox Width="220" Text="{Binding PatientId, UpdateSourceTrigger=PropertyChanged}"
+                         Margin="0,0,8,0"/>
+                <Button Content="Load" Style="{StaticResource PrimaryButton}"
+                        Command="{Binding LoadCommand}"/>
+            </StackPanel>
+
+            <!-- Debtor Summary -->
+            <Border Visibility="{Binding Loaded, Converter={StaticResource BoolToVisibility}}"
+                    Style="{StaticResource FormPanel}" Margin="0,0,0,12">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+                    <StackPanel Grid.Column="0">
+                        <TextBlock Text="Total Owed" Style="{StaticResource FieldLabel}"/>
+                        <TextBlock FontSize="16" FontWeight="Bold" Foreground="#c62828"
+                                   Text="{Binding Debtor.TotalAmountOwed, StringFormat=C}"/>
+                    </StackPanel>
+                    <StackPanel Grid.Column="1">
+                        <TextBlock Text="Total Paid" Style="{StaticResource FieldLabel}"/>
+                        <TextBlock FontSize="16" FontWeight="Bold" Foreground="#2e7d32"
+                                   Text="{Binding Debtor.TotalAmountPaid, StringFormat=C}"/>
+                    </StackPanel>
+                    <StackPanel Grid.Column="2">
+                        <TextBlock Text="Balance Due" Style="{StaticResource FieldLabel}"/>
+                        <TextBlock FontSize="16" FontWeight="Bold"
+                                   Text="{Binding Debtor.CurrentBalance, StringFormat=C}"/>
+                    </StackPanel>
+                    <StackPanel Grid.Column="3" VerticalAlignment="Center">
+                        <TextBlock Text="DELINQUENT" Foreground="Red" FontWeight="Bold"
+                                   Visibility="{Binding Debtor.IsDelinquent, Converter={StaticResource BoolToVisibility}}"/>
+                        <TextBlock Text="IN COLLECTION" Foreground="Orange" FontWeight="Bold"
+                                   Visibility="{Binding Debtor.IsInCollection, Converter={StaticResource BoolToVisibility}}"/>
+                    </StackPanel>
+                </Grid>
+            </Border>
+
+            <!-- AR Accounts -->
+            <StackPanel Visibility="{Binding Loaded, Converter={StaticResource BoolToVisibility}}">
+                <TextBlock Text="AR Accounts" Style="{StaticResource SectionHeader}"/>
+
+                <DataGrid ItemsSource="{Binding Accounts}"
+                          SelectedItem="{Binding SelectedAccount}"
+                          MaxHeight="300">
+                    <DataGrid.Columns>
+                        <DataGridTextColumn Header="Account ID" Binding="{Binding ARAccountId}" Width="220"/>
+                        <DataGridTextColumn Header="Category" Binding="{Binding ARCategory}" Width="140"/>
+                        <DataGridTextColumn Header="Status" Binding="{Binding ARStatus}" Width="120"/>
+                        <DataGridTextColumn Header="Original" Binding="{Binding OriginalAmount, StringFormat=C}" Width="100"/>
+                        <DataGridTextColumn Header="Balance" Binding="{Binding CurrentBalance, StringFormat=C}" Width="100"/>
+                        <DataGridTextColumn Header="Established" Binding="{Binding DateEstablished, StringFormat=d}" Width="110"/>
+                    </DataGrid.Columns>
+                </DataGrid>
+
+                <!-- Post Payment -->
+                <StackPanel Margin="0,8,0,0"
+                            Visibility="{Binding SelectedAccount, Converter={StaticResource NullToVisibility}}">
+                    <Button Content="Post Payment" Style="{StaticResource SecondaryButton}"
+                            Command="{Binding TogglePaymentFormCommand}" HorizontalAlignment="Left"/>
+
+                    <Border Style="{StaticResource FormPanel}"
+                            Visibility="{Binding ShowPaymentForm, Converter={StaticResource BoolToVisibility}}">
+                        <StackPanel>
+                            <TextBlock Text="Post Payment" Style="{StaticResource SectionHeader}"/>
+                            <TextBlock Text="Amount" Style="{StaticResource FieldLabel}"/>
+                            <TextBox Text="{Binding PaymentAmount, UpdateSourceTrigger=PropertyChanged}" Width="160" HorizontalAlignment="Left"/>
+                            <TextBlock Text="Payment Method" Style="{StaticResource FieldLabel}"/>
+                            <ComboBox ItemsSource="{Binding PaymentMethods}"
+                                      SelectedItem="{Binding PaymentMethod}"
+                                      Width="160" HorizontalAlignment="Left"/>
+                            <TextBlock Text="Applied By (User ID)" Style="{StaticResource FieldLabel}"/>
+                            <TextBox Text="{Binding AppliedByUserId}" Width="200" HorizontalAlignment="Left"/>
+                            <TextBlock Text="Applied By (Name)" Style="{StaticResource FieldLabel}"/>
+                            <TextBox Text="{Binding AppliedByUserName}" Width="200" HorizontalAlignment="Left"/>
+                            <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
+                                <Button Content="Confirm Payment" Style="{StaticResource PrimaryButton}"
+                                        Command="{Binding PostPaymentCommand}" Margin="0,0,8,0"/>
+                                <Button Content="Cancel" Style="{StaticResource SecondaryButton}"
+                                        Command="{Binding TogglePaymentFormCommand}"/>
+                            </StackPanel>
+                        </StackPanel>
+                    </Border>
+                </StackPanel>
+            </StackPanel>
+
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>

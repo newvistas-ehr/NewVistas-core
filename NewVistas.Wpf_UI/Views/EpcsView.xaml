@@ -1,0 +1,28 @@
+<UserControl x:Class="NewVistas.Wpf_UI.Views.EpcsView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <ScrollViewer VerticalScrollBarVisibility="Auto">
+        <StackPanel Margin="24">
+            <TextBlock Style="{StaticResource PageTitle}" Text="E-Prescribing (EPCS)"/>
+            <TextBlock Style="{StaticResource ErrorText}" Text="{Binding Error}"
+                       Visibility="{Binding Error, Converter={StaticResource NullToVisibility}}"/>
+            <StackPanel Orientation="Horizontal" Margin="0,0,0,12">
+                <Button Content="Load" Style="{StaticResource PrimaryButton}"
+                        Command="{Binding LoadCommand}" Margin="0,0,8,0"/>
+                <ProgressBar IsIndeterminate="True" Width="120" Height="20" Margin="8,0,0,0"
+                             Visibility="{Binding IsLoading, Converter={StaticResource BoolToVisibility}}"/>
+            </StackPanel>
+            <DataGrid ItemsSource="{Binding Prescriptions}" AutoGenerateColumns="False" IsReadOnly="True">
+                <DataGrid.Columns>
+                    <DataGridTextColumn Header="Drug" Binding="{Binding DrugName}" Width="180"/>
+                    <DataGridTextColumn Header="Schedule" Binding="{Binding DeaSchedule}" Width="70"/>
+                    <DataGridTextColumn Header="Type" Binding="{Binding TransactionType}" Width="100"/>
+                    <DataGridTextColumn Header="Status" Binding="{Binding Status}" Width="110"/>
+                    <DataGridTextColumn Header="Prescriber" Binding="{Binding PrescriberName}" Width="140"/>
+                    <DataGridTextColumn Header="Signed" Binding="{Binding IsSigned}" Width="60"/>
+                    <DataGridTextColumn Header="Date" Binding="{Binding CreatedDate, StringFormat=d}" Width="*"/>
+                </DataGrid.Columns>
+            </DataGrid>
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>

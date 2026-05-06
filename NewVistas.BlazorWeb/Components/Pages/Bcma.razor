@@ -1,0 +1,466 @@
+@page "/bcma"
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+@rendermode InteractiveServer
+@using NewVistas.BlazorWeb.Services
+@using NewVistas.Abstractions.GrainInterfaces
+@using NewVistas.Abstractions.GrainStates
+@inject OrleansGrainService Grains
+
+<PageTitle>BCMA — Medication Administration Record</PageTitle>
+<h1>BCMA — Bar Code Medication Administration</h1>
+
+<div class="lookup-bar">
+    <input type="text" @bind="patientId" @bind:event="oninput" @onkeydown="HandleKeyDown"
+           placeholder="Patient ID" class="lookup-input" />
+    <button @onclick="Load" disabled="@(string.IsNullOrWhiteSpace(patientId) || loading)" class="btn btn-primary">
+        @(loading ? "Loading..." : "Load")
+    </button>
+    <button @onclick="LoadDemo" disabled="@(string.IsNullOrWhiteSpace(patientId) || loading)" class="btn btn-secondary">
+        Load Demo
+    </button>
+</div>
+
+@if (error != null) { <div class="alert alert-error">@error</div> }
+@if (success != null) { <div class="alert alert-success">@success</div> }
+
+@if (marEntries != null || history != null)
+{
+    <div class="tab-bar">
+        <button class="tab @(activeTab == "mar" ? "tab-active" : "")" @onclick='() => SetTab("mar")'>
+            MAR @if (dueCount > 0) { <span class="badge-due">@dueCount due</span> }
+        </button>
+        <button class="tab @(activeTab == "history" ? "tab-active" : "")" @onclick='() => SetTab("history")'>
+            History
+        </button>
+        <button class="tab @(activeTab == "new" ? "tab-active" : "")" @onclick='() => SetTab("new")'>
+            + Record
+        </button>
+    </div>
+
+    @if (activeTab == "mar")
+    {
+        @if (marEntries == null || marEntries.Count == 0)
+        {
+            <div class="empty-state">No active medication orders on MAR. Load demo data to populate.</div>
+        }
+        else
+        {
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Drug</th>
+                        <th>Dose / Route</th>
+                        <th>Schedule</th>
+                        <th>Priority</th>
+                        <th>Last Given</th>
+                        <th>Status</th>
+                        <th>Count</th>
+                        <th>Action</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var e in marEntries)
+                    {
+                        bool isDue = e.IsDue && e.IsActive;
+                        <tr class="@(isDue ? "row-due" : "")">
+                            <td>
+                                <strong>@e.DrugName</strong>
+                                @if (!string.IsNullOrEmpty(e.RoomBed))
+                                { <div class="sub">@e.WardId — @e.RoomBed</div> }
+                            </td>
+                            <td>@e.Dosage @e.Route</td>
+                            <td>@e.Schedule</td>
+                            <td>
+                                <span class="badge @PriorityBadge(e.Priority)">@e.Priority</span>
+                            </td>
+                            <td class="date">
+                                @if (e.LastAdminDateTime.HasValue)
+                                {
+                                    <div>@e.LastAdminDateTime.Value.ToString("MM/dd HH:mm")</div>
+                                    <div class="sub">@e.LastAdminStatus by @e.LastAdminBy</div>
+                                }
+                                else { <span class="dim">—</span> }
+                            </td>
+                            <td>
+                                @if (!e.IsActive)
+                                { <span class="badge badge-gray">INACTIVE</span> }
+                                else if (isDue)
+                                { <span class="badge badge-red">DUE</span> }
+                                else
+                                { <span class="badge badge-green">ON SCHEDULE</span> }
+                            </td>
+                            <td class="center">@e.TotalAdministrations</td>
+                            <td>
+                                @if (e.IsActive)
+                                {
+                                    <button class="btn btn-sm btn-primary"
+                                            @onclick="() => StartAdminister(e)">
+                                        Administer
+                                    </button>
+                                }
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        }
+
+        @if (adminTarget != null)
+        {
+            <div class="modal-overlay" @onclick="CancelAdminister">
+                <div class="modal" @onclick:stopPropagation>
+                    <h3>Administer: @adminTarget.DrugName</h3>
+                    <div class="form-grid">
+                        <div class="form-row">
+                            <label>Action Status</label>
+                            <select @bind="a_status">
+                                <option>GIVEN</option>
+                                <option>NOT GIVEN</option>
+                                <option>HELD</option>
+                                <option>REFUSED</option>
+                            </select>
+                        </div>
+                        <div class="form-row">
+                            <label>Administration Time</label>
+                            <input type="datetime-local" @bind="a_time" />
+                        </div>
+                        <div class="form-row">
+                            <label>Administered By</label>
+                            <input type="text" @bind="a_nurse" placeholder="Nurse name" />
+                        </div>
+                        <div class="form-row">
+                            <label>Injection Site</label>
+                            <input type="text" @bind="a_site" placeholder="e.g. Left Deltoid" />
+                        </div>
+                        @if (a_status == "NOT GIVEN" || a_status == "REFUSED" || a_status == "HELD")
+                        {
+                            <div class="form-row full">
+                                <label>Reason</label>
+                                <input type="text" @bind="a_prnReason" placeholder="Required for non-GIVEN" />
+                            </div>
+                        }
+                        <div class="form-row full">
+                            <label>Comments</label>
+                            <textarea @bind="a_comments" rows="2"></textarea>
+                        </div>
+                    </div>
+                    <div class="form-actions">
+                        <button class="btn btn-primary" @onclick="SubmitAdminister" disabled="@saving">
+                            @(saving ? "Saving..." : "Confirm")
+                        </button>
+                        <button class="btn btn-outline" @onclick="CancelAdminister">Cancel</button>
+                    </div>
+                </div>
+            </div>
+        }
+    }
+
+    @if (activeTab == "history")
+    {
+        @if (history == null || history.Count == 0)
+        {
+            <div class="empty-state">No administration history.</div>
+        }
+        else
+        {
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Date/Time</th>
+                        <th>Drug</th>
+                        <th>Dosage</th>
+                        <th>Route</th>
+                        <th>Status</th>
+                        <th>Given By</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var h in history)
+                    {
+                        <tr>
+                            <td class="date">@h.AdministrationDateTime.ToString("MM/dd/yyyy HH:mm")</td>
+                            <td>@h.DrugName</td>
+                            <td>@h.Dosage</td>
+                            <td>@h.Route</td>
+                            <td><span class="badge @StatusBadge(h.ActionStatus)">@h.ActionStatus</span></td>
+                            <td>@h.AdministeredByName</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        }
+    }
+
+    @if (activeTab == "new")
+    {
+        <div class="entry-form">
+            <h3>Record Standalone Administration</h3>
+            <p class="hint">Use this for medications not linked to an inpatient order (e.g. outpatient, PRN off-formulary).</p>
+            <div class="form-grid">
+                <div class="form-row"><label>Drug Name *</label><input type="text" @bind="f_drug" placeholder="e.g. Aspirin 81mg" /></div>
+                <div class="form-row"><label>Dosage</label><input type="text" @bind="f_dosage" placeholder="e.g. 81mg" /></div>
+                <div class="form-row">
+                    <label>Route</label>
+                    <select @bind="f_route">
+                        <option>PO</option><option>IV</option><option>IM</option>
+                        <option>SUBQ</option><option>TOPICAL</option><option>INHALED</option><option>PR</option>
+                    </select>
+                </div>
+                <div class="form-row">
+                    <label>Action Status</label>
+                    <select @bind="f_status">
+                        <option>GIVEN</option><option>NOT GIVEN</option><option>HELD</option><option>REFUSED</option>
+                    </select>
+                </div>
+                <div class="form-row"><label>Administration Time</label><input type="datetime-local" @bind="f_time" /></div>
+                <div class="form-row"><label>Administered By</label><input type="text" @bind="f_nurse" /></div>
+                <div class="form-row"><label>Injection Site</label><input type="text" @bind="f_site" placeholder="e.g. Left Deltoid" /></div>
+                <div class="form-row"><label>Prescription ID</label><input type="text" @bind="f_rxId" /></div>
+                <div class="form-row full"><label>Comments</label><textarea @bind="f_comments" rows="2"></textarea></div>
+            </div>
+            <div class="form-actions">
+                <button @onclick="SubmitStandalone" disabled="@saving" class="btn btn-primary">
+                    @(saving ? "Saving..." : "Record")
+                </button>
+            </div>
+        </div>
+    }
+}
+
+@code {
+    [SupplyParameterFromQuery] public string? patientId { get; set; }
+
+    private List<MarDto>? marEntries;
+    private List<HistoryDto>? history;
+    private bool loading, saving;
+    private string? error, success;
+    private string activeTab = "mar";
+    private int dueCount;
+
+    // Administer modal state
+    private MarDto? adminTarget;
+    private string a_status = "GIVEN";
+    private DateTime a_time = DateTime.Now;
+    private string a_nurse = "", a_site = "", a_prnReason = "", a_comments = "";
+
+    // Standalone form state
+    private string f_drug = "", f_dosage = "", f_route = "PO", f_status = "GIVEN";
+    private string f_nurse = "", f_site = "", f_rxId = "", f_comments = "";
+    private DateTime f_time = DateTime.Now;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (!string.IsNullOrWhiteSpace(patientId)) await Load();
+    }
+
+    private async Task HandleKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter") await Load();
+    }
+
+    private async Task Load()
+    {
+        if (string.IsNullOrWhiteSpace(patientId)) return;
+        loading = true; error = null;
+        try
+        {
+            var workflow = Grains.GetGrain<IPatientWorkflowGrain>(patientId.Trim());
+            List<MarEntry> entries = await workflow.GetPatientMARAsync();
+            marEntries = entries.Select(e => new MarDto
+            {
+                OrderId = e.OrderId, DrugName = e.DrugName, Dosage = e.Dosage, Route = e.Route,
+                Schedule = e.Schedule, OrderType = e.OrderType, Priority = e.Priority,
+                WardId = e.WardId, RoomBed = e.RoomBed, ProviderName = e.ProviderName,
+                StartDate = e.StartDate, StopDate = e.StopDate, ScheduledTimes = e.ScheduledTimes,
+                LastAdminDateTime = e.LastAdminDateTime, LastAdminStatus = e.LastAdminStatus,
+                LastAdminBy = e.LastAdminBy, TotalAdministrations = e.TotalAdministrations,
+                BcmaAdministrationIds = e.BcmaAdministrationIds, IsActive = e.IsActive,
+                IsDue = entries.Where(x => x.OrderId == e.OrderId && x.IsActive).Any() && e.IsActive
+            }).ToList();
+            List<BcmaSummary> summaries = await workflow.GetMedicationAdministrationsAsync(100);
+            history = summaries.Select(s => new HistoryDto
+            {
+                BcmaId = s.BcmaId, DrugName = s.DrugName, Dosage = s.Dosage,
+                ActionStatus = s.ActionStatus, AdministrationDateTime = s.AdministrationDateTime,
+                AdministeredByName = s.AdministeredByName
+            }).ToList();
+            dueCount = marEntries?.Count(e => e.IsDue && e.IsActive) ?? 0;
+        }
+        catch (Exception ex) { error = $"Error: {ex.Message}"; }
+        finally { loading = false; }
+    }
+
+    private async Task LoadDemo()
+    {
+        if (string.IsNullOrWhiteSpace(patientId)) return;
+        loading = true; error = null; success = null;
+        try
+        {
+            // Demo load is not directly supported via grain — just load existing data
+            success = "Data loaded from grains.";
+            await Load();
+        }
+        catch (Exception ex) { error = $"Error: {ex.Message}"; }
+        finally { loading = false; }
+    }
+
+    private void SetTab(string tab) { activeTab = tab; success = null; }
+
+    private void StartAdminister(MarDto entry)
+    {
+        adminTarget = entry;
+        a_status = "GIVEN";
+        a_time = DateTime.Now;
+        a_nurse = "";
+        a_site = "";
+        a_prnReason = "";
+        a_comments = "";
+    }
+
+    private void CancelAdminister() => adminTarget = null;
+
+    private async Task SubmitAdminister()
+    {
+        if (adminTarget == null) return;
+        saving = true; error = null;
+        try
+        {
+            var workflow = Grains.GetGrain<IPatientWorkflowGrain>(patientId!.Trim());
+            await workflow.AdministerMedicationAsync(adminTarget.OrderId, a_status, a_time,
+                null, NullIfEmpty(a_nurse), NullIfEmpty(a_site), NullIfEmpty(a_prnReason), NullIfEmpty(a_comments));
+            adminTarget = null;
+            success = "Administration recorded.";
+            await Load();
+        }
+        catch (Exception ex) { error = $"Error: {ex.Message}"; }
+        finally { saving = false; }
+    }
+
+    private async Task SubmitStandalone()
+    {
+        if (string.IsNullOrWhiteSpace(f_drug)) { error = "Drug name is required."; return; }
+        saving = true; error = null;
+        try
+        {
+            var workflow = Grains.GetGrain<IPatientWorkflowGrain>(patientId!.Trim());
+            await workflow.RecordMedicationAdministrationAsync(f_drug, null, NullIfEmpty(f_dosage), f_route,
+                f_status, null, f_time, null, NullIfEmpty(f_nurse), NullIfEmpty(f_site),
+                NullIfEmpty(f_rxId), null, NullIfEmpty(f_comments));
+            success = "Standalone administration recorded.";
+            f_drug = ""; f_dosage = ""; f_route = "PO"; f_status = "GIVEN";
+            f_nurse = ""; f_site = ""; f_rxId = ""; f_comments = "";
+            await Load();
+        }
+        catch (Exception ex) { error = $"Error: {ex.Message}"; }
+        finally { saving = false; }
+    }
+
+    private static string? NullIfEmpty(string s) => string.IsNullOrWhiteSpace(s) ? null : s;
+
+    private static string PriorityBadge(string priority) => priority switch
+    {
+        "STAT" => "badge-red",
+        "ASAP" => "badge-orange",
+        _ => "badge-gray"
+    };
+
+    private static string StatusBadge(string status) => status switch
+    {
+        "GIVEN" => "badge-green",
+        "NOT GIVEN" or "REFUSED" => "badge-red",
+        _ => "badge-orange"
+    };
+
+    // ─── DTOs ─────────────────────────────────────────────────────────────
+
+    private class MarDto
+    {
+        public string OrderId { get; set; } = "";
+        public string DrugName { get; set; } = "";
+        public string? Dosage { get; set; }
+        public string? Route { get; set; }
+        public string? Schedule { get; set; }
+        public string OrderType { get; set; } = "";
+        public string Priority { get; set; } = "";
+        public string WardId { get; set; } = "";
+        public string? RoomBed { get; set; }
+        public string? ProviderName { get; set; }
+        public DateTime? StartDate { get; set; }
+        public DateTime? StopDate { get; set; }
+        public List<DateTime> ScheduledTimes { get; set; } = [];
+        public DateTime? LastAdminDateTime { get; set; }
+        public string? LastAdminStatus { get; set; }
+        public string? LastAdminBy { get; set; }
+        public int TotalAdministrations { get; set; }
+        public List<string> BcmaAdministrationIds { get; set; } = [];
+        public bool IsActive { get; set; }
+        public bool IsDue { get; set; }
+    }
+
+    private class HistoryDto
+    {
+        public string BcmaId { get; set; } = "";
+        public string DrugName { get; set; } = "";
+        public string? Dosage { get; set; }
+        public string? Route { get; set; }
+        public string ActionStatus { get; set; } = "";
+        public DateTime AdministrationDateTime { get; set; }
+        public string? AdministeredByName { get; set; }
+    }
+}
+
+<style>
+    h1 { color: #003f72; margin-bottom: 1.25rem; font-size: 1.4rem; }
+    .lookup-bar { display: flex; gap: .5rem; margin-bottom: 1.5rem; align-items: center; }
+    .lookup-input { width: 280px; padding: .5rem .75rem; border: 1px solid #ccc; border-radius: 4px; font-size: .9rem; }
+    .btn { padding: .5rem 1.25rem; border: none; border-radius: 4px; cursor: pointer; font-size: .85rem; font-weight: 500; }
+    .btn:disabled { opacity: .6; cursor: default; }
+    .btn-primary { background: #003f72; color: white; }
+    .btn-secondary { background: #16a34a; color: white; }
+    .btn-outline { background: white; border: 1px solid #ccc; color: #333; }
+    .btn-sm { padding: .3rem .75rem; font-size: .8rem; }
+    .alert { padding: .75rem 1rem; border-radius: 4px; margin-bottom: 1rem; font-size: .85rem; }
+    .alert-error { background: #fde8e8; color: #b91c1c; border: 1px solid #f5c6c6; }
+    .alert-success { background: #dcfce7; color: #166534; border: 1px solid #bbf7d0; }
+
+    /* Tabs */
+    .tab-bar { display: flex; gap: 0; border-bottom: 2px solid #d4d9e0; margin-bottom: 1.25rem; }
+    .tab { background: none; border: none; padding: .6rem 1.25rem; cursor: pointer; font-size: .85rem; color: #555; border-bottom: 2px solid transparent; margin-bottom: -2px; }
+    .tab-active { color: #003f72; font-weight: 600; border-bottom-color: #003f72; }
+    .badge-due { background: #fde8e8; color: #b91c1c; border-radius: 3px; padding: 1px 6px; font-size: .7rem; margin-left: .4rem; font-weight: 600; }
+
+    /* Table */
+    .data-table { width: 100%; border-collapse: collapse; font-size: .85rem; border: 1px solid #d4d9e0; }
+    .data-table thead { background: #f4f6f9; }
+    .data-table th { text-align: left; padding: .5rem .6rem; font-weight: 600; color: #003f72; border-bottom: 2px solid #d4d9e0; font-size: .75rem; text-transform: uppercase; }
+    .data-table td { padding: .4rem .6rem; border-bottom: 1px solid #f0f0f0; vertical-align: middle; }
+    .data-table .center { text-align: center; }
+    .row-due { background: #fff8f0; }
+    .date { color: #888; font-size: .8rem; white-space: nowrap; }
+    .sub { font-size: .75rem; color: #888; margin-top: 2px; }
+    .dim { color: #ccc; }
+
+    /* Badges */
+    .badge { padding: 2px 8px; border-radius: 3px; font-size: .7rem; font-weight: 600; white-space: nowrap; }
+    .badge-green { background: #dcfce7; color: #166534; }
+    .badge-red { background: #fde8e8; color: #b91c1c; }
+    .badge-orange { background: #fef3c7; color: #92400e; }
+    .badge-gray { background: #f3f4f6; color: #6b7280; }
+
+    /* Entry form */
+    .entry-form { border: 1px solid #d4d9e0; border-radius: 6px; padding: 1.25rem; background: #f9fafb; }
+    .entry-form h3 { margin-bottom: .5rem; color: #003f72; }
+    .hint { font-size: .8rem; color: #888; margin-bottom: 1rem; }
+    .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: .75rem; }
+    .form-row { display: flex; flex-direction: column; gap: .25rem; }
+    .form-row.full { grid-column: 1 / -1; }
+    .form-row label { font-size: .8rem; font-weight: 600; color: #555; }
+    .form-row input, .form-row select, .form-row textarea { padding: .4rem .6rem; border: 1px solid #ccc; border-radius: 4px; font-size: .85rem; }
+    .form-actions { display: flex; gap: .5rem; margin-top: .75rem; }
+    .empty-state { color: #999; font-style: italic; padding: 2rem 0; text-align: center; }
+
+    /* Modal */
+    .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,.4); display: flex; align-items: center; justify-content: center; z-index: 1000; }
+    .modal { background: white; border-radius: 8px; padding: 1.5rem; width: 520px; max-width: 95vw; box-shadow: 0 8px 32px rgba(0,0,0,.2); }
+    .modal h3 { color: #003f72; margin-bottom: 1rem; }
+</style>

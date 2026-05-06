@@ -1,0 +1,330 @@
+@* Copyright 2026 James Smyth. All rights reserved. *@
+@page "/patient-merge"
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+@rendermode InteractiveServer
+@using NewVistas.BlazorWeb.Services
+@using NewVistas.Abstractions.GrainInterfaces
+@using NewVistas.Abstractions.GrainStates
+@inject OrleansGrainService Grains
+
+<PageTitle>Patient Merge</PageTitle>
+
+<h1>Patient Merge</h1>
+
+@if (loading)
+{
+    <div class="empty-state">Loading feature status...</div>
+}
+else if (error != null && !featureEnabled && featureChecked)
+{
+    <div class="alert alert-error">@error</div>
+}
+else if (featureChecked && !featureEnabled)
+{
+    <div class="alert alert-warning">
+        The <strong>PATIENT_MERGE</strong> feature is not enabled for this site.
+        Please enable it in <a href="/site-parameters">Site Parameters</a> before performing merges.
+    </div>
+}
+
+@if (error != null && featureEnabled) { <div class="alert alert-error">@error</div> }
+@if (successMessage != null) { <div class="alert alert-success">@successMessage</div> }
+
+@if (featureEnabled)
+{
+    <div class="tab-bar">
+        <button class="tab @(activeTab == "merge" ? "active" : "")" @onclick='() => activeTab = "merge"'>Merge Patients</button>
+        <button class="tab @(activeTab == "help" ? "active" : "")" @onclick='() => activeTab = "help"'>Help</button>
+    </div>
+
+    @if (activeTab == "merge")
+    {
+        <div class="form-section">
+            <div class="form-row">
+                <label>Target Patient ID</label>
+                <input type="text" class="form-input" @bind="targetPatientId" @bind:event="oninput"
+                       placeholder="Surviving patient ID" />
+            </div>
+            <div class="form-row">
+                <label>Source Patient ID</label>
+                <input type="text" class="form-input" @bind="sourcePatientId" @bind:event="oninput"
+                       placeholder="Duplicate patient ID (will be merged)" />
+            </div>
+            <div class="form-row">
+                <label>Reason</label>
+                <textarea class="form-input form-textarea" @bind="reason" @bind:event="oninput"
+                          placeholder="Reason for merge (required)"></textarea>
+            </div>
+            <div class="form-actions">
+                <button @onclick="PreviewMerge"
+                        disabled="@(string.IsNullOrWhiteSpace(targetPatientId) || string.IsNullOrWhiteSpace(sourcePatientId) || previewing)"
+                        class="btn btn-primary">
+                    @if (previewing) { <span>Loading Preview...</span> } else { <span>Preview</span> }
+                </button>
+                <button @onclick="ExecuteMerge"
+                        disabled="@(!mergeConfirmed || executing || mergeResult != null)"
+                        class="btn btn-danger">
+                    @if (executing) { <span>Executing Merge...</span> } else { <span>Execute Merge</span> }
+                </button>
+            </div>
+        </div>
+
+        @if (targetPreview != null && sourcePreview != null)
+        {
+            <div class="preview-section">
+                <h3>Patient Comparison</h3>
+                <div class="comparison-grid">
+                    <div class="comparison-column">
+                        <div class="comparison-header target-header">Surviving Patient (Target)</div>
+                        <table class="data-table">
+                            <tbody>
+                                <tr><td class="label-cell">Name</td><td>@targetPreview.Name</td></tr>
+                                <tr><td class="label-cell">Date of Birth</td><td>@(targetPreview.DateOfBirth?.ToString("MM/dd/yyyy") ?? "---")</td></tr>
+                                <tr><td class="label-cell">SSN (last 4)</td><td class="code">@MaskSsn(targetPreview.SocialSecurityNumber)</td></tr>
+                                <tr><td class="label-cell">Sex</td><td>@targetPreview.Sex</td></tr>
+                                <tr><td class="label-cell">Veteran</td><td>@targetPreview.Veteran</td></tr>
+                                <tr><td class="label-cell">Active</td><td class="@(targetPreview.IsActive ? "status-active" : "status-inactive")">@(targetPreview.IsActive ? "Yes" : "No")</td></tr>
+                                @if (targetPreview.MergedIntoPatientId != null)
+                                {
+                                    <tr><td class="label-cell">Merged Into</td><td class="status-warning">@targetPreview.MergedIntoPatientId</td></tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                    <div class="comparison-column">
+                        <div class="comparison-header source-header">Duplicate Patient (Source)</div>
+                        <table class="data-table">
+                            <tbody>
+                                <tr><td class="label-cell">Name</td><td>@sourcePreview.Name</td></tr>
+                                <tr><td class="label-cell">Date of Birth</td><td>@(sourcePreview.DateOfBirth?.ToString("MM/dd/yyyy") ?? "---")</td></tr>
+                                <tr><td class="label-cell">SSN (last 4)</td><td class="code">@MaskSsn(sourcePreview.SocialSecurityNumber)</td></tr>
+                                <tr><td class="label-cell">Sex</td><td>@sourcePreview.Sex</td></tr>
+                                <tr><td class="label-cell">Veteran</td><td>@sourcePreview.Veteran</td></tr>
+                                <tr><td class="label-cell">Active</td><td class="@(sourcePreview.IsActive ? "status-active" : "status-inactive")">@(sourcePreview.IsActive ? "Yes" : "No")</td></tr>
+                                @if (sourcePreview.MergedIntoPatientId != null)
+                                {
+                                    <tr><td class="label-cell">Merged Into</td><td class="status-warning">@sourcePreview.MergedIntoPatientId</td></tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <div class="confirm-row">
+                    <label class="confirm-label">
+                        <input type="checkbox" @bind="mergeConfirmed" />
+                        I confirm these patients should be merged. The source patient record will be deactivated and its data moved to the target.
+                    </label>
+                </div>
+            </div>
+        }
+
+        @if (mergeResult != null)
+        {
+            <div class="result-section">
+                @if (mergeResult.Success)
+                {
+                    <div class="alert alert-success">
+                        Merge completed successfully. Merge ID: <strong class="code">@mergeResult.MergeId</strong>
+                    </div>
+                    @if (mergeResult.ItemsMoved.Count > 0)
+                    {
+                        <h4>Items Moved</h4>
+                        <table class="data-table">
+                            <thead>
+                                <tr><th>Domain</th><th>Count</th></tr>
+                            </thead>
+                            <tbody>
+                                @foreach (var item in mergeResult.ItemsMoved.OrderBy(kv => kv.Key))
+                                {
+                                    <tr>
+                                        <td>@item.Key</td>
+                                        <td class="code">@item.Value</td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    }
+                    else
+                    {
+                        <div class="empty-state">No items were moved during the merge.</div>
+                    }
+                }
+                else
+                {
+                    <div class="alert alert-error">
+                        Merge failed: @(mergeResult.ErrorMessage ?? "Unknown error")
+                    </div>
+                }
+            </div>
+        }
+    }
+    else if (activeTab == "help")
+    {
+        <div class="help-section">
+            <h3>Patient Merge Process</h3>
+            <p>Patient merge combines two patient records into one, moving all clinical data from the
+               <strong>source (duplicate)</strong> patient to the <strong>target (surviving)</strong> patient.</p>
+            <h4>Steps</h4>
+            <ol>
+                <li>Enter the <strong>Target Patient ID</strong> (the record that will survive).</li>
+                <li>Enter the <strong>Source Patient ID</strong> (the duplicate record to be merged).</li>
+                <li>Provide a <strong>reason</strong> for the merge.</li>
+                <li>Click <strong>Preview</strong> to review both patient demographics side-by-side.</li>
+                <li>Confirm the merge by checking the confirmation checkbox.</li>
+                <li>Click <strong>Execute Merge</strong> to complete the operation.</li>
+            </ol>
+            <h4>Important Notes</h4>
+            <ul>
+                <li>This operation cannot be undone. Verify patient identities carefully.</li>
+                <li>The source patient record will be deactivated after merge.</li>
+                <li>All clinical data (orders, notes, labs, etc.) will be moved to the target patient.</li>
+                <li>The PATIENT_MERGE feature must be enabled in Site Parameters.</li>
+            </ul>
+        </div>
+    }
+}
+
+@code {
+    private string? targetPatientId;
+    private string? sourcePatientId;
+    private string? reason;
+    private bool loading = true;
+    private bool previewing;
+    private bool executing;
+    private bool featureEnabled;
+    private bool featureChecked;
+    private bool mergeConfirmed;
+    private string? error;
+    private string? successMessage;
+    private string activeTab = "merge";
+
+    private PatientPreview? targetPreview;
+    private PatientPreview? sourcePreview;
+    private MergeResultDto? mergeResult;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await CheckFeatureStatus();
+    }
+
+    private async Task CheckFeatureStatus()
+    {
+        loading = true; error = null;
+        try
+        {
+            var siteGrain = Grains.GetGrain<ISiteParametersGrain>("SITE:DEFAULT");
+            featureEnabled = await siteGrain.IsFeatureEnabledAsync("PATIENT_MERGE");
+        }
+        catch (Exception ex) { error = $"Error checking feature status: {ex.Message}"; featureEnabled = false; }
+        finally { loading = false; featureChecked = true; }
+    }
+
+    private async Task PreviewMerge()
+    {
+        if (string.IsNullOrWhiteSpace(targetPatientId) || string.IsNullOrWhiteSpace(sourcePatientId)) return;
+        previewing = true; error = null; successMessage = null; mergeResult = null; mergeConfirmed = false;
+        targetPreview = null; sourcePreview = null;
+        try
+        {
+            var targetWorkflow = Grains.GetGrain<IPatientWorkflowGrain>(targetPatientId.Trim());
+            var targetState = await targetWorkflow.GetPatientAsync();
+            targetPreview = new PatientPreview { Name = targetState.Name, Sex = targetState.Sex, DateOfBirth = targetState.DateOfBirth, SocialSecurityNumber = targetState.SocialSecurityNumber, Veteran = targetState.Veteran, IsActive = targetState.IsActive, MergedIntoPatientId = targetState.MergedIntoPatientId };
+
+            var sourceWorkflow = Grains.GetGrain<IPatientWorkflowGrain>(sourcePatientId.Trim());
+            var sourceState = await sourceWorkflow.GetPatientAsync();
+            sourcePreview = new PatientPreview { Name = sourceState.Name, Sex = sourceState.Sex, DateOfBirth = sourceState.DateOfBirth, SocialSecurityNumber = sourceState.SocialSecurityNumber, Veteran = sourceState.Veteran, IsActive = sourceState.IsActive, MergedIntoPatientId = sourceState.MergedIntoPatientId };
+        }
+        catch (Exception ex) { error = $"Error loading patient data: {ex.Message}"; }
+        finally { previewing = false; }
+    }
+
+    private async Task ExecuteMerge()
+    {
+        if (!mergeConfirmed || string.IsNullOrWhiteSpace(targetPatientId) || string.IsNullOrWhiteSpace(sourcePatientId)) return;
+        executing = true; error = null; successMessage = null;
+        try
+        {
+            var mergeId = $"MERGE:{Guid.NewGuid()}";
+            var mergeGrain = Grains.GetGrain<IPatientMergeGrain>(mergeId);
+            var result = await mergeGrain.ExecuteMergeAsync(targetPatientId.Trim(), sourcePatientId.Trim(),
+                reason?.Trim() ?? "", "SYSTEM", "Admin User");
+
+            mergeResult = new MergeResultDto { Success = result.Success, MergeId = result.MergeId, ErrorMessage = result.ErrorMessage, ItemsMoved = result.ItemsMoved ?? new() };
+            if (mergeResult.Success)
+                successMessage = "Patient merge completed successfully.";
+            else
+                error = mergeResult.ErrorMessage ?? "Merge returned an unexpected result.";
+        }
+        catch (Exception ex) { error = $"Error executing merge: {ex.Message}"; }
+        finally { executing = false; }
+    }
+
+    private string MaskSsn(string ssn)
+    {
+        if (string.IsNullOrWhiteSpace(ssn)) return "---";
+        return ssn.Length >= 4 ? $"***-**-{ssn[^4..]}" : ssn;
+    }
+
+    private class FeatureStatusResponse { public string Feature { get; set; } = ""; public bool Enabled { get; set; } }
+    private class MergeResultDto { public bool Success { get; set; } public string MergeId { get; set; } = ""; public string? ErrorMessage { get; set; } public Dictionary<string, int> ItemsMoved { get; set; } = new(); }
+    private class PatientPreview { public string Name { get; set; } = ""; public string Sex { get; set; } = ""; public DateTime? DateOfBirth { get; set; } public string SocialSecurityNumber { get; set; } = ""; public string Veteran { get; set; } = ""; public bool IsActive { get; set; } public string? MergedIntoPatientId { get; set; } }
+}
+
+<style>
+    .btn { padding: 0.5rem 1.25rem; border: none; border-radius: 4px; cursor: pointer; font-size: 0.85rem; }
+    .btn-primary { background: #003f72; color: white; }
+    .btn-primary:disabled { background: #999; cursor: not-allowed; }
+    .btn-danger { background: #b91c1c; color: white; }
+    .btn-danger:disabled { background: #999; cursor: not-allowed; }
+    .alert { padding: 0.75rem 1rem; border-radius: 4px; margin-bottom: 1rem; }
+    .alert-error { background: #fde8e8; color: #b91c1c; border: 1px solid #f5c6c6; }
+    .alert-success { background: #dcfce7; color: #166534; border: 1px solid #bbf7d0; }
+    .alert-warning { background: #fef3c7; color: #92400e; border: 1px solid #fde68a; }
+    .alert-warning a { color: #003f72; font-weight: 600; }
+    .empty-state { color: #999; font-style: italic; padding: 2rem 0; }
+
+    .tab-bar { display: flex; gap: 0; margin-bottom: 1.5rem; border-bottom: 2px solid #d4d9e0; }
+    .tab { padding: 0.5rem 1.25rem; border: none; background: none; cursor: pointer; font-size: 0.85rem; color: #555; border-bottom: 2px solid transparent; margin-bottom: -2px; }
+    .tab.active { color: #003f72; border-bottom-color: #003f72; font-weight: 600; }
+
+    .form-section { max-width: 700px; }
+    .form-row { display: flex; align-items: flex-start; gap: 1rem; margin-bottom: 0.75rem; }
+    .form-row label:first-child { width: 140px; font-size: 0.85rem; font-weight: 500; color: #333; flex-shrink: 0; padding-top: 0.4rem; }
+    .form-input { flex: 1; padding: 0.4rem 0.6rem; border: 1px solid #ccc; border-radius: 4px; font-size: 0.85rem; max-width: 350px; }
+    .form-textarea { min-height: 60px; resize: vertical; font-family: inherit; }
+    .form-actions { display: flex; gap: 0.75rem; margin-top: 1rem; margin-bottom: 1.5rem; }
+
+    .preview-section { margin-top: 1.5rem; }
+    .preview-section h3 { color: #003f72; margin-bottom: 1rem; font-size: 1rem; }
+
+    .comparison-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; margin-bottom: 1.25rem; }
+    .comparison-column { border: 1px solid #d4d9e0; border-radius: 4px; overflow: hidden; }
+    .comparison-header { padding: 0.5rem 0.75rem; font-weight: 600; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.05em; }
+    .target-header { background: #dcfce7; color: #166534; }
+    .source-header { background: #fef3c7; color: #92400e; }
+
+    .data-table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+    .data-table th { text-align: left; padding: 0.5rem; font-weight: 600; color: #003f72; border-bottom: 2px solid #d4d9e0; font-size: 0.75rem; text-transform: uppercase; background: #f4f6f9; }
+    .data-table td { padding: 0.4rem 0.5rem; border-bottom: 1px solid #f0f0f0; }
+    .data-table tr:hover { background: #f9fafb; }
+    .label-cell { font-weight: 500; color: #555; width: 120px; }
+    .code { font-family: monospace; color: #003f72; }
+
+    .status-active { color: #166534; font-weight: 600; }
+    .status-inactive { color: #b91c1c; font-weight: 600; }
+    .status-warning { color: #92400e; font-weight: 600; }
+
+    .confirm-row { margin-top: 1rem; padding: 0.75rem 1rem; background: #fef3c7; border: 1px solid #fde68a; border-radius: 4px; }
+    .confirm-label { display: flex; align-items: flex-start; gap: 0.5rem; font-size: 0.85rem; color: #333; cursor: pointer; }
+    .confirm-label input[type="checkbox"] { margin-top: 0.2rem; }
+
+    .result-section { margin-top: 1.5rem; }
+    .result-section h4 { color: #003f72; margin: 1rem 0 0.5rem; font-size: 0.9rem; }
+
+    .help-section { max-width: 700px; font-size: 0.9rem; line-height: 1.6; color: #333; }
+    .help-section h3 { color: #003f72; }
+    .help-section h4 { color: #003f72; margin-top: 1.25rem; }
+    .help-section ul, .help-section ol { padding-left: 1.25rem; }
+    .help-section li { margin-bottom: 0.3rem; }
+</style>

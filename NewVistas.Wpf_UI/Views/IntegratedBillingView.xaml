@@ -1,0 +1,175 @@
+<UserControl x:Class="NewVistas.Wpf_UI.Views.IntegratedBillingView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <ScrollViewer>
+        <StackPanel Margin="16">
+
+            <TextBlock Text="Integrated Billing" Style="{StaticResource PageTitle}"/>
+
+            <ProgressBar IsIndeterminate="True" Height="4" Margin="0,0,0,8"
+                         Visibility="{Binding IsLoading, Converter={StaticResource BoolToVisibility}}"/>
+            <TextBlock Text="{Binding Error}" Style="{StaticResource ErrorText}"
+                       Visibility="{Binding Error, Converter={StaticResource NullToVisibility}}"/>
+
+            <!-- Patient search -->
+            <StackPanel Orientation="Horizontal" Margin="0,0,0,12">
+                <TextBox Width="200" Text="{Binding PatientId, UpdateSourceTrigger=PropertyChanged}"
+                         Margin="0,0,8,0"/>
+                <Button Content="Load Patient" Style="{StaticResource PrimaryButton}"
+                        Command="{Binding LoadCommand}"/>
+            </StackPanel>
+
+            <TabControl SelectedIndex="{Binding SelectedTab}">
+
+                <!-- ── Tab: Copay Account ── -->
+                <TabItem Header="Copay Account">
+                    <Grid Margin="8">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="280"/>
+                        </Grid.ColumnDefinitions>
+
+                        <!-- Left: copay summary -->
+                        <StackPanel Grid.Column="0" Margin="0,0,16,0"
+                                    Visibility="{Binding Loaded, Converter={StaticResource BoolToVisibility}}">
+                            <TextBlock Text="Copay Account Summary" Style="{StaticResource SectionHeader}"/>
+                            <Border Style="{StaticResource FormPanel}">
+                                <StackPanel>
+                                    <TextBlock Text="Copay Exemption" Style="{StaticResource FieldLabel}"/>
+                                    <TextBlock Text="{Binding CopayAccount.IsExemptFromCopay}"/>
+                                    <TextBlock Text="Exemption Reason" Style="{StaticResource FieldLabel}"/>
+                                    <TextBlock Text="{Binding CopayAccount.ExemptionReasonCode}"/>
+                                    <TextBlock Text="Total Charged" Style="{StaticResource FieldLabel}"/>
+                                    <TextBlock Text="{Binding CopayAccount.TotalChargedAmount, StringFormat=C}"/>
+                                    <TextBlock Text="Total Paid" Style="{StaticResource FieldLabel}"/>
+                                    <TextBlock Text="{Binding CopayAccount.TotalPaidAmount, StringFormat=C}"/>
+                                    <TextBlock Text="Balance" Style="{StaticResource FieldLabel}"/>
+                                    <TextBlock Text="{Binding CopayAccount.BalanceAmount, StringFormat=C}"/>
+                                </StackPanel>
+                            </Border>
+                        </StackPanel>
+
+                        <!-- Right: exemption form -->
+                        <StackPanel Grid.Column="1">
+                            <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+                                <TextBlock Text="Copay Exemption" Style="{StaticResource SectionHeader}" Margin="0"/>
+                                <Button Content="Edit" Style="{StaticResource SecondaryButton}" Margin="8,0,0,0"
+                                        Command="{Binding ToggleExemptionFormCommand}"/>
+                            </StackPanel>
+                            <Border Style="{StaticResource FormPanel}"
+                                    Visibility="{Binding ShowExemptionForm, Converter={StaticResource BoolToVisibility}}">
+                                <StackPanel>
+                                    <TextBlock Text="Is Exempt" Style="{StaticResource FieldLabel}"/>
+                                    <CheckBox IsChecked="{Binding IsExempt}" Margin="0,0,0,8"/>
+                                    <TextBlock Text="Exemption Reason" Style="{StaticResource FieldLabel}"/>
+                                    <ComboBox ItemsSource="{Binding ExemptionReasons}"
+                                              SelectedItem="{Binding ExemptionReason}"/>
+                                    <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
+                                        <Button Content="Save" Style="{StaticResource PrimaryButton}"
+                                                Command="{Binding SaveExemptionCommand}" Margin="0,0,8,0"/>
+                                        <Button Content="Cancel" Style="{StaticResource SecondaryButton}"
+                                                Command="{Binding ToggleExemptionFormCommand}"/>
+                                    </StackPanel>
+                                </StackPanel>
+                            </Border>
+                        </StackPanel>
+                    </Grid>
+                </TabItem>
+
+                <!-- ── Tab: Billing Actions ── -->
+                <TabItem Header="Billing Actions">
+                    <Grid Margin="8">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="280"/>
+                        </Grid.ColumnDefinitions>
+
+                        <!-- Left: actions list -->
+                        <StackPanel Grid.Column="0" Margin="0,0,16,0">
+                            <TextBlock Text="Billing Actions" Style="{StaticResource SectionHeader}"/>
+                            <DataGrid ItemsSource="{Binding BillingActions}" MaxHeight="350" AutoGenerateColumns="False">
+                                <DataGrid.Columns>
+                                    <DataGridTextColumn Header="Action ID" Binding="{Binding ActionId}" Width="140"/>
+                                    <DataGridTextColumn Header="Category" Binding="{Binding Category}" Width="110"/>
+                                    <DataGridTextColumn Header="Status" Binding="{Binding Status}" Width="130"/>
+                                    <DataGridTextColumn Header="Amount" Binding="{Binding ChargeAmount, StringFormat=C}" Width="90"/>
+                                    <DataGridTextColumn Header="Service Date" Binding="{Binding ServiceDate, StringFormat=d}" Width="100"/>
+                                </DataGrid.Columns>
+                            </DataGrid>
+                        </StackPanel>
+
+                        <!-- Right: new action form -->
+                        <StackPanel Grid.Column="1">
+                            <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+                                <TextBlock Text="New Action" Style="{StaticResource SectionHeader}" Margin="0"/>
+                                <Button Content="+ New" Style="{StaticResource SecondaryButton}" Margin="8,0,0,0"
+                                        Command="{Binding ToggleActionFormCommand}"/>
+                            </StackPanel>
+                            <Border Style="{StaticResource FormPanel}"
+                                    Visibility="{Binding ShowActionForm, Converter={StaticResource BoolToVisibility}}">
+                                <StackPanel>
+                                    <TextBlock Text="Category" Style="{StaticResource FieldLabel}"/>
+                                    <ComboBox ItemsSource="{Binding ActionCategories}"
+                                              SelectedItem="{Binding ActionTypeCode}"/>
+                                    <TextBlock Text="Description" Style="{StaticResource FieldLabel}"/>
+                                    <TextBox Text="{Binding ActionTypeDesc}"/>
+                                    <TextBlock Text="Charge Amount" Style="{StaticResource FieldLabel}"/>
+                                    <TextBox Text="{Binding ChargeAmount}"/>
+                                    <TextBlock Text="Service Date" Style="{StaticResource FieldLabel}"/>
+                                    <DatePicker SelectedDate="{Binding ServiceDate}"/>
+                                    <TextBlock Text="Entered By User ID" Style="{StaticResource FieldLabel}"/>
+                                    <TextBox Text="{Binding EnteredByUserId}"/>
+                                    <TextBlock Text="Entered By Name" Style="{StaticResource FieldLabel}"/>
+                                    <TextBox Text="{Binding EnteredByUserName}"/>
+                                    <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
+                                        <Button Content="Cancel" Style="{StaticResource SecondaryButton}"
+                                                Command="{Binding ToggleActionFormCommand}"/>
+                                    </StackPanel>
+                                </StackPanel>
+                            </Border>
+                        </StackPanel>
+                    </Grid>
+                </TabItem>
+
+                <!-- ── Tab: Insurance ── -->
+                <TabItem Header="Insurance">
+                    <StackPanel Margin="8">
+                        <TextBlock Text="Personal Insurance Policies" Style="{StaticResource SectionHeader}"/>
+                        <DataGrid ItemsSource="{Binding Policies}" MaxHeight="400" AutoGenerateColumns="False">
+                            <DataGrid.Columns>
+                                <DataGridTextColumn Header="Policy ID" Binding="{Binding PolicyId}" Width="130"/>
+                                <DataGridTextColumn Header="Plan Name" Binding="{Binding GroupPlanName}" Width="180"/>
+                                <DataGridTextColumn Header="Plan Type" Binding="{Binding PlanType}" Width="110"/>
+                                <DataGridTextColumn Header="Subscriber ID" Binding="{Binding SubscriberId}" Width="130"/>
+                                <DataGridTextColumn Header="Primary" Binding="{Binding IsPrimary}" Width="70"/>
+                                <DataGridTextColumn Header="Active" Binding="{Binding IsActive}" Width="60"/>
+                                <DataGridTextColumn Header="Effective" Binding="{Binding EffectiveDate, StringFormat=d}" Width="100"/>
+                            </DataGrid.Columns>
+                        </DataGrid>
+                    </StackPanel>
+                </TabItem>
+
+                <!-- ── Tab: Billing Clock ── -->
+                <TabItem Header="Billing Clock">
+                    <StackPanel Margin="8"
+                                Visibility="{Binding Loaded, Converter={StaticResource BoolToVisibility}}">
+                        <TextBlock Text="Means Test Billing Clock" Style="{StaticResource SectionHeader}"/>
+                        <Border Style="{StaticResource FormPanel}" MaxWidth="400" HorizontalAlignment="Left">
+                            <StackPanel>
+                                <TextBlock Text="Clock Start Date" Style="{StaticResource FieldLabel}"/>
+                                <TextBlock Text="{Binding BillingClock.ClockStartDate, StringFormat=d}"/>
+                                <TextBlock Text="Next Means Test Due" Style="{StaticResource FieldLabel}"/>
+                                <TextBlock Text="{Binding BillingClock.NextMeansTestDueDate, StringFormat=d}"/>
+                                <TextBlock Text="Is Active" Style="{StaticResource FieldLabel}"/>
+                                <TextBlock Text="{Binding BillingClock.IsActive}"/>
+                                <TextBlock Text="Billing Period" Style="{StaticResource FieldLabel}"/>
+                                <TextBlock Text="{Binding BillingClock.BillingPeriod}"/>
+                            </StackPanel>
+                        </Border>
+                    </StackPanel>
+                </TabItem>
+
+            </TabControl>
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>

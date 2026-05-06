@@ -1,0 +1,257 @@
+﻿@page "/ed"
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+@rendermode InteractiveServer
+@using NewVistas.BlazorWeb.Services
+@using NewVistas.Abstractions.GrainInterfaces
+@using NewVistas.Abstractions.GrainStates
+@inject OrleansGrainService Grains
+
+<PageTitle>Emergency Department</PageTitle>
+
+<h1>Emergency Department Tracking Board</h1>
+
+@if (error != null) { <div class="alert alert-error">@error</div> }
+@if (successMsg != null) { <div class="alert alert-success">@successMsg</div> }
+
+<div class="tab-bar">
+    <button class="@TabClass(0)" @onclick="async () => { activeTab = 0; await LoadBoard(); }">Tracking Board</button>
+    <button class="@TabClass(1)" @onclick="() => activeTab = 1">Register Patient</button>
+    <button class="@TabClass(2)" @onclick="() => LoadStats()">ED Statistics</button>
+</div>
+
+@* ─── Tab 0: Tracking Board ────────────────────────────────────────────── *@
+@if (activeTab == 0)
+{
+    <div class="board-actions">
+        <button class="btn btn-primary" @onclick="LoadBoard" disabled="@loading">Refresh</button>
+        <button class="btn btn-demo" @onclick="LoadDemo">Load Demo Data</button>
+    </div>
+
+    @if (boardEntries != null)
+    {
+        @if (boardEntries.Count == 0)
+        {
+            <div class="empty-state">No active ED visits.</div>
+        }
+        else
+        {
+            <table class="data-table">
+                <thead>
+                    <tr><th>ESI</th><th>Patient</th><th>Chief Complaint</th><th>Bed</th><th>Physician</th><th>Status</th><th>Wait</th><th>Arrival</th><th>Actions</th></tr>
+                </thead>
+                <tbody>
+                    @foreach (var v in boardEntries)
+                    {
+                        <tr class="acuity-@v.AcuityLevel">
+                            <td class="acuity"><span class="esi esi-@v.AcuityLevel">@v.AcuityLevel</span></td>
+                            <td>@v.PatientName</td>
+                            <td>@v.ChiefComplaint</td>
+                            <td class="bed">@(v.AssignedBed ?? "—")</td>
+                            <td>@(v.AttendingPhysicianName ?? "—")</td>
+                            <td><span class="badge badge-@v.Status.ToLower().Replace("_","")">@v.Status</span></td>
+                            <td class="wait">@v.WaitMinutes min</td>
+                            <td class="date">@v.ArrivalDateTime.ToString("HH:mm")</td>
+                            <td class="actions">
+                                @if (v.Status == "WAITING" || v.Status == "TRIAGED")
+                                {
+                                    <button class="btn-sm" @onclick="() => AssignBed(v.VisitId)">Bed</button>
+                                }
+                                @if (v.AssignedBed != null)
+                                {
+                                    <button class="btn-sm btn-dc" @onclick="() => DischargeVisit(v.VisitId)">DC</button>
+                                }
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        }
+    }
+}
+
+@* ─── Tab 1: Register Patient ──────────────────────────────────────────── *@
+@if (activeTab == 1)
+{
+    <div class="form-card">
+        <h3>Register ED Arrival</h3>
+        <div class="form-row"><label>Patient ID</label><input type="text" @bind="newPatientId" /></div>
+        <div class="form-row"><label>Patient Name</label><input type="text" @bind="newPatientName" /></div>
+        <div class="form-row"><label>Chief Complaint</label><input type="text" @bind="newComplaint" /></div>
+        <div class="form-row">
+            <label>Arrival Mode</label>
+            <select @bind="newArrivalMode">
+                <option value="WALK_IN">Walk-In</option>
+                <option value="AMBULANCE">Ambulance</option>
+                <option value="HELICOPTER">Helicopter</option>
+                <option value="POLICE">Police</option>
+                <option value="TRANSFER">Transfer</option>
+            </select>
+        </div>
+        <button class="btn btn-primary" @onclick="RegisterArrival"
+                disabled="@(string.IsNullOrWhiteSpace(newPatientName) || string.IsNullOrWhiteSpace(newComplaint))">
+            Register Arrival
+        </button>
+    </div>
+}
+
+@* ─── Tab 2: Statistics ────────────────────────────────────────────────── *@
+@if (activeTab == 2 && stats != null)
+{
+    <div class="stats-grid">
+        <div class="stat-card"><div class="stat-value">@stats.ActiveCount</div><div class="stat-label">Active Patients</div></div>
+        <div class="stat-card"><div class="stat-value">@stats.WaitingCount</div><div class="stat-label">Waiting</div></div>
+        <div class="stat-card"><div class="stat-value">@stats.OccupiedBeds / @stats.TotalBeds</div><div class="stat-label">Beds Occupied</div></div>
+        <div class="stat-card"><div class="stat-value">@stats.AvailableBeds</div><div class="stat-label">Beds Available</div></div>
+    </div>
+}
+
+@code {
+    private List<BoardEntryDto>? boardEntries;
+    private StatsDto? stats;
+    private bool loading;
+    private string? error, successMsg;
+    private int activeTab;
+    private string newPatientId = "", newPatientName = "", newComplaint = "", newArrivalMode = "WALK_IN";
+
+    protected override async Task OnInitializedAsync() => await LoadBoard();
+
+    private async Task LoadBoard()
+    {
+        activeTab = 0; loading = true; error = null;
+        try
+        {
+            var boardGrain = Grains.GetGrain<IEdBoardGrain>("ED-BOARD:MAIN");
+            var entries = await boardGrain.GetActiveVisitsAsync();
+            boardEntries = entries.Select(e => new BoardEntryDto
+            {
+                VisitId = e.VisitId, PatientName = e.PatientName,
+                ChiefComplaint = e.ChiefComplaint, AcuityLevel = e.AcuityLevel,
+                AssignedBed = e.AssignedBed, AttendingPhysicianName = e.AttendingPhysicianName,
+                Status = e.Status, ArrivalDateTime = e.ArrivalDateTime,
+                WaitMinutes = e.WaitMinutes, ArrivalMode = e.ArrivalMode
+            }).ToList();
+        }
+        catch (Exception ex) { error = ex.Message; }
+        finally { loading = false; }
+    }
+
+    private async Task LoadStats()
+    {
+        activeTab = 2; error = null;
+        try
+        {
+            var boardGrain = Grains.GetGrain<IEdBoardGrain>("ED-BOARD:MAIN");
+            int waiting = await boardGrain.GetWaitingCountAsync();
+            int occupied = await boardGrain.GetOccupiedBedCountAsync();
+            var entries = await boardGrain.GetActiveVisitsAsync();
+            stats = new StatsDto
+            {
+                ActiveCount = entries.Count, WaitingCount = waiting,
+                OccupiedBeds = occupied, TotalBeds = 20, AvailableBeds = 20 - occupied
+            };
+        }
+        catch (Exception ex) { error = ex.Message; }
+    }
+
+    private async Task RegisterArrival()
+    {
+        error = null; successMsg = null;
+        try
+        {
+            string visitId = $"ED-VISIT:{Guid.NewGuid()}";
+            var visitGrain = Grains.GetGrain<IEdVisitGrain>(visitId);
+            await visitGrain.RegisterArrivalAsync(newPatientId, newPatientName, newComplaint, newArrivalMode, DateTime.UtcNow);
+            var boardGrain = Grains.GetGrain<IEdBoardGrain>("ED-BOARD:MAIN");
+            await boardGrain.AddOrUpdateVisitAsync(new EdBoardEntry
+            {
+                VisitId = visitId, PatientName = newPatientName,
+                ChiefComplaint = newComplaint, ArrivalMode = newArrivalMode,
+                ArrivalDateTime = DateTime.UtcNow, Status = "WAITING", AcuityLevel = 3
+            });
+            successMsg = "Patient registered."; newPatientId = ""; newPatientName = ""; newComplaint = ""; activeTab = 0;
+            await LoadBoard();
+        }
+        catch (Exception ex) { error = ex.Message; }
+    }
+
+    private async Task AssignBed(string visitId)
+    {
+        var bed = $"ED-BAY-{Random.Shared.Next(1, 12)}";
+        try
+        {
+            var visitGrain = Grains.GetGrain<IEdVisitGrain>(visitId);
+            await visitGrain.AssignBedAsync(bed);
+            await LoadBoard();
+        }
+        catch (Exception ex) { error = ex.Message; }
+    }
+
+    private async Task DischargeVisit(string visitId)
+    {
+        try
+        {
+            var visitGrain = Grains.GetGrain<IEdVisitGrain>(visitId);
+            await visitGrain.DischargeAsync("ED evaluation complete");
+            var boardGrain = Grains.GetGrain<IEdBoardGrain>("ED-BOARD:MAIN");
+            await boardGrain.RemoveVisitAsync(visitId);
+            successMsg = "Patient discharged."; await LoadBoard();
+        }
+        catch (Exception ex) { error = ex.Message; }
+    }
+
+    private async Task LoadDemo()
+    {
+        successMsg = "Demo data not available in direct grain mode.";
+    }
+
+    private string TabClass(int tab) => activeTab == tab ? "tab active" : "tab";
+
+    private class BoardEntryDto { public string VisitId { get; set; } = ""; public string PatientName { get; set; } = ""; public string ChiefComplaint { get; set; } = ""; public int AcuityLevel { get; set; } public string? AssignedBed { get; set; } public string? AttendingPhysicianName { get; set; } public string Status { get; set; } = ""; public DateTime ArrivalDateTime { get; set; } public int WaitMinutes { get; set; } public string ArrivalMode { get; set; } = ""; }
+    private class StatsDto { public int TotalBeds { get; set; } public int OccupiedBeds { get; set; } public int AvailableBeds { get; set; } public int WaitingCount { get; set; } public int ActiveCount { get; set; } }
+}
+
+<style>
+    .tab-bar { display: flex; gap: 0; margin-bottom: 1.5rem; border-bottom: 2px solid #d4d9e0; }
+    .tab { padding: 0.6rem 1.25rem; border: none; background: transparent; cursor: pointer; font-size: 0.85rem; color: #666; border-bottom: 2px solid transparent; margin-bottom: -2px; }
+    .tab.active { color: #003f72; font-weight: 600; border-bottom: 2px solid #003f72; }
+    .btn { padding: 0.5rem 1.25rem; border: none; border-radius: 4px; cursor: pointer; font-size: 0.85rem; }
+    .btn-primary { background: #003f72; color: white; }
+    .btn-demo { background: #059669; color: white; }
+    .btn-sm { padding: 0.2rem 0.5rem; font-size: 0.75rem; border: 1px solid #ccc; border-radius: 3px; cursor: pointer; background: white; }
+    .btn-dc { border-color: #dc2626; color: #dc2626; }
+    .board-actions { display: flex; gap: 0.5rem; margin-bottom: 1rem; }
+    .alert { padding: 0.75rem 1rem; border-radius: 4px; margin-bottom: 1rem; }
+    .alert-error { background: #fde8e8; color: #b91c1c; border: 1px solid #f5c6c6; }
+    .alert-success { background: #d1fae5; color: #065f46; border: 1px solid #a7f3d0; }
+    .empty-state { color: #999; font-style: italic; padding: 2rem 0; }
+    .data-table { width: 100%; border-collapse: collapse; font-size: 0.85rem; border: 1px solid #d4d9e0; }
+    .data-table thead { background: #1e3a5f; color: white; }
+    .data-table th { text-align: left; padding: 0.5rem; font-weight: 600; font-size: 0.75rem; text-transform: uppercase; }
+    .data-table td { padding: 0.4rem 0.5rem; border-bottom: 1px solid #e5e7eb; }
+    .data-table tr:hover { background: #f0f4f8; }
+    .acuity-1 { background: #fde8e8; }
+    .acuity-2 { background: #fff7ed; }
+    .esi { display: inline-block; width: 24px; height: 24px; border-radius: 50%; text-align: center; line-height: 24px; font-weight: 700; font-size: 0.8rem; color: white; }
+    .esi-1 { background: #dc2626; }
+    .esi-2 { background: #ea580c; }
+    .esi-3 { background: #d97706; }
+    .esi-4 { background: #2563eb; }
+    .esi-5 { background: #059669; }
+    .bed { font-weight: 600; color: #003f72; }
+    .wait { color: #b91c1c; font-weight: 600; }
+    .date { color: #888; font-size: 0.8rem; }
+    .actions { white-space: nowrap; display: flex; gap: 0.25rem; }
+    .badge { padding: 0.15rem 0.5rem; border-radius: 10px; font-size: 0.7rem; font-weight: 600; }
+    .badge-waiting { background: #fef3c7; color: #92400e; }
+    .badge-triaged { background: #e0f2fe; color: #0369a1; }
+    .badge-intreatment { background: #d1fae5; color: #065f46; }
+    .badge-awaitingresults { background: #fef3c7; color: #92400e; }
+    .form-card { background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 6px; padding: 1.25rem; max-width: 500px; }
+    .form-row { margin-bottom: 0.75rem; }
+    .form-row label { display: block; font-size: 0.8rem; font-weight: 600; color: #374151; margin-bottom: 0.25rem; }
+    .form-row input, .form-row select { width: 100%; padding: 0.4rem 0.6rem; border: 1px solid #d1d5db; border-radius: 4px; font-size: 0.85rem; }
+    .stats-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 1rem; }
+    .stat-card { background: #f0f4f8; border: 1px solid #d4d9e0; border-radius: 8px; padding: 1.25rem; text-align: center; }
+    .stat-value { font-size: 2rem; font-weight: 700; color: #003f72; }
+    .stat-label { font-size: 0.8rem; color: #6b7280; margin-top: 0.25rem; }
+</style>

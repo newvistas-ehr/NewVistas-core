@@ -1,0 +1,16 @@
+{
+	"folders": [
+		{
+			"path": "."
+		},
+		{
+			"path": "../openmrs-distro-referenceapplication"
+		},
+		{
+			"path": "../openboxes"
+		}
+	],
+	"settings": {
+		"claudeCode.useCtrlEnterToSend": true
+	}
+}

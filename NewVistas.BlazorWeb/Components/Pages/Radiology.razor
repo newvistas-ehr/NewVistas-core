@@ -1,0 +1,524 @@
+@page "/radiology"
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+@rendermode InteractiveServer
+@using NewVistas.BlazorWeb.Services
+@using NewVistas.Abstractions.GrainInterfaces
+@using NewVistas.Abstractions.GrainStates
+@inject OrleansGrainService Grains
+
+<PageTitle>Radiology</PageTitle>
+<h1>Radiology</h1>
+
+<div class="lookup-bar">
+    <input type="text" @bind="patientId" @bind:event="oninput" @onkeydown="HandleKeyDown" placeholder="Patient ID" class="lookup-input" />
+    <button @onclick="Load" disabled="@(string.IsNullOrWhiteSpace(patientId) || loading)" class="btn btn-primary">
+        @if (loading) { <span>Loading...</span> } else { <span>Load</span> }
+    </button>
+    <button @onclick="ShowForm" disabled="@(string.IsNullOrWhiteSpace(patientId))" class="btn btn-secondary">+ Order Study</button>
+</div>
+
+@if (error != null) { <div class="alert alert-error">@error</div> }
+@if (success != null) { <div class="alert alert-success">@success</div> }
+
+@if (items != null || detail != null)
+{
+    <div class="tab-bar">
+        <button class="tab @(activeTab == "list" ? "tab-active" : "")" @onclick='() => SetTab("list")'>Studies</button>
+        @if (detail != null)
+        {
+            <button class="tab @(activeTab == "detail" ? "tab-active" : "")" @onclick='() => SetTab("detail")'>Study Detail</button>
+        }
+    </div>
+}
+
+@if (showNew)
+{
+    <div class="entry-form">
+        <h3>Order Radiology Study</h3>
+        <div class="form-grid">
+            <div class="form-row"><label>Procedure Name *</label><input type="text" @bind="f_procedure" placeholder="e.g. Chest X-Ray PA and Lateral" /></div>
+            <div class="form-row"><label>CPT Code</label><input type="text" @bind="f_cpt" placeholder="e.g. 71046" /></div>
+            <div class="form-row"><label>Imaging Type</label>
+                <select @bind="f_type"><option value="">--</option><option>GENERAL RADIOLOGY</option><option>CT SCAN</option><option>MRI</option><option>ULTRASOUND</option><option>NUCLEAR MEDICINE</option><option>MAMMOGRAPHY</option></select>
+            </div>
+            <div class="form-row"><label>Requesting Provider</label><input type="text" @bind="f_provider" /></div>
+            <div class="form-row"><label>Urgency</label>
+                <select @bind="f_urgency"><option>ROUTINE</option><option>URGENT</option><option>STAT</option></select>
+            </div>
+            <div class="form-row"><label>Location</label><input type="text" @bind="f_location" /></div>
+            <div class="form-row full"><label>Clinical History</label><textarea @bind="f_history" rows="2" placeholder="Relevant clinical history..."></textarea></div>
+            <div class="form-row full"><label>Reason for Study</label><textarea @bind="f_reason" rows="2" placeholder="Clinical question..."></textarea></div>
+        </div>
+        <div class="form-actions">
+            <button @onclick="Submit" disabled="@saving" class="btn btn-primary">@(saving ? "Ordering..." : "Order Study")</button>
+            <button @onclick="() => showNew = false" class="btn btn-outline">Cancel</button>
+        </div>
+    </div>
+}
+
+@if (activeTab == "list" && items != null)
+{
+    @if (items.Count == 0) { <div class="empty-state">No radiology studies found.</div> }
+    else
+    {
+        <table class="data-table">
+            <thead><tr><th>Date</th><th>Procedure</th><th>Type</th><th>Requesting</th><th>Status</th><th>Report</th><th>Actions</th></tr></thead>
+            <tbody>
+                @foreach (var s in items)
+                {
+                    <tr class="clickable" @onclick="() => ViewDetail(s.RadiologyId)">
+                        <td class="date">@s.ExamDateTime?.ToString("MM/dd/yyyy")</td>
+                        <td>@s.ProcedureName</td><td>@s.ImagingType</td>
+                        <td>@s.RequestingProviderName</td>
+                        <td><span class="badge @StatusCss(s.Status)">@s.Status</span></td>
+                        <td>@(s.HasReport ? "Yes" : "--")</td>
+                        <td class="actions" @onclick:stopPropagation>
+                            @if (s.Status == "PENDING" || s.Status == "EXAMINED")
+                            {
+                                <button @onclick="() => CompleteStudy(s.RadiologyId)" class="btn-sm btn-complete">Complete</button>
+                            }
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    }
+}
+
+@if (activeTab == "detail" && detail != null)
+{
+    <div class="detail-panel">
+        <div class="detail-header">
+            <h3>@detail.ProcedureName</h3>
+            <span class="badge @StatusCss(detail.Status)">@detail.Status</span>
+            @if (detail.IsCriticalResult) { <span class="badge badge-red">CRITICAL</span> }
+            <button @onclick="CloseDetail" class="btn btn-outline btn-sm-action">Close</button>
+        </div>
+        <div class="detail-grid">
+            <div><strong>Radiology ID:</strong> @detail.RadiologyId</div>
+            <div><strong>Imaging Type:</strong> @(detail.ImagingType ?? "--")</div>
+            <div><strong>Status:</strong> @detail.Status</div>
+            <div><strong>Urgency:</strong> @(detail.Urgency ?? "--")</div>
+            <div><strong>Requesting Provider:</strong> @(detail.RequestingProviderName ?? "--")</div>
+            <div><strong>Interpreting Physician:</strong> @(detail.InterpretingPhysicianName ?? "--")</div>
+            <div><strong>Order Date:</strong> @detail.OrderDateTime?.ToString("MM/dd/yyyy HH:mm")</div>
+            <div><strong>Exam Date:</strong> @detail.ExamDateTime?.ToString("MM/dd/yyyy HH:mm")</div>
+            <div><strong>Body Part:</strong> @(detail.BodyPart ?? "--")</div>
+            <div><strong>Laterality:</strong> @(detail.Laterality ?? "--")</div>
+            <div><strong>Location:</strong> @(detail.LocationName ?? "--")</div>
+            <div><strong>Technician:</strong> @(detail.TechnicianName ?? "--")</div>
+            @if (!string.IsNullOrEmpty(detail.ClinicalHistory))
+            {
+                <div class="full"><strong>Clinical History:</strong> @detail.ClinicalHistory</div>
+            }
+            @if (!string.IsNullOrEmpty(detail.ReasonForStudy))
+            {
+                <div class="full"><strong>Reason:</strong> @detail.ReasonForStudy</div>
+            }
+            @if (!string.IsNullOrEmpty(detail.ReportText))
+            {
+                <div class="full"><strong>Report:</strong><pre class="pre-wrap">@detail.ReportText</pre></div>
+            }
+            @if (!string.IsNullOrEmpty(detail.Impression))
+            {
+                <div class="full"><strong>Impression:</strong> @detail.Impression</div>
+            }
+            @if (!string.IsNullOrEmpty(detail.AmendmentText))
+            {
+                <div class="full"><strong>Amendment:</strong> @detail.AmendmentText <span class="date">(@detail.AmendmentDateTime?.ToString("MM/dd/yyyy HH:mm"))</span></div>
+            }
+        </div>
+
+        @* ── Contrast ── *@
+        <div class="section">
+            <h4>Contrast</h4>
+            @if (!string.IsNullOrEmpty(detail.ContrastAgent))
+            {
+                <div class="detail-grid">
+                    <div><strong>Agent:</strong> @detail.ContrastAgent</div>
+                    <div><strong>Route:</strong> @(detail.ContrastRoute ?? "--")</div>
+                    <div><strong>Volume:</strong> @(detail.ContrastVolumeMl?.ToString("F1") ?? "--") mL</div>
+                    @if (detail.ContrastReactionOccurred == true)
+                    {
+                        <div class="full"><strong>Reaction:</strong> <span class="badge badge-red">YES</span> @detail.ContrastReactionDetails</div>
+                    }
+                </div>
+                @if (detail.ContrastReactionOccurred != true)
+                {
+                    <div class="entry-form compact">
+                        <div class="form-grid">
+                            <div class="form-row full"><label>Reaction Details</label><input type="text" @bind="cr_reaction" placeholder="Describe contrast reaction..." /></div>
+                        </div>
+                        <div class="form-actions">
+                            <button @onclick="SubmitContrastReaction" disabled="@saving" class="btn btn-primary">Record Reaction</button>
+                        </div>
+                    </div>
+                }
+            }
+            else
+            {
+                <div class="entry-form compact">
+                    <div class="form-grid">
+                        <div class="form-row"><label>Contrast Agent *</label><input type="text" @bind="ct_agent" placeholder="e.g. Omnipaque 300" /></div>
+                        <div class="form-row"><label>Route</label>
+                            <select @bind="ct_route"><option value="">--</option><option>IV</option><option>ORAL</option><option>RECTAL</option><option>INTRATHECAL</option></select>
+                        </div>
+                        <div class="form-row"><label>Volume (mL)</label><input type="number" @bind="ct_volume" step="0.1" min="0" /></div>
+                    </div>
+                    <div class="form-actions">
+                        <button @onclick="SubmitContrast" disabled="@saving" class="btn btn-primary">Record Contrast</button>
+                    </div>
+                </div>
+            }
+        </div>
+
+        @* ── Radiation Dose ── *@
+        <div class="section">
+            <h4>Radiation Dose</h4>
+            @if (detail.RadiationDoseMSv.HasValue || detail.CtdiVol.HasValue || detail.DoseLengthProduct.HasValue)
+            {
+                <div class="detail-grid">
+                    <div><strong>Dose (mSv):</strong> @(detail.RadiationDoseMSv?.ToString("F2") ?? "--")</div>
+                    <div><strong>CTDIvol (mGy):</strong> @(detail.CtdiVol?.ToString("F2") ?? "--")</div>
+                    <div><strong>DLP (mGy*cm):</strong> @(detail.DoseLengthProduct?.ToString("F2") ?? "--")</div>
+                </div>
+            }
+            else
+            {
+                <div class="entry-form compact">
+                    <div class="form-grid">
+                        <div class="form-row"><label>Dose (mSv)</label><input type="number" @bind="rd_msv" step="0.01" min="0" /></div>
+                        <div class="form-row"><label>CTDIvol (mGy)</label><input type="number" @bind="rd_ctdi" step="0.01" min="0" /></div>
+                        <div class="form-row"><label>DLP (mGy*cm)</label><input type="number" @bind="rd_dlp" step="0.01" min="0" /></div>
+                    </div>
+                    <div class="form-actions">
+                        <button @onclick="SubmitRadiationDose" disabled="@saving" class="btn btn-primary">Record Radiation Dose</button>
+                    </div>
+                </div>
+            }
+        </div>
+
+        @* ── Critical Results ── *@
+        <div class="section">
+            <h4>Critical Results</h4>
+            @if (detail.IsCriticalResult)
+            {
+                <div class="detail-grid">
+                    <div><strong>Critical:</strong> <span class="badge badge-red">YES</span></div>
+                    <div><strong>Notified To:</strong> @(detail.CriticalResultNotifiedTo ?? "--")</div>
+                    <div><strong>Notified At:</strong> @(detail.CriticalResultNotifiedDateTime?.ToString("MM/dd/yyyy HH:mm") ?? "--")</div>
+                    <div><strong>Acknowledged By:</strong> @(detail.CriticalResultAcknowledgedBy ?? "--")</div>
+                </div>
+                @if (string.IsNullOrEmpty(detail.CriticalResultNotifiedTo))
+                {
+                    <div class="entry-form compact">
+                        <div class="form-grid">
+                            <div class="form-row"><label>Notified To *</label><input type="text" @bind="cn_to" placeholder="Provider name" /></div>
+                        </div>
+                        <div class="form-actions">
+                            <button @onclick="SubmitCriticalNotification" disabled="@saving" class="btn btn-primary">Record Notification</button>
+                        </div>
+                    </div>
+                }
+                else if (string.IsNullOrEmpty(detail.CriticalResultAcknowledgedBy))
+                {
+                    <div class="entry-form compact">
+                        <div class="form-grid">
+                            <div class="form-row"><label>Acknowledged By *</label><input type="text" @bind="cn_ack" placeholder="Acknowledging provider" /></div>
+                        </div>
+                        <div class="form-actions">
+                            <button @onclick="SubmitAcknowledgeCritical" disabled="@saving" class="btn btn-primary">Acknowledge</button>
+                        </div>
+                    </div>
+                }
+            }
+            else
+            {
+                <div class="form-actions">
+                    <button @onclick="FlagCritical" disabled="@saving" class="btn btn-primary">Flag as Critical Result</button>
+                </div>
+            }
+        </div>
+
+        @* ── Report Actions ── *@
+        <div class="section">
+            <h4>Report Actions</h4>
+            @if (!string.IsNullOrEmpty(detail.SignedByName))
+            {
+                <div class="detail-grid">
+                    <div><strong>Signed By:</strong> @detail.SignedByName</div>
+                    <div><strong>Signed At:</strong> @detail.SignedDateTime?.ToString("MM/dd/yyyy HH:mm")</div>
+                    <div><strong>Report Status:</strong> @(detail.ReportStatus ?? "--")</div>
+                </div>
+            }
+            @if (string.IsNullOrEmpty(detail.SignedByName) && !string.IsNullOrEmpty(detail.ReportText))
+            {
+                <div class="entry-form compact">
+                    <div class="form-grid">
+                        <div class="form-row"><label>Radiologist Name *</label><input type="text" @bind="sr_name" /></div>
+                        <div class="form-row"><label>Radiologist ID</label><input type="text" @bind="sr_id" /></div>
+                    </div>
+                    <div class="form-actions">
+                        <button @onclick="SignReport" disabled="@saving" class="btn btn-primary">Sign Report</button>
+                    </div>
+                </div>
+            }
+            <div class="entry-form compact">
+                <div class="form-grid">
+                    <div class="form-row full"><label>Amendment Text</label><textarea @bind="am_text" rows="3" placeholder="Amend the report..."></textarea></div>
+                </div>
+                <div class="form-actions">
+                    <button @onclick="AmendReport" disabled="@(saving || string.IsNullOrWhiteSpace(am_text))" class="btn btn-primary">Amend Report</button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    [SupplyParameterFromQuery] public string? patientId { get; set; }
+    private List<RadiologySummary>? items;
+    private RadiologyState? detail;
+    private bool loading, saving, showNew;
+    private string? error, success;
+    private string activeTab = "list";
+
+    // Order form
+    private string f_procedure = "", f_cpt = "", f_type = "", f_provider = "", f_urgency = "ROUTINE", f_location = "", f_history = "", f_reason = "";
+
+    // Contrast form
+    private string ct_agent = "", ct_route = "";
+    private double? ct_volume;
+    private string cr_reaction = "";
+
+    // Radiation dose form
+    private double? rd_msv, rd_ctdi, rd_dlp;
+
+    // Critical notification
+    private string cn_to = "", cn_ack = "";
+
+    // Sign report
+    private string sr_name = "", sr_id = "";
+
+    // Amend report
+    private string am_text = "";
+
+    protected override async Task OnParametersSetAsync() { if (!string.IsNullOrWhiteSpace(patientId)) await Load(); }
+    private async Task HandleKeyDown(KeyboardEventArgs e) { if (e.Key == "Enter") await Load(); }
+    private void SetTab(string tab) { activeTab = tab; success = null; }
+    private void ShowForm() { showNew = true; success = null; f_procedure = ""; f_cpt = ""; f_type = ""; f_provider = ""; f_urgency = "ROUTINE"; f_location = ""; f_history = ""; f_reason = ""; }
+    private void CloseDetail() { detail = null; activeTab = "list"; }
+
+    private async Task Load()
+    {
+        if (string.IsNullOrWhiteSpace(patientId)) return;
+        loading = true; error = null;
+        try
+        {
+            var grain = Grains.GetGrain<IPatientWorkflowGrain>(patientId.Trim());
+            items = await grain.GetRadiologyStudiesAsync(100);
+        }
+        catch (Exception ex) { error = ex.Message; } finally { loading = false; }
+    }
+
+    private async Task ViewDetail(string id)
+    {
+        error = null;
+        try
+        {
+            var grain = Grains.GetGrain<IPatientWorkflowGrain>(patientId!.Trim());
+            detail = await grain.GetRadiologyStudyAsync(id);
+            activeTab = "detail";
+            ResetForms();
+        }
+        catch (Exception ex) { error = ex.Message; }
+    }
+
+    private void ResetForms()
+    {
+        ct_agent = ""; ct_route = ""; ct_volume = null; cr_reaction = "";
+        rd_msv = null; rd_ctdi = null; rd_dlp = null;
+        cn_to = ""; cn_ack = ""; sr_name = ""; sr_id = ""; am_text = "";
+    }
+
+    private async Task Submit()
+    {
+        if (string.IsNullOrWhiteSpace(f_procedure)) { error = "Procedure name is required."; return; }
+        saving = true; error = null;
+        try
+        {
+            var grain = Grains.GetGrain<IPatientWorkflowGrain>(patientId!.Trim());
+            await grain.OrderRadiologyStudyAsync(
+                f_procedure, null, NullIfEmpty(f_cpt), NullIfEmpty(f_type),
+                null, NullIfEmpty(f_provider), f_urgency,
+                NullIfEmpty(f_history), NullIfEmpty(f_reason),
+                null, null, NullIfEmpty(f_location));
+            showNew = false; success = "Study ordered."; await Load();
+        }
+        catch (Exception ex) { error = ex.Message; } finally { saving = false; }
+    }
+
+    private async Task CompleteStudy(string id)
+    {
+        try
+        {
+            var grain = Grains.GetGrain<IPatientWorkflowGrain>(patientId!.Trim());
+            await grain.CompleteRadiologyAsync(id, "Study reviewed.", "No acute findings.", null, null);
+            success = "Study completed."; await Load();
+        }
+        catch (Exception ex) { error = ex.Message; }
+    }
+
+    private async Task SubmitContrast()
+    {
+        if (string.IsNullOrWhiteSpace(ct_agent)) { error = "Contrast agent is required."; return; }
+        saving = true; error = null;
+        try
+        {
+            var grain = Grains.GetGrain<IPatientWorkflowGrain>(patientId!.Trim());
+            await grain.RecordRadiologyContrastAsync(detail!.RadiologyId, ct_agent, NullIfEmpty(ct_route), ct_volume);
+            success = "Contrast recorded."; await ViewDetail(detail.RadiologyId);
+        }
+        catch (Exception ex) { error = ex.Message; } finally { saving = false; }
+    }
+
+    private async Task SubmitContrastReaction()
+    {
+        if (string.IsNullOrWhiteSpace(cr_reaction)) { error = "Reaction details required."; return; }
+        saving = true; error = null;
+        try
+        {
+            var grain = Grains.GetGrain<IPatientWorkflowGrain>(patientId!.Trim());
+            await grain.RecordRadiologyContrastReactionAsync(detail!.RadiologyId, cr_reaction);
+            success = "Contrast reaction recorded."; await ViewDetail(detail.RadiologyId);
+        }
+        catch (Exception ex) { error = ex.Message; } finally { saving = false; }
+    }
+
+    private async Task SubmitRadiationDose()
+    {
+        saving = true; error = null;
+        try
+        {
+            var grain = Grains.GetGrain<IPatientWorkflowGrain>(patientId!.Trim());
+            await grain.RecordRadiationDoseAsync(detail!.RadiologyId, rd_msv, rd_ctdi, rd_dlp);
+            success = "Radiation dose recorded."; await ViewDetail(detail.RadiologyId);
+        }
+        catch (Exception ex) { error = ex.Message; } finally { saving = false; }
+    }
+
+    private async Task FlagCritical()
+    {
+        saving = true; error = null;
+        try
+        {
+            var grain = Grains.GetGrain<IPatientWorkflowGrain>(patientId!.Trim());
+            await grain.FlagCriticalRadiologyResultAsync(detail!.RadiologyId);
+            success = "Flagged as critical."; await ViewDetail(detail.RadiologyId);
+        }
+        catch (Exception ex) { error = ex.Message; } finally { saving = false; }
+    }
+
+    private async Task SubmitCriticalNotification()
+    {
+        if (string.IsNullOrWhiteSpace(cn_to)) { error = "Notified To is required."; return; }
+        saving = true; error = null;
+        try
+        {
+            var grain = Grains.GetGrain<IPatientWorkflowGrain>(patientId!.Trim());
+            await grain.RecordCriticalResultNotificationAsync(detail!.RadiologyId, cn_to);
+            success = "Notification recorded."; await ViewDetail(detail.RadiologyId);
+        }
+        catch (Exception ex) { error = ex.Message; } finally { saving = false; }
+    }
+
+    private async Task SubmitAcknowledgeCritical()
+    {
+        if (string.IsNullOrWhiteSpace(cn_ack)) { error = "Acknowledged By is required."; return; }
+        saving = true; error = null;
+        try
+        {
+            var grain = Grains.GetGrain<IPatientWorkflowGrain>(patientId!.Trim());
+            await grain.AcknowledgeCriticalResultAsync(detail!.RadiologyId, cn_ack);
+            success = "Critical result acknowledged."; await ViewDetail(detail.RadiologyId);
+        }
+        catch (Exception ex) { error = ex.Message; } finally { saving = false; }
+    }
+
+    private async Task SignReport()
+    {
+        if (string.IsNullOrWhiteSpace(sr_name)) { error = "Radiologist name required."; return; }
+        saving = true; error = null;
+        try
+        {
+            var grain = Grains.GetGrain<IPatientWorkflowGrain>(patientId!.Trim());
+            await grain.SignRadiologyReportAsync(detail!.RadiologyId, NullIfEmpty(sr_id) ?? "", sr_name);
+            success = "Report signed."; await ViewDetail(detail.RadiologyId);
+        }
+        catch (Exception ex) { error = ex.Message; } finally { saving = false; }
+    }
+
+    private async Task AmendReport()
+    {
+        if (string.IsNullOrWhiteSpace(am_text)) { error = "Amendment text required."; return; }
+        saving = true; error = null;
+        try
+        {
+            var grain = Grains.GetGrain<IPatientWorkflowGrain>(patientId!.Trim());
+            await grain.AmendRadiologyReportAsync(detail!.RadiologyId, am_text);
+            success = "Report amended."; am_text = ""; await ViewDetail(detail.RadiologyId);
+        }
+        catch (Exception ex) { error = ex.Message; } finally { saving = false; }
+    }
+
+    private static string? NullIfEmpty(string s) => string.IsNullOrWhiteSpace(s) ? null : s;
+    private static string StatusCss(string s) => s switch { "COMPLETE" => "badge-green", "CANCELLED" => "badge-red", _ => "badge-blue" };
+}
+
+<style>
+    h1 { color: #003f72; margin-bottom: 1.25rem; font-size: 1.4rem; }
+    .lookup-bar { display: flex; gap: .5rem; margin-bottom: 1.5rem; align-items: center; }
+    .lookup-input { width: 280px; padding: .5rem .75rem; border: 1px solid #ccc; border-radius: 4px; font-size: .9rem; }
+    .btn { padding: .5rem 1.25rem; border: none; border-radius: 4px; cursor: pointer; font-size: .85rem; }
+    .btn-primary { background: #003f72; color: white; } .btn-primary:disabled { background: #999; cursor: not-allowed; }
+    .btn-secondary { background: #16a34a; color: white; } .btn-secondary:disabled { background: #999; }
+    .btn-outline { background: white; border: 1px solid #ccc; color: #333; }
+    .btn-sm { padding: 2px 8px; border: none; border-radius: 3px; cursor: pointer; font-size: .75rem; }
+    .btn-sm-action { padding: 4px 12px; font-size: .8rem; }
+    .btn-complete { background: #16a34a; color: white; }
+    .alert { padding: .75rem 1rem; border-radius: 4px; margin-bottom: 1rem; font-size: .85rem; }
+    .alert-error { background: #fde8e8; color: #b91c1c; border: 1px solid #f5c6c6; }
+    .alert-success { background: #dcfce7; color: #166534; border: 1px solid #bbf7d0; }
+    .empty-state { color: #999; font-style: italic; padding: 2rem 0; }
+    .tab-bar { display: flex; gap: 0; border-bottom: 2px solid #d4d9e0; margin-bottom: 1.25rem; }
+    .tab { background: none; border: none; padding: .6rem 1.25rem; cursor: pointer; font-size: .85rem; color: #555; border-bottom: 2px solid transparent; margin-bottom: -2px; }
+    .tab-active { color: #003f72; font-weight: 600; border-bottom-color: #003f72; }
+    .entry-form { border: 1px solid #d4d9e0; border-radius: 6px; padding: 1.25rem; margin-bottom: 1.5rem; background: #f9fafb; }
+    .entry-form.compact { margin-top: .75rem; padding: 1rem; }
+    .entry-form h3 { margin-bottom: 1rem; color: #003f72; }
+    .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: .75rem; }
+    .form-row { display: flex; flex-direction: column; gap: .25rem; }
+    .form-row.full { grid-column: 1 / -1; }
+    .form-row label { font-size: .8rem; font-weight: 600; color: #555; }
+    .form-row input, .form-row select, .form-row textarea { padding: .4rem .6rem; border: 1px solid #ccc; border-radius: 4px; font-size: .85rem; }
+    .form-row textarea { resize: vertical; }
+    .form-actions { display: flex; gap: .5rem; margin-top: .75rem; }
+    .data-table { width: 100%; border-collapse: collapse; font-size: .85rem; border: 1px solid #d4d9e0; }
+    .data-table thead { background: #f4f6f9; }
+    .data-table th { text-align: left; padding: .5rem; font-weight: 600; color: #003f72; border-bottom: 2px solid #d4d9e0; font-size: .75rem; text-transform: uppercase; }
+    .data-table td { padding: .4rem .5rem; border-bottom: 1px solid #f0f0f0; }
+    .data-table tr.clickable { cursor: pointer; }
+    .data-table tr.clickable:hover { background: #eef3f9; }
+    .date { color: #888; font-size: .8rem; white-space: nowrap; }
+    .actions { white-space: nowrap; }
+    .badge { padding: 2px 8px; border-radius: 3px; font-size: .7rem; font-weight: 600; }
+    .badge-blue { background: #dbeafe; color: #1e40af; } .badge-green { background: #dcfce7; color: #166534; } .badge-red { background: #fde8e8; color: #b91c1c; }
+    .detail-panel { border: 1px solid #d4d9e0; border-radius: 6px; padding: 1.25rem; margin-bottom: 1.5rem; }
+    .detail-header { display: flex; align-items: center; gap: .75rem; margin-bottom: 1rem; }
+    .detail-header h3 { margin: 0; color: #003f72; flex: 1; }
+    .detail-grid { display: grid; grid-template-columns: 1fr 1fr; gap: .5rem; font-size: .85rem; margin-bottom: .5rem; }
+    .detail-grid .full { grid-column: 1 / -1; }
+    .section { border-top: 1px solid #e5e7eb; padding-top: 1rem; margin-top: 1rem; }
+    .section h4 { color: #003f72; margin-bottom: .75rem; font-size: .95rem; }
+    .pre-wrap { white-space: pre-wrap; word-wrap: break-word; font-family: -apple-system, sans-serif; font-size: .85rem; margin: .25rem 0 0 0; }
+</style>

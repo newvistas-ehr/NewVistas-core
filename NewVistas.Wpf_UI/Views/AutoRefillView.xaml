@@ -1,0 +1,69 @@
+<UserControl x:Class="NewVistas.Wpf_UI.Views.AutoRefillView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <ScrollViewer VerticalScrollBarVisibility="Auto">
+        <StackPanel Margin="24">
+            <TextBlock Style="{StaticResource PageTitle}" Text="Auto Refill"/>
+
+            <Border Background="#FFF3CD" BorderBrush="#FFC107" BorderThickness="1" CornerRadius="3"
+                    Padding="12,8" Margin="0,0,0,12"
+                    Visibility="{Binding IsFeatureEnabled, Converter={StaticResource InverseBoolToVisibility}}">
+                <TextBlock Text="Auto Refill is not currently enabled for this site." Foreground="#856404" FontSize="13"/>
+            </Border>
+
+            <TextBlock Style="{StaticResource ErrorText}" Text="{Binding Error}" Visibility="{Binding Error, Converter={StaticResource NullToVisibility}}"/>
+            <TextBlock Foreground="{StaticResource VaSuccessBrush}" FontSize="13" Margin="0,0,0,8" Text="{Binding SuccessMessage}" Visibility="{Binding SuccessMessage, Converter={StaticResource NullToVisibility}}"/>
+
+            <StackPanel Orientation="Horizontal" Margin="0,0,0,12">
+                <Button Content="Load" Style="{StaticResource PrimaryButton}" Command="{Binding LoadCommand}" Margin="0,0,8,0"/>
+                <Button Content="Enroll Prescription" Style="{StaticResource SecondaryButton}" Command="{Binding ToggleEnrollFormCommand}" Margin="0,0,8,0"/>
+                <ProgressBar IsIndeterminate="True" Width="120" Height="20" Visibility="{Binding IsLoading, Converter={StaticResource BoolToVisibility}}"/>
+            </StackPanel>
+
+            <Border Background="{StaticResource VaLightBlueBrush}" BorderBrush="{StaticResource VaBorderBrush}"
+                    BorderThickness="1" CornerRadius="4" Padding="16" Margin="0,0,0,16"
+                    Visibility="{Binding ShowEnrollForm, Converter={StaticResource BoolToVisibility}}">
+                <StackPanel>
+                    <TextBlock Style="{StaticResource SectionHeader}" Text="Enroll in Auto-Refill"/>
+                    <Grid Margin="0,8,0,0">
+                        <Grid.ColumnDefinitions><ColumnDefinition Width="140"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/><RowDefinition Height="Auto"/>
+                        </Grid.RowDefinitions>
+                        <TextBlock Grid.Row="0" Grid.Column="0" Text="Rx ID:*" VerticalAlignment="Center" Margin="0,0,0,6"/>
+                        <TextBox Grid.Row="0" Grid.Column="1" Text="{Binding PrescriptionId, UpdateSourceTrigger=PropertyChanged}" Margin="0,0,0,6" Width="200" HorizontalAlignment="Left"/>
+                        <TextBlock Grid.Row="1" Grid.Column="0" Text="Drug Name:*" VerticalAlignment="Center" Margin="0,0,0,6"/>
+                        <TextBox Grid.Row="1" Grid.Column="1" Text="{Binding DrugName, UpdateSourceTrigger=PropertyChanged}" Margin="0,0,0,6" Width="300" HorizontalAlignment="Left"/>
+                        <TextBlock Grid.Row="2" Grid.Column="0" Text="Drug Class:" VerticalAlignment="Center" Margin="0,0,0,6"/>
+                        <TextBox Grid.Row="2" Grid.Column="1" Text="{Binding DrugClass, UpdateSourceTrigger=PropertyChanged}" Margin="0,0,0,6" Width="200" HorizontalAlignment="Left"/>
+                        <TextBlock Grid.Row="3" Grid.Column="0" Text="Days Supply:" VerticalAlignment="Center" Margin="0,0,0,6"/>
+                        <TextBox Grid.Row="3" Grid.Column="1" Text="{Binding DaysSupply, UpdateSourceTrigger=PropertyChanged}" Margin="0,0,0,6" Width="80" HorizontalAlignment="Left"/>
+                        <TextBlock Grid.Row="4" Grid.Column="0" Text="Refills Left:" VerticalAlignment="Center" Margin="0,0,0,6"/>
+                        <TextBox Grid.Row="4" Grid.Column="1" Text="{Binding RefillsRemaining, UpdateSourceTrigger=PropertyChanged}" Margin="0,0,0,6" Width="80" HorizontalAlignment="Left"/>
+                        <TextBlock Grid.Row="5" Grid.Column="0" Text="Last Fill Date:" VerticalAlignment="Center" Margin="0,0,0,6"/>
+                        <DatePicker Grid.Row="5" Grid.Column="1" SelectedDate="{Binding LastFillDate}" Margin="0,0,0,6" Width="200" HorizontalAlignment="Left"/>
+                        <TextBlock Grid.Row="6" Grid.Column="0" Text="Pharmacy ID:" VerticalAlignment="Center" Margin="0,0,0,6"/>
+                        <TextBox Grid.Row="6" Grid.Column="1" Text="{Binding PharmacyId, UpdateSourceTrigger=PropertyChanged}" Margin="0,0,0,6" Width="200" HorizontalAlignment="Left"/>
+                        <TextBlock Grid.Row="7" Grid.Column="0" Text="Pharmacy Name:" VerticalAlignment="Center" Margin="0,0,0,6"/>
+                        <TextBox Grid.Row="7" Grid.Column="1" Text="{Binding PharmacyName, UpdateSourceTrigger=PropertyChanged}" Margin="0,0,0,6" Width="300" HorizontalAlignment="Left"/>
+                    </Grid>
+                    <Button Content="Enroll" Style="{StaticResource PrimaryButton}" Command="{Binding EnrollCommand}" Margin="0,8,0,0" HorizontalAlignment="Left"/>
+                </StackPanel>
+            </Border>
+
+            <TextBlock Style="{StaticResource SectionHeader}" Text="Auto-Refill Enrollments"/>
+            <DataGrid ItemsSource="{Binding Enrollments}" AutoGenerateColumns="False" IsReadOnly="True" MaxHeight="400">
+                <DataGrid.Columns>
+                    <DataGridTextColumn Header="Drug" Binding="{Binding DrugName}" Width="200"/>
+                    <DataGridTextColumn Header="Status" Binding="{Binding Status}" Width="120"/>
+                    <DataGridTextColumn Header="Next Refill" Binding="{Binding NextRefillDate, StringFormat=d}" Width="110"/>
+                    <DataGridTextColumn Header="Refills Left" Binding="{Binding RefillsRemaining}" Width="80"/>
+                    <DataGridTextColumn Header="Pharmacy" Binding="{Binding PharmacyName}" Width="160"/>
+                    <DataGridTextColumn Header="Auto-Refills" Binding="{Binding TotalRefillsGenerated}" Width="90"/>
+                </DataGrid.Columns>
+            </DataGrid>
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>

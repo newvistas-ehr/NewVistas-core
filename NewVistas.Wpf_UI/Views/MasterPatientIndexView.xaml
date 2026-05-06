@@ -1,0 +1,72 @@
+<UserControl x:Class="NewVistas.Wpf_UI.Views.MasterPatientIndexView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <ScrollViewer VerticalScrollBarVisibility="Auto">
+        <StackPanel Margin="24">
+            <TextBlock Style="{StaticResource PageTitle}" Text="Master Patient Index (MPI)"/>
+            <TextBlock Style="{StaticResource ErrorText}" Text="{Binding Error}"
+                       Visibility="{Binding Error, Converter={StaticResource NullToVisibility}}"/>
+
+            <!-- Search -->
+            <TextBlock Style="{StaticResource SectionHeader}" Text="Patient Search"/>
+            <StackPanel Orientation="Horizontal" Margin="0,0,0,12">
+                <TextBox Text="{Binding SearchQuery, UpdateSourceTrigger=PropertyChanged}" Width="300" Margin="0,0,8,0"/>
+                <Button Content="Search" Style="{StaticResource PrimaryButton}"
+                        Command="{Binding SearchCommand}" Margin="0,0,8,0"/>
+                <Button Content="Seed Demo" Style="{StaticResource SecondaryButton}"
+                        Command="{Binding LoadDemoCommand}" Margin="0,0,8,0"/>
+                <ProgressBar IsIndeterminate="True" Width="120" Height="20"
+                             Visibility="{Binding IsLoading, Converter={StaticResource BoolToVisibility}}"/>
+            </StackPanel>
+
+            <DataGrid ItemsSource="{Binding SearchResults}" AutoGenerateColumns="False" MaxHeight="200">
+                <DataGrid.Columns>
+                    <DataGridTextColumn Header="ICN" Binding="{Binding Icn}" Width="140"/>
+                    <DataGridTextColumn Header="Name" Binding="{Binding Name}" Width="180"/>
+                    <DataGridTextColumn Header="SSN" Binding="{Binding Ssn}" Width="100"/>
+                    <DataGridTextColumn Header="DOB" Binding="{Binding Dob}" Width="100"/>
+                    <DataGridTextColumn Header="Sex" Binding="{Binding Sex}" Width="50"/>
+                    <DataGridTextColumn Header="Facilities" Binding="{Binding Facilities}" Width="80"/>
+                    <DataGridCheckBoxColumn Header="Deceased" Binding="{Binding Deceased}" Width="80"/>
+                </DataGrid.Columns>
+            </DataGrid>
+
+            <!-- Match -->
+            <TextBlock Style="{StaticResource SectionHeader}" Text="Patient Match" Margin="0,16,0,0"/>
+            <Border Style="{StaticResource FormPanel}">
+                <StackPanel>
+                    <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+                        <StackPanel Margin="0,0,16,0">
+                            <TextBlock Style="{StaticResource FieldLabel}" Text="Name"/>
+                            <TextBox Text="{Binding MatchName, UpdateSourceTrigger=PropertyChanged}" Width="200"/>
+                        </StackPanel>
+                        <StackPanel Margin="0,0,16,0">
+                            <TextBlock Style="{StaticResource FieldLabel}" Text="SSN"/>
+                            <TextBox Text="{Binding MatchSsn, UpdateSourceTrigger=PropertyChanged}" Width="120"/>
+                        </StackPanel>
+                        <StackPanel Margin="0,0,16,0">
+                            <TextBlock Style="{StaticResource FieldLabel}" Text="DOB"/>
+                            <TextBox Text="{Binding MatchDob, UpdateSourceTrigger=PropertyChanged}" Width="120"/>
+                        </StackPanel>
+                        <StackPanel>
+                            <TextBlock Style="{StaticResource FieldLabel}" Text="Sex"/>
+                            <TextBox Text="{Binding MatchSex, UpdateSourceTrigger=PropertyChanged}" Width="60"/>
+                        </StackPanel>
+                    </StackPanel>
+                    <Button Content="Find Match" Style="{StaticResource PrimaryButton}"
+                            Command="{Binding FindMatchCommand}" HorizontalAlignment="Left"/>
+                </StackPanel>
+            </Border>
+
+            <DataGrid ItemsSource="{Binding MatchCandidates}" AutoGenerateColumns="False" MaxHeight="200" Margin="0,8,0,0">
+                <DataGrid.Columns>
+                    <DataGridTextColumn Header="ICN" Binding="{Binding Icn}" Width="140"/>
+                    <DataGridTextColumn Header="Name" Binding="{Binding Name}" Width="180"/>
+                    <DataGridTextColumn Header="SSN" Binding="{Binding Ssn}" Width="100"/>
+                    <DataGridTextColumn Header="DOB" Binding="{Binding Dob}" Width="100"/>
+                    <DataGridTextColumn Header="Score" Binding="{Binding Score, StringFormat=F2}" Width="*"/>
+                </DataGrid.Columns>
+            </DataGrid>
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>

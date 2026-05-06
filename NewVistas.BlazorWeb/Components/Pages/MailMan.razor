@@ -1,0 +1,694 @@
+@page "/mailman"
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+@rendermode InteractiveServer
+@using NewVistas.BlazorWeb.Services
+@using NewVistas.Abstractions.GrainInterfaces
+@using NewVistas.Abstractions.GrainStates
+@inject OrleansGrainService Grains
+
+<PageTitle>MailMan — Internal Messaging</PageTitle>
+<h1>MailMan — Internal Messaging System</h1>
+
+<div class="lookup-bar">
+    <input type="text" @bind="userId" @bind:event="oninput" @onkeydown="HandleKeyDown"
+           placeholder="User ID" class="lookup-input" />
+    <button @onclick="Load" disabled="@(string.IsNullOrWhiteSpace(userId) || loading)" class="btn btn-primary">
+        @(loading ? "Loading..." : "Load")
+    </button>
+    <button @onclick="LoadDemo" disabled="@(string.IsNullOrWhiteSpace(userId) || loading)" class="btn btn-secondary">
+        Load Demo
+    </button>
+</div>
+
+@if (error != null) { <div class="alert alert-error">@error</div> }
+@if (success != null) { <div class="alert alert-success">@success</div> }
+
+@if (inbox != null || groups != null)
+{
+    <div class="tab-bar">
+        <button class="tab @(activeTab == "inbox" ? "tab-active" : "")" @onclick='() => SetTab("inbox")'>
+            Inbox @if (unreadCount > 0) { <span class="badge-due">@unreadCount unread</span> }
+        </button>
+        <button class="tab @(activeTab == "compose" ? "tab-active" : "")" @onclick='() => SetTab("compose")'>
+            Compose
+        </button>
+        <button class="tab @(activeTab == "groups" ? "tab-active" : "")" @onclick='() => SetTab("groups")'>
+            Mail Groups
+        </button>
+    </div>
+
+    @if (activeTab == "inbox")
+    {
+        <div class="inbox-controls">
+            <button class="btn btn-sm @(inboxView == "inbox" ? "btn-primary" : "btn-outline")"
+                    @onclick='() => SwitchInboxView("inbox")'>Inbox</button>
+            <button class="btn btn-sm @(inboxView == "sent" ? "btn-primary" : "btn-outline")"
+                    @onclick='() => SwitchInboxView("sent")'>Sent</button>
+            <button class="btn btn-sm @(inboxView == "deleted" ? "btn-primary" : "btn-outline")"
+                    @onclick='() => SwitchInboxView("deleted")'>Deleted</button>
+        </div>
+
+        @if (currentList == null || currentList.Count == 0)
+        {
+            <div class="empty-state">No messages in @inboxView. Load demo data to populate.</div>
+        }
+        else
+        {
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th></th>
+                        <th>Subject</th>
+                        <th>From</th>
+                        <th>Date</th>
+                        <th>Priority</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var msg in currentList)
+                    {
+                        <tr class="@(!msg.IsRead ? "row-unread" : "")">
+                            <td class="center">
+                                @if (msg.IsConfidential) { <span class="badge badge-red" title="Confidential">C</span> }
+                                @if (!msg.IsRead) { <span class="unread-dot" title="Unread"></span> }
+                            </td>
+                            <td>
+                                <a href="#" @onclick="() => ViewMessage(msg.MessageId)" @onclick:preventDefault
+                                   class="@(!msg.IsRead ? "bold" : "")">
+                                    @msg.Subject
+                                </a>
+                            </td>
+                            <td>@msg.SenderName</td>
+                            <td class="date">@msg.SentDateTime.ToString("MM/dd/yyyy HH:mm")</td>
+                            <td>
+                                <span class="badge @PriorityBadge(msg.Priority)">@msg.Priority</span>
+                            </td>
+                            <td>
+                                @if (inboxView == "inbox" || inboxView == "sent")
+                                {
+                                    @if (!msg.IsRead)
+                                    {
+                                        <button class="btn btn-sm btn-outline" @onclick="() => MarkRead(msg.MessageId)">Read</button>
+                                    }
+                                    else
+                                    {
+                                        <button class="btn btn-sm btn-outline" @onclick="() => MarkUnread(msg.MessageId)">Unread</button>
+                                    }
+                                    <button class="btn btn-sm btn-outline" @onclick="() => DeleteMessage(msg.MessageId)">Delete</button>
+                                }
+                                @if (inboxView == "deleted")
+                                {
+                                    <button class="btn btn-sm btn-outline" @onclick="() => RestoreMessage(msg.MessageId)">Restore</button>
+                                }
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+
+            @if (inboxView == "deleted" && currentList.Count > 0)
+            {
+                <div class="form-actions">
+                    <button class="btn btn-sm btn-outline" @onclick="PurgeDeleted">Purge All Deleted</button>
+                </div>
+            }
+        }
+
+        @if (selectedMessage != null)
+        {
+            <div class="message-detail">
+                <h3>@selectedMessage.Subject</h3>
+                <div class="message-meta">
+                    <div><strong>From:</strong> @selectedMessage.SenderName</div>
+                    <div><strong>Date:</strong> @selectedMessage.SentDateTime.ToString("MM/dd/yyyy HH:mm")</div>
+                    <div><strong>Priority:</strong> <span class="badge @PriorityBadge(selectedMessage.Priority)">@selectedMessage.Priority</span></div>
+                    @if (selectedMessage.IsConfidential) { <div><span class="badge badge-red">CONFIDENTIAL</span></div> }
+                    @if (selectedMessage.Recipients.Count > 0)
+                    {
+                        <div><strong>To:</strong> @string.Join(", ", selectedMessage.Recipients.Select(r => r.RecipientName))</div>
+                    }
+                    @if (selectedMessage.CcRecipients.Count > 0)
+                    {
+                        <div><strong>CC:</strong> @string.Join(", ", selectedMessage.CcRecipients.Select(r => r.RecipientName))</div>
+                    }
+                </div>
+                <div class="message-body">@selectedMessage.Body</div>
+                @if (selectedMessage.AttachmentDescriptions.Count > 0)
+                {
+                    <div class="attachments">
+                        <strong>Attachments:</strong>
+                        <ul>
+                            @foreach (var att in selectedMessage.AttachmentDescriptions)
+                            {
+                                <li>@att</li>
+                            }
+                        </ul>
+                    </div>
+                }
+                <button class="btn btn-sm btn-outline" @onclick="() => selectedMessage = null">Close</button>
+            </div>
+        }
+    }
+
+    @if (activeTab == "compose")
+    {
+        <div class="entry-form">
+            <h3>Compose New Message</h3>
+            <div class="form-grid">
+                <div class="form-row">
+                    <label>To (User ID) *</label>
+                    <input type="text" @bind="c_to" placeholder="Recipient User ID" />
+                </div>
+                <div class="form-row">
+                    <label>CC (User ID)</label>
+                    <input type="text" @bind="c_cc" placeholder="Optional CC User ID" />
+                </div>
+                <div class="form-row full">
+                    <label>Subject *</label>
+                    <input type="text" @bind="c_subject" placeholder="Message subject" />
+                </div>
+                <div class="form-row full">
+                    <label>Body *</label>
+                    <textarea @bind="c_body" rows="5" placeholder="Message body"></textarea>
+                </div>
+                <div class="form-row">
+                    <label>Priority</label>
+                    <select @bind="c_priority">
+                        <option>ROUTINE</option>
+                        <option>HIGH</option>
+                        <option>URGENT</option>
+                    </select>
+                </div>
+                <div class="form-row">
+                    <label>Confidential</label>
+                    <div style="padding-top:.4rem">
+                        <input type="checkbox" @bind="c_confidential" /> Mark as confidential
+                    </div>
+                </div>
+            </div>
+            <div class="form-actions">
+                <button @onclick="SendMessage" disabled="@saving" class="btn btn-primary">
+                    @(saving ? "Sending..." : "Send")
+                </button>
+            </div>
+        </div>
+    }
+
+    @if (activeTab == "groups")
+    {
+        @if (groups == null || groups.Count == 0)
+        {
+            <div class="empty-state">No mail groups found.</div>
+        }
+        else
+        {
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Group Name</th>
+                        <th>Description</th>
+                        <th>Members</th>
+                        <th>Status</th>
+                        <th>Action</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var g in groups)
+                    {
+                        <tr>
+                            <td><strong>@g.Name</strong></td>
+                            <td>@g.Description</td>
+                            <td class="center">@g.MemberCount</td>
+                            <td>
+                                <span class="badge @(g.IsActive ? "badge-green" : "badge-gray")">
+                                    @(g.IsActive ? "ACTIVE" : "INACTIVE")
+                                </span>
+                            </td>
+                            <td>
+                                <button class="btn btn-sm btn-outline" @onclick="() => ViewGroup(g.Name)">View</button>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        }
+
+        @if (selectedGroup != null)
+        {
+            <div class="message-detail">
+                <h3>@selectedGroup.GroupName</h3>
+                <div class="message-meta">
+                    <div><strong>Description:</strong> @selectedGroup.Description</div>
+                    <div><strong>Organizer:</strong> @selectedGroup.OrganizerName</div>
+                    <div><strong>Membership:</strong> @selectedGroup.MembershipType</div>
+                </div>
+                <h4>Members (@selectedGroup.Members.Count)</h4>
+                @if (selectedGroup.Members.Count > 0)
+                {
+                    <table class="data-table">
+                        <thead><tr><th>Name</th><th>Role</th><th>Joined</th></tr></thead>
+                        <tbody>
+                            @foreach (var m in selectedGroup.Members)
+                            {
+                                <tr>
+                                    <td>@m.UserName</td>
+                                    <td><span class="badge badge-gray">@m.Role</span></td>
+                                    <td class="date">@m.JoinedDate.ToString("MM/dd/yyyy")</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                }
+                <button class="btn btn-sm btn-outline" @onclick="() => selectedGroup = null">Close</button>
+            </div>
+        }
+
+        <div class="entry-form" style="margin-top:1rem">
+            <h3>Create Mail Group</h3>
+            <div class="form-grid">
+                <div class="form-row"><label>Group Name *</label><input type="text" @bind="g_name" placeholder="e.g. PHARMACY-ALERTS" /></div>
+                <div class="form-row"><label>Description</label><input type="text" @bind="g_desc" placeholder="Group description" /></div>
+                <div class="form-row">
+                    <label>Membership Type</label>
+                    <select @bind="g_type">
+                        <option>OPEN</option><option>CLOSED</option><option>RESTRICTED</option>
+                    </select>
+                </div>
+            </div>
+            <div class="form-actions">
+                <button @onclick="CreateGroup" disabled="@saving" class="btn btn-primary">
+                    @(saving ? "Creating..." : "Create Group")
+                </button>
+            </div>
+        </div>
+    }
+}
+
+@code {
+    [SupplyParameterFromQuery] public string? userId { get; set; }
+
+    private List<MailboxEntryDto>? inbox;
+    private List<MailboxEntryDto>? sent;
+    private List<MailboxEntryDto>? deleted;
+    private List<GroupSummaryDto>? groups;
+    private MessageDetailDto? selectedMessage;
+    private GroupDetailDto? selectedGroup;
+    private bool loading, saving;
+    private string? error, success;
+    private string activeTab = "inbox";
+    private string inboxView = "inbox";
+    private int unreadCount;
+
+    // Compose state
+    private string c_to = "", c_cc = "", c_subject = "", c_body = "";
+    private string c_priority = "ROUTINE";
+    private bool c_confidential;
+
+    // Group create state
+    private string g_name = "", g_desc = "", g_type = "OPEN";
+
+    private List<MailboxEntryDto>? currentList => inboxView switch
+    {
+        "sent" => sent,
+        "deleted" => deleted,
+        _ => inbox
+    };
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (!string.IsNullOrWhiteSpace(userId)) await Load();
+    }
+
+    private async Task HandleKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter") await Load();
+    }
+
+    private IUserMailboxGrain GetMailbox() => Grains.GetGrain<IUserMailboxGrain>($"MAILBOX:{userId!.Trim()}");
+
+    private async Task Load()
+    {
+        if (string.IsNullOrWhiteSpace(userId)) return;
+        loading = true; error = null;
+        try
+        {
+            var mailbox = GetMailbox();
+            var inboxEntries = await mailbox.GetInboxAsync();
+            inbox = inboxEntries.Select(ToDto).ToList();
+            var sentEntries = await mailbox.GetSentItemsAsync();
+            sent = sentEntries.Select(ToDto).ToList();
+            var deletedEntries = await mailbox.GetDeletedItemsAsync();
+            deleted = deletedEntries.Select(ToDto).ToList();
+            unreadCount = await mailbox.GetUnreadCountAsync();
+
+            var groupIndex = Grains.GetGrain<IMailGroupIndexGrain>("MAILGRP-INDEX");
+            var allGroups = await groupIndex.GetAllGroupsAsync();
+            groups = allGroups.Select(g => new GroupSummaryDto
+            {
+                Name = g.Name, Description = g.Description, MemberCount = g.MemberCount, IsActive = g.IsActive
+            }).ToList();
+        }
+        catch (Exception ex) { error = ex.Message; }
+        finally { loading = false; }
+    }
+
+    private static MailboxEntryDto ToDto(MailboxEntry e) => new()
+    {
+        MessageId = e.MessageId, Subject = e.Subject, SenderName = e.SenderName,
+        SentDateTime = e.SentDateTime, IsRead = e.IsRead, Priority = e.Priority,
+        FolderId = e.FolderId, IsConfidential = e.IsConfidential
+    };
+
+    private async Task LoadDemo()
+    {
+        if (string.IsNullOrWhiteSpace(userId)) return;
+        loading = true; error = null; success = null;
+        try
+        {
+            // Create a demo message in the mailbox
+            var msgId = $"MAIL-{Guid.NewGuid()}";
+            var msgGrain = Grains.GetGrain<IMailMessageGrain>(msgId);
+            await msgGrain.CreateMessageAsync(msgId, "Welcome to MailMan", "This is a demo message.",
+                "SYSTEM", "System", new List<MailRecipient> { new() { RecipientId = userId!.Trim(), RecipientName = userId!.Trim(), RecipientType = "USER" } },
+                null, "ROUTINE", false, null);
+            await msgGrain.SendAsync();
+            var mailbox = GetMailbox();
+            await mailbox.AddInboxEntryAsync(new MailboxEntry
+            {
+                MessageId = msgId, Subject = "Welcome to MailMan", SenderName = "System",
+                SentDateTime = DateTime.UtcNow, IsRead = false, Priority = "ROUTINE", FolderId = "INBOX"
+            });
+            success = "Demo data loaded."; await Load();
+        }
+        catch (Exception ex) { error = ex.Message; }
+        finally { loading = false; }
+    }
+
+    private void SetTab(string tab) { activeTab = tab; success = null; selectedMessage = null; }
+    private void SwitchInboxView(string view) { inboxView = view; selectedMessage = null; }
+
+    private async Task ViewMessage(string messageId)
+    {
+        try
+        {
+            var msgGrain = Grains.GetGrain<IMailMessageGrain>(messageId);
+            var msg = await msgGrain.GetMessageAsync();
+            selectedMessage = new MessageDetailDto
+            {
+                MessageId = msg.MessageId, Subject = msg.Subject, Body = msg.Body,
+                SenderId = msg.SenderId, SenderName = msg.SenderName, SentDateTime = msg.SentDateTime,
+                Priority = msg.Priority, IsConfidential = msg.IsConfidential, Status = msg.Status,
+                AttachmentDescriptions = msg.AttachmentDescriptions ?? [],
+                Recipients = msg.Recipients?.Select(r => new RecipientDto { RecipientId = r.RecipientId, RecipientName = r.RecipientName, RecipientType = r.RecipientType, IsRead = r.IsRead }).ToList() ?? [],
+                CcRecipients = msg.CcRecipients?.Select(r => new RecipientDto { RecipientId = r.RecipientId, RecipientName = r.RecipientName, RecipientType = r.RecipientType, IsRead = r.IsRead }).ToList() ?? []
+            };
+        }
+        catch (Exception ex) { error = ex.Message; }
+    }
+
+    private async Task ViewGroup(string groupName)
+    {
+        try
+        {
+            var grpGrain = Grains.GetGrain<IMailGroupGrain>($"MAILGRP:{groupName}");
+            var grp = await grpGrain.GetGroupAsync();
+            selectedGroup = new GroupDetailDto
+            {
+                GroupName = grp.GroupName, Description = grp.Description,
+                OrganizerId = grp.OrganizerId, OrganizerName = grp.OrganizerName,
+                MembershipType = grp.MembershipType, IsActive = grp.IsActive,
+                Members = grp.Members?.Select(m => new GroupMemberDto { UserId = m.UserId, UserName = m.UserName, Role = m.Role, JoinedDate = m.JoinedDate }).ToList() ?? []
+            };
+        }
+        catch (Exception ex) { error = ex.Message; }
+    }
+
+    private async Task MarkRead(string messageId)
+    {
+        try
+        {
+            var mailbox = GetMailbox();
+            await mailbox.MarkMessageReadAsync(messageId);
+            await Load();
+        }
+        catch (Exception ex) { error = ex.Message; }
+    }
+
+    private async Task MarkUnread(string messageId)
+    {
+        try
+        {
+            var mailbox = GetMailbox();
+            await mailbox.MarkMessageUnreadAsync(messageId);
+            await Load();
+        }
+        catch (Exception ex) { error = ex.Message; }
+    }
+
+    private async Task DeleteMessage(string messageId)
+    {
+        try
+        {
+            var mailbox = GetMailbox();
+            await mailbox.MoveToDeletedAsync(messageId);
+            success = "Message moved to deleted.";
+            await Load();
+        }
+        catch (Exception ex) { error = ex.Message; }
+    }
+
+    private async Task RestoreMessage(string messageId)
+    {
+        try
+        {
+            var mailbox = GetMailbox();
+            await mailbox.RestoreFromDeletedAsync(messageId);
+            success = "Message restored.";
+            await Load();
+        }
+        catch (Exception ex) { error = ex.Message; }
+    }
+
+    private async Task PurgeDeleted()
+    {
+        try
+        {
+            var mailbox = GetMailbox();
+            await mailbox.PurgeDeletedAsync();
+            success = "Deleted items purged.";
+            await Load();
+        }
+        catch (Exception ex) { error = ex.Message; }
+    }
+
+    private async Task SendMessage()
+    {
+        if (string.IsNullOrWhiteSpace(c_to) || string.IsNullOrWhiteSpace(c_subject))
+        {
+            error = "To and Subject are required."; return;
+        }
+        saving = true; error = null;
+        try
+        {
+            var msgId = $"MAIL-{Guid.NewGuid()}";
+            var recipients = new List<MailRecipient> { new() { RecipientId = c_to, RecipientName = c_to, RecipientType = "USER" } };
+            var ccRecipients = string.IsNullOrWhiteSpace(c_cc) ? null :
+                new List<MailRecipient> { new() { RecipientId = c_cc, RecipientName = c_cc, RecipientType = "USER" } };
+
+            var msgGrain = Grains.GetGrain<IMailMessageGrain>(msgId);
+            await msgGrain.CreateMessageAsync(msgId, c_subject, c_body, userId!, userId!, recipients, ccRecipients, c_priority, c_confidential, null);
+            await msgGrain.SendAsync();
+
+            // Add to sender's sent items
+            var senderMailbox = GetMailbox();
+            await senderMailbox.AddSentEntryAsync(new MailboxEntry
+            {
+                MessageId = msgId, Subject = c_subject, SenderName = userId!, SentDateTime = DateTime.UtcNow,
+                IsRead = true, Priority = c_priority, FolderId = "SENT", IsConfidential = c_confidential
+            });
+
+            // Add to recipient's inbox
+            var recipientMailbox = Grains.GetGrain<IUserMailboxGrain>($"MAILBOX:{c_to}");
+            await recipientMailbox.AddInboxEntryAsync(new MailboxEntry
+            {
+                MessageId = msgId, Subject = c_subject, SenderName = userId!, SentDateTime = DateTime.UtcNow,
+                IsRead = false, Priority = c_priority, FolderId = "INBOX", IsConfidential = c_confidential
+            });
+
+            success = "Message sent.";
+            c_to = ""; c_cc = ""; c_subject = ""; c_body = "";
+            c_priority = "ROUTINE"; c_confidential = false;
+            await Load();
+        }
+        catch (Exception ex) { error = ex.Message; }
+        finally { saving = false; }
+    }
+
+    private async Task CreateGroup()
+    {
+        if (string.IsNullOrWhiteSpace(g_name)) { error = "Group name is required."; return; }
+        saving = true; error = null;
+        try
+        {
+            var grpGrain = Grains.GetGrain<IMailGroupGrain>($"MAILGRP:{g_name}");
+            await grpGrain.CreateGroupAsync(g_name, g_desc, userId!, userId!, g_type);
+
+            var indexGrain = Grains.GetGrain<IMailGroupIndexGrain>("MAILGRP-INDEX");
+            await indexGrain.AddOrUpdateGroupAsync(new MailGroupIndexEntry
+            {
+                Name = g_name, Description = g_desc, MemberCount = 0, IsActive = true
+            });
+
+            success = "Mail group created.";
+            g_name = ""; g_desc = ""; g_type = "OPEN";
+
+            var allGroups = await indexGrain.GetAllGroupsAsync();
+            groups = allGroups.Select(g => new GroupSummaryDto
+            {
+                Name = g.Name, Description = g.Description, MemberCount = g.MemberCount, IsActive = g.IsActive
+            }).ToList();
+        }
+        catch (Exception ex) { error = ex.Message; }
+        finally { saving = false; }
+    }
+
+    private static string PriorityBadge(string priority) => priority switch
+    {
+        "URGENT" => "badge-red",
+        "HIGH" => "badge-orange",
+        _ => "badge-gray"
+    };
+
+    // ─── DTOs ─────────────────────────────────────────────────────────────
+
+    private class MailboxEntryDto
+    {
+        public string MessageId { get; set; } = "";
+        public string Subject { get; set; } = "";
+        public string SenderName { get; set; } = "";
+        public DateTime SentDateTime { get; set; }
+        public bool IsRead { get; set; }
+        public string Priority { get; set; } = "ROUTINE";
+        public string FolderId { get; set; } = "INBOX";
+        public bool IsConfidential { get; set; }
+    }
+
+    private class MessageDetailDto
+    {
+        public string MessageId { get; set; } = "";
+        public string Subject { get; set; } = "";
+        public string Body { get; set; } = "";
+        public string SenderId { get; set; } = "";
+        public string SenderName { get; set; } = "";
+        public DateTime SentDateTime { get; set; }
+        public string Priority { get; set; } = "ROUTINE";
+        public bool IsConfidential { get; set; }
+        public string Status { get; set; } = "";
+        public List<string> AttachmentDescriptions { get; set; } = [];
+        public List<RecipientDto> Recipients { get; set; } = [];
+        public List<RecipientDto> CcRecipients { get; set; } = [];
+    }
+
+    private class RecipientDto
+    {
+        public string RecipientId { get; set; } = "";
+        public string RecipientName { get; set; } = "";
+        public string RecipientType { get; set; } = "USER";
+        public bool IsRead { get; set; }
+    }
+
+    private class GroupSummaryDto
+    {
+        public string Name { get; set; } = "";
+        public string Description { get; set; } = "";
+        public int MemberCount { get; set; }
+        public bool IsActive { get; set; }
+    }
+
+    private class GroupDetailDto
+    {
+        public string GroupName { get; set; } = "";
+        public string Description { get; set; } = "";
+        public string OrganizerId { get; set; } = "";
+        public string OrganizerName { get; set; } = "";
+        public string MembershipType { get; set; } = "OPEN";
+        public bool IsActive { get; set; }
+        public List<GroupMemberDto> Members { get; set; } = [];
+    }
+
+    private class GroupMemberDto
+    {
+        public string UserId { get; set; } = "";
+        public string UserName { get; set; } = "";
+        public string Role { get; set; } = "MEMBER";
+        public DateTime JoinedDate { get; set; }
+    }
+
+    private class UnreadCountDto
+    {
+        public string UserId { get; set; } = "";
+        public int UnreadCount { get; set; }
+    }
+}
+
+<style>
+    h1 { color: #003f72; margin-bottom: 1.25rem; font-size: 1.4rem; }
+    .lookup-bar { display: flex; gap: .5rem; margin-bottom: 1.5rem; align-items: center; }
+    .lookup-input { width: 280px; padding: .5rem .75rem; border: 1px solid #ccc; border-radius: 4px; font-size: .9rem; }
+    .btn { padding: .5rem 1.25rem; border: none; border-radius: 4px; cursor: pointer; font-size: .85rem; font-weight: 500; }
+    .btn:disabled { opacity: .6; cursor: default; }
+    .btn-primary { background: #003f72; color: white; }
+    .btn-secondary { background: #16a34a; color: white; }
+    .btn-outline { background: white; border: 1px solid #ccc; color: #333; }
+    .btn-sm { padding: .3rem .75rem; font-size: .8rem; }
+    .alert { padding: .75rem 1rem; border-radius: 4px; margin-bottom: 1rem; font-size: .85rem; }
+    .alert-error { background: #fde8e8; color: #b91c1c; border: 1px solid #f5c6c6; }
+    .alert-success { background: #dcfce7; color: #166534; border: 1px solid #bbf7d0; }
+
+    /* Tabs */
+    .tab-bar { display: flex; gap: 0; border-bottom: 2px solid #d4d9e0; margin-bottom: 1.25rem; }
+    .tab { background: none; border: none; padding: .6rem 1.25rem; cursor: pointer; font-size: .85rem; color: #555; border-bottom: 2px solid transparent; margin-bottom: -2px; }
+    .tab-active { color: #003f72; font-weight: 600; border-bottom-color: #003f72; }
+    .badge-due { background: #fde8e8; color: #b91c1c; border-radius: 3px; padding: 1px 6px; font-size: .7rem; margin-left: .4rem; font-weight: 600; }
+
+    /* Inbox controls */
+    .inbox-controls { display: flex; gap: .5rem; margin-bottom: 1rem; }
+
+    /* Table */
+    .data-table { width: 100%; border-collapse: collapse; font-size: .85rem; border: 1px solid #d4d9e0; }
+    .data-table thead { background: #f4f6f9; }
+    .data-table th { text-align: left; padding: .5rem .6rem; font-weight: 600; color: #003f72; border-bottom: 2px solid #d4d9e0; font-size: .75rem; text-transform: uppercase; }
+    .data-table td { padding: .4rem .6rem; border-bottom: 1px solid #f0f0f0; vertical-align: middle; }
+    .data-table .center { text-align: center; }
+    .row-unread { background: #f0f7ff; }
+    .date { color: #888; font-size: .8rem; white-space: nowrap; }
+    .bold { font-weight: 600; }
+    .unread-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: #003f72; }
+
+    /* Badges */
+    .badge { padding: 2px 8px; border-radius: 3px; font-size: .7rem; font-weight: 600; white-space: nowrap; }
+    .badge-green { background: #dcfce7; color: #166534; }
+    .badge-red { background: #fde8e8; color: #b91c1c; }
+    .badge-orange { background: #fef3c7; color: #92400e; }
+    .badge-gray { background: #f3f4f6; color: #6b7280; }
+
+    /* Message detail */
+    .message-detail { border: 1px solid #d4d9e0; border-radius: 6px; padding: 1.25rem; background: #f9fafb; margin-top: 1rem; }
+    .message-detail h3 { margin-bottom: .5rem; color: #003f72; }
+    .message-meta { font-size: .85rem; color: #555; margin-bottom: 1rem; display: flex; flex-direction: column; gap: .25rem; }
+    .message-body { white-space: pre-wrap; font-size: .9rem; padding: 1rem; background: white; border: 1px solid #e5e7eb; border-radius: 4px; margin-bottom: .75rem; }
+    .attachments { font-size: .85rem; margin-bottom: .75rem; }
+    .attachments ul { margin: .25rem 0 0 1rem; }
+
+    /* Entry form */
+    .entry-form { border: 1px solid #d4d9e0; border-radius: 6px; padding: 1.25rem; background: #f9fafb; }
+    .entry-form h3 { margin-bottom: .75rem; color: #003f72; }
+    .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: .75rem; }
+    .form-row { display: flex; flex-direction: column; gap: .25rem; }
+    .form-row.full { grid-column: 1 / -1; }
+    .form-row label { font-size: .8rem; font-weight: 600; color: #555; }
+    .form-row input, .form-row select, .form-row textarea { padding: .4rem .6rem; border: 1px solid #ccc; border-radius: 4px; font-size: .85rem; }
+    .form-actions { display: flex; gap: .5rem; margin-top: .75rem; }
+    .empty-state { color: #999; font-style: italic; padding: 2rem 0; text-align: center; }
+</style>

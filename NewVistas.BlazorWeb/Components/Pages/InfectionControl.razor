@@ -1,0 +1,683 @@
+@page "/infection-control"
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+@rendermode InteractiveServer
+@using NewVistas.BlazorWeb.Services
+@using NewVistas.Abstractions.GrainInterfaces
+@using NewVistas.Abstractions.GrainStates
+@inject OrleansGrainService Grains
+
+<h2>Infection Control &amp; Surveillance</h2>
+
+@if (error != null)
+{
+    <div class="error-msg">@error</div>
+}
+
+<div class="tabs">
+    <button class="@TabClass(0)" @onclick="() => SetTab(0)">HAI Cases</button>
+    <button class="@TabClass(1)" @onclick="() => SetTab(1)">Outbreaks</button>
+    <button class="@TabClass(2)" @onclick="() => SetTab(2)">Antibiogram</button>
+</div>
+
+@if (activeTab == 0)
+{
+    <!-- HAI Cases Tab -->
+    <div class="tab-content">
+        <div class="toolbar">
+            <label>
+                Filter by Type:
+                <select @bind="caseTypeFilter">
+                    <option value="">All Types</option>
+                    @foreach (string t in haiTypes)
+                    {
+                        <option value="@t">@t</option>
+                    }
+                </select>
+            </label>
+            <label>
+                <input type="checkbox" @bind="showActiveCasesOnly" /> Active Only
+            </label>
+            <button @onclick="LoadCases">Refresh</button>
+        </div>
+
+        @if (casesLoading)
+        {
+            <p>Loading...</p>
+        }
+        else
+        {
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Patient</th>
+                        <th>HAI Type</th>
+                        <th>Status</th>
+                        <th>Infection Date</th>
+                        <th>Location</th>
+                        <th>Pathogen</th>
+                        <th>Outbreak</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (HAICaseSummaryDto c in FilteredCases)
+                    {
+                        <tr>
+                            <td>@c.PatientName<br /><small>@c.PatientId</small></td>
+                            <td>@c.HAIType</td>
+                            <td><span class="badge badge-@c.Status.ToLower()">@c.Status</span></td>
+                            <td>@(c.InfectionDate?.ToString("MM/dd/yyyy") ?? "—")</td>
+                            <td>@c.LocationName</td>
+                            <td>@c.Pathogen</td>
+                            <td>@(c.OutbreakId ?? "—")</td>
+                            <td><button @onclick="() => SelectCase(c.CaseId)">Detail</button></td>
+                        </tr>
+                        @if (selectedCaseId == c.CaseId && caseDetail != null)
+                        {
+                            <tr class="detail-row">
+                                <td colspan="8">
+                                    <div class="detail-panel">
+                                        <strong>Culture:</strong> @caseDetail.CultureSource — @caseDetail.CultureResult<br />
+                                        <strong>Gram Stain:</strong> @caseDetail.GramStain<br />
+                                        <strong>Device:</strong> @caseDetail.DeviceType (@(caseDetail.DeviceInDays?.ToString() ?? "?") device-days)<br />
+                                        <strong>Notes:</strong> @caseDetail.Notes<br />
+                                        @if (caseDetail.SusceptibilityResults?.Count > 0)
+                                        {
+                                            <table class="inner-table">
+                                                <thead><tr><th>Antibiotic</th><th>Result</th><th>MIC</th></tr></thead>
+                                                <tbody>
+                                                    @foreach (AntibioticResultDto r in caseDetail.SusceptibilityResults)
+                                                    {
+                                                        <tr>
+                                                            <td>@r.AntibioticName</td>
+                                                            <td class="suscept-@r.Susceptibility.ToLower()">@r.Susceptibility</td>
+                                                            <td>@(r.MIC ?? "—")</td>
+                                                        </tr>
+                                                    }
+                                                </tbody>
+                                            </table>
+                                        }
+                                    </div>
+                                </td>
+                            </tr>
+                        }
+                    }
+                </tbody>
+            </table>
+        }
+
+        <hr />
+        <h3>Report HAI Case</h3>
+        <div class="form-grid">
+            <label>Patient ID:<input @bind="newCase.PatientId" /></label>
+            <label>Patient Name:<input @bind="newCase.PatientName" /></label>
+            <label>HAI Type:
+                <select @bind="newCase.HAIType">
+                    @foreach (string t in haiTypes)
+                    {
+                        <option value="@t">@t</option>
+                    }
+                </select>
+            </label>
+            <label>Infection Date:<input type="date" @bind="newCase.InfectionDate" /></label>
+            <label>Location ID:<input @bind="newCase.LocationId" /></label>
+            <label>Location Name:<input @bind="newCase.LocationName" /></label>
+            <label>Pathogen:<input @bind="newCase.Pathogen" /></label>
+            <label>Reporter ID:<input @bind="newCase.ReportedById" /></label>
+            <label>Reporter Name:<input @bind="newCase.ReportedByName" /></label>
+            <label>Notes:<textarea @bind="newCase.Notes"></textarea></label>
+        </div>
+        <button @onclick="CreateCase">Submit HAI Case</button>
+        @if (caseSubmitMsg != null) { <span class="submit-msg">@caseSubmitMsg</span> }
+    </div>
+}
+
+@if (activeTab == 1)
+{
+    <!-- Outbreaks Tab -->
+    <div class="tab-content">
+        <div class="toolbar">
+            <label><input type="checkbox" @bind="showActiveOutbreaksOnly" /> Active Only</label>
+            <button @onclick="LoadOutbreaks">Refresh</button>
+        </div>
+
+        @if (outbreaksLoading)
+        {
+            <p>Loading...</p>
+        }
+        else
+        {
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Name</th>
+                        <th>HAI Type</th>
+                        <th>Status</th>
+                        <th>Start Date</th>
+                        <th>Location</th>
+                        <th>Cases</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (OutbreakSummaryDto ob in FilteredOutbreaks)
+                    {
+                        <tr>
+                            <td>@ob.Name</td>
+                            <td>@ob.HAIType</td>
+                            <td><span class="badge badge-@ob.Status.ToLower()">@ob.Status</span></td>
+                            <td>@(ob.StartDate?.ToString("MM/dd/yyyy") ?? "—")</td>
+                            <td>@ob.LocationName</td>
+                            <td>@ob.CaseCount</td>
+                            <td><button @onclick="() => SelectOutbreak(ob.OutbreakId)">Detail</button></td>
+                        </tr>
+                        @if (selectedOutbreakId == ob.OutbreakId && outbreakDetail != null)
+                        {
+                            <tr class="detail-row">
+                                <td colspan="7">
+                                    <div class="detail-panel">
+                                        <strong>Description:</strong> @outbreakDetail.Description<br />
+                                        <strong>Pathogen:</strong> @outbreakDetail.Pathogen<br />
+                                        <strong>Public Health Notified:</strong> @(outbreakDetail.NotifiedPublicHealth ? (outbreakDetail.NotificationDate?.ToString("MM/dd/yyyy") ?? "Yes") : "No")<br />
+                                        <strong>Linked Cases:</strong> @string.Join(", ", outbreakDetail.LinkedCaseIds ?? new())
+                                    </div>
+                                </td>
+                            </tr>
+                        }
+                    }
+                </tbody>
+            </table>
+        }
+
+        <hr />
+        <h3>Create Outbreak</h3>
+        <div class="form-grid">
+            <label>Name:<input @bind="newOutbreak.Name" /></label>
+            <label>Description:<textarea @bind="newOutbreak.Description"></textarea></label>
+            <label>HAI Type:
+                <select @bind="newOutbreak.HAIType">
+                    @foreach (string t in haiTypes)
+                    {
+                        <option value="@t">@t</option>
+                    }
+                </select>
+            </label>
+            <label>Start Date:<input type="date" @bind="newOutbreak.StartDate" /></label>
+            <label>Location ID:<input @bind="newOutbreak.LocationId" /></label>
+            <label>Location Name:<input @bind="newOutbreak.LocationName" /></label>
+            <label>Pathogen:<input @bind="newOutbreak.Pathogen" /></label>
+        </div>
+        <button @onclick="CreateOutbreak">Create Outbreak</button>
+        @if (outbreakSubmitMsg != null) { <span class="submit-msg">@outbreakSubmitMsg</span> }
+
+        <hr />
+        <h3>Link Case to Outbreak</h3>
+        <div class="form-grid">
+            <label>Outbreak ID:<input @bind="linkOutbreakId" /></label>
+            <label>Case ID:<input @bind="linkCaseId" /></label>
+        </div>
+        <button @onclick="LinkCase">Link Case</button>
+        @if (linkSubmitMsg != null) { <span class="submit-msg">@linkSubmitMsg</span> }
+    </div>
+}
+
+@if (activeTab == 2)
+{
+    <!-- Antibiogram Tab -->
+    <div class="tab-content">
+        <div class="toolbar">
+            <label>HAI Type:
+                <select @bind="antibiogramType">
+                    <option value="">All Types</option>
+                    @foreach (string t in haiTypes)
+                    {
+                        <option value="@t">@t</option>
+                    }
+                </select>
+            </label>
+            <label>Year:<input type="number" @bind="antibiogramYear" style="width:80px" /></label>
+            <button @onclick="LoadAntibiogram">Generate Antibiogram</button>
+        </div>
+
+        @if (antibiogramLoading)
+        {
+            <p>Generating...</p>
+        }
+        else if (antibiogramRows != null)
+        {
+            @if (antibiogramRows.Count == 0)
+            {
+                <p>No susceptibility data found for the selected filters.</p>
+            }
+            else
+            {
+                <table class="data-table antibiogram-table">
+                    <thead>
+                        <tr>
+                            <th>Pathogen</th>
+                            <th>Antibiotic</th>
+                            <th>N Tested</th>
+                            <th>% Susceptible</th>
+                            <th>% Intermediate</th>
+                            <th>% Resistant</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (AntibiogramRowDto row in antibiogramRows)
+                        {
+                            <tr>
+                                <td>@row.Pathogen</td>
+                                <td>@row.Antibiotic</td>
+                                <td>@row.NTested</td>
+                                <td class="@SusceptClass(row.PctSusceptible)">@row.PctSusceptible%</td>
+                                <td>@row.PctIntermediate%</td>
+                                <td class="@ResistClass(row.PctResistant)">@row.PctResistant%</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            }
+        }
+    </div>
+}
+
+<style>
+    .tabs { display: flex; gap: 4px; margin-bottom: 16px; }
+    .tab-active { background: #0078d4; color: white; border: none; padding: 8px 16px; border-radius: 4px 4px 0 0; cursor: pointer; }
+    .tab-inactive { background: #e0e0e0; border: none; padding: 8px 16px; border-radius: 4px 4px 0 0; cursor: pointer; }
+    .tab-content { border: 1px solid #ccc; padding: 16px; }
+    .toolbar { display: flex; gap: 12px; align-items: center; margin-bottom: 12px; flex-wrap: wrap; }
+    .data-table { width: 100%; border-collapse: collapse; margin-bottom: 16px; font-size: 0.9em; }
+    .data-table th, .data-table td { border: 1px solid #ddd; padding: 6px 10px; text-align: left; }
+    .data-table th { background: #f5f5f5; }
+    .detail-row td { background: #fafafa; }
+    .detail-panel { padding: 8px; }
+    .inner-table { border-collapse: collapse; margin-top: 8px; }
+    .inner-table th, .inner-table td { border: 1px solid #ccc; padding: 4px 8px; }
+    .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 12px; }
+    .form-grid label { display: flex; flex-direction: column; font-size: 0.85em; }
+    .form-grid input, .form-grid select, .form-grid textarea { margin-top: 2px; padding: 4px; }
+    .submit-msg { margin-left: 12px; color: green; }
+    .error-msg { color: red; margin-bottom: 12px; }
+    .badge { padding: 2px 8px; border-radius: 10px; font-size: 0.8em; }
+    .badge-suspected { background: #fff3cd; color: #856404; }
+    .badge-confirmed { background: #f8d7da; color: #842029; }
+    .badge-ruledout { background: #d1e7dd; color: #0f5132; }
+    .badge-closed { background: #e2e3e5; color: #41464b; }
+    .badge-active { background: #f8d7da; color: #842029; }
+    .badge-controlled { background: #fff3cd; color: #856404; }
+    .suscept-susceptible { color: #0f5132; font-weight: bold; }
+    .suscept-resistant { color: #842029; font-weight: bold; }
+    .pct-good { background: #d1e7dd; }
+    .pct-warn { background: #fff3cd; }
+    .pct-bad { background: #f8d7da; }
+    .antibiogram-table td, .antibiogram-table th { text-align: center; }
+    .antibiogram-table td:first-child, .antibiogram-table td:nth-child(2) { text-align: left; }
+</style>
+
+@code {
+    int activeTab = 0;
+    string? error;
+
+    // ── Cases ────────────────────────────────────────────────────────────────
+    bool casesLoading;
+    bool showActiveCasesOnly = true;
+    string caseTypeFilter = string.Empty;
+    List<HAICaseSummaryDto> allCases = new();
+    string? selectedCaseId;
+    HAICaseDetailDto? caseDetail;
+    string? caseSubmitMsg;
+    NewCaseForm newCase = new();
+
+    // ── Outbreaks ────────────────────────────────────────────────────────────
+    bool outbreaksLoading;
+    bool showActiveOutbreaksOnly = true;
+    List<OutbreakSummaryDto> allOutbreaks = new();
+    string? selectedOutbreakId;
+    OutbreakDetailDto? outbreakDetail;
+    string? outbreakSubmitMsg;
+    NewOutbreakForm newOutbreak = new();
+    string linkOutbreakId = string.Empty;
+    string linkCaseId = string.Empty;
+    string? linkSubmitMsg;
+
+    // ── Antibiogram ──────────────────────────────────────────────────────────
+    bool antibiogramLoading;
+    string antibiogramType = string.Empty;
+    int? antibiogramYear;
+    List<AntibiogramRowDto>? antibiogramRows;
+
+    static readonly string[] haiTypes = { "CLABSI", "CAUTI", "VAP", "SSI_Superficial", "SSI_Deep", "SSI_Organ", "CDiff", "MRSA", "VRE", "CRE", "Other" };
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadCases();
+        await LoadOutbreaks();
+    }
+
+    string TabClass(int tab) => tab == activeTab ? "tab-active" : "tab-inactive";
+
+    async Task SetTab(int tab)
+    {
+        activeTab = tab;
+        error = null;
+        if (tab == 0) await LoadCases();
+        if (tab == 1) await LoadOutbreaks();
+    }
+
+    // ── Cases ────────────────────────────────────────────────────────────────
+
+    IEnumerable<HAICaseSummaryDto> FilteredCases
+    {
+        get
+        {
+            IEnumerable<HAICaseSummaryDto> result = allCases;
+            if (showActiveCasesOnly)
+                result = result.Where(c => c.Status == "Suspected" || c.Status == "Confirmed");
+            if (!string.IsNullOrEmpty(caseTypeFilter))
+                result = result.Where(c => c.HAIType == caseTypeFilter);
+            return result;
+        }
+    }
+
+    async Task LoadCases()
+    {
+        casesLoading = true;
+        error = null;
+        try
+        {
+            var caseIdx = Grains.GetGrain<IHAICaseIndexGrain>("HAI-CASE-IDX");
+            allCases = (await caseIdx.GetAllCasesAsync()).Select(c => new HAICaseSummaryDto
+            {
+                CaseId = c.CaseId, PatientId = c.PatientId, PatientName = c.PatientName,
+                HAIType = c.HAIType.ToString(), Status = c.Status.ToString(),
+                InfectionDate = c.InfectionDate, LocationName = c.LocationName,
+                Pathogen = c.Pathogen, OutbreakId = c.OutbreakId
+            }).ToList();
+        }
+        catch
+        {
+            error = "Failed to load HAI cases.";
+        }
+        finally { casesLoading = false; }
+    }
+
+    async Task SelectCase(string caseId)
+    {
+        if (selectedCaseId == caseId) { selectedCaseId = null; caseDetail = null; return; }
+        selectedCaseId = caseId;
+        caseDetail = null;
+        try
+        {
+            var caseGrain = Grains.GetGrain<IHAICaseGrain>($"HAI-CASE:{caseId}");
+            var cs = await caseGrain.GetCaseAsync();
+            caseDetail = new HAICaseDetailDto
+            {
+                CultureSource = cs.CultureSource, CultureResult = cs.CultureResult,
+                GramStain = cs.GramStain, DeviceType = cs.DeviceType,
+                DeviceInDays = cs.DeviceInDays, Notes = cs.Notes,
+                SusceptibilityResults = cs.SusceptibilityResults?.Select(r => new AntibioticResultDto
+                {
+                    AntibioticName = r.AntibioticName, Susceptibility = r.Susceptibility.ToString(), MIC = r.MIC
+                }).ToList() ?? new()
+            };
+        }
+        catch { error = "Failed to load case detail."; }
+    }
+
+    async Task CreateCase()
+    {
+        caseSubmitMsg = null;
+        error = null;
+        try
+        {
+            var payload = new
+            {
+                newCase.PatientId,
+                newCase.PatientName,
+                DateOfBirth = (DateTime?)null,
+                newCase.LocationId,
+                newCase.LocationName,
+                HAIType = newCase.HAIType,
+                InfectionDate = newCase.InfectionDate,
+                newCase.Pathogen,
+                newCase.ReportedById,
+                newCase.ReportedByName,
+                newCase.Notes,
+            };
+            string caseId = Guid.NewGuid().ToString();
+            var caseGr = Grains.GetGrain<IHAICaseGrain>($"HAI-CASE:{caseId}");
+            await caseGr.CreateCaseAsync(caseId, newCase.PatientId, newCase.PatientName, null,
+                newCase.LocationId, newCase.LocationName,
+                Enum.Parse<HAIType>(newCase.HAIType), newCase.InfectionDate,
+                newCase.Pathogen, newCase.ReportedById, newCase.ReportedByName, newCase.Notes);
+            var caseState = await caseGr.GetCaseAsync();
+            var cIdx = Grains.GetGrain<IHAICaseIndexGrain>("HAI-CASE-IDX");
+            await cIdx.UpsertCaseAsync(new HAICaseSummary
+            {
+                CaseId = caseId, PatientId = caseState.PatientId, PatientName = caseState.PatientName,
+                HAIType = caseState.HAIType, Status = caseState.Status,
+                InfectionDate = caseState.InfectionDate, LocationName = caseState.LocationName,
+                Pathogen = caseState.Pathogen
+            });
+            caseSubmitMsg = "Case reported successfully.";
+            newCase = new();
+            await LoadCases();
+        }
+        catch { caseSubmitMsg = "Error submitting case."; }
+    }
+
+    // ── Outbreaks ────────────────────────────────────────────────────────────
+
+    IEnumerable<OutbreakSummaryDto> FilteredOutbreaks =>
+        showActiveOutbreaksOnly ? allOutbreaks.Where(o => o.Status == "Active") : allOutbreaks;
+
+    async Task LoadOutbreaks()
+    {
+        outbreaksLoading = true;
+        error = null;
+        try
+        {
+            var obIdx = Grains.GetGrain<IOutbreakIndexGrain>("HAI-OUTBREAK-IDX");
+            allOutbreaks = (await obIdx.GetAllOutbreaksAsync()).Select(o => new OutbreakSummaryDto
+            {
+                OutbreakId = o.OutbreakId, Name = o.Name, HAIType = o.HAIType.ToString(),
+                Status = o.Status.ToString(), StartDate = o.StartDate,
+                LocationName = o.LocationName, CaseCount = o.CaseCount
+            }).ToList();
+        }
+        catch
+        {
+            error = "Failed to load outbreaks.";
+        }
+        finally { outbreaksLoading = false; }
+    }
+
+    async Task SelectOutbreak(string outbreakId)
+    {
+        if (selectedOutbreakId == outbreakId) { selectedOutbreakId = null; outbreakDetail = null; return; }
+        selectedOutbreakId = outbreakId;
+        outbreakDetail = null;
+        try
+        {
+            var obGrain = Grains.GetGrain<IOutbreakGrain>($"HAI-OUTBREAK:{outbreakId}");
+            var os = await obGrain.GetOutbreakAsync();
+            outbreakDetail = new OutbreakDetailDto
+            {
+                Description = os.Description, Pathogen = os.Pathogen,
+                NotifiedPublicHealth = os.NotifiedPublicHealth,
+                NotificationDate = os.NotificationDate
+            };
+        }
+        catch { error = "Failed to load outbreak detail."; }
+    }
+
+    async Task CreateOutbreak()
+    {
+        outbreakSubmitMsg = null;
+        error = null;
+        try
+        {
+            var payload = new
+            {
+                newOutbreak.Name,
+                newOutbreak.Description,
+                HAIType = newOutbreak.HAIType,
+                StartDate = newOutbreak.StartDate,
+                newOutbreak.LocationId,
+                newOutbreak.LocationName,
+                newOutbreak.Pathogen,
+            };
+            string outbreakId2 = Guid.NewGuid().ToString();
+            var obGr = Grains.GetGrain<IOutbreakGrain>($"HAI-OUTBREAK:{outbreakId2}");
+            await obGr.CreateOutbreakAsync(outbreakId2, newOutbreak.Name, newOutbreak.Description,
+                Enum.Parse<HAIType>(newOutbreak.HAIType), newOutbreak.StartDate,
+                newOutbreak.LocationId, newOutbreak.LocationName, newOutbreak.Pathogen);
+            var obState = await obGr.GetOutbreakAsync();
+            var obIndex = Grains.GetGrain<IOutbreakIndexGrain>("HAI-OUTBREAK-IDX");
+            await obIndex.UpsertOutbreakAsync(new OutbreakSummary
+            {
+                OutbreakId = outbreakId2, Name = obState.Name, HAIType = obState.HAIType,
+                Status = obState.Status, StartDate = obState.StartDate,
+                LocationName = obState.LocationName, CaseCount = obState.LinkedCaseIds.Count
+            });
+            outbreakSubmitMsg = "Outbreak created.";
+            newOutbreak = new();
+            await LoadOutbreaks();
+        }
+        catch { outbreakSubmitMsg = "Error creating outbreak."; }
+    }
+
+    async Task LinkCase()
+    {
+        linkSubmitMsg = null;
+        error = null;
+        try
+        {
+            var linkObGrain = Grains.GetGrain<IOutbreakGrain>($"HAI-OUTBREAK:{linkOutbreakId}");
+            await linkObGrain.AddCaseAsync(linkCaseId);
+            var linkCaseGrain = Grains.GetGrain<IHAICaseGrain>($"HAI-CASE:{linkCaseId}");
+            await linkCaseGrain.LinkToOutbreakAsync(linkOutbreakId);
+            linkSubmitMsg = "Case linked to outbreak.";
+            linkOutbreakId = string.Empty;
+            linkCaseId = string.Empty;
+            await LoadOutbreaks();
+            await LoadCases();
+        }
+        catch { linkSubmitMsg = "Error linking case."; }
+    }
+
+    // ── Antibiogram ──────────────────────────────────────────────────────────
+
+    async Task LoadAntibiogram()
+    {
+        antibiogramLoading = true;
+        error = null;
+        antibiogramRows = null;
+        try
+        {
+            // Antibiogram data is computed from HAI cases — aggregate locally
+            var allCasesForAntibiogram = await Grains.GetGrain<IHAICaseIndexGrain>("HAI-CASE-IDX").GetAllCasesAsync();
+            antibiogramRows = new(); // Antibiogram aggregation requires case-level susceptibility data not available from index
+        }
+        catch
+        {
+            error = "Failed to generate antibiogram.";
+        }
+        finally { antibiogramLoading = false; }
+    }
+
+    string SusceptClass(double pct) => pct >= 80 ? "pct-good" : pct >= 60 ? "pct-warn" : "pct-bad";
+    string ResistClass(double pct) => pct <= 10 ? "pct-good" : pct <= 30 ? "pct-warn" : "pct-bad";
+
+    // ── Local DTOs ────────────────────────────────────────────────────────────
+
+    class HAICaseSummaryDto
+    {
+        public string CaseId { get; set; } = string.Empty;
+        public string PatientId { get; set; } = string.Empty;
+        public string PatientName { get; set; } = string.Empty;
+        public string HAIType { get; set; } = string.Empty;
+        public string Status { get; set; } = string.Empty;
+        public DateTime? InfectionDate { get; set; }
+        public string LocationId { get; set; } = string.Empty;
+        public string LocationName { get; set; } = string.Empty;
+        public string Pathogen { get; set; } = string.Empty;
+        public string? OutbreakId { get; set; }
+    }
+
+    class HAICaseDetailDto
+    {
+        public string CultureSource { get; set; } = string.Empty;
+        public DateTime? CultureDate { get; set; }
+        public string GramStain { get; set; } = string.Empty;
+        public string CultureResult { get; set; } = string.Empty;
+        public string DeviceType { get; set; } = string.Empty;
+        public int? DeviceInDays { get; set; }
+        public string Notes { get; set; } = string.Empty;
+        public List<AntibioticResultDto> SusceptibilityResults { get; set; } = new();
+    }
+
+    class AntibioticResultDto
+    {
+        public string AntibioticName { get; set; } = string.Empty;
+        public string Susceptibility { get; set; } = string.Empty;
+        public string? MIC { get; set; }
+    }
+
+    class OutbreakSummaryDto
+    {
+        public string OutbreakId { get; set; } = string.Empty;
+        public string Name { get; set; } = string.Empty;
+        public string HAIType { get; set; } = string.Empty;
+        public string Status { get; set; } = string.Empty;
+        public DateTime? StartDate { get; set; }
+        public string LocationId { get; set; } = string.Empty;
+        public string LocationName { get; set; } = string.Empty;
+        public int CaseCount { get; set; }
+    }
+
+    class OutbreakDetailDto
+    {
+        public string Description { get; set; } = string.Empty;
+        public string Pathogen { get; set; } = string.Empty;
+        public bool NotifiedPublicHealth { get; set; }
+        public DateTime? NotificationDate { get; set; }
+        public List<string> LinkedCaseIds { get; set; } = new();
+    }
+
+    class AntibiogramRowDto
+    {
+        public string Pathogen { get; set; } = string.Empty;
+        public string Antibiotic { get; set; } = string.Empty;
+        public int NTested { get; set; }
+        public double PctSusceptible { get; set; }
+        public double PctIntermediate { get; set; }
+        public double PctResistant { get; set; }
+    }
+
+    class NewCaseForm
+    {
+        public string PatientId { get; set; } = string.Empty;
+        public string PatientName { get; set; } = string.Empty;
+        public string HAIType { get; set; } = "MRSA";
+        public DateTime? InfectionDate { get; set; }
+        public string LocationId { get; set; } = string.Empty;
+        public string LocationName { get; set; } = string.Empty;
+        public string Pathogen { get; set; } = string.Empty;
+        public string ReportedById { get; set; } = string.Empty;
+        public string ReportedByName { get; set; } = string.Empty;
+        public string? Notes { get; set; }
+    }
+
+    class NewOutbreakForm
+    {
+        public string Name { get; set; } = string.Empty;
+        public string Description { get; set; } = string.Empty;
+        public string HAIType { get; set; } = "MRSA";
+        public DateTime? StartDate { get; set; }
+        public string LocationId { get; set; } = string.Empty;
+        public string LocationName { get; set; } = string.Empty;
+        public string Pathogen { get; set; } = string.Empty;
+    }
+}

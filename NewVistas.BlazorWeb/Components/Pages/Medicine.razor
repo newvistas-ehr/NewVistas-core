@@ -1,0 +1,627 @@
+@page "/medicine"
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+@rendermode InteractiveServer
+@using NewVistas.BlazorWeb.Services
+@using NewVistas.Abstractions.GrainInterfaces
+@using NewVistas.Abstractions.GrainStates
+@inject OrleansGrainService Grains
+
+<PageTitle>Medicine (Procedures)</PageTitle>
+
+<div class="med-container">
+    <div class="med-header">
+        <h2>Medicine — Procedures</h2>
+        <div class="patient-bar">
+            <input @bind="patientId" placeholder="Patient ID" class="patient-input" />
+            <button @onclick="LoadAll" class="btn-load">Load</button>
+        </div>
+    </div>
+
+    @if (error != null)
+    {
+        <div class="alert-error">@error</div>
+    }
+    @if (successMsg != null)
+    {
+        <div class="alert-success">@successMsg</div>
+    }
+
+    <div class="tab-bar">
+        <button class="tab-btn @TabClass("procedures")" @onclick='() => SetTab("procedures")'>Procedures</button>
+        <button class="tab-btn @TabClass("ecg")"        @onclick='() => SetTab("ecg")'>ECG Review</button>
+        <button class="tab-btn @TabClass("order")"      @onclick='() => SetTab("order")'>Order Procedure</button>
+    </div>
+
+    <!-- ── Procedures Tab ─────────────────────────────────────────────────── -->
+    @if (activeTab == "procedures")
+    {
+        <div class="filter-bar">
+            <label>Filter by category:</label>
+            <select @bind="categoryFilter" @bind:after="ApplyCategoryFilter" class="select-sm">
+                <option value="">All</option>
+                <option value="Electrocardiogram">ECG</option>
+                <option value="Cardiology">Cardiology</option>
+                <option value="PulmonaryFunction">Pulmonary Function</option>
+                <option value="GIEndoscopy">GI / Endoscopy</option>
+                <option value="Other">Other</option>
+            </select>
+        </div>
+
+        @if (loading)
+        {
+            <div class="loading">Loading procedures…</div>
+        }
+        else if (procedures != null)
+        {
+            <div class="stat-cards">
+                <div class="stat-card total">
+                    <span class="stat-num">@procedures.Count</span>
+                    <span class="stat-lbl">Total</span>
+                </div>
+                <div class="stat-card completed">
+                    <span class="stat-num">@procedures.Count(p => p.Status == MedProcedureStatus.Completed)</span>
+                    <span class="stat-lbl">Completed</span>
+                </div>
+                <div class="stat-card pending">
+                    <span class="stat-num">@procedures.Count(p => p.Status is MedProcedureStatus.Ordered or MedProcedureStatus.Scheduled)</span>
+                    <span class="stat-lbl">Pending</span>
+                </div>
+            </div>
+
+            <table class="med-table">
+                <thead>
+                    <tr>
+                        <th>Date Ordered</th>
+                        <th>Category</th>
+                        <th>Procedure</th>
+                        <th>Code</th>
+                        <th>Status</th>
+                        <th>Provider</th>
+                        <th>Impression</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (MedProcedureIndexEntry p in procedures)
+                    {
+                        <tr class="@StatusRowClass(p.Status)"
+                            @onclick="() => SelectProcedure(p.ProcedureId)">
+                            <td>@p.OrderedDate.ToString("yyyy-MM-dd")</td>
+                            <td><span class="cat-badge @CategoryClass(p.Category)">@CategoryLabel(p.Category)</span></td>
+                            <td>@p.ProcedureDescription</td>
+                            <td class="code-cell">@p.ProcedureCode</td>
+                            <td><span class="status-chip @StatusClass(p.Status)">@p.Status</span></td>
+                            <td>@(p.ProviderName ?? "—")</td>
+                            <td class="impression-cell">@(p.Impression ?? "—")</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+
+            @if (selectedProcedureId != null && selectedProcedure != null)
+            {
+                <div class="detail-panel">
+                    <div class="detail-header">
+                        <h3>@selectedProcedure.ProcedureDescription
+                            <span class="detail-code">@selectedProcedure.ProcedureCode</span>
+                        </h3>
+                        <div class="detail-meta">
+                            <span>Ordered: @selectedProcedure.OrderedDate.ToString("yyyy-MM-dd")</span>
+                            @if (selectedProcedure.PerformedDate.HasValue)
+                            {
+                                <span>Performed: @selectedProcedure.PerformedDate.Value.ToString("yyyy-MM-dd")</span>
+                            }
+                            @if (!string.IsNullOrEmpty(selectedProcedure.LocationName))
+                            {
+                                <span>Location: @selectedProcedure.LocationName</span>
+                            }
+                        </div>
+                    </div>
+
+                    @if (!string.IsNullOrEmpty(selectedProcedure.Indication))
+                    {
+                        <div class="detail-section">
+                            <strong>Indication:</strong> @selectedProcedure.Indication
+                        </div>
+                    }
+                    @if (!string.IsNullOrEmpty(selectedProcedure.Findings))
+                    {
+                        <div class="detail-section">
+                            <strong>Findings:</strong>
+                            <div class="narrative">@selectedProcedure.Findings</div>
+                        </div>
+                    }
+                    @if (!string.IsNullOrEmpty(selectedProcedure.Impression))
+                    {
+                        <div class="detail-section impression-section">
+                            <strong>Impression:</strong>
+                            <div class="narrative">@selectedProcedure.Impression</div>
+                        </div>
+                    }
+
+                    <!-- ECG specifics -->
+                    @if (selectedProcedure.Category == MedProcedureCategory.Electrocardiogram && selectedProcedure.EcgRate.HasValue)
+                    {
+                        <div class="detail-section ecg-grid">
+                            <strong>ECG Measurements:</strong>
+                            <div class="ecg-row">
+                                <span class="ecg-lbl">Rate</span><span class="ecg-val">@selectedProcedure.EcgRate bpm</span>
+                                <span class="ecg-lbl">Rhythm</span><span class="ecg-val">@(selectedProcedure.EcgRhythm?.ToString() ?? "—")</span>
+                                <span class="ecg-lbl">PR</span><span class="ecg-val">@(selectedProcedure.EcgPrIntervalMs.HasValue ? $"{selectedProcedure.EcgPrIntervalMs} ms" : "—")</span>
+                                <span class="ecg-lbl">QRS</span><span class="ecg-val">@(selectedProcedure.EcgQrsDurationMs.HasValue ? $"{selectedProcedure.EcgQrsDurationMs} ms" : "—")</span>
+                                <span class="ecg-lbl">QTc</span><span class="ecg-val">@(selectedProcedure.EcgQtcMs.HasValue ? $"{selectedProcedure.EcgQtcMs} ms" : "—")</span>
+                                <span class="ecg-lbl">Axis</span><span class="ecg-val">@(selectedProcedure.EcgAxisDegrees.HasValue ? $"{selectedProcedure.EcgAxisDegrees}°" : "—")</span>
+                            </div>
+                            @if (!string.IsNullOrEmpty(selectedProcedure.EcgInterpretation))
+                            {
+                                <div class="ecg-interp @(selectedProcedure.EcgIsNormal == true ? "interp-normal" : "interp-abnormal")">
+                                    @selectedProcedure.EcgInterpretation
+                                </div>
+                            }
+                        </div>
+                    }
+
+                    <!-- PFT specifics -->
+                    @if (selectedProcedure.Category == MedProcedureCategory.PulmonaryFunction && selectedProcedure.PftFev1.HasValue)
+                    {
+                        <div class="detail-section pft-grid">
+                            <strong>Pulmonary Function Results:</strong>
+                            <div class="pft-row">
+                                <span class="pft-lbl">FEV1</span><span class="pft-val">@selectedProcedure.PftFev1 L (@selectedProcedure.PftFev1PctPredicted%)</span>
+                                <span class="pft-lbl">FVC</span><span class="pft-val">@selectedProcedure.PftFvc L (@selectedProcedure.PftFvcPctPredicted%)</span>
+                                <span class="pft-lbl">FEV1/FVC</span><span class="pft-val">@selectedProcedure.PftFev1FvcRatio</span>
+                                @if (selectedProcedure.PftDlco.HasValue)
+                                {
+                                    <span class="pft-lbl">DLCO</span><span class="pft-val">@selectedProcedure.PftDlco mL/min/mmHg (@selectedProcedure.PftDlcoPctPredicted%)</span>
+                                }
+                            </div>
+                            <div class="pft-pattern">
+                                @if (selectedProcedure.PftObstructive == true)
+                                {
+                                    <span class="pattern-tag obstructive">Obstructive</span>
+                                }
+                                @if (selectedProcedure.PftRestrictive == true)
+                                {
+                                    <span class="pattern-tag restrictive">Restrictive</span>
+                                }
+                                @if (selectedProcedure.PftBronchodilatorResponse == true)
+                                {
+                                    <span class="pattern-tag broncho">BD Response</span>
+                                }
+                                @if (selectedProcedure.PftObstructive != true && selectedProcedure.PftRestrictive != true)
+                                {
+                                    <span class="pattern-tag normal">Normal</span>
+                                }
+                            </div>
+                        </div>
+                    }
+
+                    <!-- Echo specifics -->
+                    @if (selectedProcedure.LvEjectionFraction.HasValue)
+                    {
+                        <div class="detail-section echo-grid">
+                            <strong>Echo Results:</strong>
+                            <div class="echo-row">
+                                <span class="echo-lbl">LVEF</span><span class="echo-val @EfClass(selectedProcedure.LvEjectionFraction)">@selectedProcedure.LvEjectionFraction%</span>
+                                @if (!string.IsNullOrEmpty(selectedProcedure.LvDiastolicFunction))
+                                {
+                                    <span class="echo-lbl">Diastolic Fn</span><span class="echo-val">@selectedProcedure.LvDiastolicFunction</span>
+                                }
+                            </div>
+                            @if (!string.IsNullOrEmpty(selectedProcedure.ValvularFindings))
+                            {
+                                <div class="echo-valves">Valves: @selectedProcedure.ValvularFindings</div>
+                            }
+                        </div>
+                    }
+
+                    <!-- Endoscopy specifics -->
+                    @if (selectedProcedure.Category == MedProcedureCategory.GIEndoscopy && selectedProcedure.EndoscopyType != null)
+                    {
+                        <div class="detail-section endo-grid">
+                            <strong>Endoscopy Details:</strong>
+                            <div class="endo-row">
+                                <span class="endo-lbl">Type</span><span class="endo-val">@selectedProcedure.EndoscopyType</span>
+                                @if (selectedProcedure.BowelPrepQuality != null)
+                                {
+                                    <span class="endo-lbl">Prep Quality</span><span class="endo-val">@selectedProcedure.BowelPrepQuality</span>
+                                }
+                                @if (selectedProcedure.CecumReached.HasValue)
+                                {
+                                    <span class="endo-lbl">Cecum Reached</span><span class="endo-val">@(selectedProcedure.CecumReached.Value ? "Yes" : "No")</span>
+                                }
+                                @if (selectedProcedure.PolypCount.HasValue)
+                                {
+                                    <span class="endo-lbl">Polyps</span><span class="endo-val">@selectedProcedure.PolypCount</span>
+                                }
+                                @if (selectedProcedure.BiopsyTaken.HasValue)
+                                {
+                                    <span class="endo-lbl">Biopsy</span><span class="endo-val">@(selectedProcedure.BiopsyTaken.Value ? "Yes" : "No")</span>
+                                }
+                            </div>
+                        </div>
+                    }
+
+                    <!-- Complete / Cancel actions -->
+                    @if (selectedProcedure.Status is MedProcedureStatus.Ordered or MedProcedureStatus.Scheduled or MedProcedureStatus.InProgress)
+                    {
+                        <div class="detail-actions">
+                            <div class="complete-form">
+                                <textarea @bind="completionFindings" placeholder="Findings (narrative)…" rows="3" class="narrative-input"></textarea>
+                                <textarea @bind="completionImpression" placeholder="Impression / Conclusion…" rows="2" class="narrative-input"></textarea>
+                                <div class="action-row">
+                                    <button @onclick="CompleteProcedure" class="btn-complete">Complete Procedure</button>
+                                    <button @onclick="CancelProcedure" class="btn-cancel-proc">Cancel Procedure</button>
+                                </div>
+                            </div>
+                        </div>
+                    }
+                </div>
+            }
+        }
+    }
+
+    <!-- ── ECG Review Tab ─────────────────────────────────────────────────── -->
+    @if (activeTab == "ecg")
+    {
+        @if (ecgProcedures == null)
+        {
+            <div class="loading">Load a patient to view ECG history.</div>
+        }
+        else if (!ecgProcedures.Any())
+        {
+            <div class="empty-state">No ECG records on file.</div>
+        }
+        else
+        {
+            <table class="med-table">
+                <thead>
+                    <tr>
+                        <th>Date</th>
+                        <th>Rate</th>
+                        <th>Rhythm</th>
+                        <th>PR (ms)</th>
+                        <th>QRS (ms)</th>
+                        <th>QTc (ms)</th>
+                        <th>Axis (°)</th>
+                        <th>Interpretation</th>
+                        <th>Normal?</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (MedProcedureState ecg in ecgProcedures)
+                    {
+                        <tr class="@(ecg.EcgIsNormal == true ? "" : "row-abnormal")">
+                            <td>@(ecg.PerformedDate?.ToString("yyyy-MM-dd") ?? ecg.OrderedDate.ToString("yyyy-MM-dd"))</td>
+                            <td>@(ecg.EcgRate.HasValue ? $"{ecg.EcgRate} bpm" : "—")</td>
+                            <td>@(ecg.EcgRhythm?.ToString() ?? "—")</td>
+                            <td>@(ecg.EcgPrIntervalMs?.ToString() ?? "—")</td>
+                            <td>@(ecg.EcgQrsDurationMs?.ToString() ?? "—")</td>
+                            <td>@(ecg.EcgQtcMs?.ToString() ?? "—")</td>
+                            <td>@(ecg.EcgAxisDegrees?.ToString() ?? "—")</td>
+                            <td class="impression-cell">@(ecg.EcgInterpretation ?? ecg.Impression ?? "—")</td>
+                            <td>@(ecg.EcgIsNormal.HasValue ? (ecg.EcgIsNormal.Value ? "Yes" : "No") : "—")</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        }
+    }
+
+    <!-- ── Order Procedure Tab ────────────────────────────────────────────── -->
+    @if (activeTab == "order")
+    {
+        <div class="order-form">
+            <h3>Order New Medicine Procedure</h3>
+            <div class="form-grid">
+                <label>Category</label>
+                <select @bind="orderCategory" class="select-sm">
+                    <option value="Electrocardiogram">Electrocardiogram (ECG)</option>
+                    <option value="Cardiology">Cardiology</option>
+                    <option value="PulmonaryFunction">Pulmonary Function</option>
+                    <option value="GIEndoscopy">GI / Endoscopy</option>
+                    <option value="Other">Other</option>
+                </select>
+
+                <label>Procedure Code (CPT)</label>
+                <input @bind="orderCode" placeholder="e.g. 93000" class="input-sm" />
+
+                <label>Procedure Description</label>
+                <input @bind="orderDescription" placeholder="e.g. Routine ECG, 12-lead" class="input-sm" />
+
+                <label>Provider Name</label>
+                <input @bind="orderProviderName" placeholder="Provider name" class="input-sm" />
+
+                <label>Location</label>
+                <input @bind="orderLocationName" placeholder="Clinic / Ward" class="input-sm" />
+
+                <label>Indication</label>
+                <input @bind="orderIndication" placeholder="Clinical indication" class="input-sm" />
+
+                <label>Order Date</label>
+                <input type="date" @bind="orderDate" class="input-sm" />
+            </div>
+
+            <button @onclick="SubmitOrder" class="btn-submit" disabled="@orderSubmitting">
+                @(orderSubmitting ? "Ordering…" : "Place Order")
+            </button>
+        </div>
+    }
+</div>
+
+<style>
+    .med-container { font-family: 'Segoe UI', sans-serif; max-width: 1200px; margin: 0 auto; padding: 1rem; }
+    .med-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; }
+    .med-header h2 { margin: 0; font-size: 1.4rem; color: #1a3a5c; }
+    .patient-bar { display: flex; gap: .5rem; align-items: center; }
+    .patient-input { border: 1px solid #bcd; border-radius: 4px; padding: .35rem .6rem; font-size: .9rem; width: 200px; }
+    .btn-load { background: #1a6fb5; color: white; border: none; border-radius: 4px; padding: .35rem .9rem; cursor: pointer; }
+    .alert-error   { background: #fde; border: 1px solid #e99; border-radius: 4px; padding: .6rem; margin-bottom: .8rem; color: #900; }
+    .alert-success { background: #dfd; border: 1px solid #9c9; border-radius: 4px; padding: .6rem; margin-bottom: .8rem; color: #060; }
+    .tab-bar { display: flex; gap: .4rem; border-bottom: 2px solid #ddd; margin-bottom: 1rem; }
+    .tab-btn { background: none; border: none; padding: .5rem 1.2rem; cursor: pointer; color: #555; font-size: .9rem; border-bottom: 3px solid transparent; margin-bottom: -2px; }
+    .tab-btn.active { color: #1a6fb5; border-bottom-color: #1a6fb5; font-weight: 600; }
+    .filter-bar { display: flex; align-items: center; gap: .6rem; margin-bottom: .7rem; font-size: .85rem; }
+    .select-sm { border: 1px solid #bcd; border-radius: 4px; padding: .3rem .5rem; font-size: .85rem; }
+    .stat-cards { display: flex; gap: .8rem; margin-bottom: 1rem; }
+    .stat-card { background: #f5f9ff; border: 1px solid #d0e4f7; border-radius: 6px; padding: .7rem 1.2rem; text-align: center; min-width: 90px; }
+    .stat-card.total { border-color: #a0c4e8; }
+    .stat-card.completed { border-color: #7ec77e; background: #f0faf0; }
+    .stat-card.pending { border-color: #f0c070; background: #fffbf0; }
+    .stat-num { display: block; font-size: 1.6rem; font-weight: 700; color: #1a3a5c; }
+    .stat-lbl { font-size: .75rem; color: #888; }
+    .med-table { width: 100%; border-collapse: collapse; font-size: .85rem; }
+    .med-table th { background: #e8f0f8; padding: .5rem .7rem; text-align: left; border-bottom: 2px solid #bcd; font-weight: 600; }
+    .med-table td { padding: .45rem .7rem; border-bottom: 1px solid #eee; cursor: pointer; }
+    .med-table tr:hover td { background: #f0f6ff; }
+    .row-selected td { background: #ddefff !important; }
+    .row-abnormal td { background: #fff8f0; }
+    .code-cell { font-family: monospace; color: #555; }
+    .impression-cell { max-width: 200px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-style: italic; color: #444; }
+    .cat-badge { padding: .15rem .5rem; border-radius: 10px; font-size: .75rem; font-weight: 600; }
+    .cat-ecg { background: #e3f0ff; color: #1a5cb5; }
+    .cat-cardio { background: #ffe3e3; color: #b51a1a; }
+    .cat-pft { background: #e3ffe3; color: #1a8f1a; }
+    .cat-gi { background: #fff3e3; color: #b55a1a; }
+    .cat-other { background: #f0f0f0; color: #555; }
+    .status-chip { padding: .15rem .5rem; border-radius: 10px; font-size: .75rem; font-weight: 600; }
+    .status-ordered   { background: #e8f0ff; color: #1a3a8c; }
+    .status-scheduled { background: #fff0e8; color: #8c5a1a; }
+    .status-inprogress { background: #fff8e0; color: #8c7a00; }
+    .status-completed { background: #e8ffe8; color: #1a7a1a; }
+    .status-cancelled { background: #f8e8e8; color: #8c1a1a; }
+    .detail-panel { border: 1px solid #cde; border-radius: 6px; padding: 1rem; margin-top: 1rem; background: #f8fbff; }
+    .detail-header h3 { margin: 0 0 .5rem; font-size: 1.1rem; color: #1a3a5c; }
+    .detail-code { font-family: monospace; font-size: .85rem; color: #666; margin-left: .5rem; }
+    .detail-meta { display: flex; gap: 1rem; font-size: .8rem; color: #666; margin-bottom: .8rem; }
+    .detail-section { margin-bottom: .9rem; }
+    .narrative { background: white; border: 1px solid #ddd; border-radius: 4px; padding: .5rem; margin-top: .3rem; white-space: pre-wrap; font-size: .85rem; line-height: 1.5; }
+    .impression-section .narrative { border-color: #90c; color: #60a; }
+    .ecg-grid, .pft-grid, .echo-grid, .endo-grid { background: white; border: 1px solid #dde; border-radius: 4px; padding: .7rem; }
+    .ecg-row, .pft-row, .echo-row, .endo-row { display: grid; grid-template-columns: repeat(6, auto); gap: .4rem .8rem; margin-top: .4rem; font-size: .85rem; }
+    .ecg-lbl, .pft-lbl, .echo-lbl, .endo-lbl { color: #888; font-size: .75rem; }
+    .ecg-val, .pft-val, .echo-val, .endo-val { font-weight: 600; color: #222; }
+    .ecg-interp { margin-top: .5rem; padding: .4rem .7rem; border-radius: 4px; font-size: .85rem; font-weight: 500; }
+    .interp-normal   { background: #e8ffe8; color: #1a7a1a; border-left: 3px solid #5c5; }
+    .interp-abnormal { background: #fff0e8; color: #8c3a00; border-left: 3px solid #f80; }
+    .pft-pattern { display: flex; gap: .4rem; margin-top: .5rem; }
+    .pattern-tag { padding: .2rem .6rem; border-radius: 10px; font-size: .75rem; font-weight: 600; }
+    .pattern-tag.obstructive { background: #ffe0e0; color: #900; }
+    .pattern-tag.restrictive { background: #fff0e0; color: #960; }
+    .pattern-tag.broncho     { background: #e0f0ff; color: #006; }
+    .pattern-tag.normal      { background: #e0ffe0; color: #060; }
+    .ef-normal { color: #1a7a1a; }
+    .ef-mild   { color: #8c7a00; }
+    .ef-reduced { color: #8c1a1a; }
+    .endo-grid .endo-row { grid-template-columns: repeat(4, auto); }
+    .detail-actions { border-top: 1px solid #ddd; margin-top: 1rem; padding-top: .8rem; }
+    .complete-form { display: flex; flex-direction: column; gap: .5rem; }
+    .narrative-input { border: 1px solid #bcd; border-radius: 4px; padding: .4rem .6rem; font-size: .85rem; resize: vertical; }
+    .action-row { display: flex; gap: .6rem; }
+    .btn-complete { background: #1a7a1a; color: white; border: none; border-radius: 4px; padding: .4rem .9rem; cursor: pointer; }
+    .btn-cancel-proc { background: #c04040; color: white; border: none; border-radius: 4px; padding: .4rem .9rem; cursor: pointer; }
+    .loading { color: #888; padding: 1rem; text-align: center; }
+    .empty-state { color: #aaa; padding: 2rem; text-align: center; font-style: italic; }
+    .order-form { max-width: 600px; }
+    .order-form h3 { color: #1a3a5c; margin-bottom: 1rem; }
+    .form-grid { display: grid; grid-template-columns: 150px 1fr; gap: .6rem .8rem; align-items: center; margin-bottom: 1rem; font-size: .9rem; }
+    .input-sm { border: 1px solid #bcd; border-radius: 4px; padding: .35rem .6rem; font-size: .85rem; }
+    .btn-submit { background: #1a6fb5; color: white; border: none; border-radius: 4px; padding: .5rem 1.4rem; cursor: pointer; font-size: .95rem; }
+    .btn-submit:disabled { background: #aaa; cursor: not-allowed; }
+</style>
+
+@code {
+    // ── State ──────────────────────────────────────────────────────────────────
+    string patientId = string.Empty;
+    string activeTab = "procedures";
+    string? error;
+    string? successMsg;
+    bool loading;
+
+    List<MedProcedureIndexEntry>? procedures;
+    List<MedProcedureState>? ecgProcedures;
+    string? selectedProcedureId;
+    MedProcedureState? selectedProcedure;
+
+    string categoryFilter = string.Empty;
+    string completionFindings = string.Empty;
+    string completionImpression = string.Empty;
+
+    // Order form
+    string orderCategory = "Electrocardiogram";
+    string orderCode = string.Empty;
+    string orderDescription = string.Empty;
+    string orderProviderName = string.Empty;
+    string orderLocationName = string.Empty;
+    string orderIndication = string.Empty;
+    DateTime orderDate = DateTime.Today;
+    bool orderSubmitting;
+
+    // ── Navigation ─────────────────────────────────────────────────────────────
+    void SetTab(string tab) => activeTab = tab;
+    string TabClass(string tab) => activeTab == tab ? "active" : string.Empty;
+
+    // ── Load ───────────────────────────────────────────────────────────────────
+    async Task LoadAll()
+    {
+        error = null; successMsg = null;
+        if (string.IsNullOrWhiteSpace(patientId)) { error = "Enter a patient ID."; return; }
+        loading = true;
+        selectedProcedureId = null;
+        selectedProcedure = null;
+        try
+        {
+            var workflow = Grains.GetGrain<IPatientWorkflowGrain>(patientId.Trim());
+            procedures = await workflow.GetMedProceduresAsync();
+
+            // Load ECG details for the ECG tab
+            var ecgSummaries = procedures?.Where(p => p.Category == MedProcedureCategory.Electrocardiogram).ToList() ?? new();
+            ecgProcedures = new();
+            foreach (MedProcedureIndexEntry s in ecgSummaries)
+            {
+                MedProcedureState? detail = await workflow.GetMedProcedureAsync(s.ProcedureId);
+                if (detail != null) ecgProcedures.Add(detail);
+            }
+        }
+        catch (Exception ex)
+        {
+            error = $"Failed to load: {ex.Message}";
+        }
+        finally { loading = false; }
+    }
+
+    async Task ApplyCategoryFilter()
+    {
+        if (string.IsNullOrWhiteSpace(patientId)) return;
+        loading = true;
+        try
+        {
+            var workflow = Grains.GetGrain<IPatientWorkflowGrain>(patientId.Trim());
+            if (string.IsNullOrEmpty(categoryFilter))
+                procedures = await workflow.GetMedProceduresAsync();
+            else
+                procedures = await workflow.GetMedProceduresByCategoryAsync(
+                    Enum.Parse<MedProcedureCategory>(categoryFilter));
+        }
+        catch (Exception ex) { error = ex.Message; }
+        finally { loading = false; }
+    }
+
+    async Task SelectProcedure(string procedureId)
+    {
+        selectedProcedureId = procedureId;
+        completionFindings = string.Empty;
+        completionImpression = string.Empty;
+        try
+        {
+            var workflow = Grains.GetGrain<IPatientWorkflowGrain>(patientId.Trim());
+            selectedProcedure = await workflow.GetMedProcedureAsync(procedureId);
+        }
+        catch (Exception ex) { error = ex.Message; }
+    }
+
+    // ── Actions ────────────────────────────────────────────────────────────────
+    async Task CompleteProcedure()
+    {
+        if (selectedProcedureId == null) return;
+        try
+        {
+            var workflow = Grains.GetGrain<IPatientWorkflowGrain>(patientId.Trim());
+            await workflow.CompleteMedProcedureAsync(selectedProcedureId, DateTime.UtcNow, completionFindings, completionImpression, null);
+            successMsg = "Procedure completed.";
+            await SelectProcedure(selectedProcedureId);
+            await LoadAll();
+        }
+        catch (Exception ex) { error = ex.Message; }
+    }
+
+    async Task CancelProcedure()
+    {
+        if (selectedProcedureId == null) return;
+        try
+        {
+            var workflow = Grains.GetGrain<IPatientWorkflowGrain>(patientId.Trim());
+            await workflow.CancelMedProcedureAsync(selectedProcedureId, "Cancelled by provider");
+            successMsg = "Procedure cancelled.";
+            selectedProcedureId = null;
+            selectedProcedure = null;
+            await LoadAll();
+        }
+        catch (Exception ex) { error = ex.Message; }
+    }
+
+    async Task SubmitOrder()
+    {
+        if (string.IsNullOrWhiteSpace(patientId)) { error = "Enter a patient ID."; return; }
+        if (string.IsNullOrWhiteSpace(orderCode) || string.IsNullOrWhiteSpace(orderDescription))
+        {
+            error = "Procedure code and description are required.";
+            return;
+        }
+        orderSubmitting = true; error = null; successMsg = null;
+        try
+        {
+            var workflow = Grains.GetGrain<IPatientWorkflowGrain>(patientId.Trim());
+            await workflow.OrderMedProcedureAsync(
+                Enum.Parse<MedProcedureCategory>(orderCategory),
+                orderCode,
+                orderDescription,
+                orderDate.ToUniversalTime(),
+                null,
+                string.IsNullOrWhiteSpace(orderProviderName) ? null : orderProviderName,
+                null,
+                string.IsNullOrWhiteSpace(orderLocationName) ? null : orderLocationName,
+                string.IsNullOrWhiteSpace(orderIndication) ? null : orderIndication);
+            successMsg = "Procedure ordered.";
+            orderCode = orderDescription = orderProviderName = orderLocationName = orderIndication = string.Empty;
+            orderDate = DateTime.Today;
+            SetTab("procedures");
+            await LoadAll();
+        }
+        catch (Exception ex) { error = ex.Message; }
+        finally { orderSubmitting = false; }
+    }
+
+    // ── Helpers ────────────────────────────────────────────────────────────────
+    string CategoryClass(object cat) => cat.ToString() switch
+    {
+        "Electrocardiogram"  => "cat-ecg",
+        "Cardiology"         => "cat-cardio",
+        "PulmonaryFunction"  => "cat-pft",
+        "GIEndoscopy"        => "cat-gi",
+        _                    => "cat-other"
+    };
+
+    string CategoryLabel(object cat) => cat.ToString() switch
+    {
+        "Electrocardiogram"  => "ECG",
+        "Cardiology"         => "Cardiology",
+        "PulmonaryFunction"  => "PFT",
+        "GIEndoscopy"        => "GI/Endo",
+        _                    => "Other"
+    };
+
+    string StatusClass(object status) => status.ToString() switch
+    {
+        "Ordered"    => "status-ordered",
+        "Scheduled"  => "status-scheduled",
+        "InProgress" => "status-inprogress",
+        "Completed"  => "status-completed",
+        "Cancelled"  => "status-cancelled",
+        _            => "status-ordered"
+    };
+
+    string StatusRowClass(object status) => status.ToString() switch
+    {
+        "Completed" => "row-completed",
+        "Cancelled" => "row-cancelled",
+        _           => string.Empty
+    };
+
+    string EfClass(decimal? ef) => ef switch
+    {
+        >= 55 => "ef-normal",
+        >= 40 => "ef-mild",
+        _     => "ef-reduced"
+    };
+
+}

@@ -1,0 +1,539 @@
+@page "/patient-edit"
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+@rendermode InteractiveServer
+@using NewVistas.BlazorWeb.Services
+@using NewVistas.Abstractions.GrainInterfaces
+@using NewVistas.Abstractions.GrainStates
+@inject OrleansGrainService Grains
+@inject NavigationManager Nav
+
+<PageTitle>Edit Patient</PageTitle>
+
+<h1>Edit Patient</h1>
+
+<div class="lookup-bar">
+    <input type="text" @bind="patientId" @bind:event="oninput" @onkeydown="HandleKeyDown"
+           placeholder="Patient ID (e.g., PATIENT-001)" class="lookup-input" />
+    <button @onclick="LoadPatient" disabled="@(string.IsNullOrWhiteSpace(patientId) || loading)" class="btn btn-primary">
+        @if (loading) { <span>Loading...</span> } else { <span>Load Patient</span> }
+    </button>
+</div>
+
+@if (error != null) { <div class="alert alert-error">@error</div> }
+@if (successMessage != null) { <div class="alert alert-success">@successMessage</div> }
+
+@if (patient != null)
+{
+    <div class="patient-banner">
+        <div class="banner-name">@patient.Name</div>
+        <div class="banner-details">
+            <span>ID: @patient.PatientId</span>
+            <span>Sex: @patient.Sex</span>
+            @if (patient.DateOfBirth.HasValue)
+            {
+                <span>DOB: @patient.DateOfBirth.Value.ToString("MM/dd/yyyy")</span>
+            }
+        </div>
+    </div>
+
+    <div class="tabs">
+        <button class="tab @(activeTab == "demographics" ? "active" : "")" @onclick='() => activeTab = "demographics"'>Demographics</button>
+        <button class="tab @(activeTab == "address" ? "active" : "")" @onclick='() => activeTab = "address"'>Address</button>
+        <button class="tab @(activeTab == "contact" ? "active" : "")" @onclick='() => activeTab = "contact"'>Contact</button>
+        <button class="tab @(activeTab == "emergency" ? "active" : "")" @onclick='() => activeTab = "emergency"'>Emergency Contact</button>
+        <button class="tab @(activeTab == "veteran" ? "active" : "")" @onclick='() => activeTab = "veteran"'>Veteran / Military</button>
+    </div>
+
+    @* ── Demographics Tab ── *@
+    @if (activeTab == "demographics")
+    {
+        <div class="tab-content">
+            <h3>Demographics</h3>
+            <div class="form-grid">
+                <div class="form-row">
+                    <label>Name (LAST,FIRST MI) *</label>
+                    <input type="text" @bind="editName" placeholder="SMITH,JOHN A" />
+                </div>
+                <div class="form-row">
+                    <label>Sex *</label>
+                    <select @bind="editSex">
+                        <option value="M">Male</option>
+                        <option value="F">Female</option>
+                    </select>
+                </div>
+                <div class="form-row">
+                    <label>Date of Birth</label>
+                    <input type="date" @bind="editDob" />
+                </div>
+                <div class="form-row">
+                    <label>SSN</label>
+                    <input type="text" @bind="editSsn" placeholder="000-00-0000" />
+                </div>
+                <div class="form-row">
+                    <label>Marital Status</label>
+                    <select @bind="editMaritalStatus">
+                        <option value="">--</option>
+                        <option value="SINGLE">Single</option>
+                        <option value="MARRIED">Married</option>
+                        <option value="DIVORCED">Divorced</option>
+                        <option value="WIDOWED">Widowed</option>
+                        <option value="SEPARATED">Separated</option>
+                    </select>
+                </div>
+            </div>
+            <div class="form-actions">
+                <button @onclick="SaveDemographics" disabled="@saving" class="btn btn-primary">
+                    @if (saving) { <span>Saving...</span> } else { <span>Save Demographics</span> }
+                </button>
+            </div>
+        </div>
+    }
+
+    @* ── Address Tab ── *@
+    @if (activeTab == "address")
+    {
+        <div class="tab-content">
+            <h3>Address</h3>
+            <div class="form-grid">
+                <div class="form-row full">
+                    <label>Street Address 1</label>
+                    <input type="text" @bind="editAddress1" />
+                </div>
+                <div class="form-row full">
+                    <label>Street Address 2</label>
+                    <input type="text" @bind="editAddress2" />
+                </div>
+                <div class="form-row full">
+                    <label>Street Address 3</label>
+                    <input type="text" @bind="editAddress3" />
+                </div>
+                <div class="form-row">
+                    <label>City</label>
+                    <input type="text" @bind="editCity" />
+                </div>
+                <div class="form-row">
+                    <label>State</label>
+                    <input type="text" @bind="editState" placeholder="e.g., VA" />
+                </div>
+                <div class="form-row">
+                    <label>Zip Code</label>
+                    <input type="text" @bind="editZip" />
+                </div>
+            </div>
+            <div class="form-actions">
+                <button @onclick="SaveAddress" disabled="@saving" class="btn btn-primary">
+                    @if (saving) { <span>Saving...</span> } else { <span>Save Address</span> }
+                </button>
+            </div>
+        </div>
+    }
+
+    @* ── Contact Tab ── *@
+    @if (activeTab == "contact")
+    {
+        <div class="tab-content">
+            <h3>Contact Information</h3>
+            <div class="form-grid">
+                <div class="form-row">
+                    <label>Phone (Residence)</label>
+                    <input type="tel" @bind="editPhoneRes" />
+                </div>
+                <div class="form-row">
+                    <label>Phone (Work)</label>
+                    <input type="tel" @bind="editPhoneWork" />
+                </div>
+                <div class="form-row full">
+                    <label>Email</label>
+                    <input type="email" @bind="editEmail" />
+                </div>
+            </div>
+            <div class="form-actions">
+                <button @onclick="SaveContact" disabled="@saving" class="btn btn-primary">
+                    @if (saving) { <span>Saving...</span> } else { <span>Save Contact Info</span> }
+                </button>
+            </div>
+        </div>
+    }
+
+    @* ── Emergency Contact Tab ── *@
+    @if (activeTab == "emergency")
+    {
+        <div class="tab-content">
+            <h3>Emergency Contact</h3>
+            <div class="form-grid">
+                <div class="form-row">
+                    <label>Contact Name</label>
+                    <input type="text" @bind="editEmergencyName" />
+                </div>
+                <div class="form-row">
+                    <label>Relationship</label>
+                    <input type="text" @bind="editEmergencyRelationship" placeholder="e.g., SPOUSE" />
+                </div>
+                <div class="form-row">
+                    <label>Phone</label>
+                    <input type="tel" @bind="editEmergencyPhone" />
+                </div>
+            </div>
+            <div class="form-actions">
+                <button @onclick="SaveEmergencyContact" disabled="@saving" class="btn btn-primary">
+                    @if (saving) { <span>Saving...</span> } else { <span>Save Emergency Contact</span> }
+                </button>
+            </div>
+        </div>
+    }
+
+    @* ── Veteran / Military Tab ── *@
+    @if (activeTab == "veteran")
+    {
+        <div class="tab-content">
+            <h3>Veteran Information</h3>
+            <div class="form-grid">
+                <div class="form-row">
+                    <label>Veteran</label>
+                    <select @bind="editVeteran">
+                        <option value="">--</option>
+                        <option value="Y">Yes</option>
+                        <option value="N">No</option>
+                    </select>
+                </div>
+                <div class="form-row">
+                    <label>SC %</label>
+                    <input type="number" @bind="editScPercent" min="0" max="100" />
+                </div>
+                <div class="form-row">
+                    <label>Eligibility Code</label>
+                    <input type="text" @bind="editEligibility" />
+                </div>
+                <div class="form-row">
+                    <label>Primary Eligibility Code</label>
+                    <input type="text" @bind="editPrimaryEligibility" />
+                </div>
+            </div>
+            <div class="form-actions">
+                <button @onclick="SaveVeteranInfo" disabled="@saving" class="btn btn-primary">
+                    @if (saving) { <span>Saving...</span> } else { <span>Save Veteran Info</span> }
+                </button>
+            </div>
+
+            <h3 style="margin-top: 1.5rem;">Military Service</h3>
+            <div class="form-grid">
+                <div class="form-row">
+                    <label>Service Entry Date</label>
+                    <input type="date" @bind="editServiceEntry" />
+                </div>
+                <div class="form-row">
+                    <label>Service Separation Date</label>
+                    <input type="date" @bind="editServiceSeparation" />
+                </div>
+                <div class="form-row">
+                    <label>Branch</label>
+                    <select @bind="editBranch">
+                        <option value="">--</option>
+                        <option value="ARMY">Army</option>
+                        <option value="NAVY">Navy</option>
+                        <option value="AIR FORCE">Air Force</option>
+                        <option value="MARINES">Marines</option>
+                        <option value="COAST GUARD">Coast Guard</option>
+                        <option value="SPACE FORCE">Space Force</option>
+                    </select>
+                </div>
+                <div class="form-row">
+                    <label>Discharge Type</label>
+                    <select @bind="editDischargeType">
+                        <option value="">--</option>
+                        <option value="HONORABLE">Honorable</option>
+                        <option value="GENERAL">General</option>
+                        <option value="OTHER THAN HONORABLE">Other Than Honorable</option>
+                        <option value="BAD CONDUCT">Bad Conduct</option>
+                        <option value="DISHONORABLE">Dishonorable</option>
+                    </select>
+                </div>
+                <div class="form-row">
+                    <label>Prisoner of War</label>
+                    <select @bind="editPow">
+                        <option value="">--</option>
+                        <option value="Y">Yes</option>
+                        <option value="N">No</option>
+                    </select>
+                </div>
+            </div>
+            <div class="form-actions">
+                <button @onclick="SaveMilitaryService" disabled="@saving" class="btn btn-primary">
+                    @if (saving) { <span>Saving...</span> } else { <span>Save Military Service</span> }
+                </button>
+            </div>
+        </div>
+    }
+}
+
+@code {
+    private string patientId = "";
+    private PatientState? patient;
+    private bool loading;
+    private bool saving;
+    private string? error;
+    private string? successMessage;
+    private string activeTab = "demographics";
+
+    // Demographics
+    private string editName = "";
+    private string editSex = "M";
+    private DateTime? editDob;
+    private string? editSsn;
+    private string? editMaritalStatus;
+
+    // Address
+    private string? editAddress1;
+    private string? editAddress2;
+    private string? editAddress3;
+    private string? editCity;
+    private string? editState;
+    private string? editZip;
+
+    // Contact
+    private string? editPhoneRes;
+    private string? editPhoneWork;
+    private string? editEmail;
+
+    // Emergency Contact
+    private string? editEmergencyName;
+    private string? editEmergencyRelationship;
+    private string? editEmergencyPhone;
+
+    // Veteran
+    private string editVeteran = "";
+    private int? editScPercent;
+    private string? editEligibility;
+    private string? editPrimaryEligibility;
+
+    // Military
+    private DateTime? editServiceEntry;
+    private DateTime? editServiceSeparation;
+    private string? editBranch;
+    private string? editDischargeType;
+    private string? editPow;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var uri = new Uri(Nav.Uri);
+        var query = System.Web.HttpUtility.ParseQueryString(uri.Query);
+        var qsPatientId = query["patientId"];
+        if (!string.IsNullOrWhiteSpace(qsPatientId))
+        {
+            patientId = qsPatientId;
+            await LoadPatient();
+        }
+    }
+
+    private async Task HandleKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter") await LoadPatient();
+    }
+
+    private async Task LoadPatient()
+    {
+        if (string.IsNullOrWhiteSpace(patientId)) return;
+        loading = true;
+        error = null;
+        successMessage = null;
+        patient = null;
+
+        try
+        {
+            var workflow = Grains.GetGrain<IPatientWorkflowGrain>(patientId.Trim());
+            patient = await workflow.GetPatientAsync();
+            if (string.IsNullOrEmpty(patient.Name))
+            {
+                error = $"Patient '{patientId}' not found.";
+                patient = null;
+            }
+            else
+            {
+                PopulateFields();
+            }
+        }
+        catch (Exception ex)
+        {
+            error = $"Error: {ex.Message}";
+        }
+        finally
+        {
+            loading = false;
+        }
+    }
+
+    private void PopulateFields()
+    {
+        if (patient == null) return;
+
+        editName = patient.Name;
+        editSex = patient.Sex;
+        editDob = patient.DateOfBirth;
+        editSsn = patient.SocialSecurityNumber;
+        editMaritalStatus = patient.MaritalStatus;
+
+        editAddress1 = patient.StreetAddress1;
+        editAddress2 = patient.StreetAddress2;
+        editAddress3 = patient.StreetAddress3;
+        editCity = patient.City;
+        editState = patient.State;
+        editZip = patient.ZipCode;
+
+        editPhoneRes = patient.PhoneNumberResidence;
+        editPhoneWork = patient.PhoneNumberWork;
+        editEmail = patient.Email;
+
+        editEmergencyName = patient.EmergencyContactName;
+        editEmergencyRelationship = patient.EmergencyContactRelationship;
+        editEmergencyPhone = patient.EmergencyContactPhone;
+
+        editVeteran = patient.Veteran ?? "";
+        editScPercent = patient.ServiceConnectedPercentage;
+        editEligibility = patient.EligibilityCode;
+        editPrimaryEligibility = patient.PrimaryEligibilityCode;
+
+        editServiceEntry = patient.ServiceEntryDate;
+        editServiceSeparation = patient.ServiceSeparationDate;
+        editBranch = patient.ServiceBranch;
+        editDischargeType = patient.ServiceDischargeType;
+        editPow = patient.PrisonerOfWar;
+    }
+
+    private async Task SaveDemographics()
+    {
+        saving = true; error = null; successMessage = null;
+        try
+        {
+            var workflow = Grains.GetGrain<IPatientWorkflowGrain>(patientId.Trim());
+            await workflow.UpdateDemographicsAsync(editName, editSex, editDob, editSsn);
+            await workflow.UpdateMaritalStatusAsync(editMaritalStatus);
+            successMessage = "Saved successfully.";
+            await ReloadPatient();
+        }
+        catch (Exception ex) { error = $"Error: {ex.Message}"; }
+        finally { saving = false; }
+    }
+
+    private async Task SaveAddress()
+    {
+        saving = true; error = null; successMessage = null;
+        try
+        {
+            var workflow = Grains.GetGrain<IPatientWorkflowGrain>(patientId.Trim());
+            await workflow.UpdateAddressAsync(editAddress1, editAddress2, editAddress3, editCity, editState, editZip);
+            successMessage = "Saved successfully.";
+            await ReloadPatient();
+        }
+        catch (Exception ex) { error = $"Error: {ex.Message}"; }
+        finally { saving = false; }
+    }
+
+    private async Task SaveContact()
+    {
+        saving = true; error = null; successMessage = null;
+        try
+        {
+            var workflow = Grains.GetGrain<IPatientWorkflowGrain>(patientId.Trim());
+            await workflow.UpdateContactInfoAsync(editPhoneRes, editPhoneWork, editEmail);
+            successMessage = "Saved successfully.";
+            await ReloadPatient();
+        }
+        catch (Exception ex) { error = $"Error: {ex.Message}"; }
+        finally { saving = false; }
+    }
+
+    private async Task SaveEmergencyContact()
+    {
+        saving = true; error = null; successMessage = null;
+        try
+        {
+            var workflow = Grains.GetGrain<IPatientWorkflowGrain>(patientId.Trim());
+            await workflow.UpdateEmergencyContactAsync(editEmergencyName, editEmergencyRelationship, editEmergencyPhone);
+            successMessage = "Saved successfully.";
+            await ReloadPatient();
+        }
+        catch (Exception ex) { error = $"Error: {ex.Message}"; }
+        finally { saving = false; }
+    }
+
+    private async Task SaveVeteranInfo()
+    {
+        saving = true; error = null; successMessage = null;
+        try
+        {
+            var workflow = Grains.GetGrain<IPatientWorkflowGrain>(patientId.Trim());
+            await workflow.UpdateVeteranInfoAsync(editVeteran, editScPercent, editEligibility, editPrimaryEligibility);
+            successMessage = "Saved successfully.";
+            await ReloadPatient();
+        }
+        catch (Exception ex) { error = $"Error: {ex.Message}"; }
+        finally { saving = false; }
+    }
+
+    private async Task SaveMilitaryService()
+    {
+        saving = true; error = null; successMessage = null;
+        try
+        {
+            var workflow = Grains.GetGrain<IPatientWorkflowGrain>(patientId.Trim());
+            await workflow.UpdateMilitaryServiceAsync(editServiceEntry, editServiceSeparation, editBranch, editDischargeType, editPow);
+            successMessage = "Saved successfully.";
+            await ReloadPatient();
+        }
+        catch (Exception ex) { error = $"Error: {ex.Message}"; }
+        finally { saving = false; }
+    }
+
+    private async Task ReloadPatient()
+    {
+        try
+        {
+            var workflow = Grains.GetGrain<IPatientWorkflowGrain>(patientId.Trim());
+            patient = await workflow.GetPatientAsync();
+            PopulateFields();
+        }
+        catch { /* silent reload failure — data was already saved */ }
+    }
+}
+
+<style>
+    .lookup-bar { display: flex; gap: 0.5rem; margin-bottom: 1.5rem; }
+    .lookup-input {
+        flex: 1; max-width: 400px; padding: 0.5rem 0.75rem;
+        border: 1px solid #ccc; border-radius: 4px; font-size: 0.9rem;
+    }
+    .btn { padding: 0.5rem 1.25rem; border: none; border-radius: 4px; cursor: pointer; font-size: 0.85rem; }
+    .btn-primary { background: #003f72; color: white; }
+    .btn-primary:hover { background: #002a4e; }
+    .btn-primary:disabled { background: #999; cursor: not-allowed; }
+
+    .alert { padding: 0.75rem 1rem; border-radius: 4px; margin-bottom: 1rem; }
+    .alert-error { background: #fde8e8; color: #b91c1c; border: 1px solid #f5c6c6; }
+    .alert-success { background: #dcfce7; color: #166534; border: 1px solid #bbf7d0; }
+
+    .patient-banner {
+        background: #eef3f9; border: 1px solid #c5d3e3; border-radius: 6px;
+        padding: 1rem 1.25rem; margin-bottom: 1.5rem;
+    }
+    .banner-name { font-size: 1.3rem; font-weight: 700; color: #003f72; }
+    .banner-details { display: flex; flex-wrap: wrap; gap: 1rem; margin-top: 0.5rem; font-size: 0.85rem; color: #555; }
+
+    .tabs { display: flex; gap: 0; border-bottom: 2px solid #ddd; margin-bottom: 1rem; }
+    .tab {
+        padding: .5rem 1rem; border: none; background: none; cursor: pointer;
+        font-size: .85rem; font-weight: 600; color: #666; border-bottom: 2px solid transparent;
+        margin-bottom: -2px;
+    }
+    .tab.active { color: #003f72; border-bottom-color: #003f72; }
+    .tab:hover { color: #003f72; }
+    .tab-content { padding-top: .5rem; }
+
+    .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: .5rem 1rem; }
+    .form-row { display: flex; flex-direction: column; gap: .25rem; }
+    .form-row.full { grid-column: span 2; }
+    .form-row label { font-size: .85rem; font-weight: 600; }
+    .form-row input, .form-row select, .form-row textarea { padding: .35rem .5rem; border: 1px solid #ccc; border-radius: 4px; font-size: .9rem; }
+    .form-actions { display: flex; gap: .5rem; margin-top: .75rem; }
+
+    h3 { margin-bottom: 0.75rem; padding-bottom: 0.5rem; border-bottom: 1px solid #eee; }
+</style>

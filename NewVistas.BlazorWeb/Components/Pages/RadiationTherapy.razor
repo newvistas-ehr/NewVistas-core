@@ -1,0 +1,400 @@
+@page "/radiation-therapy"
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+@rendermode InteractiveServer
+@using NewVistas.BlazorWeb.Services
+@using NewVistas.Abstractions.GrainInterfaces
+@using NewVistas.Abstractions.GrainStates
+@inject OrleansGrainService Grains
+
+<h2>Radiation Therapy</h2>
+
+<div class="patient-bar">
+    <label>Patient ID:</label>
+    <input @bind="patientId" placeholder="Enter patient ID" />
+    <button @onclick="LoadCourses" disabled="@loading">Load</button>
+</div>
+
+@if (error != null)
+{
+    <div class="error">@error</div>
+}
+
+@if (patientId != null && !loading)
+{
+    <div class="tabs">
+        <button class="@TabClass(0)" @onclick="@(() => activeTab = 0)">Treatment Courses</button>
+        <button class="@TabClass(1)" @onclick="@(() => { activeTab = 1; selectedCourseId = null; fractions = new(); })">Fractions</button>
+        <button class="@TabClass(2)" @onclick="@(() => activeTab = 2)">Create Course</button>
+    </div>
+
+    @if (activeTab == 0)
+    {
+        <div class="tab-panel">
+            <div class="filter-bar">
+                <button @onclick="LoadCourses">Refresh</button>
+                <button @onclick="LoadActiveCourses" class="btn-secondary">Active Only</button>
+            </div>
+
+            @if (courses.Count == 0)
+            {
+                <p class="empty">No radiation therapy courses on record.</p>
+            }
+            else
+            {
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Course Name</th>
+                            <th>Site</th>
+                            <th>Modality</th>
+                            <th>Intent</th>
+                            <th>Rx Dose</th>
+                            <th>Fractions</th>
+                            <th>Delivered</th>
+                            <th>Progress</th>
+                            <th>Status</th>
+                            <th>Oncologist</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (RtCourseRow c in courses)
+                        {
+                            <tr class="@StatusRowClass(c.Status)">
+                                <td>@c.CourseName</td>
+                                <td>@c.TreatmentSite</td>
+                                <td><span class="badge @ModalityBadge(c.Modality)">@c.Modality</span></td>
+                                <td>@c.Intent</td>
+                                <td>@c.PrescribedDoseCgy cGy</td>
+                                <td>@c.FractionsPlanned fx</td>
+                                <td>@c.TotalDeliveredDoseCgy cGy / @c.FractionsCompleted fx</td>
+                                <td>
+                                    @{
+                                        int pct = c.PrescribedDoseCgy > 0 ? (int)(c.TotalDeliveredDoseCgy * 100.0 / c.PrescribedDoseCgy) : 0;
+                                    }
+                                    <div class="progress-bar"><div class="progress-fill" style="width:@pct%"></div></div>
+                                    <small>@pct%</small>
+                                </td>
+                                <td><span class="badge @StatusBadge(c.Status)">@c.Status</span></td>
+                                <td>@(c.OncologistName ?? "—")</td>
+                                <td>
+                                    <button class="btn-sm" @onclick="@(() => ViewFractions(c.CourseId))">Fractions</button>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            }
+        </div>
+    }
+
+    @if (activeTab == 1)
+    {
+        <div class="tab-panel">
+            @if (selectedCourseId == null)
+            {
+                <p class="empty">Select a course from the Courses tab to view fractions.</p>
+            }
+            else
+            {
+                <div class="fraction-header">
+                    <h3>Fractions — @selectedCourseName</h3>
+                    <button @onclick="() => { selectedCourseId = null; fractions = new(); }">Clear</button>
+                </div>
+                @if (fractions.Count == 0)
+                {
+                    <p class="empty">No fractions recorded for this course.</p>
+                }
+                else
+                {
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>#</th>
+                                <th>Date</th>
+                                <th>Status</th>
+                                <th>Dose (cGy)</th>
+                                <th>Machine</th>
+                                <th>Technician</th>
+                                <th>IGRT</th>
+                                <th>Notes</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (RtFractionRow f in fractions)
+                            {
+                                <tr class="@FractionRowClass(f.Status)">
+                                    <td>@f.FractionNumber</td>
+                                    <td>@f.TreatmentDate.ToString("MM/dd/yyyy")</td>
+                                    <td><span class="badge @FractionBadge(f.Status)">@f.Status</span></td>
+                                    <td>@(f.Status == "Delivered" ? $"{f.DoseDeliveredCgy}" : "—")</td>
+                                    <td>@(f.MachineName ?? "—")</td>
+                                    <td>@(f.TechnicianName ?? "—")</td>
+                                    <td>@(f.SetupVerified ? "Yes" : "No")</td>
+                                    <td class="notes-col">@(f.Notes ?? "—")</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                    <div class="fraction-totals">
+                        <strong>Total delivered:</strong>
+                        @fractions.Where(f => f.Status == "Delivered").Sum(f => f.DoseDeliveredCgy) cGy
+                        in @fractions.Count(f => f.Status == "Delivered") fractions
+                    </div>
+                }
+            }
+        </div>
+    }
+
+    @if (activeTab == 2)
+    {
+        <div class="tab-panel form-panel">
+            <h3>Create Treatment Course</h3>
+            <div class="form-grid">
+                <label>Course Name</label>
+                <input @bind="newCourseName" placeholder="e.g. Prostate IMRT 2025" />
+
+                <label>Diagnosis Code</label>
+                <input @bind="newDiagnosisCode" placeholder="ICD-10 code" />
+
+                <label>Diagnosis</label>
+                <input @bind="newDiagnosisText" placeholder="Diagnosis description" />
+
+                <label>Treatment Site</label>
+                <input @bind="newSite" placeholder="e.g. Prostate and seminal vesicles" />
+
+                <label>Intent</label>
+                <select @bind="newIntent">
+                    <option value="Curative">Curative</option>
+                    <option value="Palliative">Palliative</option>
+                    <option value="Prophylactic">Prophylactic</option>
+                    <option value="Adjuvant">Adjuvant</option>
+                    <option value="Neoadjuvant">Neoadjuvant</option>
+                </select>
+
+                <label>Modality</label>
+                <select @bind="newModality">
+                    <option value="IMRT">IMRT</option>
+                    <option value="VMAT">VMAT</option>
+                    <option value="Photon3D">3D Photon</option>
+                    <option value="Electron">Electron</option>
+                    <option value="Proton">Proton</option>
+                    <option value="SBRT">SBRT</option>
+                    <option value="SRS">SRS</option>
+                    <option value="Brachytherapy">Brachytherapy</option>
+                    <option value="TomotherapyHelical">Tomotherapy</option>
+                    <option value="Other">Other</option>
+                </select>
+
+                <label>Prescribed Dose (cGy)</label>
+                <input type="number" @bind="newPrescribedDose" />
+
+                <label>Fractions</label>
+                <input type="number" @bind="newFractions" />
+
+                <label>Dose/Fraction (cGy)</label>
+                <input type="number" @bind="newDosePerFx" />
+
+                <label>Beam Energy</label>
+                <input @bind="newBeamEnergy" placeholder="e.g. 6 MV, 18 MV" />
+
+                <label>Oncologist</label>
+                <input @bind="newOncologist" placeholder="Oncologist name" />
+
+                <label>Machine</label>
+                <input @bind="newMachine" placeholder="Treatment machine" />
+            </div>
+            <button @onclick="CreateCourse" disabled="@creating">Create Course</button>
+            @if (createSuccess != null)
+            {
+                <div class="success">@createSuccess</div>
+            }
+        </div>
+    }
+}
+
+@code {
+    string? patientId;
+    int activeTab = 0;
+    bool loading = false;
+    bool creating = false;
+    string? error;
+    string? createSuccess;
+    List<RtCourseRow> courses = new();
+    List<RtFractionRow> fractions = new();
+    string? selectedCourseId;
+    string? selectedCourseName;
+
+    // Create form
+    string newCourseName = string.Empty;
+    string newDiagnosisCode = string.Empty;
+    string newDiagnosisText = string.Empty;
+    string newSite = string.Empty;
+    string newIntent = "Curative";
+    string newModality = "IMRT";
+    int newPrescribedDose = 7600;
+    int newFractions = 38;
+    int newDosePerFx = 200;
+    string newBeamEnergy = string.Empty;
+    string newOncologist = string.Empty;
+    string newMachine = string.Empty;
+
+    string TabClass(int tab) => activeTab == tab ? "tab active" : "tab";
+    string StatusRowClass(string s) => s == "Completed" ? "row-completed" : s == "Discontinued" ? "row-cancelled" : string.Empty;
+    string FractionRowClass(string s) => s == "Delivered" ? "row-completed" : s is "Skipped" or "Cancelled" ? "row-cancelled" : string.Empty;
+
+    string StatusBadge(string s) => s switch
+    {
+        "Active" => "badge-active",
+        "Completed" => "badge-completed",
+        "Discontinued" => "badge-cancelled",
+        "OnHold" => "badge-hold",
+        _ => "badge-other"
+    };
+
+    string FractionBadge(string s) => s switch
+    {
+        "Delivered" => "badge-completed",
+        "Skipped" => "badge-hold",
+        "Cancelled" => "badge-cancelled",
+        _ => "badge-other"
+    };
+
+    string ModalityBadge(string m) => m is "IMRT" or "VMAT" or "TomotherapyHelical" ? "badge-imrt"
+        : m is "SRS" or "SBRT" ? "badge-sbrt"
+        : m == "Proton" ? "badge-proton"
+        : m == "Brachytherapy" ? "badge-brachy"
+        : "badge-other";
+
+    async Task LoadCourses()
+    {
+        if (string.IsNullOrWhiteSpace(patientId)) return;
+        loading = true;
+        error = null;
+        try
+        {
+            var workflow = Grains.GetGrain<IPatientWorkflowGrain>(patientId.Trim());
+            var entries = await workflow.GetRtCoursesAsync();
+            courses = entries.Select(e => new RtCourseRow(
+                e.CourseId, e.CourseName, e.Status.ToString(), e.Intent.ToString(), e.Modality.ToString(),
+                e.TreatmentSite, e.DiagnosisCode, e.PrescribedDoseCgy, e.FractionsPlanned,
+                e.TotalDeliveredDoseCgy, e.FractionsCompleted,
+                e.TreatmentStartDate, e.TreatmentCompletionDate, e.OncologistName)).ToList();
+        }
+        catch { error = "Failed to load radiation therapy courses."; }
+        finally { loading = false; }
+    }
+
+    async Task LoadActiveCourses()
+    {
+        if (string.IsNullOrWhiteSpace(patientId)) return;
+        loading = true;
+        error = null;
+        try
+        {
+            var workflow = Grains.GetGrain<IPatientWorkflowGrain>(patientId.Trim());
+            var entries = await workflow.GetActiveRtCoursesAsync();
+            courses = entries.Select(e => new RtCourseRow(
+                e.CourseId, e.CourseName, e.Status.ToString(), e.Intent.ToString(), e.Modality.ToString(),
+                e.TreatmentSite, e.DiagnosisCode, e.PrescribedDoseCgy, e.FractionsPlanned,
+                e.TotalDeliveredDoseCgy, e.FractionsCompleted,
+                e.TreatmentStartDate, e.TreatmentCompletionDate, e.OncologistName)).ToList();
+        }
+        catch { error = "Failed to load active courses."; }
+        finally { loading = false; }
+    }
+
+    async Task ViewFractions(string courseId)
+    {
+        selectedCourseId = courseId;
+        selectedCourseName = courses.FirstOrDefault(c => c.CourseId == courseId)?.CourseName ?? courseId;
+        activeTab = 1;
+        fractions = new();
+        try
+        {
+            var workflow = Grains.GetGrain<IPatientWorkflowGrain>(patientId!.Trim());
+            var entries = await workflow.GetRtCourseTreatmentsAsync(courseId);
+            fractions = entries.Select(e => new RtFractionRow(
+                e.TreatmentId, e.FractionNumber, e.TreatmentDate, e.Status.ToString(),
+                e.DoseDeliveredCgy, e.MachineName, e.TechnicianName,
+                e.SetupVerified, e.Notes)).ToList();
+        }
+        catch { error = "Failed to load fractions."; }
+    }
+
+    async Task CreateCourse()
+    {
+        if (string.IsNullOrWhiteSpace(patientId) || string.IsNullOrWhiteSpace(newCourseName)) return;
+        creating = true;
+        createSuccess = null;
+        error = null;
+        try
+        {
+            var workflow = Grains.GetGrain<IPatientWorkflowGrain>(patientId.Trim());
+            await workflow.CreateRtCourseAsync(
+                newCourseName, newDiagnosisCode, newDiagnosisText, newSite,
+                Enum.Parse<RtLaterality>("NotApplicable"),
+                Enum.Parse<RtIntent>(newIntent),
+                Enum.Parse<RtModality>(newModality),
+                newPrescribedDose, newFractions, newDosePerFx,
+                string.IsNullOrWhiteSpace(newBeamEnergy) ? null : newBeamEnergy,
+                null, string.IsNullOrWhiteSpace(newOncologist) ? null : newOncologist,
+                null, null, null, null, null,
+                string.IsNullOrWhiteSpace(newMachine) ? null : newMachine, null);
+            createSuccess = "Course created successfully.";
+            newCourseName = string.Empty;
+            await LoadCourses();
+            activeTab = 0;
+        }
+        catch { error = "Failed to create course."; }
+        finally { creating = false; }
+    }
+
+    record RtCourseRow(
+        string CourseId, string CourseName, string Status, string Intent, string Modality,
+        string TreatmentSite, string DiagnosisCode, int PrescribedDoseCgy, int FractionsPlanned,
+        int TotalDeliveredDoseCgy, int FractionsCompleted,
+        DateTime? TreatmentStartDate, DateTime? TreatmentCompletionDate, string? OncologistName);
+
+    record RtFractionRow(
+        string TreatmentId, int FractionNumber, DateTime TreatmentDate, string Status,
+        int DoseDeliveredCgy, string? MachineName, string? TechnicianName,
+        bool SetupVerified, string? Notes);
+}
+
+<style>
+    .patient-bar { display: flex; gap: 0.5rem; align-items: center; margin-bottom: 1rem; }
+    .tabs { display: flex; gap: 0.25rem; margin-bottom: 1rem; }
+    .tab { padding: 0.4rem 1rem; border: 1px solid #ccc; background: #f5f5f5; cursor: pointer; border-radius: 4px 4px 0 0; }
+    .tab.active { background: #fff; border-bottom-color: #fff; font-weight: 600; }
+    .tab-panel { border: 1px solid #ccc; padding: 1rem; border-radius: 0 4px 4px 4px; }
+    .filter-bar { display: flex; gap: 0.5rem; align-items: center; margin-bottom: 0.75rem; }
+    table { width: 100%; border-collapse: collapse; font-size: 0.875rem; }
+    th, td { border: 1px solid #ddd; padding: 0.35rem 0.5rem; text-align: left; }
+    th { background: #f0f0f0; font-weight: 600; }
+    .notes-col { max-width: 150px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .row-completed { background: #f0fff0; }
+    .row-cancelled { background: #fff0f0; color: #888; }
+    .badge { font-size: 0.75rem; padding: 0.15rem 0.4rem; border-radius: 3px; font-weight: 600; }
+    .badge-active { background: #d0f0d0; color: #006600; }
+    .badge-completed { background: #c8e6ff; color: #003d80; }
+    .badge-cancelled { background: #ffd0d0; color: #800000; }
+    .badge-hold { background: #fff3cd; color: #856404; }
+    .badge-imrt { background: #e8d5ff; color: #5a008a; }
+    .badge-sbrt { background: #ffd5e8; color: #8a003d; }
+    .badge-proton { background: #d5ffe8; color: #006b2a; }
+    .badge-brachy { background: #d5f0ff; color: #00438a; }
+    .badge-other { background: #eee; color: #555; }
+    .progress-bar { height: 8px; background: #e0e0e0; border-radius: 4px; width: 80px; display: inline-block; vertical-align: middle; }
+    .progress-fill { height: 100%; background: #4caf50; border-radius: 4px; }
+    .btn-sm { font-size: 0.75rem; padding: 0.2rem 0.5rem; }
+    .btn-secondary { background: #f0f0f0; border: 1px solid #ccc; padding: 0.3rem 0.75rem; cursor: pointer; border-radius: 3px; }
+    .fraction-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem; }
+    .fraction-header h3 { margin: 0; }
+    .fraction-totals { margin-top: 0.75rem; padding: 0.5rem; background: #f5f5f5; border-radius: 4px; font-size: 0.9rem; }
+    .form-panel h3 { margin-top: 0; }
+    .form-grid { display: grid; grid-template-columns: 170px 1fr; gap: 0.5rem 1rem; align-items: center; margin-bottom: 1rem; max-width: 600px; }
+    .empty { color: #888; font-style: italic; }
+    .error { color: red; margin-top: 0.5rem; }
+    .success { color: green; margin-top: 0.5rem; }
+</style>

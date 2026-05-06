@@ -1,0 +1,345 @@
+@page "/vitals"
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+@rendermode InteractiveServer
+@using NewVistas.BlazorWeb.Services
+@using NewVistas.Abstractions.GrainInterfaces
+@using NewVistas.Abstractions.GrainStates
+@inject OrleansGrainService Grains
+@inject PatientContextService PatientContext
+
+<PageTitle>Vitals</PageTitle>
+
+<h1>Vitals</h1>
+
+<div class="lookup-bar">
+    <input type="text" @bind="patientId" @bind:event="oninput" @onkeydown="HandleKeyDown"
+           placeholder="Patient ID" class="lookup-input" />
+    <button @onclick="Load" disabled="@(string.IsNullOrWhiteSpace(patientId) || loading)" class="btn btn-primary">
+        @if (loading) { <span>Loading...</span> } else { <span>Load</span> }
+    </button>
+</div>
+
+@if (error != null) { <div class="alert alert-error">@error</div> }
+@if (successMessage != null) { <div class="alert alert-success">@successMessage</div> }
+
+@if (patientId != null)
+{
+    <div class="tab-bar">
+        <button class="tab @(activeTab == "view" ? "active" : "")" @onclick='() => activeTab = "view"'>View Vitals</button>
+        <button class="tab @(activeTab == "record" ? "active" : "")" @onclick='() => activeTab = "record"'>Record Vitals</button>
+        <button class="tab @(activeTab == "history" ? "active" : "")" @onclick='() => activeTab = "history"'>Vital History</button>
+    </div>
+
+    @if (activeTab == "view")
+    {
+        @if (items == null)
+        {
+            <div class="empty-state">Enter a Patient ID and click Load.</div>
+        }
+        else if (items.Count == 0)
+        {
+            <div class="empty-state">No vitals recorded.</div>
+        }
+        else
+        {
+            <table class="data-table">
+                <thead>
+                    <tr><th>Vital</th><th>Value</th><th>Units</th><th>Flag</th><th>Date/Time</th></tr>
+                </thead>
+                <tbody>
+                    @foreach (var v in items)
+                    {
+                        <tr>
+                            <td class="vital-type">@v.VitalType</td>
+                            <td class="value @(v.AbnormalFlag != null ? "flagged" : "")">@v.Value</td>
+                            <td class="units">@v.Units</td>
+                            <td class="flag">@v.AbnormalFlag</td>
+                            <td class="date">@v.DateTimeTaken.ToString("MM/dd/yyyy HH:mm")</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        }
+    }
+
+    @if (activeTab == "record")
+    {
+        <div class="form-section">
+            <div class="form-row">
+                <label>Date/Time Taken</label>
+                <input type="datetime-local" @bind="form.DateTimeTaken" class="form-input" />
+            </div>
+            <div class="form-row">
+                <label>Location</label>
+                <input type="text" @bind="form.LocationName" placeholder="e.g. Clinic 3B" class="form-input" />
+            </div>
+            <div class="form-row">
+                <label>Entered By</label>
+                <input type="text" @bind="form.EnteredByName" placeholder="Name of recorder" class="form-input" />
+            </div>
+
+            <h3 class="vitals-subhead">Vital Measurements (leave blank to skip)</h3>
+            <div class="vitals-grid">
+                <div class="vital-entry">
+                    <label>Temperature (°F)</label>
+                    <input type="text" @bind="form.Temperature" placeholder="98.6" class="form-input" />
+                </div>
+                <div class="vital-entry">
+                    <label>Pulse (bpm)</label>
+                    <input type="text" @bind="form.Pulse" placeholder="72" class="form-input" />
+                </div>
+                <div class="vital-entry">
+                    <label>Respiration (breaths/min)</label>
+                    <input type="text" @bind="form.Respiration" placeholder="16" class="form-input" />
+                </div>
+                <div class="vital-entry">
+                    <label>Blood Pressure (mmHg)</label>
+                    <input type="text" @bind="form.BloodPressure" placeholder="120/80" class="form-input" />
+                </div>
+                <div class="vital-entry">
+                    <label>Weight (lbs)</label>
+                    <input type="text" @bind="form.Weight" placeholder="170" class="form-input" />
+                </div>
+                <div class="vital-entry">
+                    <label>Height (in)</label>
+                    <input type="text" @bind="form.Height" placeholder="70" class="form-input" />
+                </div>
+                <div class="vital-entry">
+                    <label>Pain (0–10)</label>
+                    <input type="text" @bind="form.Pain" placeholder="0" class="form-input" />
+                </div>
+                <div class="vital-entry">
+                    <label>Pulse Oximetry (%)</label>
+                    <input type="text" @bind="form.PulseOx" placeholder="98" class="form-input" />
+                </div>
+            </div>
+
+            <div class="form-actions">
+                <button @onclick="SubmitVitals" disabled="@submitting" class="btn btn-primary">
+                    @(submitting ? "Saving..." : "Record Vitals")
+                </button>
+            </div>
+        </div>
+    }
+
+    @if (activeTab == "history")
+    {
+        <div class="form-section">
+            <div class="history-filters">
+                <div class="form-row">
+                    <label>From</label>
+                    <input type="datetime-local" @bind="historyFrom" class="form-input" />
+                </div>
+                <div class="form-row">
+                    <label>To</label>
+                    <input type="datetime-local" @bind="historyTo" class="form-input" />
+                </div>
+                <div class="form-row">
+                    <label>Vital Type</label>
+                    <select @bind="historyVitalType" class="form-input">
+                        <option value="">ALL</option>
+                        <option value="TEMPERATURE">TEMPERATURE</option>
+                        <option value="PULSE">PULSE</option>
+                        <option value="RESPIRATION">RESPIRATION</option>
+                        <option value="BLOOD PRESSURE">BLOOD PRESSURE</option>
+                        <option value="WEIGHT">WEIGHT</option>
+                        <option value="HEIGHT">HEIGHT</option>
+                        <option value="PAIN">PAIN</option>
+                        <option value="PULSE OXIMETRY">PULSE OXIMETRY</option>
+                    </select>
+                </div>
+                <div class="form-row">
+                    <label>Max Results</label>
+                    <input type="number" @bind="historyMaxResults" min="1" max="500" class="form-input" />
+                </div>
+                <div class="form-actions">
+                    <button @onclick="LoadHistory" disabled="@(string.IsNullOrWhiteSpace(patientId) || historyLoading)" class="btn btn-primary">
+                        @(historyLoading ? "Searching..." : "Search")
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        @if (historyItems == null && !historyLoading)
+        {
+            <div class="empty-state">Set date range and click Search to load vital history.</div>
+        }
+        else if (historyItems != null && historyItems.Count == 0)
+        {
+            <div class="empty-state">No vitals found for the selected criteria.</div>
+        }
+        else if (historyItems != null)
+        {
+            <div class="history-result-count">@historyItems.Count result(s)</div>
+            <table class="data-table">
+                <thead>
+                    <tr><th>Vital</th><th>Value</th><th>Units</th><th>Flag</th><th>Date/Time</th></tr>
+                </thead>
+                <tbody>
+                    @foreach (var v in historyItems)
+                    {
+                        <tr>
+                            <td class="vital-type">@v.VitalType</td>
+                            <td class="value @(v.AbnormalFlag != null ? "flagged" : "")">@v.Value</td>
+                            <td class="units">@v.Units</td>
+                            <td class="flag">@v.AbnormalFlag</td>
+                            <td class="date">@v.DateTimeTaken.ToString("MM/dd/yyyy HH:mm")</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        }
+    }
+}
+
+@code {
+    [SupplyParameterFromQuery] public string? patientId { get; set; }
+    private List<VitalSummary>? items;
+    private bool loading;
+    private bool submitting;
+    private string? error;
+    private string? successMessage;
+    private string activeTab = "view";
+
+    private VitalFormModel form = new();
+
+    // History tab state
+    private DateTime historyFrom = DateTime.Now.AddDays(-30);
+    private DateTime historyTo = DateTime.Now;
+    private string historyVitalType = "";
+    private int historyMaxResults = 50;
+    private bool historyLoading;
+    private List<VitalSummary>? historyItems;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (string.IsNullOrWhiteSpace(patientId) && !string.IsNullOrWhiteSpace(PatientContext.PatientId))
+            patientId = PatientContext.PatientId;
+        if (!string.IsNullOrWhiteSpace(patientId))
+            await Load();
+    }
+    private async Task HandleKeyDown(KeyboardEventArgs e) { if (e.Key == "Enter") await Load(); }
+
+    private async Task Load()
+    {
+        if (string.IsNullOrWhiteSpace(patientId)) return;
+        loading = true; error = null; items = null; successMessage = null;
+        try
+        {
+            var grain = Grains.GetGrain<IPatientWorkflowGrain>(patientId.Trim());
+            items = await grain.GetLatestVitalsAsync();
+            PatientContext.SetPatient(patientId.Trim());
+        }
+        catch (Exception ex) { error = $"Error loading vitals: {ex.Message}"; }
+        finally { loading = false; }
+    }
+
+    private async Task SubmitVitals()
+    {
+        if (string.IsNullOrWhiteSpace(patientId)) return;
+
+        var vitals = new Dictionary<string, string>();
+        if (!string.IsNullOrWhiteSpace(form.Temperature)) vitals["TEMPERATURE"] = form.Temperature;
+        if (!string.IsNullOrWhiteSpace(form.Pulse)) vitals["PULSE"] = form.Pulse;
+        if (!string.IsNullOrWhiteSpace(form.Respiration)) vitals["RESPIRATION"] = form.Respiration;
+        if (!string.IsNullOrWhiteSpace(form.BloodPressure)) vitals["BLOOD PRESSURE"] = form.BloodPressure;
+        if (!string.IsNullOrWhiteSpace(form.Weight)) vitals["WEIGHT"] = form.Weight;
+        if (!string.IsNullOrWhiteSpace(form.Height)) vitals["HEIGHT"] = form.Height;
+        if (!string.IsNullOrWhiteSpace(form.Pain)) vitals["PAIN"] = form.Pain;
+        if (!string.IsNullOrWhiteSpace(form.PulseOx)) vitals["PULSE OXIMETRY"] = form.PulseOx;
+
+        if (vitals.Count == 0) { error = "Enter at least one vital measurement."; return; }
+
+        submitting = true; error = null; successMessage = null;
+        try
+        {
+            var grain = Grains.GetGrain<IPatientWorkflowGrain>(patientId.Trim());
+            await grain.RecordVitalsAsync(
+                null, form.LocationName,
+                null, form.EnteredByName,
+                form.DateTimeTaken,
+                vitals, null);
+            successMessage = "Vitals recorded successfully.";
+            form = new VitalFormModel();
+            activeTab = "view";
+            await Load();
+        }
+        catch (Exception ex) { error = $"Error saving vitals: {ex.Message}"; }
+        finally { submitting = false; }
+    }
+
+    private async Task LoadHistory()
+    {
+        if (string.IsNullOrWhiteSpace(patientId)) return;
+        historyLoading = true; error = null; historyItems = null;
+        try
+        {
+            var grain = Grains.GetGrain<IPatientWorkflowGrain>(patientId.Trim());
+            if (string.IsNullOrEmpty(historyVitalType))
+            {
+                historyItems = await grain.GetVitalHistoryAsync(historyFrom, historyTo, historyMaxResults);
+            }
+            else
+            {
+                historyItems = await grain.GetVitalHistoryByTypeAsync(historyVitalType, historyFrom, historyTo);
+            }
+        }
+        catch (Exception ex) { error = $"Error loading history: {ex.Message}"; }
+        finally { historyLoading = false; }
+    }
+
+    private class VitalFormModel
+    {
+        public DateTime DateTimeTaken { get; set; } = DateTime.Now;
+        public string? LocationName { get; set; }
+        public string? EnteredByName { get; set; }
+        public string? Temperature { get; set; }
+        public string? Pulse { get; set; }
+        public string? Respiration { get; set; }
+        public string? BloodPressure { get; set; }
+        public string? Weight { get; set; }
+        public string? Height { get; set; }
+        public string? Pain { get; set; }
+        public string? PulseOx { get; set; }
+    }
+}
+
+<style>
+    .lookup-bar { display: flex; gap: 0.5rem; margin-bottom: 1.5rem; }
+    .lookup-input { width: 280px; padding: 0.5rem 0.75rem; border: 1px solid #ccc; border-radius: 4px; font-size: 0.9rem; }
+    .btn { padding: 0.5rem 1.25rem; border: none; border-radius: 4px; cursor: pointer; font-size: 0.85rem; }
+    .btn-primary { background: #003f72; color: white; }
+    .btn-primary:disabled { background: #999; cursor: not-allowed; }
+    .alert { padding: 0.75rem 1rem; border-radius: 4px; margin-bottom: 1rem; }
+    .alert-error { background: #fde8e8; color: #b91c1c; border: 1px solid #f5c6c6; }
+    .alert-success { background: #dcfce7; color: #166534; border: 1px solid #bbf7d0; }
+    .empty-state { color: #999; font-style: italic; padding: 2rem 0; }
+
+    .tab-bar { display: flex; gap: 0; margin-bottom: 1.5rem; border-bottom: 2px solid #d4d9e0; }
+    .tab { padding: 0.5rem 1.25rem; border: none; background: none; cursor: pointer; font-size: 0.85rem; color: #555; border-bottom: 2px solid transparent; margin-bottom: -2px; }
+    .tab.active { color: #003f72; border-bottom-color: #003f72; font-weight: 600; }
+
+    .data-table { width: 100%; border-collapse: collapse; font-size: 0.85rem; border: 1px solid #d4d9e0; }
+    .data-table thead { background: #f4f6f9; }
+    .data-table th { text-align: left; padding: 0.5rem; font-weight: 600; color: #003f72; border-bottom: 2px solid #d4d9e0; font-size: 0.75rem; text-transform: uppercase; }
+    .data-table td { padding: 0.4rem 0.5rem; border-bottom: 1px solid #f0f0f0; }
+    .data-table tr:hover { background: #f9fafb; }
+    .vital-type { font-weight: 500; }
+    .value.flagged { color: #b91c1c; font-weight: 600; }
+    .units { color: #666; }
+    .flag { color: #b91c1c; font-weight: 600; }
+    .date { color: #888; font-size: 0.8rem; white-space: nowrap; }
+
+    .form-section { max-width: 700px; }
+    .form-row { display: flex; align-items: center; gap: 1rem; margin-bottom: 0.75rem; }
+    .form-row label { width: 140px; font-size: 0.85rem; font-weight: 500; color: #333; flex-shrink: 0; }
+    .form-input { flex: 1; padding: 0.4rem 0.6rem; border: 1px solid #ccc; border-radius: 4px; font-size: 0.85rem; }
+    .vitals-subhead { font-size: 0.85rem; font-weight: 600; color: #003f72; margin: 1.25rem 0 0.75rem; border-top: 1px solid #e5e7eb; padding-top: 1rem; }
+    .vitals-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem 1.5rem; margin-bottom: 1rem; }
+    .vital-entry label { display: block; font-size: 0.8rem; font-weight: 500; color: #555; margin-bottom: 0.2rem; }
+    .vital-entry .form-input { width: 100%; box-sizing: border-box; }
+    .form-actions { margin-top: 1.25rem; }
+
+    .history-filters { margin-bottom: 1.5rem; padding-bottom: 1rem; border-bottom: 1px solid #e5e7eb; }
+    .history-result-count { font-size: 0.8rem; color: #666; margin-bottom: 0.5rem; font-style: italic; }
+</style>

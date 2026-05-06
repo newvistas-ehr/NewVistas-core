@@ -1,0 +1,230 @@
+@page "/patient-lookup"
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+@rendermode InteractiveServer
+@using NewVistas.BlazorWeb.Services
+@using NewVistas.Abstractions.GrainInterfaces
+@inject OrleansGrainService Grains
+@inject PatientContextService PatientContext
+
+<PageTitle>Patient Lookup</PageTitle>
+
+<h1>🔍 Patient Lookup</h1>
+
+<div class="lookup-bar">
+    <input type="text" @bind="patientId" @bind:event="oninput"
+           @onkeydown="HandleKeyDown"
+           placeholder="Enter Patient ID (e.g., PATIENT-001)" class="lookup-input" />
+    <button @onclick="LookupPatient" disabled="@(string.IsNullOrWhiteSpace(patientId) || loading)" class="btn btn-primary">
+        @if (loading) { <span>Loading...</span> } else { <span>Look Up</span> }
+    </button>
+</div>
+
+@if (error != null)
+{
+    <div class="alert alert-error">@error</div>
+}
+
+@if (patient != null)
+{
+    <div class="patient-banner">
+        <div class="banner-name">@patient.Name</div>
+        <div class="banner-details">
+            <span>ID: @patient.PatientId</span>
+            <span>Sex: @patient.Sex</span>
+            @if (patient.DateOfBirth.HasValue)
+            {
+                <span>DOB: @patient.DateOfBirth.Value.ToString("MM/dd/yyyy")</span>
+            }
+            @if (!string.IsNullOrEmpty(patient.Veteran) && patient.Veteran.ToUpper() == "Y")
+            {
+                <span class="badge badge-vet">Veteran</span>
+            }
+            @if (!patient.IsActive)
+            {
+                <span class="badge badge-inactive">Inactive</span>
+            }
+        </div>
+    </div>
+
+    <div class="patient-sections">
+        <div class="section">
+            <h3>Demographics</h3>
+            <table class="detail-table">
+                <tr><td class="label">Address</td><td>@FormatAddress()</td></tr>
+                <tr><td class="label">Phone (Res)</td><td>@(patient.PhoneNumberResidence ?? "—")</td></tr>
+                <tr><td class="label">Phone (Work)</td><td>@(patient.PhoneNumberWork ?? "—")</td></tr>
+                <tr><td class="label">Email</td><td>@(patient.Email ?? "—")</td></tr>
+                <tr><td class="label">Marital Status</td><td>@(patient.MaritalStatus ?? "—")</td></tr>
+            </table>
+        </div>
+
+        <div class="section">
+            <h3>Emergency Contact</h3>
+            <table class="detail-table">
+                <tr><td class="label">Name</td><td>@(patient.EmergencyContactName ?? "—")</td></tr>
+                <tr><td class="label">Relationship</td><td>@(patient.EmergencyContactRelationship ?? "—")</td></tr>
+                <tr><td class="label">Phone</td><td>@(patient.EmergencyContactPhone ?? "—")</td></tr>
+            </table>
+        </div>
+
+        @if (patient.Veteran?.ToUpper() == "Y")
+        {
+            <div class="section">
+                <h3>Veteran Info</h3>
+                <table class="detail-table">
+                    <tr><td class="label">SC %</td><td>@(patient.ServiceConnectedPercentage?.ToString() ?? "—")%</td></tr>
+                    <tr><td class="label">Eligibility</td><td>@(patient.EligibilityCode ?? "—")</td></tr>
+                    <tr><td class="label">Branch</td><td>@(patient.ServiceBranch ?? "—")</td></tr>
+                </table>
+            </div>
+        }
+    </div>
+
+    <div class="patient-actions">
+        <a href="/patient-edit?patientId=@patientId">Edit Patient</a>
+        <a href="/cover-sheet?patientId=@patientId">View Cover Sheet</a>
+        <a href="/labs?patientId=@patientId">View Labs</a>
+    </div>
+}
+
+@code {
+    private string patientId = "";
+    private PatientResponse? patient;
+    private bool loading;
+    private string? error;
+
+    private async Task HandleKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter")
+            await LookupPatient();
+    }
+
+    private async Task LookupPatient()
+    {
+        if (string.IsNullOrWhiteSpace(patientId)) return;
+
+        loading = true;
+        error = null;
+        patient = null;
+
+        try
+        {
+            // Use direct Orleans grain access — no HTTP API authorization needed
+            var workflow = Grains.GetGrain<IPatientWorkflowGrain>(patientId.Trim());
+            var state = await workflow.GetPatientAsync();
+
+            if (string.IsNullOrEmpty(state.Name))
+            {
+                error = $"Patient '{patientId}' not found.";
+            }
+            else
+            {
+                PatientContext.SetPatient(patientId.Trim(), state.Name);
+                patient = new PatientResponse
+                {
+                    PatientId = state.PatientId,
+                    Name = state.Name,
+                    Sex = state.Sex,
+                    DateOfBirth = state.DateOfBirth,
+                    SocialSecurityNumber = state.SocialSecurityNumber,
+                    StreetAddress1 = state.StreetAddress1,
+                    City = state.City,
+                    State = state.State,
+                    ZipCode = state.ZipCode,
+                    PhoneNumberResidence = state.PhoneNumberResidence,
+                    PhoneNumberWork = state.PhoneNumberWork,
+                    Email = state.Email,
+                    EmergencyContactName = state.EmergencyContactName,
+                    EmergencyContactRelationship = state.EmergencyContactRelationship,
+                    EmergencyContactPhone = state.EmergencyContactPhone,
+                    MaritalStatus = state.MaritalStatus,
+                    Veteran = state.Veteran,
+                    ServiceConnectedPercentage = state.ServiceConnectedPercentage,
+                    EligibilityCode = state.EligibilityCode,
+                    ServiceBranch = state.ServiceBranch,
+                    IsActive = state.IsActive
+                };
+            }
+        }
+        catch (Exception ex)
+        {
+            error = $"Error looking up patient: {ex.Message}";
+        }
+        finally
+        {
+            loading = false;
+        }
+    }
+
+    private string FormatAddress()
+    {
+        var parts = new[] { patient?.StreetAddress1, patient?.City, patient?.State, patient?.ZipCode }
+            .Where(s => !string.IsNullOrWhiteSpace(s));
+        var result = string.Join(", ", parts);
+        return string.IsNullOrEmpty(result) ? "—" : result;
+    }
+
+    private class PatientResponse
+    {
+        public string PatientId { get; set; } = "";
+        public string Name { get; set; } = "";
+        public string Sex { get; set; } = "";
+        public DateTime? DateOfBirth { get; set; }
+        public string? SocialSecurityNumber { get; set; }
+        public string? StreetAddress1 { get; set; }
+        public string? City { get; set; }
+        public string? State { get; set; }
+        public string? ZipCode { get; set; }
+        public string? PhoneNumberResidence { get; set; }
+        public string? PhoneNumberWork { get; set; }
+        public string? Email { get; set; }
+        public string? EmergencyContactName { get; set; }
+        public string? EmergencyContactRelationship { get; set; }
+        public string? EmergencyContactPhone { get; set; }
+        public string? MaritalStatus { get; set; }
+        public string? Veteran { get; set; }
+        public int? ServiceConnectedPercentage { get; set; }
+        public string? EligibilityCode { get; set; }
+        public string? ServiceBranch { get; set; }
+        public bool IsActive { get; set; } = true;
+    }
+}
+
+<style>
+    .lookup-bar { display: flex; gap: 0.5rem; margin-bottom: 1.5rem; }
+    .lookup-input {
+        flex: 1; max-width: 400px; padding: 0.5rem 0.75rem;
+        border: 1px solid #ccc; border-radius: 4px; font-size: 0.9rem;
+    }
+    .btn { padding: 0.5rem 1.25rem; border: none; border-radius: 4px; cursor: pointer; font-size: 0.85rem; }
+    .btn-primary { background: #003f72; color: white; }
+    .btn-primary:hover { background: #002a4e; }
+    .btn-primary:disabled { background: #999; cursor: not-allowed; }
+
+    .alert { padding: 0.75rem 1rem; border-radius: 4px; margin-bottom: 1rem; }
+    .alert-error { background: #fde8e8; color: #b91c1c; border: 1px solid #f5c6c6; }
+
+    .patient-banner {
+        background: #eef3f9; border: 1px solid #c5d3e3; border-radius: 6px;
+        padding: 1rem 1.25rem; margin-bottom: 1.5rem;
+    }
+    .banner-name { font-size: 1.3rem; font-weight: 700; color: #003f72; }
+    .banner-details { display: flex; flex-wrap: wrap; gap: 1rem; margin-top: 0.5rem; font-size: 0.85rem; color: #555; }
+    .badge { padding: 2px 8px; border-radius: 3px; font-size: 0.75rem; font-weight: 600; }
+    .badge-vet { background: #dcfce7; color: #166534; }
+    .badge-inactive { background: #fde8e8; color: #b91c1c; }
+
+    .patient-sections { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 1rem; margin-bottom: 1.5rem; }
+    .section { border: 1px solid #e2e6ea; border-radius: 6px; padding: 1rem; }
+    .section h3 { margin-bottom: 0.75rem; padding-bottom: 0.5rem; border-bottom: 1px solid #eee; }
+    .detail-table { width: 100%; }
+    .detail-table td { padding: 0.25rem 0; font-size: 0.85rem; }
+    .detail-table .label { color: #666; width: 120px; font-weight: 500; }
+
+    .patient-actions { display: flex; gap: 1rem; }
+    .patient-actions a {
+        color: #003f72; text-decoration: none; font-weight: 600;
+        padding: 0.5rem 1rem; border: 1px solid #003f72; border-radius: 4px; font-size: 0.85rem;
+    }
+    .patient-actions a:hover { background: #eef3f9; }
+</style>

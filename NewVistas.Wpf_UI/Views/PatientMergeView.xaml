@@ -1,0 +1,160 @@
+<UserControl x:Class="NewVistas.Wpf_UI.Views.PatientMergeView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             mc:Ignorable="d" d:DesignWidth="900" d:DesignHeight="800">
+    <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="24">
+        <StackPanel MaxWidth="900">
+
+            <!-- Page Title -->
+            <TextBlock Text="Patient Merge" Style="{StaticResource PageTitle}"/>
+
+            <!-- Feature Status Banner -->
+            <Border Background="#FFF3CD" BorderBrush="#FFECB5" BorderThickness="1" CornerRadius="4"
+                    Padding="12" Margin="0,0,0,12"
+                    Visibility="{Binding IsFeatureEnabled, Converter={StaticResource InverseBoolToVisibility}}">
+                <TextBlock Text="Patient Merge feature is not enabled for this site. Contact your administrator to enable it."
+                           Foreground="#856404" TextWrapping="Wrap" FontSize="13"/>
+            </Border>
+
+            <!-- Error Message -->
+            <TextBlock Text="{Binding Error}" Style="{StaticResource ErrorText}"
+                       Visibility="{Binding Error, Converter={StaticResource NullToVisibility}}"/>
+
+            <!-- Success Message -->
+            <TextBlock Text="{Binding SuccessMessage}" FontSize="13" Margin="0,4,0,4"
+                       Foreground="{StaticResource VaSuccessBrush}" TextWrapping="Wrap"
+                       Visibility="{Binding SuccessMessage, Converter={StaticResource NullToVisibility}}"/>
+
+            <!-- Input Section -->
+            <Border Style="{StaticResource FormPanel}"
+                    IsEnabled="{Binding IsFeatureEnabled}">
+                <StackPanel>
+                    <TextBlock Text="Merge Configuration" Style="{StaticResource SectionHeader}"/>
+
+                    <TextBlock Text="Target Patient ID (records merge INTO this patient)" Style="{StaticResource FieldLabel}"/>
+                    <TextBox Text="{Binding TargetPatientId, UpdateSourceTrigger=PropertyChanged}"
+                             Margin="0,0,0,8"/>
+
+                    <TextBlock Text="Source Patient ID (duplicate record to retire)" Style="{StaticResource FieldLabel}"/>
+                    <TextBox Text="{Binding SourcePatientId, UpdateSourceTrigger=PropertyChanged}"
+                             Margin="0,0,0,8"/>
+
+                    <TextBlock Text="Reason for Merge" Style="{StaticResource FieldLabel}"/>
+                    <TextBox Text="{Binding Reason, UpdateSourceTrigger=PropertyChanged}"
+                             AcceptsReturn="True" TextWrapping="Wrap" MinHeight="60"
+                             Margin="0,0,0,12"/>
+
+                    <Button Content="Preview Merge" Style="{StaticResource PrimaryButton}"
+                            Command="{Binding PreviewCommand}"
+                            HorizontalAlignment="Left" Margin="0,0,0,4"/>
+                </StackPanel>
+            </Border>
+
+            <!-- Loading Indicator -->
+            <TextBlock Text="Loading..." FontSize="13" Margin="0,4,0,4"
+                       Foreground="{StaticResource VaBlueBrush}"
+                       Visibility="{Binding IsLoading, Converter={StaticResource BoolToVisibility}}"/>
+
+            <!-- Preview Section -->
+            <StackPanel Visibility="{Binding HasPreview, Converter={StaticResource BoolToVisibility}}">
+                <TextBlock Text="Patient Preview" Style="{StaticResource SectionHeader}" Margin="0,12,0,8"/>
+
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="16"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
+
+                    <!-- Target Patient -->
+                    <Border Grid.Column="0" Style="{StaticResource FormPanel}">
+                        <StackPanel>
+                            <TextBlock Text="Target (Keep)" Style="{StaticResource SectionHeader}"
+                                       Foreground="{StaticResource VaSuccessBrush}"/>
+                            <TextBlock Style="{StaticResource FieldLabel}" Text="Name"/>
+                            <TextBlock Text="{Binding TargetPreview.Name}" FontSize="13" Margin="0,0,0,4"/>
+                            <TextBlock Style="{StaticResource FieldLabel}" Text="Sex"/>
+                            <TextBlock Text="{Binding TargetPreview.Sex}" FontSize="13" Margin="0,0,0,4"/>
+                            <TextBlock Style="{StaticResource FieldLabel}" Text="Date of Birth"/>
+                            <TextBlock Text="{Binding TargetPreview.DateOfBirth, StringFormat={}{0:yyyy-MM-dd}}"
+                                       FontSize="13" Margin="0,0,0,4"/>
+                            <TextBlock Style="{StaticResource FieldLabel}" Text="Veteran"/>
+                            <TextBlock Text="{Binding TargetPreview.Veteran}" FontSize="13" Margin="0,0,0,4"/>
+                            <TextBlock Style="{StaticResource FieldLabel}" Text="Active"/>
+                            <TextBlock Text="{Binding TargetPreview.IsActive}" FontSize="13" Margin="0,0,0,4"/>
+                            <TextBlock Style="{StaticResource FieldLabel}" Text="Merged Into"
+                                       Visibility="{Binding TargetPreview.MergedIntoPatientId, Converter={StaticResource NullToVisibility}}"/>
+                            <TextBlock Text="{Binding TargetPreview.MergedIntoPatientId}" FontSize="13"
+                                       Foreground="{StaticResource VaErrorBrush}"
+                                       Visibility="{Binding TargetPreview.MergedIntoPatientId, Converter={StaticResource NullToVisibility}}"/>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- Source Patient -->
+                    <Border Grid.Column="2" Style="{StaticResource FormPanel}">
+                        <StackPanel>
+                            <TextBlock Text="Source (Retire)" Style="{StaticResource SectionHeader}"
+                                       Foreground="{StaticResource VaErrorBrush}"/>
+                            <TextBlock Style="{StaticResource FieldLabel}" Text="Name"/>
+                            <TextBlock Text="{Binding SourcePreview.Name}" FontSize="13" Margin="0,0,0,4"/>
+                            <TextBlock Style="{StaticResource FieldLabel}" Text="Sex"/>
+                            <TextBlock Text="{Binding SourcePreview.Sex}" FontSize="13" Margin="0,0,0,4"/>
+                            <TextBlock Style="{StaticResource FieldLabel}" Text="Date of Birth"/>
+                            <TextBlock Text="{Binding SourcePreview.DateOfBirth, StringFormat={}{0:yyyy-MM-dd}}"
+                                       FontSize="13" Margin="0,0,0,4"/>
+                            <TextBlock Style="{StaticResource FieldLabel}" Text="Veteran"/>
+                            <TextBlock Text="{Binding SourcePreview.Veteran}" FontSize="13" Margin="0,0,0,4"/>
+                            <TextBlock Style="{StaticResource FieldLabel}" Text="Active"/>
+                            <TextBlock Text="{Binding SourcePreview.IsActive}" FontSize="13" Margin="0,0,0,4"/>
+                            <TextBlock Style="{StaticResource FieldLabel}" Text="Merged Into"
+                                       Visibility="{Binding SourcePreview.MergedIntoPatientId, Converter={StaticResource NullToVisibility}}"/>
+                            <TextBlock Text="{Binding SourcePreview.MergedIntoPatientId}" FontSize="13"
+                                       Foreground="{StaticResource VaErrorBrush}"
+                                       Visibility="{Binding SourcePreview.MergedIntoPatientId, Converter={StaticResource NullToVisibility}}"/>
+                        </StackPanel>
+                    </Border>
+                </Grid>
+
+                <!-- Confirmation -->
+                <Border Style="{StaticResource FormPanel}" Margin="0,8,0,0">
+                    <StackPanel>
+                        <CheckBox IsChecked="{Binding IsConfirmed}" Margin="0,0,0,12">
+                            <TextBlock Text="I confirm that the source patient is a duplicate and should be merged into the target patient."
+                                       TextWrapping="Wrap" FontSize="13"/>
+                        </CheckBox>
+
+                        <Button Content="Execute Merge" Style="{StaticResource DangerButton}"
+                                Command="{Binding ExecuteMergeCommand}"
+                                IsEnabled="{Binding IsConfirmed}"
+                                HorizontalAlignment="Left"/>
+                    </StackPanel>
+                </Border>
+            </StackPanel>
+
+            <!-- Merge Result Section -->
+            <StackPanel Visibility="{Binding MergeResult, Converter={StaticResource NullToVisibility}}"
+                        Margin="0,12,0,0">
+                <TextBlock Text="Merge Result" Style="{StaticResource SectionHeader}"/>
+
+                <Border Style="{StaticResource FormPanel}">
+                    <StackPanel>
+                        <TextBlock Style="{StaticResource FieldLabel}" Text="Merge ID"/>
+                        <TextBlock Text="{Binding MergeResult.MergeId}" FontSize="13" Margin="0,0,0,8"/>
+
+                        <TextBlock Text="Items Moved" Style="{StaticResource SectionHeader}" Margin="0,4,0,4"/>
+                        <DataGrid ItemsSource="{Binding MergeResult.ItemsMoved}"
+                                  MaxHeight="300" Margin="0,4,0,0">
+                            <DataGrid.Columns>
+                                <DataGridTextColumn Header="Domain" Binding="{Binding Key}" Width="*"/>
+                                <DataGridTextColumn Header="Count" Binding="{Binding Value}" Width="80"/>
+                            </DataGrid.Columns>
+                        </DataGrid>
+                    </StackPanel>
+                </Border>
+            </StackPanel>
+
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>

@@ -1,0 +1,243 @@
+@page "/clinical-procedures"
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+@rendermode InteractiveServer
+@using NewVistas.BlazorWeb.Services
+@using NewVistas.Abstractions.GrainInterfaces
+@using NewVistas.Abstractions.GrainStates
+@inject OrleansGrainService Grains
+
+<h2>Clinical Procedures</h2>
+
+<div class="patient-bar">
+    <label>Patient ID:</label>
+    <input @bind="patientId" placeholder="Enter patient ID" />
+    <button @onclick="LoadProcedures" disabled="@loading">Load</button>
+</div>
+
+@if (error != null)
+{
+    <div class="error">@error</div>
+}
+
+@if (patientId != null && !loading)
+{
+    <div class="tabs">
+        <button class="@TabClass(0)" @onclick="@(() => activeTab = 0)">Procedures</button>
+        <button class="@TabClass(1)" @onclick="@(() => activeTab = 1)">Order Procedure</button>
+    </div>
+
+    @if (activeTab == 0)
+    {
+        <div class="tab-panel">
+            <div class="filter-bar">
+                <label>Filter by category:</label>
+                <select @bind="categoryFilter">
+                    <option value="">All</option>
+                    <option value="EEG">EEG</option>
+                    <option value="EMG">EMG</option>
+                    <option value="NerveConduction">Nerve Conduction</option>
+                    <option value="SleepStudy">Sleep Study</option>
+                    <option value="Audiometry">Audiometry</option>
+                    <option value="Vestibular">Vestibular</option>
+                    <option value="Electrophysiology">Electrophysiology</option>
+                    <option value="TiltTable">Tilt Table</option>
+                    <option value="Other">Other</option>
+                </select>
+                <button @onclick="LoadProcedures">Refresh</button>
+            </div>
+
+            @if (procedures.Count == 0)
+            {
+                <p class="empty">No clinical procedures on record.</p>
+            }
+            else
+            {
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Category</th>
+                            <th>Code</th>
+                            <th>Description</th>
+                            <th>Status</th>
+                            <th>Ordered</th>
+                            <th>Performed</th>
+                            <th>Provider</th>
+                            <th>Impression</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (ClinicProcedureIndexEntry p in procedures)
+                        {
+                            <tr class="@StatusClass(p.Status)">
+                                <td><span class="badge @CategoryBadge(p.Category)">@p.Category</span></td>
+                                <td>@p.ProcedureCode</td>
+                                <td>@p.ProcedureDescription</td>
+                                <td>@p.Status</td>
+                                <td>@p.OrderedDate.ToString("MM/dd/yyyy")</td>
+                                <td>@(p.PerformedDate?.ToString("MM/dd/yyyy") ?? "—")</td>
+                                <td>@(p.ProviderName ?? "—")</td>
+                                <td class="impression">@(p.Impression ?? "—")</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            }
+        </div>
+    }
+
+    @if (activeTab == 1)
+    {
+        <div class="tab-panel form-panel">
+            <h3>Order New Procedure</h3>
+            <div class="form-grid">
+                <label>Category</label>
+                <select @bind="orderCategory">
+                    <option value="EEG">EEG</option>
+                    <option value="EMG">EMG</option>
+                    <option value="NerveConduction">Nerve Conduction Study</option>
+                    <option value="SleepStudy">Sleep Study</option>
+                    <option value="Audiometry">Audiometry</option>
+                    <option value="Vestibular">Vestibular</option>
+                    <option value="Electrophysiology">Electrophysiology</option>
+                    <option value="TiltTable">Tilt Table</option>
+                    <option value="Other">Other</option>
+                </select>
+
+                <label>Procedure Code</label>
+                <input @bind="orderCode" placeholder="CPT or local code" />
+
+                <label>Description</label>
+                <input @bind="orderDescription" placeholder="Procedure description" />
+
+                <label>Indication</label>
+                <input @bind="orderIndication" placeholder="Clinical indication" />
+
+                <label>Provider</label>
+                <input @bind="orderProvider" placeholder="Provider name" />
+
+                <label>Location</label>
+                <input @bind="orderLocation" placeholder="Location" />
+            </div>
+            <button @onclick="OrderProcedure" disabled="@ordering">Order</button>
+            @if (orderSuccess != null)
+            {
+                <div class="success">@orderSuccess</div>
+            }
+        </div>
+    }
+}
+
+@code {
+    string? patientId;
+    int activeTab = 0;
+    bool loading = false;
+    bool ordering = false;
+    string? error;
+    string? orderSuccess;
+    string categoryFilter = string.Empty;
+    List<ClinicProcedureIndexEntry> procedures = new();
+
+    // Order form fields
+    string orderCategory = "EEG";
+    string orderCode = string.Empty;
+    string orderDescription = string.Empty;
+    string orderIndication = string.Empty;
+    string orderProvider = string.Empty;
+    string orderLocation = string.Empty;
+
+    string TabClass(int tab) => activeTab == tab ? "tab active" : "tab";
+    string StatusClass(object status) => status.ToString() == "Completed" ? "row-completed" : status.ToString() == "Cancelled" ? "row-cancelled" : string.Empty;
+
+    string CategoryBadge(object cat) => cat.ToString() switch
+    {
+        "EEG" => "badge-eeg",
+        "EMG" => "badge-emg",
+        "NerveConduction" => "badge-ncs",
+        "SleepStudy" => "badge-sleep",
+        "Audiometry" => "badge-audio",
+        _ => "badge-other"
+    };
+
+    async Task LoadProcedures()
+    {
+        if (string.IsNullOrWhiteSpace(patientId)) return;
+        loading = true;
+        error = null;
+        try
+        {
+            var workflow = Grains.GetGrain<IPatientWorkflowGrain>(patientId.Trim());
+            if (string.IsNullOrEmpty(categoryFilter))
+                procedures = await workflow.GetClinicProceduresAsync();
+            else
+                procedures = await workflow.GetClinicProceduresByCategoryAsync(
+                    Enum.Parse<ClinicProcedureCategory>(categoryFilter));
+        }
+        catch
+        {
+            error = "Failed to load clinical procedures.";
+        }
+        finally { loading = false; }
+    }
+
+    async Task OrderProcedure()
+    {
+        if (string.IsNullOrWhiteSpace(patientId) || string.IsNullOrWhiteSpace(orderCode)) return;
+        ordering = true;
+        orderSuccess = null;
+        error = null;
+        try
+        {
+            var workflow = Grains.GetGrain<IPatientWorkflowGrain>(patientId.Trim());
+            await workflow.OrderClinicProcedureAsync(
+                Enum.Parse<ClinicProcedureCategory>(orderCategory),
+                orderCode,
+                orderDescription,
+                DateTime.UtcNow,
+                null,
+                string.IsNullOrWhiteSpace(orderProvider) ? null : orderProvider,
+                null,
+                string.IsNullOrWhiteSpace(orderLocation) ? null : orderLocation,
+                string.IsNullOrWhiteSpace(orderIndication) ? null : orderIndication);
+            orderSuccess = "Procedure ordered successfully.";
+            orderCode = string.Empty;
+            orderDescription = string.Empty;
+            orderIndication = string.Empty;
+            orderProvider = string.Empty;
+            orderLocation = string.Empty;
+            await LoadProcedures();
+        }
+        catch
+        {
+            error = "Failed to order procedure.";
+        }
+        finally { ordering = false; }
+    }
+
+}
+
+<style>
+    .patient-bar { display: flex; gap: 0.5rem; align-items: center; margin-bottom: 1rem; }
+    .tabs { display: flex; gap: 0.25rem; margin-bottom: 1rem; }
+    .tab { padding: 0.4rem 1rem; border: 1px solid #ccc; background: #f5f5f5; cursor: pointer; border-radius: 4px 4px 0 0; }
+    .tab.active { background: #fff; border-bottom-color: #fff; font-weight: 600; }
+    .tab-panel { border: 1px solid #ccc; padding: 1rem; border-radius: 0 4px 4px 4px; }
+    .filter-bar { display: flex; gap: 0.5rem; align-items: center; margin-bottom: 0.75rem; }
+    table { width: 100%; border-collapse: collapse; font-size: 0.875rem; }
+    th, td { border: 1px solid #ddd; padding: 0.4rem 0.6rem; text-align: left; }
+    th { background: #f0f0f0; font-weight: 600; }
+    .impression { max-width: 200px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .row-completed { background: #f0fff0; }
+    .row-cancelled { background: #fff0f0; color: #888; }
+    .badge { font-size: 0.75rem; padding: 0.15rem 0.4rem; border-radius: 3px; font-weight: 600; }
+    .badge-eeg { background: #e8d5ff; color: #5a008a; }
+    .badge-emg { background: #d5e8ff; color: #00438a; }
+    .badge-ncs { background: #d5f0ff; color: #005b8a; }
+    .badge-sleep { background: #d5ffe8; color: #006b2a; }
+    .badge-audio { background: #fff5d5; color: #7a5a00; }
+    .badge-other { background: #eee; color: #555; }
+    .form-panel h3 { margin-top: 0; }
+    .form-grid { display: grid; grid-template-columns: 150px 1fr; gap: 0.5rem 1rem; align-items: center; margin-bottom: 1rem; max-width: 600px; }
+    .empty { color: #888; font-style: italic; }
+    .error { color: red; margin-top: 0.5rem; }
+    .success { color: green; margin-top: 0.5rem; }
+</style>

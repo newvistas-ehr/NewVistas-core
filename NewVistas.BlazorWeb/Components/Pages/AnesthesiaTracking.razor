@@ -1,0 +1,141 @@
+@* Copyright 2026 James Smyth. All rights reserved. *@
+@page "/anesthesia-tracking"
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+@rendermode InteractiveServer
+@using NewVistas.BlazorWeb.Services
+@using NewVistas.Abstractions.GrainInterfaces
+@using NewVistas.Abstractions.GrainStates
+@inject OrleansGrainService Grains
+
+<PageTitle>Anesthesia Tracking</PageTitle>
+<h1>Anesthesia Tracking</h1>
+
+@if (loading) { <div class="empty-state">Loading...</div> }
+else if (featureChecked && !featureEnabled)
+{ <div class="alert alert-warning">The <strong>ANESTHESIA_TRACKING</strong> feature is not enabled. Enable it in <a href="/site-parameters">Site Parameters</a>.</div> }
+@if (error != null) { <div class="alert alert-error">@error</div> }
+
+@if (!loading)
+{
+    <div class="tab-bar">
+        <button class="tab-btn @(activeTab == 0 ? "active" : "")" @onclick="() => activeTab = 0">Patient Records</button>
+        <button class="tab-btn @(activeTab == 1 ? "active" : "")" @onclick="() => activeTab = 1">Dashboard</button>
+    </div>
+
+    @if (activeTab == 0)
+    {
+        <div class="form-section">
+            <div class="form-row">
+                <label>Patient ID</label>
+                <input type="text" class="form-input" @bind="patientId" @bind:event="oninput" placeholder="Enter patient ID" />
+                <button @onclick="LoadRecords" disabled="@(string.IsNullOrWhiteSpace(patientId) || loadingRecords)" class="btn btn-primary">
+                    @if (loadingRecords) { <span>Loading...</span> } else { <span>Load</span> }
+                </button>
+            </div>
+        </div>
+        @if (records != null && records.Count > 0)
+        {
+            <table class="data-table">
+                <thead><tr><th>Date</th><th>Procedure</th><th>Type</th><th>ASA</th><th>Anesthesiologist</th><th>Agents</th><th>Status</th></tr></thead>
+                <tbody>
+                    @foreach (var r in records)
+                    {
+                        <tr>
+                            <td>@r.CreatedDate.ToString("MM/dd/yyyy")</td>
+                            <td><strong>@r.ProcedureName</strong></td>
+                            <td class="code">@r.AnesthesiaType</td>
+                            <td><span class="asa-badge">@r.AsaClassification</span></td>
+                            <td>@r.AnesthesiologistName</td>
+                            <td>@r.AgentCount</td>
+                            <td><span class="status-badge" style="@GetStatusStyle(r.Status)">@r.Status</span></td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        }
+        else if (records != null) { <div class="empty-state">No anesthesia records for this patient.</div> }
+    }
+
+    @if (activeTab == 1)
+    {
+        <div class="form-section">
+            <div class="form-row"><label>Status</label>
+                <select class="form-input" @bind="dashStatus">
+                    <option value="">All</option><option value="DRAFT">DRAFT</option><option value="IN_PROGRESS">IN_PROGRESS</option>
+                    <option value="FINALIZED">FINALIZED</option><option value="ADDENDED">ADDENDED</option>
+                </select>
+            </div>
+            <div class="form-row"><label>Anesthesia Type</label>
+                <select class="form-input" @bind="dashType">
+                    <option value="">All</option><option value="GENERAL">GENERAL</option><option value="REGIONAL">REGIONAL</option>
+                    <option value="SPINAL">SPINAL</option><option value="EPIDURAL">EPIDURAL</option><option value="MAC">MAC</option>
+                    <option value="LOCAL">LOCAL</option><option value="COMBINED">COMBINED</option>
+                </select>
+            </div>
+            <div class="form-actions">
+                <button @onclick="SearchDashboard" disabled="@loadingDash" class="btn btn-primary">
+                    @if (loadingDash) { <span>Searching...</span> } else { <span>Search</span> }
+                </button>
+            </div>
+        </div>
+        @if (dashResults != null && dashResults.Count > 0)
+        {
+            <table class="data-table">
+                <thead><tr><th>Patient</th><th>Procedure</th><th>Type</th><th>ASA</th><th>Anesthesiologist</th><th>Agents</th><th>Status</th><th>Date</th></tr></thead>
+                <tbody>
+                    @foreach (var r in dashResults)
+                    {
+                        <tr>
+                            <td>@r.PatientName <span class="patient-id-small">(@r.PatientId)</span></td>
+                            <td><strong>@r.ProcedureName</strong></td>
+                            <td class="code">@r.AnesthesiaType</td>
+                            <td>@r.AsaClassification</td>
+                            <td>@r.AnesthesiologistName</td>
+                            <td>@r.AgentCount</td>
+                            <td><span class="status-badge" style="@GetStatusStyle(r.Status)">@r.Status</span></td>
+                            <td>@r.CreatedDate.ToString("MM/dd/yyyy")</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        }
+        else if (dashResults != null) { <div class="empty-state">No records match.</div> }
+    }
+}
+
+@code {
+    private int activeTab; private bool loading = true, featureEnabled, featureChecked; private string? error;
+    private string? patientId; private bool loadingRecords; private List<AnesthesiaRecordIndexEntry>? records;
+    private string dashStatus = "", dashType = ""; private bool loadingDash; private List<AnesthesiaRecordIndexEntry>? dashResults;
+
+    protected override async Task OnInitializedAsync()
+    { try { featureEnabled = await Grains.GetGrain<ISiteParametersGrain>("SITE:DEFAULT").IsFeatureEnabledAsync("ANESTHESIA_TRACKING"); } catch (Exception ex) { error = ex.Message; } finally { loading = false; featureChecked = true; } }
+
+    private async Task LoadRecords() { if (string.IsNullOrWhiteSpace(patientId)) return; loadingRecords = true; error = null; try { records = await Grains.GetGrain<IAnesthesiaRecordIndexGrain>("ANES-IDX").GetByPatientAsync(patientId.Trim()); } catch (Exception ex) { error = ex.Message; } finally { loadingRecords = false; } }
+    private async Task SearchDashboard() { loadingDash = true; error = null; try { dashResults = await Grains.GetGrain<IAnesthesiaRecordIndexGrain>("ANES-IDX").SearchAsync(null, null, string.IsNullOrEmpty(dashStatus) ? null : dashStatus, string.IsNullOrEmpty(dashType) ? null : dashType, 50); } catch (Exception ex) { error = ex.Message; } finally { loadingDash = false; } }
+
+    private string GetStatusStyle(string s) => s switch { "DRAFT" => "background:#dbeafe;color:#1e40af;border:1px solid #93c5fd;", "IN_PROGRESS" => "background:#fff7ed;color:#c2410c;border:1px solid #fed7aa;", "FINALIZED" => "background:#dcfce7;color:#166534;border:1px solid #bbf7d0;", "ADDENDED" => "background:#f3e8ff;color:#7c3aed;border:1px solid #c4b5fd;", _ => "" };
+}
+
+<style>
+    .btn { padding: 0.5rem 1.25rem; border: none; border-radius: 4px; cursor: pointer; font-size: 0.85rem; }
+    .btn-primary { background: #003f72; color: white; } .btn-primary:disabled { background: #999; cursor: not-allowed; }
+    .alert { padding: 0.75rem 1rem; border-radius: 4px; margin-bottom: 1rem; }
+    .alert-error { background: #fde8e8; color: #b91c1c; border: 1px solid #f5c6c6; }
+    .alert-warning { background: #fef3c7; color: #92400e; border: 1px solid #fde68a; } .alert-warning a { color: #003f72; font-weight: 600; }
+    .empty-state { color: #999; font-style: italic; padding: 2rem 0; }
+    .tab-bar { display: flex; gap: 0; border-bottom: 2px solid #d4d9e0; margin-bottom: 1.5rem; }
+    .tab-btn { padding: 0.6rem 1.25rem; border: none; background: transparent; cursor: pointer; font-size: 0.85rem; font-weight: 500; color: #666; border-bottom: 2px solid transparent; margin-bottom: -2px; }
+    .tab-btn.active { color: #003f72; border-bottom-color: #003f72; font-weight: 600; }
+    .form-section { max-width: 700px; } .form-row { display: flex; align-items: center; gap: 1rem; margin-bottom: 0.75rem; }
+    .form-row label:first-child { width: 160px; font-size: 0.85rem; font-weight: 500; color: #333; flex-shrink: 0; }
+    .form-input { flex: 1; padding: 0.4rem 0.6rem; border: 1px solid #ccc; border-radius: 4px; font-size: 0.85rem; max-width: 350px; }
+    .form-actions { display: flex; gap: 0.75rem; margin-top: 1rem; margin-bottom: 1.5rem; }
+    .data-table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+    .data-table th { text-align: left; padding: 0.5rem; font-weight: 600; color: #003f72; border-bottom: 2px solid #d4d9e0; font-size: 0.75rem; text-transform: uppercase; background: #f4f6f9; }
+    .data-table td { padding: 0.4rem 0.5rem; border-bottom: 1px solid #f0f0f0; } .data-table tr:hover { background: #f9fafb; }
+    .code { font-family: monospace; color: #003f72; }
+    .status-badge { display: inline-block; padding: 0.2rem 0.6rem; border-radius: 3px; font-size: 0.75rem; font-weight: 600; text-transform: uppercase; }
+    .asa-badge { font-weight: 600; color: #003f72; }
+    .patient-id-small { font-size: 0.75rem; color: #999; }
+</style>

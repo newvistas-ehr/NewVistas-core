@@ -1,0 +1,28 @@
+<UserControl x:Class="NewVistas.Wpf_UI.Views.ReleaseOfInformationView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <ScrollViewer VerticalScrollBarVisibility="Auto">
+        <StackPanel Margin="24">
+            <TextBlock Style="{StaticResource PageTitle}" Text="Release of Information"/>
+            <TextBlock Style="{StaticResource ErrorText}" Text="{Binding Error}"
+                       Visibility="{Binding Error, Converter={StaticResource NullToVisibility}}"/>
+            <StackPanel Orientation="Horizontal" Margin="0,0,0,12">
+                <Button Content="Load Requests" Style="{StaticResource PrimaryButton}"
+                        Command="{Binding LoadCommand}" Margin="0,0,8,0"/>
+                <ProgressBar IsIndeterminate="True" Width="120" Height="20"
+                             Visibility="{Binding IsLoading, Converter={StaticResource BoolToVisibility}}"/>
+            </StackPanel>
+            <DataGrid ItemsSource="{Binding Requests}" SelectedItem="{Binding SelectedRequest}" AutoGenerateColumns="False">
+                <DataGrid.Columns>
+                    <DataGridTextColumn Header="Request #" Binding="{Binding RequestNumber}" Width="110"/>
+                    <DataGridTextColumn Header="Patient ID" Binding="{Binding PatientId}" Width="110"/>
+                    <DataGridTextColumn Header="Requester Type" Binding="{Binding RequesterType}" Width="130"/>
+                    <DataGridTextColumn Header="Status" Binding="{Binding Status}" Width="120"/>
+                    <DataGridTextColumn Header="Received" Binding="{Binding ReceivedDate, StringFormat=d}" Width="110"/>
+                    <DataGridTextColumn Header="Due Date" Binding="{Binding DueDate, StringFormat=d}" Width="110"/>
+                    <DataGridTextColumn Header="Assigned To" Binding="{Binding AssignedToName}" Width="*"/>
+                </DataGrid.Columns>
+            </DataGrid>
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>

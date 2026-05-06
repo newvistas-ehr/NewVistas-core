@@ -1,0 +1,51 @@
+LOINC_NUM,COMPONENT,PROPERTY,TIME_ASPCT,SYSTEM,SCALE_TYP,METHOD_TYP,SHORTNAME,LONG_COMMON_NAME,STATUS,CLASSTYPE
+2345-7,Glucose,MCnc,Pt,Ser/Plas,Qn,,Glucose SerPl-mCnc,Glucose [Mass/volume] in Serum or Plasma,ACTIVE,1
+718-7,Hemoglobin,MCnc,Pt,Bld,Qn,,Hgb Bld-mCnc,Hemoglobin [Mass/volume] in Blood,ACTIVE,1
+4544-3,Hematocrit,VFr,Pt,Bld,Qn,Automated count,Hct VFr Bld Auto,Hematocrit [Volume Fraction] of Blood by Automated count,ACTIVE,1
+789-8,Erythrocytes,NCnc,Pt,Bld,Qn,Automated count,RBC # Bld Auto,Erythrocytes [#/volume] in Blood by Automated count,ACTIVE,1
+6690-2,Leukocytes,NCnc,Pt,Bld,Qn,Automated count,WBC # Bld Auto,Leukocytes [#/volume] in Blood by Automated count,ACTIVE,1
+777-3,Platelets,NCnc,Pt,Bld,Qn,Automated count,Platelet # Bld Auto,Platelets [#/volume] in Blood by Automated count,ACTIVE,1
+2160-0,Creatinine,MCnc,Pt,Ser/Plas,Qn,,Creat SerPl-mCnc,Creatinine [Mass/volume] in Serum or Plasma,ACTIVE,1
+3094-0,Urea nitrogen,MCnc,Pt,Ser/Plas,Qn,,BUN SerPl-mCnc,Urea nitrogen [Mass/volume] in Serum or Plasma,ACTIVE,1
+2823-3,Potassium,SCnc,Pt,Ser/Plas,Qn,,Potassium SerPl-sCnc,Potassium [Moles/volume] in Serum or Plasma,ACTIVE,1
+2951-2,Sodium,SCnc,Pt,Ser/Plas,Qn,,Sodium SerPl-sCnc,Sodium [Moles/volume] in Serum or Plasma,ACTIVE,1
+2075-0,Chloride,SCnc,Pt,Ser/Plas,Qn,,Chloride SerPl-sCnc,Chloride [Moles/volume] in Serum or Plasma,ACTIVE,1
+2028-9,Carbon dioxide total,SCnc,Pt,Ser/Plas,Qn,,CO2 SerPl-sCnc,Carbon dioxide total [Moles/volume] in Serum or Plasma,ACTIVE,1
+17861-6,Calcium,MCnc,Pt,Ser/Plas,Qn,,Calcium SerPl-mCnc,Calcium [Mass/volume] in Serum or Plasma,ACTIVE,1
+1751-7,Albumin,MCnc,Pt,Ser/Plas,Qn,,Albumin SerPl-mCnc,Albumin [Mass/volume] in Serum or Plasma,ACTIVE,1
+1975-2,Bilirubin.total,MCnc,Pt,Ser/Plas,Qn,,Bilirub SerPl-mCnc,Bilirubin.total [Mass/volume] in Serum or Plasma,ACTIVE,1
+6768-6,Alkaline phosphatase,CCnc,Pt,Ser/Plas,Qn,,ALP SerPl-cCnc,Alkaline phosphatase [Enzymatic activity/volume] in Serum or Plasma,ACTIVE,1
+1920-8,Aspartate aminotransferase,CCnc,Pt,Ser/Plas,Qn,,AST SerPl-cCnc,Aspartate aminotransferase [Enzymatic activity/volume] in Serum or Plasma,ACTIVE,1
+1742-6,Alanine aminotransferase,CCnc,Pt,Ser/Plas,Qn,,ALT SerPl-cCnc,Alanine aminotransferase [Enzymatic activity/volume] in Serum or Plasma,ACTIVE,1
+2085-9,Cholesterol.in HDL,MCnc,Pt,Ser/Plas,Qn,,HDLc SerPl-mCnc,Cholesterol in HDL [Mass/volume] in Serum or Plasma,ACTIVE,1
+2093-3,Cholesterol.total,MCnc,Pt,Ser/Plas,Qn,,Cholest SerPl-mCnc,Cholesterol [Mass/volume] in Serum or Plasma,ACTIVE,1
+2571-8,Triglyceride,MCnc,Pt,Ser/Plas,Qn,,Trigl SerPl-mCnc,Triglyceride [Mass/volume] in Serum or Plasma,ACTIVE,1
+13457-7,Cholesterol.in LDL,MCnc,Pt,Ser/Plas,Qn,Calculated,LDLc SerPl Calc-mCnc,Cholesterol in LDL [Mass/volume] in Serum or Plasma by calculation,ACTIVE,1
+4548-4,Hemoglobin A1c,MFr,Pt,Bld,Qn,,HbA1c MFr Bld,Hemoglobin A1c/Hemoglobin.total in Blood,ACTIVE,1
+3016-3,Thyrotropin,ACnc,Pt,Ser/Plas,Qn,,TSH SerPl-aCnc,Thyrotropin [Units/volume] in Serum or Plasma,ACTIVE,1
+3026-2,Thyroxine (T4) free,MCnc,Pt,Ser/Plas,Qn,,Free T4 SerPl-mCnc,Thyroxine (T4) free [Mass/volume] in Serum or Plasma,ACTIVE,1
+5902-2,Prothrombin time,Time,Pt,PPP,Qn,,PT PPP-time,Prothrombin time (PT) in Platelet poor plasma by Coagulation assay,ACTIVE,1
+6301-6,INR in Platelet poor plasma,Rto,Pt,PPP,Qn,,INR PPP,INR in Platelet poor plasma by Coagulation assay,ACTIVE,1
+14979-9,aPTT in Platelet poor plasma,Time,Pt,PPP,Qn,,aPTT PPP-sec,Activated partial thromboplastin time (aPTT) in Platelet poor plasma by Coagulation assay,ACTIVE,1
+2947-0,Sodium,SCnc,Pt,Urine,Qn,,Sodium Ur-sCnc,Sodium [Moles/volume] in Urine,ACTIVE,1
+5767-9,Appearance,Ql,Pt,Urine,Nom,,Appearance Ur,Appearance of Urine,ACTIVE,1
+5778-6,Color,Ql,Pt,Urine,Nom,,Color Ur,Color of Urine,ACTIVE,1
+5803-2,pH,SRat,Pt,Urine,Qn,Test strip,pH Ur Strip,pH of Urine by Test strip,ACTIVE,1
+5811-5,Specific gravity,Rden,Pt,Urine,Qn,Test strip,Sp Gr Ur Strip,Specific gravity of Urine by Test strip,ACTIVE,1
+5804-0,Protein,ACnc,Pt,Urine,Qn,Test strip,Prot Ur Strip-aCnc,Protein [Mass/volume] in Urine by Test strip,ACTIVE,1
+5792-7,Glucose,MCnc,Pt,Urine,Qn,Test strip,Glucose Ur Strip-mCnc,Glucose [Mass/volume] in Urine by Test strip,ACTIVE,1
+5770-3,Bilirubin,ACnc,Pt,Urine,Qn,Test strip,Bilirub Ur Strip-aCnc,Bilirubin [Presence] in Urine by Test strip,ACTIVE,1
+20565-8,Carbon dioxide total,SCnc,Pt,Bld,Qn,,CO2 Bld-sCnc,Carbon dioxide [Partial pressure] in Blood,ACTIVE,1
+33762-6,Natriuretic peptide B,MCnc,Pt,Ser/Plas,Qn,,NT-proBNP SerPl-mCnc,Natriuretic peptide.B prohormone N-Terminal [Mass/volume] in Serum or Plasma,ACTIVE,1
+2532-0,Lactate dehydrogenase,CCnc,Pt,Ser/Plas,Qn,,LDH SerPl-cCnc,Lactate dehydrogenase [Enzymatic activity/volume] in Serum or Plasma,ACTIVE,1
+14804-9,Lactate,MCnc,Pt,Bld,Qn,,Lactate Bld-mCnc,Lactate [Moles/volume] in Blood,ACTIVE,1
+2276-4,Ferritin,MCnc,Pt,Ser/Plas,Qn,,Ferritin SerPl-mCnc,Ferritin [Mass/volume] in Serum or Plasma,ACTIVE,1
+2498-4,Iron,MCnc,Pt,Ser/Plas,Qn,,Iron SerPl-mCnc,Iron [Mass/volume] in Serum or Plasma,ACTIVE,1
+10466-1,Sedimentation rate,Vel,Pt,Bld,Qn,Westergren,ESR Bld Qn Wstrgrn,Erythrocyte sedimentation rate by Westergren method,ACTIVE,1
+1988-5,C reactive protein,MCnc,Pt,Ser/Plas,Qn,,CRP SerPl-mCnc,C reactive protein [Mass/volume] in Serum or Plasma,ACTIVE,1
+2157-6,Creatine kinase,CCnc,Pt,Ser/Plas,Qn,,CK SerPl-cCnc,Creatine kinase [Enzymatic activity/volume] in Serum or Plasma,ACTIVE,1
+10839-9,Troponin I.cardiac,MCnc,Pt,Ser/Plas,Qn,,Troponin I SerPl-mCnc,Troponin I.cardiac [Mass/volume] in Serum or Plasma,ACTIVE,1
+30341-2,Erythrocyte sedimentation rate,Vel,Pt,Bld,Qn,,ESR Bld Qn,Erythrocyte sedimentation rate,ACTIVE,1
+2339-0,Glucose,MCnc,Pt,Bld,Qn,,Glucose Bld-mCnc,Glucose [Mass/volume] in Blood,ACTIVE,1
+14749-6,Glucose,MCnc,Pt,Ser/Plas,Qn,,Glucose SerPl 2h post 75g Gluc-mCnc,Glucose [Moles/volume] in Serum or Plasma 2 hours post 75 g glucose dose,ACTIVE,1
+2514-8,Lipase,CCnc,Pt,Ser/Plas,Qn,,Lipase SerPl-cCnc,Lipase [Enzymatic activity/volume] in Serum or Plasma,ACTIVE,1

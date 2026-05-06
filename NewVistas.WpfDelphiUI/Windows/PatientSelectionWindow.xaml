@@ -1,0 +1,254 @@
+<Window x:Class="NewVistas.WpfDelphiUI.Windows.PatientSelectionWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="clr-namespace:NewVistas.WpfDelphiUI.ViewModels"
+        xmlns:svc="clr-namespace:NewVistas.WpfDelphiUI.Services"
+        Title="Patient Selection"
+        Width="820" Height="620"
+        MinWidth="700" MinHeight="500"
+        WindowStartupLocation="CenterOwner"
+        ResizeMode="CanResize"
+        ShowInTaskbar="False"
+        Background="{StaticResource ControlBrush}">
+
+    <Grid Margin="4">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>   <!-- Patient type + search row -->
+            <RowDefinition Height="*"/>      <!-- Notifications tab -->
+            <RowDefinition Height="Auto"/>   <!-- OK / Cancel buttons -->
+        </Grid.RowDefinitions>
+
+        <!-- ═══════════════════════════════════════════════════════════════ -->
+        <!--  Top section: patient list type radios + search + demographics  -->
+        <!--  (gpTop TGridPanel in fPtSel.dfm)                              -->
+        <!-- ═══════════════════════════════════════════════════════════════ -->
+        <Grid Grid.Row="0" Margin="0,0,0,4">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="160"/>  <!-- radios -->
+                <ColumnDefinition Width="*"/>    <!-- search + demographics -->
+            </Grid.ColumnDefinitions>
+
+            <!-- Patient list type radio buttons (fraPtSelOptns) -->
+            <Border Grid.Column="0" BorderBrush="#999" BorderThickness="1"
+                    Background="White" Margin="0,0,4,0" Padding="4">
+                <StackPanel>
+                    <TextBlock Text="Patient List" Style="{StaticResource SectionHeader}" Margin="0,0,0,4"/>
+                    <RadioButton Content="My Patients"
+                                 IsChecked="{Binding ListType, Converter={StaticResource BoolToVis}, ConverterParameter=MyPatients}"/>
+                    <RadioButton Content="My Providers"/>
+                    <RadioButton Content="My Clinics"/>
+                    <RadioButton Content="My Teams"/>
+                    <RadioButton Content="My Wards"/>
+                    <RadioButton Content="My Specialties"/>
+                    <RadioButton Content="PCMM Teams"/>
+                    <RadioButton Content="Recent Patients"/>
+                    <RadioButton Content="All Patients"/>
+                </StackPanel>
+            </Border>
+
+            <!-- Right side: search combo + demographics -->
+            <Grid Grid.Column="1">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="*"/>
+                </Grid.RowDefinitions>
+
+                <!-- Search row (cboPatient TORComboBox) -->
+                <DockPanel Grid.Row="0" Margin="0,0,0,4">
+                    <TextBlock Text="Patient:" VerticalAlignment="Center"
+                               Margin="0,0,6,0" DockPanel.Dock="Left"/>
+                    <Button Content="Search" DockPanel.Dock="Right"
+                            Command="{Binding SearchCommand}"
+                            Margin="4,0,0,0" MinWidth="65"/>
+                    <TextBox Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}">
+                        <TextBox.InputBindings>
+                            <KeyBinding Key="Return" Command="{Binding SearchCommand}"/>
+                        </TextBox.InputBindings>
+                    </TextBox>
+                </DockPanel>
+
+                <!-- Search results list + demographics panel -->
+                <Grid Grid.Row="1">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="4"/>
+                        <ColumnDefinition Width="220"/>
+                    </Grid.ColumnDefinitions>
+
+                    <!-- Results list -->
+                    <Border Grid.Column="0" BorderBrush="#808080" BorderThickness="1">
+                        <ListBox ItemsSource="{Binding SearchResults}"
+                                 SelectedItem="{Binding SelectedPatient}"
+                                 FontFamily="Courier New" FontSize="11"
+                                 ScrollViewer.HorizontalScrollBarVisibility="Auto">
+                            <ListBox.ItemTemplate>
+                                <DataTemplate DataType="{x:Type svc:PatientSearchResultDto}">
+                                    <TextBlock>
+                                        <Run Text="{Binding Name, Mode=OneWay}"/>
+                                        <Run Text="  "/>
+                                        <Run Text="{Binding Ssn, Mode=OneWay}" Foreground="#555"/>
+                                        <Run Text="  "/>
+                                        <Run Text="{Binding Dob, Mode=OneWay}" Foreground="#555"/>
+                                    </TextBlock>
+                                </DataTemplate>
+                            </ListBox.ItemTemplate>
+                        </ListBox>
+                    </Border>
+
+                    <GridSplitter Grid.Column="1" Width="4" HorizontalAlignment="Stretch"
+                                  Background="{StaticResource ControlBrush}"/>
+
+                    <!-- Demographics panel (fraPtSelDemog) -->
+                    <Border Grid.Column="2" BorderBrush="#808080" BorderThickness="1"
+                            Background="White" Padding="6,4">
+                        <ScrollViewer VerticalScrollBarVisibility="Auto">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="Auto"/>
+                                </Grid.RowDefinitions>
+
+                                <!-- Row 0: Name -->
+                                <TextBlock Grid.Row="0" Grid.Column="0" Text="Name:" Foreground="{StaticResource NavyBrush}" FontWeight="SemiBold" Margin="0,1,6,1"/>
+                                <TextBlock Grid.Row="0" Grid.Column="1" Text="{Binding DemoName}" Margin="0,1"/>
+
+                                <!-- Row 1: SSN -->
+                                <TextBlock Grid.Row="1" Grid.Column="0" Text="SSN:" Foreground="{StaticResource NavyBrush}" FontWeight="SemiBold" Margin="0,1,6,1"/>
+                                <TextBlock Grid.Row="1" Grid.Column="1" Text="{Binding DemoSsn}" Margin="0,1"/>
+
+                                <!-- Row 2: DOB -->
+                                <TextBlock Grid.Row="2" Grid.Column="0" Text="DOB:" Foreground="{StaticResource NavyBrush}" FontWeight="SemiBold" Margin="0,1,6,1"/>
+                                <TextBlock Grid.Row="2" Grid.Column="1" Text="{Binding DemoDob}" Margin="0,1"/>
+
+                                <!-- Row 3: Sex -->
+                                <TextBlock Grid.Row="3" Grid.Column="0" Text="Sex:" Foreground="{StaticResource NavyBrush}" FontWeight="SemiBold" Margin="0,1,6,1"/>
+                                <TextBlock Grid.Row="3" Grid.Column="1" Text="{Binding DemoSex}" Margin="0,1"/>
+
+                                <!-- Row 4: Age -->
+                                <TextBlock Grid.Row="4" Grid.Column="0" Text="Age:" Foreground="{StaticResource NavyBrush}" FontWeight="SemiBold" Margin="0,1,6,1"/>
+                                <TextBlock Grid.Row="4" Grid.Column="1" Text="{Binding DemoAge}" Margin="0,1"/>
+
+                                <!-- Row 5: Veteran -->
+                                <TextBlock Grid.Row="5" Grid.Column="0" Text="Veteran:" Foreground="{StaticResource NavyBrush}" FontWeight="SemiBold" Margin="0,1,6,1"/>
+                                <TextBlock Grid.Row="5" Grid.Column="1" Text="{Binding DemoVeteranStatus}" Margin="0,1"/>
+
+                                <!-- Row 6: SC% -->
+                                <TextBlock Grid.Row="6" Grid.Column="0" Text="SC%:" Foreground="{StaticResource NavyBrush}" FontWeight="SemiBold" Margin="0,1,6,1"/>
+                                <TextBlock Grid.Row="6" Grid.Column="1" Text="{Binding DemoScPercent}" Margin="0,1"/>
+
+                                <!-- Row 7: Ward -->
+                                <TextBlock Grid.Row="7" Grid.Column="0" Text="Ward:" Foreground="{StaticResource NavyBrush}" FontWeight="SemiBold" Margin="0,1,6,1"/>
+                                <TextBlock Grid.Row="7" Grid.Column="1" Text="{Binding DemoWard}" Margin="0,1"/>
+
+                                <!-- Row 8: Room/Bed -->
+                                <TextBlock Grid.Row="8" Grid.Column="0" Text="Room/Bed:" Foreground="{StaticResource NavyBrush}" FontWeight="SemiBold" Margin="0,1,6,1"/>
+                                <TextBlock Grid.Row="8" Grid.Column="1" Text="{Binding DemoRoomBed}" Margin="0,1"/>
+
+                                <!-- Row 9: Primary Provider -->
+                                <TextBlock Grid.Row="9" Grid.Column="0" Text="Primary:" Foreground="{StaticResource NavyBrush}" FontWeight="SemiBold" Margin="0,1,6,1"/>
+                                <TextBlock Grid.Row="9" Grid.Column="1" Text="{Binding DemoPrimaryProvider}" Margin="0,1" TextWrapping="Wrap"/>
+
+                                <!-- Row 10: Attending -->
+                                <TextBlock Grid.Row="10" Grid.Column="0" Text="Attending:" Foreground="{StaticResource NavyBrush}" FontWeight="SemiBold" Margin="0,1,6,1"/>
+                                <TextBlock Grid.Row="10" Grid.Column="1" Text="{Binding DemoAttending}" Margin="0,1" TextWrapping="Wrap"/>
+
+                                <!-- Row 11: Last Visit -->
+                                <TextBlock Grid.Row="11" Grid.Column="0" Text="Last Visit:" Foreground="{StaticResource NavyBrush}" FontWeight="SemiBold" Margin="0,1,6,1"/>
+                                <TextBlock Grid.Row="11" Grid.Column="1" Text="{Binding DemoLastVisit}" Margin="0,1"/>
+                            </Grid>
+                        </ScrollViewer>
+                    </Border>
+                </Grid>
+            </Grid>
+        </Grid>
+
+        <!-- ═══════════════════════════════════════════════════════════════ -->
+        <!--  Notifications tabs (pcProcNoti in fPtSel.dfm)                 -->
+        <!-- ═══════════════════════════════════════════════════════════════ -->
+        <TabControl Grid.Row="1" Margin="0,0,0,4">
+
+            <!-- Pending alerts (tsPendNoti + lstvAlerts) -->
+            <TabItem Header="Pending Notifications">
+                <ListView ItemsSource="{Binding PendingAlerts}"
+                          FontFamily="Segoe UI" FontSize="11"
+                          BorderThickness="0">
+                    <ListView.View>
+                        <GridView>
+                            <GridViewColumn Header="I" Width="20"
+                                            DisplayMemberBinding="{Binding Info}"/>
+                            <GridViewColumn Header="Patient"   Width="160"
+                                            DisplayMemberBinding="{Binding Patient}"/>
+                            <GridViewColumn Header="Location"  Width="100"
+                                            DisplayMemberBinding="{Binding Location}"/>
+                            <GridViewColumn Header="Urgency"   Width="70"
+                                            DisplayMemberBinding="{Binding Urgency}"/>
+                            <GridViewColumn Header="Alert Date" Width="100"
+                                            DisplayMemberBinding="{Binding AlertDate}"/>
+                            <GridViewColumn Header="Message"   Width="300"
+                                            DisplayMemberBinding="{Binding Message}"/>
+                            <GridViewColumn Header="Provider"  Width="140"
+                                            DisplayMemberBinding="{Binding OrderingProvider}"/>
+                        </GridView>
+                    </ListView.View>
+                </ListView>
+            </TabItem>
+
+            <!-- Processed alerts (tsProcessedAlertsForm) -->
+            <TabItem Header="Processed Notifications">
+                <ListView ItemsSource="{Binding ProcessedAlerts}"
+                          FontFamily="Segoe UI" FontSize="11"
+                          BorderThickness="0">
+                    <ListView.View>
+                        <GridView>
+                            <GridViewColumn Header="Patient"   Width="160"
+                                            DisplayMemberBinding="{Binding Patient}"/>
+                            <GridViewColumn Header="Alert Date" Width="100"
+                                            DisplayMemberBinding="{Binding AlertDate}"/>
+                            <GridViewColumn Header="Message"   Width="380"
+                                            DisplayMemberBinding="{Binding Message}"/>
+                            <GridViewColumn Header="Provider"  Width="140"
+                                            DisplayMemberBinding="{Binding OrderingProvider}"/>
+                        </GridView>
+                    </ListView.View>
+                </ListView>
+            </TabItem>
+        </TabControl>
+
+        <!-- ═══════════════════════════════════════════════════════════════ -->
+        <!--  Status + OK / Cancel row (cmdOK / cmdCancel in fPtSel.dfm)    -->
+        <!-- ═══════════════════════════════════════════════════════════════ -->
+        <DockPanel Grid.Row="2">
+            <TextBlock Text="{Binding StatusText}"
+                       VerticalAlignment="Center"
+                       Foreground="#555" FontSize="11"
+                       DockPanel.Dock="Left" Margin="4,0"/>
+
+            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                <Button Content="OK"
+                        IsDefault="True"
+                        Command="{Binding ConfirmCommand}"
+                        CommandParameter="{Binding RelativeSource={RelativeSource AncestorType=Window}}"
+                        Margin="0,0,6,0"/>
+                <Button Content="Cancel"
+                        IsCancel="True"
+                        Command="{Binding CancelCommand}"
+                        CommandParameter="{Binding RelativeSource={RelativeSource AncestorType=Window}}"/>
+            </StackPanel>
+        </DockPanel>
+
+    </Grid>
+</Window>

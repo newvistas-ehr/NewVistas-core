@@ -1,0 +1,947 @@
+@page "/anatomic-pathology"
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+@rendermode InteractiveServer
+@using NewVistas.BlazorWeb.Services
+@using NewVistas.Abstractions.GrainInterfaces
+@using NewVistas.Abstractions.GrainStates
+@inject OrleansGrainService Grains
+
+<PageTitle>Anatomic Pathology — LRAP</PageTitle>
+
+<h2>Anatomic Pathology (AP)</h2>
+<p class="subtitle">VistA Files #63.08 (Surgical Pathology) · #63.09 (Cytology) · #63.19 (Autopsy)</p>
+
+<div class="tabs">
+    <button class="@TabClass("list")"     @onclick='() => SetTab("list")'>Cases</button>
+    <button class="@TabClass("sp")"       @onclick='() => SetTab("sp")'>Surgical Path</button>
+    <button class="@TabClass("cy")"       @onclick='() => SetTab("cy")'>Cytology</button>
+    <button class="@TabClass("au")"       @onclick='() => SetTab("au")'>Autopsy</button>
+    <button class="@TabClass("accession")" @onclick='() => SetTab("accession")'>Accession</button>
+</div>
+
+@if (!string.IsNullOrEmpty(error))
+{
+    <div class="error">@error</div>
+}
+@if (!string.IsNullOrEmpty(successMsg))
+{
+    <div class="success">@successMsg</div>
+}
+
+@* ── Patient / Load Bar ──────────────────────────────────────────────────── *@
+<div class="toolbar">
+    <input @bind="patientId" placeholder="Patient ID" class="input-id" />
+    <button @onclick="LoadCases" disabled="@loading">Load Cases</button>
+</div>
+
+@* ══════════════════════════════════════════════════════════════════════════ *@
+@* Tab: Cases (all types)                                                    *@
+@* ══════════════════════════════════════════════════════════════════════════ *@
+@if (activeTab == "list")
+{
+    @if (loading) { <p class="loading-msg">Loading…</p> }
+
+    @if (cases is not null)
+    {
+        <div class="summary-cards">
+            <div class="card">
+                <span class="card-num">@cases.Count</span>
+                <span class="card-label">Total Cases</span>
+            </div>
+            <div class="card card-sp">
+                <span class="card-num">@cases.Count(c => c.CaseType == "SurgicalPathology")</span>
+                <span class="card-label">Surgical Path</span>
+            </div>
+            <div class="card card-cy">
+                <span class="card-num">@cases.Count(c => c.CaseType == "Cytology")</span>
+                <span class="card-label">Cytology</span>
+            </div>
+            <div class="card card-au">
+                <span class="card-num">@cases.Count(c => c.CaseType == "Autopsy")</span>
+                <span class="card-label">Autopsy</span>
+            </div>
+        </div>
+
+        @if (cases.Count == 0)
+        {
+            <p class="empty-msg">No anatomic pathology cases found.</p>
+        }
+        else
+        {
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Accession #</th>
+                        <th>Type</th>
+                        <th>Specimen Source</th>
+                        <th>Received</th>
+                        <th>Status</th>
+                        <th>Diagnosis (Abbrev.)</th>
+                        <th>Pathologist</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (APCase c in cases)
+                    {
+                        <tr @onclick="() => SelectCase(c.CaseId)" class="@(selectedCaseId == c.CaseId ? "row-selected" : "")">
+                            <td class="mono">@c.AccessionNumber</td>
+                            <td><span class="badge @TypeBadge(c.CaseType)">@CaseTypeLabel(c.CaseType)</span></td>
+                            <td>@(c.SpecimenSource ?? "—")</td>
+                            <td class="date-col">@c.DateReceived?.ToString("MM/dd/yy")</td>
+                            <td><span class="badge @StatusBadge(c.Status)">@c.Status</span></td>
+                            <td class="diag-col">@(c.PrimaryDiagnosis ?? "—")</td>
+                            <td>@(c.PathologistName ?? "—")</td>
+                            <td><button class="btn-sm" @onclick:stopPropagation="true" @onclick="() => SelectCase(c.CaseId)">View</button></td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        }
+
+        @if (selectedCaseId is not null && selectedCase is not null)
+        {
+            <div class="detail-panel">
+                <h4>Case Detail — @selectedCase.AccessionNumber</h4>
+                <div class="detail-grid">
+                    <div class="detail-section">
+                        <h5>Specimen</h5>
+                        <dl>
+                            <dt>Type</dt><dd>@(selectedCase.SpecimenType ?? "—")</dd>
+                            <dt>Source</dt><dd>@(selectedCase.SpecimenSource ?? "—")</dd>
+                            <dt>Description</dt><dd>@(selectedCase.SpecimenDescription ?? "—")</dd>
+                            <dt>Parts</dt><dd>@(selectedCase.SpecimenPartCount?.ToString() ?? "—")</dd>
+                            <dt>Weight (g)</dt><dd>@(selectedCase.SpecimenWeightGrams?.ToString("F1") ?? "—")</dd>
+                            <dt>Collected</dt><dd>@selectedCase.DateCollected?.ToString("MM/dd/yy HH:mm")</dd>
+                            <dt>Received</dt><dd>@selectedCase.DateReceived?.ToString("MM/dd/yy HH:mm")</dd>
+                        </dl>
+                    </div>
+                    <div class="detail-section">
+                        <h5>Clinical</h5>
+                        <dl>
+                            <dt>History</dt><dd>@(selectedCase.ClinicalHistory ?? "—")</dd>
+                            <dt>Clinical Dx</dt><dd>@(selectedCase.ClinicalDiagnosis ?? "—")</dd>
+                            <dt>Provider</dt><dd>@(selectedCase.ReferringProviderName ?? "—")</dd>
+                            <dt>Location</dt><dd>@(selectedCase.CollectionLocation ?? "—")</dd>
+                        </dl>
+                    </div>
+                    @if (!string.IsNullOrEmpty(selectedCase.GrossDescription))
+                    {
+                        <div class="detail-section full-width">
+                            <h5>Gross Description</h5>
+                            <p class="narrative">@selectedCase.GrossDescription</p>
+                            @if (!string.IsNullOrEmpty(selectedCase.FrozenSectionDiagnosis))
+                            {
+                                <p><strong>Frozen Section:</strong> @selectedCase.FrozenSectionDiagnosis</p>
+                            }
+                        </div>
+                    }
+                    @if (!string.IsNullOrEmpty(selectedCase.MicroscopicDescription))
+                    {
+                        <div class="detail-section full-width">
+                            <h5>Microscopic Description</h5>
+                            <p class="narrative">@selectedCase.MicroscopicDescription</p>
+                        </div>
+                    }
+                    @if (!string.IsNullOrEmpty(selectedCase.Diagnosis))
+                    {
+                        <div class="detail-section full-width">
+                            <h5>Diagnosis</h5>
+                            <p class="narrative diagnosis-text">@selectedCase.Diagnosis</p>
+                            @if (selectedCase.DiagnosisCodes?.Count > 0)
+                            {
+                                <p class="icd-codes">ICD-10: @string.Join(", ", selectedCase.DiagnosisCodes)</p>
+                            }
+                            <p class="signed-by">Signed by @selectedCase.PathologistName on @selectedCase.SignOutDateTime?.ToString("MM/dd/yyyy HH:mm")</p>
+                        </div>
+                    }
+                    @if (!string.IsNullOrEmpty(selectedCase.Addendum))
+                    {
+                        <div class="detail-section full-width addendum-box">
+                            <h5>Addendum — @selectedCase.AddendumDate?.ToString("MM/dd/yyyy")</h5>
+                            <p class="narrative">@selectedCase.Addendum</p>
+                            <p class="signed-by">@selectedCase.AddendumPathologistName</p>
+                        </div>
+                    }
+                </div>
+
+                @* Actions for selected case *@
+                <div class="action-bar">
+                    @if (selectedCase.Status is "Received" or "InProgress")
+                    {
+                        <button @onclick="() => OpenGrossPanel()" class="btn-action">Record Gross</button>
+                        <button @onclick="() => OpenMicroPanel()" class="btn-action">Record Microscopic</button>
+                        <button @onclick="() => OpenPrelimPanel()" class="btn-action">Preliminary Dx</button>
+                    }
+                    @if (selectedCase.Status is "Received" or "InProgress" or "Preliminary")
+                    {
+                        <button @onclick="() => OpenSignOutPanel()" class="btn-action btn-signout">Sign Out</button>
+                    }
+                    @if (selectedCase.Status is "Final" or "Addendum")
+                    {
+                        <button @onclick="() => OpenAddendumPanel()" class="btn-action">Add Addendum</button>
+                        <button @onclick="() => OpenAmendPanel()" class="btn-action btn-warn">Amend</button>
+                    }
+                </div>
+
+                @* Inline action forms *@
+                @if (showGrossPanel)
+                {
+                    <div class="action-panel">
+                        <h4>Record Gross Description</h4>
+                        <div class="form-row"><label>Pathologist</label><input @bind="pathologistName" /></div>
+                        <div class="form-row"><label>Parts #</label><input type="number" @bind="partCount" /></div>
+                        <div class="form-row"><label>Weight (g)</label><input type="number" step="0.1" @bind="weightGrams" /></div>
+                        <div class="form-row"><label>Frozen Dx</label><input @bind="frozenDx" /></div>
+                        <div class="form-row"><label>Gross Description</label><textarea @bind="grossDesc" rows="5"></textarea></div>
+                        <div class="panel-actions">
+                            <button @onclick="SubmitGross" disabled="@loading" class="btn-primary">Save</button>
+                            <button @onclick="CloseAllPanels">Cancel</button>
+                        </div>
+                    </div>
+                }
+
+                @if (showMicroPanel)
+                {
+                    <div class="action-panel">
+                        <h4>Record Microscopic Description</h4>
+                        <div class="form-row"><label>Microscopic Description</label><textarea @bind="microDesc" rows="6"></textarea></div>
+                        <div class="panel-actions">
+                            <button @onclick="SubmitMicro" disabled="@loading" class="btn-primary">Save</button>
+                            <button @onclick="CloseAllPanels">Cancel</button>
+                        </div>
+                    </div>
+                }
+
+                @if (showPrelimPanel)
+                {
+                    <div class="action-panel">
+                        <h4>Issue Preliminary Diagnosis</h4>
+                        <div class="form-row"><label>Pathologist</label><input @bind="pathologistName" /></div>
+                        <div class="form-row"><label>Preliminary Diagnosis</label><textarea @bind="diagnosis" rows="4"></textarea></div>
+                        <div class="panel-actions">
+                            <button @onclick="SubmitPreliminary" disabled="@loading" class="btn-primary">Issue</button>
+                            <button @onclick="CloseAllPanels">Cancel</button>
+                        </div>
+                    </div>
+                }
+
+                @if (showSignOutPanel)
+                {
+                    <div class="action-panel">
+                        <h4>Sign Out Final Diagnosis</h4>
+                        <div class="form-row"><label>Pathologist</label><input @bind="pathologistName" /></div>
+                        <div class="form-row"><label>Sign-Out Date/Time</label><input type="datetime-local" @bind="signOutDateTime" /></div>
+                        <div class="form-row"><label>Final Diagnosis</label><textarea @bind="diagnosis" rows="5"></textarea></div>
+                        <div class="form-row"><label>ICD-10 Codes (comma-sep.)</label><input @bind="diagnosisCodesRaw" placeholder="C34.11, Z85.118" /></div>
+                        <div class="panel-actions">
+                            <button @onclick="SubmitSignOut" disabled="@loading" class="btn-primary btn-signout">Sign Out</button>
+                            <button @onclick="CloseAllPanels">Cancel</button>
+                        </div>
+                    </div>
+                }
+
+                @if (showAddendumPanel)
+                {
+                    <div class="action-panel">
+                        <h4>Append Addendum</h4>
+                        <div class="form-row"><label>Pathologist</label><input @bind="pathologistName" /></div>
+                        <div class="form-row"><label>Addendum Text</label><textarea @bind="addendumText" rows="4"></textarea></div>
+                        <div class="panel-actions">
+                            <button @onclick="SubmitAddendum" disabled="@loading" class="btn-primary">Append</button>
+                            <button @onclick="CloseAllPanels">Cancel</button>
+                        </div>
+                    </div>
+                }
+
+                @if (showAmendPanel)
+                {
+                    <div class="action-panel">
+                        <h4>Amend Diagnosis</h4>
+                        <div class="form-row"><label>Pathologist</label><input @bind="pathologistName" /></div>
+                        <div class="form-row"><label>Amendment Reason</label><input @bind="amendmentReason" /></div>
+                        <div class="form-row"><label>Corrected Diagnosis</label><textarea @bind="diagnosis" rows="5"></textarea></div>
+                        <div class="form-row"><label>ICD-10 Codes (comma-sep.)</label><input @bind="diagnosisCodesRaw" /></div>
+                        <div class="panel-actions">
+                            <button @onclick="SubmitAmend" disabled="@loading" class="btn-primary btn-warn">Amend</button>
+                            <button @onclick="CloseAllPanels">Cancel</button>
+                        </div>
+                    </div>
+                }
+            </div>
+        }
+    }
+}
+
+@* ══════════════════════════════════════════════════════════════════════════ *@
+@* Tab: Surgical Pathology                                                   *@
+@* ══════════════════════════════════════════════════════════════════════════ *@
+@if (activeTab == "sp")
+{
+    @if (loading) { <p class="loading-msg">Loading…</p> }
+
+    @if (spCases is not null)
+    {
+        @if (spCases.Count == 0)
+        {
+            <p class="empty-msg">No surgical pathology cases found.</p>
+        }
+        else
+        {
+            <table class="data-table">
+                <thead>
+                    <tr><th>Accession #</th><th>Specimen Source</th><th>Received</th><th>Status</th><th>Diagnosis</th><th>Reported</th></tr>
+                </thead>
+                <tbody>
+                    @foreach (APCase c in spCases)
+                    {
+                        <tr>
+                            <td class="mono">@c.AccessionNumber</td>
+                            <td>@(c.SpecimenSource ?? "—")</td>
+                            <td class="date-col">@c.DateReceived?.ToString("MM/dd/yy")</td>
+                            <td><span class="badge @StatusBadge(c.Status)">@c.Status</span></td>
+                            <td class="diag-col">@(c.PrimaryDiagnosis ?? "Pending")</td>
+                            <td class="date-col">@c.DateReported?.ToString("MM/dd/yy")</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        }
+    }
+    else
+    {
+        <button @onclick="LoadSP" disabled="@loading">Load Surgical Pathology Cases</button>
+    }
+}
+
+@* ══════════════════════════════════════════════════════════════════════════ *@
+@* Tab: Cytology                                                             *@
+@* ══════════════════════════════════════════════════════════════════════════ *@
+@if (activeTab == "cy")
+{
+    @if (loading) { <p class="loading-msg">Loading…</p> }
+
+    @if (cyCases is not null)
+    {
+        @if (cyCases.Count == 0)
+        {
+            <p class="empty-msg">No cytology cases found.</p>
+        }
+        else
+        {
+            <table class="data-table">
+                <thead>
+                    <tr><th>Accession #</th><th>Specimen Source</th><th>Received</th><th>Status</th><th>Bethesda Category</th><th>Adequacy</th><th>Reported</th></tr>
+                </thead>
+                <tbody>
+                    @foreach (APCase c in cyCases)
+                    {
+                        <tr>
+                            <td class="mono">@c.AccessionNumber</td>
+                            <td>@(c.SpecimenSource ?? "—")</td>
+                            <td class="date-col">@c.DateReceived?.ToString("MM/dd/yy")</td>
+                            <td><span class="badge @StatusBadge(c.Status)">@c.Status</span></td>
+                            <td>@(c.PrimaryDiagnosis ?? "Pending")</td>
+                            <td>—</td>
+                            <td class="date-col">@c.DateReported?.ToString("MM/dd/yy")</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        }
+    }
+    else
+    {
+        <button @onclick="LoadCY" disabled="@loading">Load Cytology Cases</button>
+    }
+}
+
+@* ══════════════════════════════════════════════════════════════════════════ *@
+@* Tab: Autopsy                                                              *@
+@* ══════════════════════════════════════════════════════════════════════════ *@
+@if (activeTab == "au")
+{
+    @if (loading) { <p class="loading-msg">Loading…</p> }
+
+    @if (auCases is not null)
+    {
+        @if (auCases.Count == 0)
+        {
+            <p class="empty-msg">No autopsy cases found.</p>
+        }
+        else
+        {
+            <table class="data-table">
+                <thead>
+                    <tr><th>Accession #</th><th>Received</th><th>Status</th><th>Cause of Death</th><th>Manner</th><th>Reported</th></tr>
+                </thead>
+                <tbody>
+                    @foreach (APCase c in auCases)
+                    {
+                        <tr>
+                            <td class="mono">@c.AccessionNumber</td>
+                            <td class="date-col">@c.DateReceived?.ToString("MM/dd/yy")</td>
+                            <td><span class="badge @StatusBadge(c.Status)">@c.Status</span></td>
+                            <td class="diag-col">@(c.PrimaryDiagnosis ?? "Pending")</td>
+                            <td>—</td>
+                            <td class="date-col">@c.DateReported?.ToString("MM/dd/yy")</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        }
+    }
+    else
+    {
+        <button @onclick="LoadAU" disabled="@loading">Load Autopsy Cases</button>
+    }
+}
+
+@* ══════════════════════════════════════════════════════════════════════════ *@
+@* Tab: Accession New Case                                                   *@
+@* ══════════════════════════════════════════════════════════════════════════ *@
+@if (activeTab == "accession")
+{
+    <div class="accession-form">
+        <h4>Accession New AP Case</h4>
+        <div class="form-row">
+            <label>Case Type</label>
+            <select @bind="newCaseType">
+                <option value="SurgicalPathology">Surgical Pathology (SP)</option>
+                <option value="Cytology">Cytology (CY)</option>
+                <option value="Autopsy">Autopsy (AU)</option>
+            </select>
+        </div>
+        <div class="form-row">
+            <label>Accession Number</label>
+            <input @bind="newAccession" placeholder="e.g. SP-2024-00123" />
+        </div>
+        <div class="form-row">
+            <label>Specimen Source / Body Site</label>
+            <input @bind="newSpecimenSource" placeholder="e.g. Right lung, lower lobe" />
+        </div>
+        <div class="form-row">
+            <label>Specimen Type</label>
+            <input @bind="newSpecimenType" placeholder="e.g. Biopsy, Excision, Aspirate" />
+        </div>
+        <div class="form-row">
+            <label>Specimen Description</label>
+            <textarea @bind="newSpecimenDesc" rows="2" placeholder="Submitted specimen description…"></textarea>
+        </div>
+        <div class="form-row">
+            <label>Clinical History</label>
+            <textarea @bind="newClinicalHistory" rows="3" placeholder="Relevant clinical information…"></textarea>
+        </div>
+        <div class="form-row">
+            <label>Clinical Diagnosis</label>
+            <input @bind="newClinicalDiagnosis" placeholder="Pre-operative / clinical diagnosis" />
+        </div>
+        <div class="form-row">
+            <label>Referring Provider</label>
+            <input @bind="newProviderName" placeholder="Provider name" />
+        </div>
+        <div class="form-row">
+            <label>Collection Location</label>
+            <input @bind="newCollectionLocation" />
+        </div>
+        <div class="form-row">
+            <label>Date Collected</label>
+            <input type="datetime-local" @bind="newDateCollected" />
+        </div>
+        <div class="form-row">
+            <label>Date Received</label>
+            <input type="datetime-local" @bind="newDateReceived" />
+        </div>
+        <div class="form-actions">
+            <button @onclick="SubmitAccession" disabled="@loading" class="btn-primary">Accession Case</button>
+        </div>
+    </div>
+}
+
+<style>
+    .subtitle { color: #666; font-size: 0.85rem; margin-bottom: 1rem; }
+    .tabs { display: flex; border-bottom: 2px solid #d4d9e0; margin-bottom: 1rem; gap: 0; }
+    .tabs button { padding: 0.4rem 1.1rem; border: 1px solid #ccc; border-bottom: none; background: #f4f6f9; cursor: pointer; font-size: 0.85rem; }
+    .tabs button.active { background: white; border-top: 2px solid #2c5282; color: #2c5282; font-weight: 600; }
+    .toolbar { display: flex; gap: 0.5rem; margin-bottom: 1rem; flex-wrap: wrap; align-items: center; }
+    .input-id { width: 260px; padding: 0.35rem 0.6rem; border: 1px solid #ccc; border-radius: 3px; font-size: 0.85rem; }
+    button { padding: 0.35rem 0.9rem; border: 1px solid #2c5282; background: #2c5282; color: white; border-radius: 3px; cursor: pointer; font-size: 0.83rem; }
+    button:hover { background: #1a3a5c; }
+    button:disabled { background: #999; border-color: #999; cursor: not-allowed; }
+    .btn-sm { padding: 0.2rem 0.6rem; font-size: 0.78rem; }
+    .btn-primary { background: #276749; border-color: #276749; }
+    .btn-primary:hover { background: #1a4532; }
+    .btn-signout { background: #2c5282; border-color: #2c5282; }
+    .btn-warn { background: #c05621; border-color: #c05621; }
+    .btn-action { margin-right: 0.4rem; font-size: 0.82rem; }
+    .error { background: #fff5f5; border: 1px solid #fc8181; color: #c53030; padding: 0.6rem 0.9rem; border-radius: 4px; margin-bottom: 0.75rem; }
+    .success { background: #f0fff4; border: 1px solid #68d391; color: #276749; padding: 0.6rem 0.9rem; border-radius: 4px; margin-bottom: 0.75rem; }
+    .loading-msg, .empty-msg { color: #718096; font-style: italic; padding: 0.5rem 0; }
+    .summary-cards { display: flex; gap: 0.75rem; margin-bottom: 1rem; flex-wrap: wrap; }
+    .card { background: white; border: 1px solid #d4d9e0; border-radius: 6px; padding: 0.75rem 1.25rem; min-width: 100px; text-align: center; }
+    .card-num { display: block; font-size: 1.6rem; font-weight: 700; color: #2c5282; }
+    .card-label { display: block; font-size: 0.72rem; color: #718096; text-transform: uppercase; letter-spacing: 0.04em; }
+    .card-sp .card-num { color: #276749; }
+    .card-cy .card-num { color: #744210; }
+    .card-au .card-num { color: #742a2a; }
+    .data-table { width: 100%; border-collapse: collapse; font-size: 0.83rem; }
+    .data-table th { background: #eef2f7; text-align: left; padding: 0.45rem 0.6rem; border-bottom: 2px solid #d4d9e0; font-weight: 600; color: #4a5568; font-size: 0.78rem; text-transform: uppercase; }
+    .data-table td { padding: 0.4rem 0.6rem; border-bottom: 1px solid #edf2f7; vertical-align: top; }
+    .data-table tr:hover { background: #f7f9fc; cursor: pointer; }
+    .row-selected { background: #ebf4ff !important; }
+    .mono { font-family: monospace; font-size: 0.82rem; }
+    .date-col { white-space: nowrap; color: #4a5568; font-size: 0.8rem; }
+    .diag-col { max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .badge { display: inline-block; padding: 0.15rem 0.45rem; border-radius: 3px; font-size: 0.72rem; font-weight: 700; }
+    .badge-sp { background: #c6f6d5; color: #22543d; }
+    .badge-cy { background: #feebc8; color: #744210; }
+    .badge-au { background: #fed7d7; color: #742a2a; }
+    .badge-received { background: #e2e8f0; color: #4a5568; }
+    .badge-inprogress { background: #bee3f8; color: #2b6cb0; }
+    .badge-preliminary { background: #feebc8; color: #744210; }
+    .badge-final { background: #c6f6d5; color: #22543d; }
+    .badge-addendum { background: #bee3f8; color: #2b6cb0; }
+    .badge-amended { background: #fbd38d; color: #744210; }
+    .badge-cancelled { background: #fed7d7; color: #742a2a; }
+    .detail-panel { margin-top: 1.5rem; border: 1px solid #d4d9e0; border-radius: 6px; padding: 1rem; background: white; }
+    .detail-panel h4 { margin: 0 0 0.75rem; color: #2c5282; font-size: 1rem; }
+    .detail-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1rem; }
+    .detail-section { padding: 0.5rem; }
+    .detail-section.full-width { grid-column: 1 / -1; }
+    .detail-section h5 { margin: 0 0 0.5rem; color: #4a5568; font-size: 0.82rem; text-transform: uppercase; letter-spacing: 0.05em; border-bottom: 1px solid #e2e8f0; padding-bottom: 0.25rem; }
+    dl { display: grid; grid-template-columns: 110px 1fr; gap: 0.15rem 0.5rem; font-size: 0.82rem; }
+    dt { color: #718096; font-weight: 600; }
+    dd { margin: 0; color: #2d3748; }
+    .narrative { background: #f7f9fc; border-left: 3px solid #d4d9e0; padding: 0.5rem 0.75rem; font-size: 0.83rem; line-height: 1.5; white-space: pre-wrap; margin: 0.25rem 0; }
+    .diagnosis-text { border-left-color: #2c5282; background: #ebf4ff; font-weight: 500; }
+    .icd-codes { font-size: 0.78rem; color: #4a5568; margin: 0.25rem 0; }
+    .signed-by { font-size: 0.78rem; color: #718096; font-style: italic; margin: 0.25rem 0; }
+    .addendum-box { border-left: 3px solid #2b6cb0; background: #ebf8ff; }
+    .action-bar { display: flex; gap: 0.5rem; flex-wrap: wrap; padding-top: 0.75rem; border-top: 1px solid #e2e8f0; margin-top: 0.5rem; }
+    .action-panel { background: #f7f9fc; border: 1px solid #d4d9e0; border-radius: 6px; padding: 1rem; margin-top: 1rem; }
+    .action-panel h4 { margin: 0 0 0.75rem; color: #2c5282; font-size: 0.95rem; }
+    .form-row { display: flex; align-items: flex-start; gap: 0.75rem; margin-bottom: 0.6rem; }
+    .form-row label { width: 140px; min-width: 140px; font-size: 0.82rem; font-weight: 600; color: #4a5568; padding-top: 0.35rem; }
+    .form-row input, .form-row select, .form-row textarea { flex: 1; padding: 0.35rem 0.6rem; border: 1px solid #cbd5e0; border-radius: 3px; font-size: 0.83rem; font-family: inherit; }
+    .form-row textarea { resize: vertical; }
+    .panel-actions, .form-actions { display: flex; gap: 0.5rem; margin-top: 0.75rem; }
+    .accession-form { max-width: 680px; background: white; border: 1px solid #d4d9e0; border-radius: 6px; padding: 1.25rem; }
+    .accession-form h4 { margin: 0 0 1rem; color: #2c5282; }
+</style>
+
+@code {
+    string activeTab = "list";
+    string patientId = string.Empty;
+    bool loading;
+    string? error;
+    string? successMsg;
+
+    List<APCase>? cases;
+    List<APCase>? spCases;
+    List<APCase>? cyCases;
+    List<APCase>? auCases;
+
+    string? selectedCaseId;
+    APCaseDetail? selectedCase;
+
+    // Action form state
+    bool showGrossPanel;
+    bool showMicroPanel;
+    bool showPrelimPanel;
+    bool showSignOutPanel;
+    bool showAddendumPanel;
+    bool showAmendPanel;
+
+    string grossDesc = string.Empty;
+    string microDesc = string.Empty;
+    string diagnosis = string.Empty;
+    string diagnosisCodesRaw = string.Empty;
+    string pathologistName = string.Empty;
+    DateTime signOutDateTime = DateTime.Now;
+    int? partCount;
+    decimal? weightGrams;
+    string frozenDx = string.Empty;
+    string addendumText = string.Empty;
+    string amendmentReason = string.Empty;
+
+    // Accession form
+    string newCaseType = "SurgicalPathology";
+    string newAccession = string.Empty;
+    string newSpecimenSource = string.Empty;
+    string newSpecimenType = string.Empty;
+    string newSpecimenDesc = string.Empty;
+    string newClinicalHistory = string.Empty;
+    string newClinicalDiagnosis = string.Empty;
+    string newProviderName = string.Empty;
+    string newCollectionLocation = string.Empty;
+    DateTime newDateCollected = DateTime.Now;
+    DateTime newDateReceived = DateTime.Now;
+
+    string TabClass(string tab) => activeTab == tab ? "active" : string.Empty;
+
+    void SetTab(string tab)
+    {
+        activeTab = tab;
+        error = null;
+        successMsg = null;
+        CloseAllPanels();
+    }
+
+    void ClearMessages() { error = null; successMsg = null; }
+
+    string CaseTypeLabel(string type) => type switch
+    {
+        "SurgicalPathology" => "SP",
+        "Cytology"          => "CY",
+        "Autopsy"           => "AU",
+        _                   => type
+    };
+
+    string TypeBadge(string type) => type switch
+    {
+        "SurgicalPathology" => "badge-sp",
+        "Cytology"          => "badge-cy",
+        "Autopsy"           => "badge-au",
+        _                   => "badge-received"
+    };
+
+    string StatusBadge(string status) => status?.ToLower() switch
+    {
+        "received"    => "badge-received",
+        "inprogress"  => "badge-inprogress",
+        "preliminary" => "badge-preliminary",
+        "final"       => "badge-final",
+        "addendum"    => "badge-addendum",
+        "amended"     => "badge-amended",
+        "cancelled"   => "badge-cancelled",
+        _             => "badge-received"
+    };
+
+    IPatientWorkflowGrain GetWorkflow() => Grains.GetGrain<IPatientWorkflowGrain>(patientId.Trim());
+
+    APCase MapToAPCase(APCaseIndexEntry e) => new(
+        e.CaseId, e.AccessionNumber, e.CaseType.ToString(), e.Status.ToString(),
+        e.DateReceived, e.DateReported, e.SpecimenSource, e.PrimaryDiagnosis, e.PathologistName);
+
+    APCaseDetail MapToDetail(AnatomicPathologyState s) => new(
+        s.CaseId, s.PatientId, s.AccessionNumber, s.CaseType.ToString(), s.Status.ToString(),
+        s.SpecimenSource, s.SpecimenDescription, s.SpecimenType, s.SpecimenPartCount, s.SpecimenWeightGrams,
+        s.ClinicalHistory, s.ClinicalDiagnosis, s.ReferringProviderName, s.CollectionLocation,
+        s.DateCollected, s.DateReceived, s.DateReported,
+        s.GrossDescription, s.GrossPathologistName, s.GrossExamDateTime,
+        s.MicroscopicDescription, s.Diagnosis, s.DiagnosisCodes, s.PathologistName, s.SignOutDateTime,
+        s.SpecialStains, s.ImmunohistochemistryResults, s.FrozenSectionDiagnosis,
+        s.BethesdaCategory, s.SpecimenAdequacy,
+        s.CauseOfDeath, s.UnderlyingCauseOfDeath, s.MannerOfDeath?.ToString(),
+        s.ToxicologyFindings, s.BodyWeightKg, s.NeuropathologyFindings,
+        s.Addendum, s.AddendumDate, s.AddendumPathologistName, s.AmendmentReason, s.Comments);
+
+    async Task LoadCases()
+    {
+        if (string.IsNullOrWhiteSpace(patientId)) { error = "Patient ID required."; return; }
+        ClearMessages();
+        loading = true;
+        cases = null;
+        selectedCaseId = null;
+        selectedCase = null;
+        spCases = null;
+        cyCases = null;
+        auCases = null;
+        try
+        {
+            var workflow = GetWorkflow();
+            var entries = await workflow.GetAPCasesAsync();
+            cases = entries.Select(MapToAPCase).ToList();
+        }
+        catch (Exception ex) { error = ex.Message; }
+        finally { loading = false; }
+    }
+
+    async Task LoadSP()
+    {
+        if (string.IsNullOrWhiteSpace(patientId)) { error = "Patient ID required."; return; }
+        ClearMessages();
+        loading = true;
+        try
+        {
+            var workflow = GetWorkflow();
+            var entries = await workflow.GetAPCasesByTypeAsync(APCaseType.SurgicalPathology);
+            spCases = entries.Select(MapToAPCase).ToList();
+        }
+        catch (Exception ex) { error = ex.Message; }
+        finally { loading = false; }
+    }
+
+    async Task LoadCY()
+    {
+        if (string.IsNullOrWhiteSpace(patientId)) { error = "Patient ID required."; return; }
+        ClearMessages();
+        loading = true;
+        try
+        {
+            var workflow = GetWorkflow();
+            var entries = await workflow.GetAPCasesByTypeAsync(APCaseType.Cytology);
+            cyCases = entries.Select(MapToAPCase).ToList();
+        }
+        catch (Exception ex) { error = ex.Message; }
+        finally { loading = false; }
+    }
+
+    async Task LoadAU()
+    {
+        if (string.IsNullOrWhiteSpace(patientId)) { error = "Patient ID required."; return; }
+        ClearMessages();
+        loading = true;
+        try
+        {
+            var workflow = GetWorkflow();
+            var entries = await workflow.GetAPCasesByTypeAsync(APCaseType.Autopsy);
+            auCases = entries.Select(MapToAPCase).ToList();
+        }
+        catch (Exception ex) { error = ex.Message; }
+        finally { loading = false; }
+    }
+
+    async Task SelectCase(string caseId)
+    {
+        ClearMessages();
+        CloseAllPanels();
+        selectedCaseId = caseId;
+        selectedCase = null;
+        loading = true;
+        try
+        {
+            var workflow = GetWorkflow();
+            var state = await workflow.GetAPCaseAsync(caseId);
+            selectedCase = MapToDetail(state);
+        }
+        catch (Exception ex) { error = ex.Message; }
+        finally { loading = false; }
+    }
+
+    void CloseAllPanels()
+    {
+        showGrossPanel = showMicroPanel = showPrelimPanel =
+        showSignOutPanel = showAddendumPanel = showAmendPanel = false;
+        grossDesc = microDesc = diagnosis = diagnosisCodesRaw =
+        pathologistName = frozenDx = addendumText = amendmentReason = string.Empty;
+        partCount = null;
+        weightGrams = null;
+        signOutDateTime = DateTime.Now;
+    }
+
+    void OpenGrossPanel()    { CloseAllPanels(); showGrossPanel = true; }
+    void OpenMicroPanel()    { CloseAllPanels(); showMicroPanel = true; }
+    void OpenPrelimPanel()   { CloseAllPanels(); showPrelimPanel = true; }
+    void OpenSignOutPanel()  { CloseAllPanels(); showSignOutPanel = true; signOutDateTime = DateTime.Now; }
+    void OpenAddendumPanel() { CloseAllPanels(); showAddendumPanel = true; }
+    void OpenAmendPanel()    { CloseAllPanels(); showAmendPanel = true; }
+
+    async Task SubmitGross()
+    {
+        if (selectedCaseId is null) return;
+        loading = true;
+        try
+        {
+            var workflow = GetWorkflow();
+            await workflow.RecordAPGrossDescriptionAsync(
+                selectedCaseId,
+                grossDesc,
+                string.Empty,
+                pathologistName,
+                partCount,
+                weightGrams,
+                string.IsNullOrWhiteSpace(frozenDx) ? null : frozenDx);
+            successMsg = "Gross description recorded.";
+            CloseAllPanels();
+            await LoadCases();
+            await SelectCase(selectedCaseId);
+        }
+        catch (Exception ex) { error = ex.Message; }
+        finally { loading = false; }
+    }
+
+    async Task SubmitMicro()
+    {
+        if (selectedCaseId is null) return;
+        loading = true;
+        try
+        {
+            var workflow = GetWorkflow();
+            await workflow.RecordAPMicroscopicDescriptionAsync(selectedCaseId, microDesc);
+            successMsg = "Microscopic description recorded.";
+            CloseAllPanels();
+            await SelectCase(selectedCaseId);
+        }
+        catch (Exception ex) { error = ex.Message; }
+        finally { loading = false; }
+    }
+
+    async Task SubmitPreliminary()
+    {
+        if (selectedCaseId is null) return;
+        loading = true;
+        try
+        {
+            var workflow = GetWorkflow();
+            await workflow.IssueAPPreliminaryDiagnosisAsync(
+                selectedCaseId, diagnosis, string.Empty, pathologistName);
+            successMsg = "Preliminary diagnosis issued.";
+            CloseAllPanels();
+            await LoadCases();
+            await SelectCase(selectedCaseId);
+        }
+        catch (Exception ex) { error = ex.Message; }
+        finally { loading = false; }
+    }
+
+    async Task SubmitSignOut()
+    {
+        if (selectedCaseId is null) return;
+        loading = true;
+        try
+        {
+            List<string> codes = diagnosisCodesRaw
+                .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                .ToList();
+            var workflow = GetWorkflow();
+            await workflow.SignOutAPDiagnosisAsync(
+                selectedCaseId, diagnosis, codes, string.Empty, pathologistName,
+                signOutDateTime.ToUniversalTime());
+            successMsg = "Case signed out successfully.";
+            CloseAllPanels();
+            await LoadCases();
+            await SelectCase(selectedCaseId);
+        }
+        catch (Exception ex) { error = ex.Message; }
+        finally { loading = false; }
+    }
+
+    async Task SubmitAddendum()
+    {
+        if (selectedCaseId is null) return;
+        loading = true;
+        try
+        {
+            var workflow = GetWorkflow();
+            await workflow.AddAPAddendumAsync(
+                selectedCaseId, addendumText, string.Empty, pathologistName);
+            successMsg = "Addendum appended.";
+            CloseAllPanels();
+            await LoadCases();
+            await SelectCase(selectedCaseId);
+        }
+        catch (Exception ex) { error = ex.Message; }
+        finally { loading = false; }
+    }
+
+    async Task SubmitAmend()
+    {
+        if (selectedCaseId is null) return;
+        loading = true;
+        try
+        {
+            List<string> codes = diagnosisCodesRaw
+                .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                .ToList();
+            var workflow = GetWorkflow();
+            await workflow.AmendAPDiagnosisAsync(
+                selectedCaseId, diagnosis, codes, amendmentReason, string.Empty, pathologistName);
+            successMsg = "Diagnosis amended.";
+            CloseAllPanels();
+            await LoadCases();
+            await SelectCase(selectedCaseId);
+        }
+        catch (Exception ex) { error = ex.Message; }
+        finally { loading = false; }
+    }
+
+    async Task SubmitAccession()
+    {
+        if (string.IsNullOrWhiteSpace(patientId)) { error = "Patient ID required."; return; }
+        if (string.IsNullOrWhiteSpace(newAccession)) { error = "Accession number required."; return; }
+        ClearMessages();
+        loading = true;
+        try
+        {
+            APCaseType caseType = Enum.Parse<APCaseType>(newCaseType);
+            var workflow = GetWorkflow();
+            await workflow.AccessionAPCaseAsync(
+                caseType,
+                newAccession,
+                string.IsNullOrWhiteSpace(newSpecimenSource) ? null : newSpecimenSource,
+                string.IsNullOrWhiteSpace(newSpecimenDesc) ? null : newSpecimenDesc,
+                string.IsNullOrWhiteSpace(newSpecimenType) ? null : newSpecimenType,
+                string.IsNullOrWhiteSpace(newClinicalHistory) ? null : newClinicalHistory,
+                string.IsNullOrWhiteSpace(newClinicalDiagnosis) ? null : newClinicalDiagnosis,
+                null,
+                string.IsNullOrWhiteSpace(newProviderName) ? null : newProviderName,
+                string.IsNullOrWhiteSpace(newCollectionLocation) ? null : newCollectionLocation,
+                newDateCollected.ToUniversalTime(),
+                newDateReceived.ToUniversalTime());
+            successMsg = "Case accessioned successfully.";
+            newAccession = newSpecimenSource = newSpecimenType = newSpecimenDesc =
+            newClinicalHistory = newClinicalDiagnosis = newProviderName = newCollectionLocation = string.Empty;
+            SetTab("list");
+            await LoadCases();
+        }
+        catch (Exception ex) { error = ex.Message; }
+        finally { loading = false; }
+    }
+
+    // ─── Response DTOs ────────────────────────────────────────────────────────
+
+    record APCase(
+        string CaseId,
+        string AccessionNumber,
+        string CaseType,
+        string Status,
+        DateTime? DateReceived,
+        DateTime? DateReported,
+        string? SpecimenSource,
+        string? PrimaryDiagnosis,
+        string? PathologistName);
+
+    record APCaseDetail(
+        string CaseId,
+        string PatientId,
+        string AccessionNumber,
+        string CaseType,
+        string Status,
+        string? SpecimenSource,
+        string? SpecimenDescription,
+        string? SpecimenType,
+        int? SpecimenPartCount,
+        decimal? SpecimenWeightGrams,
+        string? ClinicalHistory,
+        string? ClinicalDiagnosis,
+        string? ReferringProviderName,
+        string? CollectionLocation,
+        DateTime? DateCollected,
+        DateTime? DateReceived,
+        DateTime? DateReported,
+        string? GrossDescription,
+        string? GrossPathologistName,
+        DateTime? GrossExamDateTime,
+        string? MicroscopicDescription,
+        string? Diagnosis,
+        List<string> DiagnosisCodes,
+        string? PathologistName,
+        DateTime? SignOutDateTime,
+        List<string> SpecialStains,
+        List<string> ImmunohistochemistryResults,
+        string? FrozenSectionDiagnosis,
+        string? BethesdaCategory,
+        string? SpecimenAdequacy,
+        string? CauseOfDeath,
+        string? UnderlyingCauseOfDeath,
+        string? MannerOfDeath,
+        string? ToxicologyFindings,
+        decimal? BodyWeightKg,
+        string? NeuropathologyFindings,
+        string? Addendum,
+        DateTime? AddendumDate,
+        string? AddendumPathologistName,
+        string? AmendmentReason,
+        string? Comments);
+}

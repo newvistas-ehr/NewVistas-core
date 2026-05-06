@@ -1,0 +1,291 @@
+@page "/my-submissions"
+@rendermode InteractiveServer
+@inject HttpClient Http
+
+<PageTitle>My Health Submissions</PageTitle>
+<h1>Health Information Submissions</h1>
+
+@if (error != null) { <div class="alert alert-error">@error</div> }
+@if (successMessage != null) { <div class="alert alert-success">@successMessage</div> }
+
+<div class="section-header">
+    <h3>My Submissions</h3>
+    <button @onclick="ShowNewForm" class="btn btn-primary">+ New Submission</button>
+</div>
+
+@if (showForm)
+{
+    <div class="portal-form">
+        <h4>Submit Health Information</h4>
+        <p class="form-note">Fill in any sections that have changed. Empty sections will be skipped.</p>
+
+        <div class="form-section">
+            <div class="form-section-header" @onclick="() => showDemo = !showDemo">
+                <h5>Demographics</h5><span class="toggle">@(showDemo ? "−" : "+")</span>
+            </div>
+            @if (showDemo)
+            {
+                <div class="form-grid section-body">
+                    <div class="form-row"><label>Street</label><input type="text" @bind="demo.Street" /></div>
+                    <div class="form-row"><label>City</label><input type="text" @bind="demo.City" /></div>
+                    <div class="form-row"><label>State</label><input type="text" @bind="demo.State" /></div>
+                    <div class="form-row"><label>ZIP</label><input type="text" @bind="demo.ZipCode" /></div>
+                    <div class="form-row"><label>Home Phone</label><input type="tel" @bind="demo.HomePhone" /></div>
+                    <div class="form-row"><label>Cell Phone</label><input type="tel" @bind="demo.CellPhone" /></div>
+                    <div class="form-row"><label>Email</label><input type="email" @bind="demo.Email" /></div>
+                    <div class="form-row"><label>Language</label><input type="text" @bind="demo.PreferredLanguage" /></div>
+                    <div class="form-row"><label>Emergency Contact</label><input type="text" @bind="demo.EmergencyContactName" /></div>
+                    <div class="form-row"><label>Emergency Phone</label><input type="tel" @bind="demo.EmergencyContactPhone" /></div>
+                </div>
+            }
+        </div>
+
+        <div class="form-section">
+            <div class="form-section-header" @onclick="() => showConcerns = !showConcerns">
+                <h5>Health Concerns (@concerns.Count)</h5><span class="toggle">@(showConcerns ? "−" : "+")</span>
+            </div>
+            @if (showConcerns)
+            {
+                <div class="section-body">
+                    @foreach (var hc in concerns)
+                    {
+                        <div class="form-grid inline-item">
+                            <div class="form-row"><label>Description</label><input type="text" @bind="hc.Description" /></div>
+                            <div class="form-row"><label>Severity</label><select @bind="hc.Severity"><option>Mild</option><option>Moderate</option><option>Severe</option></select></div>
+                            <div class="form-row"><button @onclick="() => concerns.Remove(hc)" class="btn btn-sm btn-danger">Remove</button></div>
+                        </div>
+                    }
+                    <button @onclick="() => concerns.Add(new())" class="btn btn-sm btn-outline">+ Add Concern</button>
+                </div>
+            }
+        </div>
+
+        <div class="form-section">
+            <div class="form-section-header" @onclick="() => showMeds = !showMeds">
+                <h5>Medications (@meds.Count)</h5><span class="toggle">@(showMeds ? "−" : "+")</span>
+            </div>
+            @if (showMeds)
+            {
+                <div class="section-body">
+                    @foreach (var m in meds)
+                    {
+                        <div class="form-grid inline-item">
+                            <div class="form-row"><label>Name</label><input type="text" @bind="m.MedicationName" /></div>
+                            <div class="form-row"><label>Dosage</label><input type="text" @bind="m.Dosage" /></div>
+                            <div class="form-row"><label>Frequency</label><input type="text" @bind="m.Frequency" /></div>
+                            <div class="form-row"><button @onclick="() => meds.Remove(m)" class="btn btn-sm btn-danger">Remove</button></div>
+                        </div>
+                    }
+                    <button @onclick="() => meds.Add(new())" class="btn btn-sm btn-outline">+ Add Medication</button>
+                </div>
+            }
+        </div>
+
+        <div class="form-section">
+            <div class="form-section-header" @onclick="() => showAllergies = !showAllergies">
+                <h5>Allergies (@allergies.Count)</h5><span class="toggle">@(showAllergies ? "−" : "+")</span>
+            </div>
+            @if (showAllergies)
+            {
+                <div class="section-body">
+                    @foreach (var a in allergies)
+                    {
+                        <div class="form-grid inline-item">
+                            <div class="form-row"><label>Allergen</label><input type="text" @bind="a.Allergen" /></div>
+                            <div class="form-row"><label>Reaction</label><input type="text" @bind="a.Reaction" /></div>
+                            <div class="form-row"><label>Severity</label><select @bind="a.Severity"><option>Mild</option><option>Moderate</option><option>Severe</option><option>Life-Threatening</option></select></div>
+                            <div class="form-row"><button @onclick="() => allergies.Remove(a)" class="btn btn-sm btn-danger">Remove</button></div>
+                        </div>
+                    }
+                    <button @onclick="() => allergies.Add(new())" class="btn btn-sm btn-outline">+ Add Allergy</button>
+                </div>
+            }
+        </div>
+
+        <div class="form-section">
+            <div class="form-grid section-body">
+                <div class="form-row full"><label>Health Goals (one per line)</label><textarea @bind="goalsText" rows="3" placeholder="Lose 10 pounds&#10;Walk 30 min daily"></textarea></div>
+                <div class="form-row full"><label>Additional Notes</label><textarea @bind="notes" rows="3" placeholder="Anything else for your care team..."></textarea></div>
+            </div>
+        </div>
+
+        <div class="form-actions">
+            <button @onclick="Submit" disabled="@saving" class="btn btn-primary">@(saving ? "Submitting..." : "Submit")</button>
+            <button @onclick="() => showForm = false" class="btn btn-outline">Cancel</button>
+        </div>
+    </div>
+}
+
+@if (selectedSubmission != null)
+{
+    <div class="detail-card">
+        <div class="detail-header">
+            <span class="badge badge-status status-@selectedSubmission.Status">@selectedSubmission.Status</span>
+            <strong>Submitted: @selectedSubmission.SubmittedDate.ToString("MM/dd/yyyy HH:mm")</strong>
+            <button @onclick="() => selectedSubmission = null" class="btn btn-sm btn-outline">Close</button>
+        </div>
+        @if (!string.IsNullOrEmpty(selectedSubmission.ReviewNotes))
+        {
+            <div class="review-box">
+                <h5>Clinician Review</h5>
+                <div><strong>Reviewed By:</strong> @(selectedSubmission.ReviewedBy ?? "—")</div>
+                @if (selectedSubmission.AcceptedSections?.Count > 0) { <div><strong>Accepted:</strong> @string.Join(", ", selectedSubmission.AcceptedSections)</div> }
+                @if (selectedSubmission.RejectedSections?.Count > 0) { <div><strong>Rejected:</strong> @string.Join(", ", selectedSubmission.RejectedSections)</div> }
+                <pre>@selectedSubmission.ReviewNotes</pre>
+            </div>
+        }
+        @if (!string.IsNullOrEmpty(selectedSubmission.PatientNotes))
+        {
+            <div><strong>Your Notes:</strong><pre>@selectedSubmission.PatientNotes</pre></div>
+        }
+    </div>
+}
+
+@if (loading) { <p>Loading submissions...</p> }
+else if (submissions.Count == 0 && !showForm) { <p class="empty-state">No submissions yet. Click "+ New Submission" to get started.</p> }
+else
+{
+    <table class="health-table">
+        <thead><tr><th>Date</th><th>Sections</th><th>Status</th><th></th></tr></thead>
+        <tbody>
+            @foreach (SubmissionSummaryDto s in submissions)
+            {
+                <tr class="@(selectedSubmission?.SubmissionId == s.SubmissionId ? "selected" : "")">
+                    <td>@s.SubmittedDate.ToString("MM/dd/yyyy HH:mm")</td>
+                    <td>@s.SectionCount sections</td>
+                    <td><span class="badge badge-status status-@s.Status">@s.Status</span></td>
+                    <td><button @onclick="() => ViewSubmission(s.SubmissionId)" class="btn btn-sm btn-outline">View</button></td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+
+@code {
+    bool loading = true;
+    bool saving;
+    bool showForm;
+    string? error;
+    string? successMessage;
+
+    List<SubmissionSummaryDto> submissions = new();
+    SubmissionDetailDto? selectedSubmission;
+
+    // Form
+    bool showDemo, showConcerns, showMeds, showAllergies;
+    DemoForm demo = new();
+    List<ConcernForm> concerns = new();
+    List<MedForm> meds = new();
+    List<AllergyFormItem> allergies = new();
+    string? goalsText;
+    string? notes;
+
+    protected override async Task OnInitializedAsync() => await LoadData();
+
+    async Task LoadData()
+    {
+        loading = true;
+        try { submissions = await Http.GetFromJsonAsync<List<SubmissionSummaryDto>>("api/my/submissions") ?? new(); }
+        catch (Exception ex) { error = $"Error: {ex.Message}"; }
+        finally { loading = false; }
+    }
+
+    void ShowNewForm()
+    {
+        error = null; successMessage = null;
+        demo = new(); concerns = new(); meds = new(); allergies = new();
+        goalsText = null; notes = null;
+        showDemo = true; showConcerns = false; showMeds = false; showAllergies = false;
+        showForm = true;
+    }
+
+    async Task Submit()
+    {
+        error = null; successMessage = null; saving = true;
+        try
+        {
+            var payload = new
+            {
+                demographics = HasDemo() ? demo : null,
+                healthConcerns = concerns.Where(c => !string.IsNullOrWhiteSpace(c.Description)).ToList(),
+                medications = meds.Where(m => !string.IsNullOrWhiteSpace(m.MedicationName)).ToList(),
+                allergies = allergies.Where(a => !string.IsNullOrWhiteSpace(a.Allergen)).ToList(),
+                healthGoals = string.IsNullOrWhiteSpace(goalsText) ? new List<string>()
+                    : goalsText.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).ToList(),
+                patientNotes = notes
+            };
+            HttpResponseMessage response = await Http.PostAsJsonAsync("api/my/submissions", payload);
+            if (response.IsSuccessStatusCode)
+            {
+                successMessage = "Submitted successfully! Your care team will review it.";
+                showForm = false;
+                await LoadData();
+            }
+            else error = $"Submission failed: {response.StatusCode}";
+        }
+        catch (Exception ex) { error = $"Error: {ex.Message}"; }
+        finally { saving = false; }
+    }
+
+    bool HasDemo() => !string.IsNullOrWhiteSpace(demo.Street) || !string.IsNullOrWhiteSpace(demo.Email) || !string.IsNullOrWhiteSpace(demo.HomePhone);
+
+    async Task ViewSubmission(string id)
+    {
+        error = null;
+        try { selectedSubmission = await Http.GetFromJsonAsync<SubmissionDetailDto>($"api/my/submissions/{Uri.EscapeDataString(id)}"); }
+        catch (Exception ex) { error = $"Error: {ex.Message}"; }
+    }
+
+    // DTOs
+    class SubmissionSummaryDto { public string SubmissionId { get; set; } = ""; public DateTime SubmittedDate { get; set; } public string Status { get; set; } = ""; public int SectionCount { get; set; } }
+    class SubmissionDetailDto { public string SubmissionId { get; set; } = ""; public DateTime SubmittedDate { get; set; } public string Status { get; set; } = ""; public string? PatientNotes { get; set; } public string? ReviewedBy { get; set; } public string? ReviewNotes { get; set; } public List<string>? AcceptedSections { get; set; } public List<string>? RejectedSections { get; set; } }
+    class DemoForm { public string? Street { get; set; } public string? City { get; set; } public string? State { get; set; } public string? ZipCode { get; set; } public string? HomePhone { get; set; } public string? CellPhone { get; set; } public string? Email { get; set; } public string? PreferredLanguage { get; set; } public string? EmergencyContactName { get; set; } public string? EmergencyContactPhone { get; set; } }
+    class ConcernForm { public string? Description { get; set; } public string Severity { get; set; } = "Mild"; }
+    class MedForm { public string? MedicationName { get; set; } public string? Dosage { get; set; } public string? Frequency { get; set; } }
+    class AllergyFormItem { public string? Allergen { get; set; } public string? Reaction { get; set; } public string Severity { get; set; } = "Mild"; }
+}
+
+<style>
+    .section-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: .75rem; }
+    .section-header h3 { margin: 0; }
+    .portal-form { background: #f8faf9; border: 1px solid #d4e8db; border-radius: 6px; padding: 1rem; margin-bottom: 1rem; }
+    .portal-form h4 { margin: 0 0 .5rem; color: #1a6b3c; }
+    .form-note { font-size: .85rem; color: #666; margin: 0 0 .75rem; }
+    .form-section { border: 1px solid #e9ecef; border-radius: 4px; margin-bottom: .5rem; overflow: hidden; }
+    .form-section-header { display: flex; justify-content: space-between; align-items: center; padding: .4rem .75rem; background: #e9f5ee; cursor: pointer; user-select: none; }
+    .form-section-header h5 { margin: 0; font-size: .9rem; }
+    .toggle { font-size: 1.1rem; font-weight: bold; }
+    .section-body { padding: .5rem .75rem; }
+    .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: .4rem .75rem; }
+    .form-row { display: flex; flex-direction: column; gap: .2rem; }
+    .form-row.full { grid-column: span 2; }
+    .form-row label { font-size: .82rem; font-weight: 600; }
+    .form-row input, .form-row select, .form-row textarea { padding: .3rem .5rem; border: 1px solid #ccc; border-radius: 4px; font-size: .9rem; }
+    .inline-item { background: #fff; border: 1px solid #e9ecef; border-radius: 4px; padding: .5rem; margin-bottom: .4rem; }
+    .form-actions { display: flex; gap: .5rem; margin-top: .75rem; }
+    .detail-card { background: #fff; border: 1px solid #c8d6e5; border-radius: 6px; padding: 1rem; margin-bottom: 1rem; }
+    .detail-header { display: flex; align-items: center; gap: .5rem; margin-bottom: .75rem; }
+    .review-box { background: #f0f7ff; border: 1px solid #b8d4f0; border-radius: 4px; padding: .75rem; margin: .5rem 0; font-size: .9rem; }
+    .review-box h5 { margin: 0 0 .4rem; }
+    .review-box pre { margin: .25rem 0 0; white-space: pre-wrap; }
+    .health-table { width: 100%; border-collapse: collapse; font-size: .9rem; }
+    .health-table th { background: #f1f8f4; text-align: left; padding: .4rem .6rem; border-bottom: 2px solid #d4e8db; }
+    .health-table td { padding: .4rem .6rem; border-bottom: 1px solid #eee; }
+    .health-table tr.selected td { background: #e0f0e6; }
+    .health-table tr:hover td { background: #f5faf7; }
+    .badge { display: inline-block; padding: .15rem .5rem; border-radius: 3px; font-size: .78rem; font-weight: 600; }
+    .badge-status.status-submitted { background: #fff3cd; color: #856404; }
+    .badge-status.status-under-review { background: #cce5ff; color: #004085; }
+    .badge-status.status-accepted { background: #d4edda; color: #155724; }
+    .badge-status.status-partial { background: #ffeaa7; color: #6c5c00; }
+    .badge-status.status-rejected { background: #f8d7da; color: #721c24; }
+    .btn { padding: .35rem .75rem; border-radius: 4px; border: 1px solid transparent; cursor: pointer; font-size: .9rem; }
+    .btn-primary { background: #1a6b3c; color: #fff; border-color: #1a6b3c; }
+    .btn-outline { background: transparent; color: #1a6b3c; border-color: #1a6b3c; }
+    .btn-danger { background: #dc3545; color: #fff; border-color: #dc3545; }
+    .btn-sm { padding: .2rem .5rem; font-size: .8rem; }
+    .btn:disabled { opacity: .6; cursor: not-allowed; }
+    .alert-error { background: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; padding: .5rem .75rem; border-radius: 4px; margin-bottom: .5rem; }
+    .alert-success { background: #d4edda; color: #155724; border: 1px solid #c3e6cb; padding: .5rem .75rem; border-radius: 4px; margin-bottom: .5rem; }
+    .empty-state { color: #888; font-style: italic; }
+</style>

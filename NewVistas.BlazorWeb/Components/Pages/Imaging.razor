@@ -1,0 +1,684 @@
+@page "/imaging"
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+@rendermode InteractiveServer
+@using Microsoft.AspNetCore.Components.Forms
+@using NewVistas.BlazorWeb.Services
+@using NewVistas.Abstractions.GrainInterfaces
+@using NewVistas.Abstractions.GrainStates
+@using NewVistas.ImageStorage
+@inject OrleansGrainService Grains
+@inject IImageIngestionService Ingestion
+@inject IImageBlobStorageService Blobs
+
+<PageTitle>Imaging</PageTitle>
+<h1>Imaging</h1>
+
+<div class="lookup-bar">
+    <input type="text" @bind="patientId" @bind:event="oninput" @onkeydown="HandleKeyDown" placeholder="Patient ID" class="lookup-input" />
+    <button @onclick="Load" disabled="@(string.IsNullOrWhiteSpace(patientId) || loading)" class="btn btn-primary">
+        @if (loading) { <span>Loading...</span> } else { <span>Load</span> }
+    </button>
+    <button @onclick="ShowForm" disabled="@(string.IsNullOrWhiteSpace(patientId))" class="btn btn-secondary">+ Capture Image</button>
+</div>
+
+@if (error != null) { <div class="alert alert-error">@error</div> }
+@if (success != null) { <div class="alert alert-success">@success</div> }
+
+@if (items != null || detail != null)
+{
+    <div class="tab-bar">
+        <button class="tab @(activeTab == "list" ? "tab-active" : "")" @onclick='() => SetTab("list")'>Images</button>
+        @if (detail != null)
+        {
+            <button class="tab @(activeTab == "detail" ? "tab-active" : "")" @onclick='() => SetTab("detail")'>Detail</button>
+        }
+    </div>
+}
+
+@if (showNew)
+{
+    <div class="entry-form">
+        <h3>Capture Image</h3>
+        <div class="form-grid">
+            <div class="form-row"><label>Object Type *</label>
+                <select @bind="f_type"><option>XRAY</option><option>CT</option><option>MRI</option><option>ULTRASOUND</option><option>PHOTO</option><option>DOCUMENT</option></select>
+            </div>
+            <div class="form-row"><label>Procedure Description</label><input type="text" @bind="f_desc" placeholder="e.g. Chest X-Ray" /></div>
+            <div class="form-row full">
+                <label>File *</label>
+                <InputFile OnChange="OnFileSelected" accept=".dcm,.jpg,.jpeg,.png,.gif,.pdf" />
+                @if (selectedFile != null)
+                {
+                    <span class="file-selected">@selectedFile.Name (@(selectedFile.Size / 1024) KB)</span>
+                }
+            </div>
+            <div class="form-row"><label>Location</label><input type="text" @bind="f_location" /></div>
+            <div class="form-row"><label>Captured By</label><input type="text" @bind="f_capturedBy" /></div>
+            <div class="form-row full"><label>Comments</label><textarea @bind="f_comments" rows="2"></textarea></div>
+        </div>
+        <div class="form-actions">
+            <button @onclick="Submit" disabled="@(saving || selectedFile is null)" class="btn btn-primary">@(saving ? "Uploading..." : "Upload & Capture")</button>
+            <button @onclick="() => { showNew = false; selectedFile = null; }" class="btn btn-outline">Cancel</button>
+        </div>
+    </div>
+}
+
+@if (activeTab == "list" && items != null)
+{
+    @if (items.Count == 0) { <div class="empty-state">No images found.</div> }
+    else
+    {
+        <table class="data-table">
+            <thead><tr><th>Thumb</th><th>Date</th><th>Type</th><th>Description</th><th>Images</th><th>Status</th><th>Captured By</th></tr></thead>
+            <tbody>
+                @foreach (var s in items)
+                {
+                    <tr class="clickable" @onclick="() => ViewDetail(s.ImageId)">
+                        <td>
+                            @if (!string.IsNullOrEmpty(s.ThumbnailUri))
+                            {
+                                <img src="@s.ThumbnailUri" class="thumb-sm" alt="thumbnail" />
+                            }
+                            else
+                            {
+                                <span class="thumb-placeholder">--</span>
+                            }
+                        </td>
+                        <td class="date">@s.CaptureDate.ToString("MM/dd/yyyy")</td>
+                        <td>@s.ObjectType</td><td>@s.ProcedureDescription</td>
+                        <td>@s.ImageCount</td>
+                        <td><span class="badge badge-blue">@s.Status</span></td>
+                        <td>@s.CapturedByName</td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    }
+}
+
+@if (activeTab == "detail" && detail != null)
+{
+    <div class="detail-panel">
+        <div class="detail-header">
+            <h3>@(detail.ProcedureDescription ?? detail.ObjectType)</h3>
+            <span class="badge badge-blue">@detail.Status</span>
+            <button @onclick="CloseDetail" class="btn btn-outline btn-sm-action">Close</button>
+        </div>
+        @if (!string.IsNullOrEmpty(detail.ThumbnailUri) || !string.IsNullOrEmpty(detail.OriginalUri))
+        {
+            <div class="image-preview">
+                @if (!string.IsNullOrEmpty(detail.ThumbnailUri))
+                {
+                    <img src="@detail.ThumbnailUri" class="thumb-lg" alt="image preview" />
+                }
+                @if (!string.IsNullOrEmpty(detail.OriginalUri))
+                {
+                    <div class="image-actions">
+                        <a href="@detail.OriginalUri" target="_blank" class="btn btn-outline btn-sm-action">Open original</a>
+                    </div>
+                }
+            </div>
+        }
+        <div class="detail-grid">
+            <div><strong>Image ID:</strong> @detail.ImageId</div>
+            <div><strong>Type:</strong> @detail.ObjectType</div>
+            <div><strong>Capture Date:</strong> @detail.CaptureDate.ToString("MM/dd/yyyy HH:mm")</div>
+            <div><strong>Image Count:</strong> @detail.ImageCount</div>
+            <div><strong>Captured By:</strong> @(detail.CapturedByName ?? "--")</div>
+            <div><strong>Location:</strong> @(detail.LocationName ?? "--")</div>
+            <div><strong>DICOM Study UID:</strong> @(detail.DicomStudyUid ?? "--")</div>
+            <div><strong>DICOM Series UID:</strong> @(detail.DicomSeriesUid ?? "--")</div>
+            <div><strong>DICOM Instance UID:</strong> @(detail.DicomInstanceUid ?? "--")</div>
+            <div><strong>Modality:</strong> @(detail.Modality ?? "--")</div>
+            <div><strong>Body Part:</strong> @(detail.BodyPart ?? "--")</div>
+            <div><strong>Transfer Syntax:</strong> @(detail.TransferSyntax ?? "--")</div>
+            <div><strong>Width:</strong> @(detail.Width.HasValue ? detail.Width.ToString() : "--")</div>
+            <div><strong>Height:</strong> @(detail.Height.HasValue ? detail.Height.ToString() : "--")</div>
+            <div><strong>File Size:</strong> @(detail.FileSizeBytes.HasValue ? $"{detail.FileSizeBytes:N0} bytes" : "--")</div>
+            <div><strong>Compression:</strong> @(detail.CompressionType ?? "--")</div>
+            <div><strong>Display Status:</strong> @(detail.ClinicalDisplayStatus ?? "--")</div>
+            <div><strong>Package Type:</strong> @(detail.PackageType ?? "--")</div>
+            <div><strong>Package Ref:</strong> @(detail.PackageReference ?? "--")</div>
+            <div><strong>Laterality:</strong> @(detail.Laterality ?? "--")</div>
+            <div><strong>Acquisition Site:</strong> @(detail.AcquisitionSite ?? "--")</div>
+            <div><strong>Patient Orientation:</strong> @(detail.PatientOrientation ?? "--")</div>
+            @if (!string.IsNullOrEmpty(detail.Comments))
+            {
+                <div class="full"><strong>Comments:</strong> @detail.Comments</div>
+            }
+        </div>
+
+        @* -- DICOM Metadata -- *@
+        <div class="section">
+            <h4>DICOM Metadata</h4>
+            <div class="entry-form compact">
+                <div class="form-grid">
+                    <div class="form-row"><label>Study UID</label><input type="text" @bind="dc_studyUid" /></div>
+                    <div class="form-row"><label>Series UID</label><input type="text" @bind="dc_seriesUid" /></div>
+                    <div class="form-row"><label>Instance UID</label><input type="text" @bind="dc_instanceUid" /></div>
+                    <div class="form-row"><label>Modality</label>
+                        <select @bind="dc_modality"><option value="">--</option><option>CR</option><option>CT</option><option>MR</option><option>US</option><option>DX</option><option>NM</option><option>PT</option><option>XA</option></select>
+                    </div>
+                    <div class="form-row"><label>Body Part</label><input type="text" @bind="dc_bodyPart" placeholder="e.g. CHEST" /></div>
+                    <div class="form-row"><label>Transfer Syntax</label><input type="text" @bind="dc_transferSyntax" /></div>
+                </div>
+                <div class="form-actions">
+                    <button @onclick="SubmitDicom" disabled="@saving" class="btn btn-primary">Record DICOM Metadata</button>
+                </div>
+            </div>
+        </div>
+
+        @* -- Dimensions -- *@
+        <div class="section">
+            <h4>Dimensions</h4>
+            <div class="entry-form compact">
+                <div class="form-grid">
+                    <div class="form-row"><label>Width (px) *</label><input type="number" @bind="dm_width" min="1" /></div>
+                    <div class="form-row"><label>Height (px) *</label><input type="number" @bind="dm_height" min="1" /></div>
+                    <div class="form-row"><label>File Size (bytes)</label><input type="number" @bind="dm_fileSize" min="0" /></div>
+                    <div class="form-row"><label>Compression</label><input type="text" @bind="dm_compression" placeholder="e.g. JPEG2000" /></div>
+                </div>
+                <div class="form-actions">
+                    <button @onclick="SubmitDimensions" disabled="@saving" class="btn btn-primary">Set Dimensions</button>
+                </div>
+            </div>
+        </div>
+
+        @* -- Display Status -- *@
+        <div class="section">
+            <h4>Display Status</h4>
+            <div class="entry-form compact">
+                <div class="form-grid">
+                    <div class="form-row"><label>Status *</label>
+                        <select @bind="ds_status"><option value="">--</option><option>VIEWABLE</option><option>NEEDS_REFRESH</option><option>QA_REVIEWED</option><option>HIDDEN</option><option>DELETED</option></select>
+                    </div>
+                </div>
+                <div class="form-actions">
+                    <button @onclick="SubmitDisplayStatus" disabled="@saving" class="btn btn-primary">Set Display Status</button>
+                </div>
+            </div>
+        </div>
+
+        @* -- Package Link -- *@
+        <div class="section">
+            <h4>Package Link</h4>
+            <div class="entry-form compact">
+                <div class="form-grid">
+                    <div class="form-row"><label>Package Type *</label>
+                        <select @bind="pk_type"><option value="">--</option><option>RADIOLOGY</option><option>SURGERY</option><option>TIU</option><option>CONSULT</option></select>
+                    </div>
+                    <div class="form-row"><label>Package Reference *</label><input type="text" @bind="pk_ref" placeholder="e.g. RAD-12345" /></div>
+                </div>
+                <div class="form-actions">
+                    <button @onclick="SubmitPackageLink" disabled="@saving" class="btn btn-primary">Link to Package</button>
+                </div>
+            </div>
+        </div>
+
+        @* -- Acquisition -- *@
+        <div class="section">
+            <h4>Acquisition</h4>
+            <div class="entry-form compact">
+                <div class="form-grid">
+                    <div class="form-row"><label>Acquisition Site</label><input type="text" @bind="aq_site" /></div>
+                    <div class="form-row"><label>Acquisition Date/Time</label><input type="datetime-local" @bind="aq_dateTime" /></div>
+                    <div class="form-row"><label>Patient Orientation</label><input type="text" @bind="aq_orientation" placeholder="e.g. HFS" /></div>
+                </div>
+                <div class="form-actions">
+                    <button @onclick="SubmitAcquisition" disabled="@saving" class="btn btn-primary">Record Acquisition</button>
+                </div>
+            </div>
+        </div>
+
+        @* -- Laterality -- *@
+        <div class="section">
+            <h4>Laterality</h4>
+            <div class="entry-form compact">
+                <div class="form-grid">
+                    <div class="form-row"><label>Laterality *</label>
+                        <select @bind="lat_val"><option value="">--</option><option>LEFT</option><option>RIGHT</option><option>BILATERAL</option><option>UNSPECIFIED</option></select>
+                    </div>
+                </div>
+                <div class="form-actions">
+                    <button @onclick="SubmitLaterality" disabled="@saving" class="btn btn-primary">Set Laterality</button>
+                </div>
+            </div>
+        </div>
+
+        @* -- Annotations -- *@
+        <div class="section">
+            <h4>Annotations (@annotations.Count)</h4>
+            @if (annotations.Count > 0)
+            {
+                <table class="data-table">
+                    <thead><tr><th>Type</th><th>Content</th><th>Author</th><th>Date</th></tr></thead>
+                    <tbody>
+                        @foreach (var a in annotations)
+                        {
+                            <tr>
+                                <td>@a.AnnotationType</td><td>@a.Content</td>
+                                <td>@a.AuthorName</td><td class="date">@a.DateTime.ToString("MM/dd/yyyy HH:mm")</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            }
+            <div class="entry-form compact">
+                <div class="form-grid">
+                    <div class="form-row"><label>Type *</label><input type="text" @bind="an_type" placeholder="e.g. MEASUREMENT, TEXT, ARROW" /></div>
+                    <div class="form-row"><label>Author</label><input type="text" @bind="an_author" /></div>
+                    <div class="form-row full"><label>Content *</label><textarea @bind="an_content" rows="2"></textarea></div>
+                </div>
+                <div class="form-actions">
+                    <button @onclick="SubmitAnnotation" disabled="@saving" class="btn btn-primary">Add Annotation</button>
+                </div>
+            </div>
+        </div>
+
+        @* -- Series -- *@
+        <div class="section">
+            <h4>Series (@seriesList.Count)</h4>
+            @if (seriesList.Count > 0)
+            {
+                <table class="data-table">
+                    <thead><tr><th>#</th><th>Series UID</th><th>Description</th><th>Modality</th><th>Images</th></tr></thead>
+                    <tbody>
+                        @foreach (var sr in seriesList)
+                        {
+                            <tr>
+                                <td>@sr.SeriesNumber</td><td class="uid">@sr.SeriesUid</td>
+                                <td>@sr.SeriesDescription</td><td>@sr.Modality</td><td>@sr.ImageCount</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            }
+            <div class="entry-form compact">
+                <div class="form-grid">
+                    <div class="form-row"><label>Series UID *</label><input type="text" @bind="sr_uid" /></div>
+                    <div class="form-row"><label>Description</label><input type="text" @bind="sr_desc" /></div>
+                    <div class="form-row"><label>Modality</label><input type="text" @bind="sr_modality" /></div>
+                    <div class="form-row"><label>Image Count *</label><input type="number" @bind="sr_count" min="1" /></div>
+                    <div class="form-row"><label>Series Number</label><input type="number" @bind="sr_number" /></div>
+                </div>
+                <div class="form-actions">
+                    <button @onclick="SubmitSeries" disabled="@saving" class="btn btn-primary">Add Series</button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    [SupplyParameterFromQuery] public string? patientId { get; set; }
+    private List<ImgListDto>? items;
+    private ImgDetailDto? detail;
+    private List<AnnotationDto> annotations = new();
+    private List<SeriesDto> seriesList = new();
+    private bool loading, saving, showNew;
+    private string? error, success;
+    private string activeTab = "list";
+
+    // New form
+    private string f_type = "XRAY", f_desc = "", f_capturedBy = "", f_location = "", f_comments = "";
+    private IBrowserFile? selectedFile;
+
+    // DICOM form
+    private string dc_studyUid = "", dc_seriesUid = "", dc_instanceUid = "", dc_modality = "", dc_bodyPart = "", dc_transferSyntax = "";
+
+    // Dimensions form
+    private int dm_width = 512, dm_height = 512; private long? dm_fileSize; private string dm_compression = "";
+
+    // Display status
+    private string ds_status = "";
+
+    // Package link
+    private string pk_type = "", pk_ref = "";
+
+    // Acquisition
+    private string aq_site = "", aq_orientation = ""; private DateTime aq_dateTime = DateTime.Now;
+
+    // Laterality
+    private string lat_val = "";
+
+    // Annotation form
+    private string an_type = "", an_content = "", an_author = "";
+
+    // Series form
+    private string sr_uid = "", sr_desc = "", sr_modality = ""; private int sr_count = 1; private int? sr_number;
+
+    private IPatientWorkflowGrain GetWorkflow() => Grains.GetGrain<IPatientWorkflowGrain>(patientId!.Trim());
+
+    protected override async Task OnParametersSetAsync() { if (!string.IsNullOrWhiteSpace(patientId)) await Load(); }
+    private async Task HandleKeyDown(KeyboardEventArgs e) { if (e.Key == "Enter") await Load(); }
+    private void SetTab(string tab) { activeTab = tab; success = null; }
+    private void ShowForm() { showNew = true; success = null; f_type = "XRAY"; f_desc = ""; f_capturedBy = ""; f_location = ""; f_comments = ""; selectedFile = null; }
+
+    private void OnFileSelected(InputFileChangeEventArgs e) { selectedFile = e.File; }
+    private void CloseDetail() { detail = null; activeTab = "list"; }
+
+    private async Task Load()
+    {
+        if (string.IsNullOrWhiteSpace(patientId)) return; loading = true; error = null;
+        try
+        {
+            var summaries = await GetWorkflow().GetImagesAsync(100);
+            var listItems = new List<ImgListDto>();
+            foreach (var s in summaries)
+            {
+                string? thumbUri = null;
+                try
+                {
+                    var state = await Grains.GetGrain<IImagingGrain>(s.ImageId).GetImageAsync();
+                    if (!string.IsNullOrEmpty(state.ThumbnailUrl))
+                        thumbUri = Blobs.GetReadSasUri(state.ThumbnailUrl, TimeSpan.FromMinutes(10)).ToString();
+                }
+                catch { /* best-effort thumbnail */ }
+
+                listItems.Add(new ImgListDto
+                {
+                    ImageId = s.ImageId, ObjectType = s.ObjectType,
+                    ProcedureDescription = s.ProcedureDescription, Status = s.Status,
+                    CaptureDate = s.CaptureDate, ImageCount = s.ImageCount,
+                    ThumbnailUri = thumbUri,
+                });
+            }
+            items = listItems;
+        }
+        catch (Exception ex) { error = $"Error: {ex.Message}"; } finally { loading = false; }
+    }
+
+    private async Task ViewDetail(string imageId)
+    {
+        error = null;
+        try
+        {
+            var state = await Grains.GetGrain<IImagingGrain>(imageId).GetImageAsync();
+            string? thumbUri = !string.IsNullOrEmpty(state.ThumbnailUrl)
+                ? Blobs.GetReadSasUri(state.ThumbnailUrl, TimeSpan.FromMinutes(10)).ToString()
+                : null;
+            string? origUri = !string.IsNullOrEmpty(state.ImageUrl)
+                ? Blobs.GetReadSasUri(state.ImageUrl, TimeSpan.FromMinutes(10)).ToString()
+                : null;
+
+            detail = new ImgDetailDto
+            {
+                ImageId = state.ImageId, ObjectType = state.ObjectType,
+                ProcedureDescription = state.ProcedureDescription, Status = state.Status,
+                CaptureDate = state.CaptureDate ?? DateTime.MinValue, ImageCount = state.ImageCount,
+                CapturedByName = state.CapturedByName, LocationName = state.LocationName,
+                Comments = state.Comments, DicomStudyUid = state.DicomStudyUid,
+                DicomSeriesUid = state.DicomSeriesUid, DicomInstanceUid = state.DicomInstanceUid,
+                Modality = state.Modality, BodyPart = state.BodyPartExamined,
+                TransferSyntax = state.TransferSyntax, Width = state.ImageWidth,
+                Height = state.ImageHeight, FileSizeBytes = state.FileSizeBytes,
+                CompressionType = state.CompressionType, ClinicalDisplayStatus = state.ClinicalDisplayStatus,
+                PackageType = state.PackageType, PackageReference = state.PackageReference,
+                AcquisitionSite = state.AcquisitionSite, PatientOrientation = state.PatientOrientation,
+                Laterality = state.Laterality,
+                ThumbnailUri = thumbUri,
+                OriginalUri = origUri,
+            };
+            activeTab = "detail";
+            ResetDetailForms();
+            await LoadAnnotations(imageId);
+            await LoadSeries(imageId);
+        }
+        catch (Exception ex) { error = $"Error: {ex.Message}"; }
+    }
+
+    private async Task LoadAnnotations(string imageId)
+    {
+        try
+        {
+            var entries = await Grains.GetGrain<IImagingGrain>(imageId).GetAnnotationsAsync();
+            annotations = entries.Select(a => new AnnotationDto
+            {
+                AnnotationType = a.AnnotationType, Content = a.Content,
+                AuthorName = a.AuthorName, DateTime = a.CreatedDateTime
+            }).ToList();
+        }
+        catch { annotations = new(); }
+    }
+
+    private async Task LoadSeries(string imageId)
+    {
+        try
+        {
+            var entries = await Grains.GetGrain<IImagingGrain>(imageId).GetSeriesAsync();
+            seriesList = entries.Select(s => new SeriesDto
+            {
+                SeriesUid = s.SeriesUid, SeriesDescription = s.SeriesDescription,
+                Modality = s.Modality, ImageCount = s.ImageCount, SeriesNumber = s.SeriesNumber
+            }).ToList();
+        }
+        catch { seriesList = new(); }
+    }
+
+    private void ResetDetailForms()
+    {
+        dc_studyUid = ""; dc_seriesUid = ""; dc_instanceUid = ""; dc_modality = ""; dc_bodyPart = ""; dc_transferSyntax = "";
+        dm_width = 512; dm_height = 512; dm_fileSize = null; dm_compression = "";
+        ds_status = ""; pk_type = ""; pk_ref = "";
+        aq_site = ""; aq_dateTime = DateTime.Now; aq_orientation = "";
+        lat_val = "";
+        an_type = ""; an_content = ""; an_author = "";
+        sr_uid = ""; sr_desc = ""; sr_modality = ""; sr_count = 1; sr_number = null;
+    }
+
+    private async Task Submit()
+    {
+        if (selectedFile is null) { error = "Select a file first."; return; }
+        saving = true; error = null;
+        try
+        {
+            // Prime the Orleans request context so the ingestion service's
+            // internal grain calls inherit the current user's JWT identity
+            // (same mechanism OrleansGrainService uses elsewhere on this page).
+            Grains.SetRequestContext();
+
+            // Blazor IBrowserFile streams are not seekable; ImageIngestionService
+            // buffers internally when necessary. 500 MB cap covers CT/MR series.
+            await using Stream stream = selectedFile.OpenReadStream(500_000_000);
+            var request = new ImageIngestionRequest(
+                PatientId: patientId!.Trim(),
+                ObjectType: f_type,
+                FileName: selectedFile.Name,
+                ContentType: selectedFile.ContentType,
+                Content: stream,
+                ProcedureDescription: NullIfEmpty(f_desc),
+                LocationName: NullIfEmpty(f_location),
+                Comments: NullIfEmpty(f_comments),
+                CapturedByName: NullIfEmpty(f_capturedBy));
+
+            var result = await Ingestion.IngestAsync(request);
+            showNew = false;
+            selectedFile = null;
+            success = $"Image uploaded ({result.Width}x{result.Height}{(result.Modality != null ? $", {result.Modality}" : "")}).";
+            await Load();
+        }
+        catch (Exception ex) { error = $"Error: {ex.Message}"; } finally { saving = false; }
+    }
+
+    private async Task SubmitDicom()
+    {
+        saving = true; error = null;
+        try { await GetWorkflow().RecordImagingDicomMetadataAsync(detail!.ImageId, NullIfEmpty(dc_studyUid), NullIfEmpty(dc_seriesUid), NullIfEmpty(dc_instanceUid), NullIfEmpty(dc_modality), NullIfEmpty(dc_bodyPart), NullIfEmpty(dc_transferSyntax)); success = "DICOM metadata recorded."; }
+        catch (Exception ex) { error = $"Error: {ex.Message}"; } finally { saving = false; }
+    }
+
+    private async Task SubmitDimensions()
+    {
+        saving = true; error = null;
+        try { await GetWorkflow().SetImagingDimensionsAsync(detail!.ImageId, dm_width, dm_height, dm_fileSize, NullIfEmpty(dm_compression)); success = "Dimensions set."; }
+        catch (Exception ex) { error = $"Error: {ex.Message}"; } finally { saving = false; }
+    }
+
+    private async Task SubmitDisplayStatus()
+    {
+        if (string.IsNullOrWhiteSpace(ds_status)) { error = "Status is required."; return; }
+        saving = true; error = null;
+        try { await GetWorkflow().SetImagingClinicalDisplayStatusAsync(detail!.ImageId, ds_status); success = "Display status updated."; }
+        catch (Exception ex) { error = $"Error: {ex.Message}"; } finally { saving = false; }
+    }
+
+    private async Task SubmitPackageLink()
+    {
+        if (string.IsNullOrWhiteSpace(pk_type) || string.IsNullOrWhiteSpace(pk_ref)) { error = "Package type and reference are required."; return; }
+        saving = true; error = null;
+        try { await GetWorkflow().LinkImagingToPackageAsync(detail!.ImageId, pk_type, pk_ref); success = "Linked to package."; }
+        catch (Exception ex) { error = $"Error: {ex.Message}"; } finally { saving = false; }
+    }
+
+    private async Task SubmitAcquisition()
+    {
+        saving = true; error = null;
+        try { await GetWorkflow().RecordImagingAcquisitionAsync(detail!.ImageId, NullIfEmpty(aq_site), aq_dateTime, NullIfEmpty(aq_orientation)); success = "Acquisition recorded."; }
+        catch (Exception ex) { error = $"Error: {ex.Message}"; } finally { saving = false; }
+    }
+
+    private async Task SubmitLaterality()
+    {
+        if (string.IsNullOrWhiteSpace(lat_val)) { error = "Laterality is required."; return; }
+        saving = true; error = null;
+        try { await Grains.GetGrain<IImagingGrain>(detail!.ImageId).SetLateralityAsync(lat_val); success = "Laterality set."; }
+        catch (Exception ex) { error = $"Error: {ex.Message}"; } finally { saving = false; }
+    }
+
+    private async Task SubmitAnnotation()
+    {
+        if (string.IsNullOrWhiteSpace(an_type) || string.IsNullOrWhiteSpace(an_content)) { error = "Type and content are required."; return; }
+        saving = true; error = null;
+        try
+        {
+            await GetWorkflow().AddImagingAnnotationAsync(detail!.ImageId, an_type, an_content, NullIfEmpty(an_author));
+            success = "Annotation added."; an_type = ""; an_content = ""; an_author = ""; await LoadAnnotations(detail.ImageId);
+        }
+        catch (Exception ex) { error = $"Error: {ex.Message}"; } finally { saving = false; }
+    }
+
+    private async Task SubmitSeries()
+    {
+        if (string.IsNullOrWhiteSpace(sr_uid)) { error = "Series UID is required."; return; }
+        saving = true; error = null;
+        try
+        {
+            await GetWorkflow().AddImagingSeriesInfoAsync(detail!.ImageId, sr_uid, NullIfEmpty(sr_desc), NullIfEmpty(sr_modality), sr_count, sr_number);
+            success = "Series added."; sr_uid = ""; sr_desc = ""; sr_modality = ""; sr_count = 1; sr_number = null; await LoadSeries(detail.ImageId);
+        }
+        catch (Exception ex) { error = $"Error: {ex.Message}"; } finally { saving = false; }
+    }
+
+    private static string? NullIfEmpty(string s) => string.IsNullOrWhiteSpace(s) ? null : s;
+
+    private class ImgListDto
+    {
+        public string ImageId { get; set; } = "";
+        public string ObjectType { get; set; } = "";
+        public string? ProcedureDescription { get; set; }
+        public string Status { get; set; } = "";
+        public DateTime CaptureDate { get; set; }
+        public int ImageCount { get; set; }
+        public string? CapturedByName { get; set; }
+        public string? ThumbnailUri { get; set; }
+    }
+
+    private class ImgDetailDto
+    {
+        public string ImageId { get; set; } = "";
+        public string ObjectType { get; set; } = "";
+        public string? ProcedureDescription { get; set; }
+        public string Status { get; set; } = "";
+        public DateTime CaptureDate { get; set; }
+        public int ImageCount { get; set; }
+        public string? CapturedByName { get; set; }
+        public string? LocationName { get; set; }
+        public string? Comments { get; set; }
+        public string? DicomStudyUid { get; set; }
+        public string? DicomSeriesUid { get; set; }
+        public string? DicomInstanceUid { get; set; }
+        public string? Modality { get; set; }
+        public string? BodyPart { get; set; }
+        public string? TransferSyntax { get; set; }
+        public int? Width { get; set; }
+        public int? Height { get; set; }
+        public long? FileSizeBytes { get; set; }
+        public string? CompressionType { get; set; }
+        public string? ClinicalDisplayStatus { get; set; }
+        public string? PackageType { get; set; }
+        public string? PackageReference { get; set; }
+        public string? AcquisitionSite { get; set; }
+        public string? PatientOrientation { get; set; }
+        public string? Laterality { get; set; }
+        public string? ThumbnailUri { get; set; }
+        public string? OriginalUri { get; set; }
+    }
+
+    private class AnnotationDto
+    {
+        public string AnnotationType { get; set; } = "";
+        public string Content { get; set; } = "";
+        public string? AuthorName { get; set; }
+        public DateTime DateTime { get; set; }
+    }
+
+    private class SeriesDto
+    {
+        public string SeriesUid { get; set; } = "";
+        public string? SeriesDescription { get; set; }
+        public string? Modality { get; set; }
+        public int ImageCount { get; set; }
+        public int? SeriesNumber { get; set; }
+    }
+}
+
+<style>
+    h1 { color: #003f72; margin-bottom: 1.25rem; font-size: 1.4rem; }
+    .lookup-bar { display: flex; gap: .5rem; margin-bottom: 1.5rem; align-items: center; }
+    .lookup-input { width: 280px; padding: .5rem .75rem; border: 1px solid #ccc; border-radius: 4px; font-size: .9rem; }
+    .btn { padding: .5rem 1.25rem; border: none; border-radius: 4px; cursor: pointer; font-size: .85rem; }
+    .btn-primary { background: #003f72; color: white; } .btn-primary:hover { background: #002a4e; } .btn-primary:disabled { background: #999; cursor: not-allowed; }
+    .btn-secondary { background: #16a34a; color: white; } .btn-secondary:disabled { background: #999; }
+    .btn-outline { background: white; border: 1px solid #ccc; color: #333; }
+    .btn-sm-action { padding: 4px 12px; font-size: .8rem; }
+    .alert { padding: .75rem 1rem; border-radius: 4px; margin-bottom: 1rem; font-size: .85rem; }
+    .alert-error { background: #fde8e8; color: #b91c1c; border: 1px solid #f5c6c6; }
+    .alert-success { background: #dcfce7; color: #166534; border: 1px solid #bbf7d0; }
+    .empty-state { color: #999; font-style: italic; padding: 2rem 0; }
+    .tab-bar { display: flex; gap: 0; border-bottom: 2px solid #d4d9e0; margin-bottom: 1.25rem; }
+    .tab { background: none; border: none; padding: .6rem 1.25rem; cursor: pointer; font-size: .85rem; color: #555; border-bottom: 2px solid transparent; margin-bottom: -2px; }
+    .tab-active { color: #003f72; font-weight: 600; border-bottom-color: #003f72; }
+    .entry-form { border: 1px solid #d4d9e0; border-radius: 6px; padding: 1.25rem; margin-bottom: 1.5rem; background: #f9fafb; }
+    .entry-form.compact { margin-top: .75rem; padding: 1rem; }
+    .entry-form h3 { margin-bottom: 1rem; color: #003f72; }
+    .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: .75rem; }
+    .form-row { display: flex; flex-direction: column; gap: .25rem; }
+    .form-row.full { grid-column: 1 / -1; }
+    .form-row label { font-size: .8rem; font-weight: 600; color: #555; }
+    .form-row input, .form-row select, .form-row textarea { padding: .4rem .6rem; border: 1px solid #ccc; border-radius: 4px; font-size: .85rem; }
+    .form-row textarea { resize: vertical; }
+    .form-actions { display: flex; gap: .5rem; margin-top: .75rem; }
+    .data-table { width: 100%; border-collapse: collapse; font-size: .85rem; border: 1px solid #d4d9e0; }
+    .data-table thead { background: #f4f6f9; }
+    .data-table th { text-align: left; padding: .5rem; font-weight: 600; color: #003f72; border-bottom: 2px solid #d4d9e0; font-size: .75rem; text-transform: uppercase; }
+    .data-table td { padding: .4rem .5rem; border-bottom: 1px solid #f0f0f0; }
+    .data-table tr.clickable { cursor: pointer; }
+    .data-table tr.clickable:hover { background: #eef3f9; }
+    .date { color: #888; font-size: .8rem; white-space: nowrap; }
+    .uid { font-family: monospace; font-size: .75rem; max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .badge { padding: 2px 8px; border-radius: 3px; font-size: .7rem; font-weight: 600; }
+    .badge-blue { background: #dbeafe; color: #1e40af; }
+    .detail-panel { border: 1px solid #d4d9e0; border-radius: 6px; padding: 1.25rem; margin-bottom: 1.5rem; }
+    .detail-header { display: flex; align-items: center; gap: .75rem; margin-bottom: 1rem; }
+    .detail-header h3 { margin: 0; color: #003f72; flex: 1; }
+    .detail-grid { display: grid; grid-template-columns: 1fr 1fr; gap: .5rem; font-size: .85rem; margin-bottom: .5rem; }
+    .detail-grid .full { grid-column: 1 / -1; }
+    .section { border-top: 1px solid #e5e7eb; padding-top: 1rem; margin-top: 1rem; }
+    .section h4 { color: #003f72; margin-bottom: .75rem; font-size: .95rem; }
+    .thumb-sm { width: 48px; height: 48px; object-fit: cover; border-radius: 3px; border: 1px solid #d4d9e0; display: block; }
+    .thumb-placeholder { color: #bbb; font-size: .75rem; }
+    .image-preview { display: flex; gap: 1rem; align-items: flex-start; margin-bottom: 1rem; padding: .75rem; background: #f4f6f9; border-radius: 4px; }
+    .thumb-lg { max-width: 256px; max-height: 256px; border: 1px solid #d4d9e0; border-radius: 4px; }
+    .image-actions { display: flex; flex-direction: column; gap: .5rem; }
+    .file-selected { margin-top: .25rem; font-size: .75rem; color: #666; }
+</style>

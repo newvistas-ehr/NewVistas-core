@@ -1,0 +1,145 @@
+@page "/drg"
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+@rendermode InteractiveServer
+@using NewVistas.BlazorWeb.Services
+@using NewVistas.Abstractions.GrainInterfaces
+@using NewVistas.Abstractions.GrainStates
+@inject OrleansGrainService Grains
+
+<PageTitle>DRG Grouper</PageTitle>
+
+<h1>DRG Grouper — Inpatient Billing</h1>
+
+@if (error != null) { <div class="alert alert-error">@error</div> }
+@if (successMsg != null) { <div class="alert alert-success">@successMsg</div> }
+
+<div class="board-actions">
+    <button class="btn btn-primary" @onclick="LoadAssignments">Refresh</button>
+    <button class="btn btn-demo" @onclick="LoadDemo">Load Demo</button>
+</div>
+
+@if (assignments != null)
+{
+    @if (assignments.Count == 0)
+    {
+        <div class="empty-state">No DRG assignments.</div>
+    }
+    else
+    {
+        <table class="data-table">
+            <thead>
+                <tr><th>Admission</th><th>Patient</th><th>DRG</th><th>Description</th><th>Weight</th><th>LOS</th><th>CC/MCC</th><th>Status</th><th>Actions</th></tr>
+            </thead>
+            <tbody>
+                @foreach (var a in assignments)
+                {
+                    <tr>
+                        <td class="rx">@a.AdmissionId</td>
+                        <td>@a.PatientName</td>
+                        <td class="drg-code">@a.DrgCode</td>
+                        <td>@a.DrgDescription</td>
+                        <td class="weight">@a.RelativeWeight.ToString("F4")</td>
+                        <td>@a.ActualLOS d</td>
+                        <td><span class="badge badge-@a.CcMccLevel.ToLower()">@a.CcMccLevel</span></td>
+                        <td><span class="badge badge-@a.Status.ToLower()">@a.Status</span></td>
+                        <td class="actions">
+                            @if (a.Status == "ASSIGNED")
+                            {
+                                <button class="btn-sm" @onclick="() => Review(a.AdmissionId)">Review</button>
+                            }
+                            @if (a.Status == "REVIEWED")
+                            {
+                                <button class="btn-sm" @onclick="() => Finalize(a.AdmissionId)">Finalize</button>
+                            }
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    }
+}
+
+@code {
+    private List<DrgEntryDto>? assignments;
+    private string? error, successMsg;
+
+    protected override async Task OnInitializedAsync() => await LoadAssignments();
+
+    private async Task LoadAssignments()
+    {
+        error = null;
+        try
+        {
+            var indexGrain = Grains.GetGrain<IDrgIndexGrain>("DRG-INDEX:MAIN");
+            var entries = await indexGrain.GetAllAssignmentsAsync();
+            assignments = entries.Select(e => new DrgEntryDto
+            {
+                AdmissionId = e.AdmissionId, PatientName = e.PatientName,
+                DrgCode = e.DrgCode, DrgDescription = e.DrgDescription,
+                RelativeWeight = e.RelativeWeight, ActualLOS = e.ActualLOS,
+                Status = e.Status, CcMccLevel = e.CcMccLevel
+            }).ToList();
+        }
+        catch (Exception ex) { error = ex.Message; }
+    }
+
+    private async Task Review(string admId)
+    {
+        try
+        {
+            var grain = Grains.GetGrain<IDrgAssignmentGrain>($"DRG:{admId}");
+            await grain.ReviewAsync("CODER-001");
+            await LoadAssignments();
+        }
+        catch (Exception ex) { error = ex.Message; }
+    }
+
+    private async Task Finalize(string admId)
+    {
+        try
+        {
+            var grain = Grains.GetGrain<IDrgAssignmentGrain>($"DRG:{admId}");
+            await grain.FinalizeAsync();
+            successMsg = "DRG finalized.";
+            await LoadAssignments();
+        }
+        catch (Exception ex) { error = ex.Message; }
+    }
+
+    private async Task LoadDemo()
+    {
+        // Demo data loading is a controller-only feature; skip in grain mode
+        successMsg = "Demo data not available in direct grain mode.";
+    }
+
+    private class DrgEntryDto { public string AdmissionId { get; set; } = ""; public string PatientName { get; set; } = ""; public string DrgCode { get; set; } = ""; public string DrgDescription { get; set; } = ""; public decimal RelativeWeight { get; set; } public int ActualLOS { get; set; } public string Status { get; set; } = ""; public string CcMccLevel { get; set; } = ""; }
+}
+
+<style>
+    .board-actions { display: flex; gap: 0.5rem; margin-bottom: 1rem; }
+    .btn { padding: 0.5rem 1.25rem; border: none; border-radius: 4px; cursor: pointer; font-size: 0.85rem; }
+    .btn-primary { background: #003f72; color: white; }
+    .btn-demo { background: #059669; color: white; }
+    .btn-sm { padding: 0.2rem 0.5rem; font-size: 0.75rem; border: 1px solid #ccc; border-radius: 3px; cursor: pointer; background: white; }
+    .alert { padding: 0.75rem 1rem; border-radius: 4px; margin-bottom: 1rem; }
+    .alert-error { background: #fde8e8; color: #b91c1c; border: 1px solid #f5c6c6; }
+    .alert-success { background: #d1fae5; color: #065f46; border: 1px solid #a7f3d0; }
+    .empty-state { color: #999; font-style: italic; padding: 2rem 0; }
+    .data-table { width: 100%; border-collapse: collapse; font-size: 0.85rem; border: 1px solid #d4d9e0; }
+    .data-table thead { background: #1e3a5f; color: white; }
+    .data-table th { text-align: left; padding: 0.5rem; font-weight: 600; font-size: 0.75rem; text-transform: uppercase; }
+    .data-table td { padding: 0.4rem 0.5rem; border-bottom: 1px solid #e5e7eb; }
+    .data-table tr:hover { background: #f0f4f8; }
+    .rx { font-family: monospace; font-size: 0.8rem; }
+    .drg-code { font-weight: 700; color: #003f72; font-size: 1rem; }
+    .weight { font-weight: 600; color: #065f46; }
+    .actions { white-space: nowrap; display: flex; gap: 0.25rem; }
+    .badge { padding: 0.15rem 0.5rem; border-radius: 10px; font-size: 0.7rem; font-weight: 600; }
+    .badge-none { background: #f3f4f6; color: #374151; }
+    .badge-cc { background: #fef3c7; color: #92400e; }
+    .badge-mcc { background: #fde8e8; color: #b91c1c; }
+    .badge-assigned { background: #e0f2fe; color: #0369a1; }
+    .badge-reviewed { background: #fef3c7; color: #92400e; }
+    .badge-final { background: #d1fae5; color: #065f46; }
+    .badge-pending { background: #f3f4f6; color: #6b7280; }
+</style>

@@ -1,0 +1,514 @@
+@* Copyright 2026 James Smyth. All rights reserved. *@
+@page "/external-referrals"
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+@rendermode InteractiveServer
+@using NewVistas.BlazorWeb.Services
+@using NewVistas.Abstractions.GrainInterfaces
+@using NewVistas.Abstractions.GrainStates
+@inject OrleansGrainService Grains
+
+<PageTitle>External Referral Tracking</PageTitle>
+
+<h1>External Referral Tracking</h1>
+
+@if (loading)
+{
+    <div class="empty-state">Loading feature status...</div>
+}
+else if (featureChecked && !featureEnabled)
+{
+    <div class="alert alert-warning">
+        The <strong>EXTERNAL_REFERRAL</strong> feature is not enabled for this site.
+        Please enable it in <a href="/site-parameters">Site Parameters</a> before managing referrals.
+    </div>
+}
+
+@if (error != null) { <div class="alert alert-error">@error</div> }
+
+@if (!loading)
+{
+    <div class="tab-bar">
+        <button class="tab-btn @(activeTab == 0 ? "active" : "")" @onclick="() => activeTab = 0">Patient Referrals</button>
+        <button class="tab-btn @(activeTab == 1 ? "active" : "")" @onclick="() => activeTab = 1">Dashboard</button>
+        <button class="tab-btn @(activeTab == 2 ? "active" : "")" @onclick="() => activeTab = 2">Pending Follow-ups</button>
+    </div>
+
+    @* Tab 0: Patient Referrals *@
+    @if (activeTab == 0)
+    {
+        <div class="form-section">
+            <div class="form-row">
+                <label>Patient ID</label>
+                <input type="text" class="form-input" @bind="patientId" @bind:event="oninput"
+                       placeholder="Enter patient ID" />
+                <button @onclick="LoadPatientReferrals"
+                        disabled="@(string.IsNullOrWhiteSpace(patientId) || loadingReferrals)"
+                        class="btn btn-primary">
+                    @if (loadingReferrals) { <span>Loading...</span> } else { <span>Load</span> }
+                </button>
+            </div>
+        </div>
+
+        @if (patientReferrals != null)
+        {
+            <div class="section-header">
+                <h3>Referrals (@patientReferrals.Count)</h3>
+                <button class="btn btn-secondary" @onclick="() => showNewForm = !showNewForm">
+                    @(showNewForm ? "Cancel" : "New Referral")
+                </button>
+            </div>
+
+            @if (showNewForm)
+            {
+                <div class="new-form">
+                    <h4>Create New Referral</h4>
+                    <div class="form-row">
+                        <label>Referral Type</label>
+                        <select class="form-input" @bind="newReferralType">
+                            <option value="">-- Select --</option>
+                            <option value="SPECIALTY">SPECIALTY</option>
+                            <option value="DIAGNOSTIC">DIAGNOSTIC</option>
+                            <option value="PROCEDURE">PROCEDURE</option>
+                            <option value="CONSULTATION">CONSULTATION</option>
+                            <option value="EMERGENCY">EMERGENCY</option>
+                        </select>
+                    </div>
+                    <div class="form-row">
+                        <label>Facility Name</label>
+                        <input type="text" class="form-input" @bind="newFacilityName" placeholder="External facility" />
+                    </div>
+                    <div class="form-row">
+                        <label>Provider Name</label>
+                        <input type="text" class="form-input" @bind="newProviderName" placeholder="Referring provider" />
+                    </div>
+                    <div class="form-row">
+                        <label>Purpose</label>
+                        <input type="text" class="form-input" @bind="newPurpose" placeholder="Purpose of referral" />
+                    </div>
+                    <div class="form-row">
+                        <label>Diagnosis</label>
+                        <input type="text" class="form-input" @bind="newDiagnosis" placeholder="Diagnosis" />
+                    </div>
+                    <div class="form-row">
+                        <label>Urgency</label>
+                        <select class="form-input" @bind="newUrgency">
+                            <option value="ROUTINE">ROUTINE</option>
+                            <option value="URGENT">URGENT</option>
+                            <option value="STAT">STAT</option>
+                        </select>
+                    </div>
+                    <div class="form-row">
+                        <label>Auth Number</label>
+                        <input type="text" class="form-input" @bind="newAuthNumber" placeholder="Authorization number" />
+                    </div>
+                    <div class="form-row">
+                        <label>Special Instructions</label>
+                        <input type="text" class="form-input" @bind="newSpecialInstructions" placeholder="Special instructions" />
+                    </div>
+                    <div class="form-actions">
+                        <button @onclick="CreateReferral"
+                                disabled="@(string.IsNullOrWhiteSpace(newReferralType) || string.IsNullOrWhiteSpace(newFacilityName) || creatingReferral)"
+                                class="btn btn-primary">
+                            @if (creatingReferral) { <span>Creating...</span> } else { <span>Create Referral</span> }
+                        </button>
+                    </div>
+                </div>
+            }
+
+            @if (patientReferrals.Count > 0)
+            {
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>Referral Type</th>
+                            <th>Facility</th>
+                            <th>Status</th>
+                            <th>Urgency</th>
+                            <th>Date</th>
+                            <th>Appointment</th>
+                            <th>Provider</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var r in patientReferrals)
+                        {
+                            <tr>
+                                <td class="code">@r.ReferralType</td>
+                                <td>@r.ExternalFacilityName</td>
+                                <td><span class="status-badge" style="@GetStatusStyle(r.Status)">@r.Status</span></td>
+                                <td><span class="urgency-badge @GetUrgencyClass(r.Urgency)">@r.Urgency</span></td>
+                                <td>@r.ReferralDate.ToString("MM/dd/yyyy")</td>
+                                <td>@(r.AppointmentDateTime?.ToString("MM/dd/yyyy HH:mm") ?? "---")</td>
+                                <td>@(r.ReferredByProviderName ?? "---")</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            }
+            else
+            {
+                <div class="empty-state">No referrals found for this patient.</div>
+            }
+        }
+    }
+
+    @* Tab 1: Dashboard *@
+    @if (activeTab == 1)
+    {
+        <div class="form-section">
+            <div class="form-row">
+                <label>Status</label>
+                <select class="form-input" @bind="dashboardStatus">
+                    <option value="">All Statuses</option>
+                    <option value="SUBMITTED">SUBMITTED</option>
+                    <option value="AUTHORIZED">AUTHORIZED</option>
+                    <option value="SCHEDULED">SCHEDULED</option>
+                    <option value="IN_PROGRESS">IN_PROGRESS</option>
+                    <option value="COMPLETED">COMPLETED</option>
+                    <option value="DENIED">DENIED</option>
+                    <option value="CANCELLED">CANCELLED</option>
+                </select>
+            </div>
+            <div class="form-row">
+                <label>Facility</label>
+                <input type="text" class="form-input" @bind="dashboardFacility" placeholder="Filter by facility" />
+            </div>
+            <div class="form-actions">
+                <button @onclick="SearchDashboard"
+                        disabled="@loadingDashboard"
+                        class="btn btn-primary">
+                    @if (loadingDashboard) { <span>Searching...</span> } else { <span>Search</span> }
+                </button>
+            </div>
+        </div>
+
+        @if (dashboardResults != null)
+        {
+            @if (dashboardResults.Count > 0)
+            {
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>Patient</th>
+                            <th>Referral Type</th>
+                            <th>Facility</th>
+                            <th>Status</th>
+                            <th>Urgency</th>
+                            <th>Date</th>
+                            <th>Follow-up</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var r in dashboardResults)
+                        {
+                            <tr>
+                                <td>@r.PatientName <span class="patient-id-small">(@r.PatientId)</span></td>
+                                <td class="code">@r.ReferralType</td>
+                                <td>@r.ExternalFacilityName</td>
+                                <td><span class="status-badge" style="@GetStatusStyle(r.Status)">@r.Status</span></td>
+                                <td><span class="urgency-badge @GetUrgencyClass(r.Urgency)">@r.Urgency</span></td>
+                                <td>@r.ReferralDate.ToString("MM/dd/yyyy")</td>
+                                <td>@(r.RequiresFollowUp ? "Yes" : "No")</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            }
+            else
+            {
+                <div class="empty-state">No referrals match the search criteria.</div>
+            }
+        }
+    }
+
+    @* Tab 2: Pending Follow-ups *@
+    @if (activeTab == 2)
+    {
+        <div class="form-actions">
+            <button @onclick="LoadPendingFollowups"
+                    disabled="@loadingFollowups"
+                    class="btn btn-primary">
+                @if (loadingFollowups) { <span>Loading...</span> } else { <span>Load Pending Follow-ups</span> }
+            </button>
+        </div>
+
+        @if (pendingFollowups != null)
+        {
+            @if (pendingFollowups.Count > 0)
+            {
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>Patient</th>
+                            <th>Referral Type</th>
+                            <th>Facility</th>
+                            <th>Status</th>
+                            <th>Urgency</th>
+                            <th>Date</th>
+                            <th>Appointment</th>
+                            <th>Provider</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var r in pendingFollowups)
+                        {
+                            <tr>
+                                <td>@r.PatientName <span class="patient-id-small">(@r.PatientId)</span></td>
+                                <td class="code">@r.ReferralType</td>
+                                <td>@r.ExternalFacilityName</td>
+                                <td><span class="status-badge" style="@GetStatusStyle(r.Status)">@r.Status</span></td>
+                                <td><span class="urgency-badge @GetUrgencyClass(r.Urgency)">@r.Urgency</span></td>
+                                <td>@r.ReferralDate.ToString("MM/dd/yyyy")</td>
+                                <td>@(r.AppointmentDateTime?.ToString("MM/dd/yyyy HH:mm") ?? "---")</td>
+                                <td>@(r.ReferredByProviderName ?? "---")</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            }
+            else
+            {
+                <div class="empty-state">No referrals currently require follow-up.</div>
+            }
+        }
+    }
+}
+
+@code {
+    private int activeTab;
+    private bool loading = true;
+    private bool featureEnabled;
+    private bool featureChecked;
+    private string? error;
+
+    // Tab 0: Patient Referrals
+    private string? patientId;
+    private bool loadingReferrals;
+    private List<ReferralIndexDto>? patientReferrals;
+    private bool showNewForm;
+    private bool creatingReferral;
+    private string newReferralType = "";
+    private string newFacilityName = "";
+    private string newProviderName = "";
+    private string newPurpose = "";
+    private string newDiagnosis = "";
+    private string newUrgency = "ROUTINE";
+    private string newAuthNumber = "";
+    private string newSpecialInstructions = "";
+
+    // Tab 1: Dashboard
+    private string dashboardStatus = "";
+    private string dashboardFacility = "";
+    private bool loadingDashboard;
+    private List<ReferralIndexDto>? dashboardResults;
+
+    // Tab 2: Pending Follow-ups
+    private bool loadingFollowups;
+    private List<ReferralIndexDto>? pendingFollowups;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await CheckFeatureStatus();
+    }
+
+    private async Task CheckFeatureStatus()
+    {
+        loading = true; error = null;
+        try
+        {
+            var siteGrain = Grains.GetGrain<ISiteParametersGrain>("SITE:DEFAULT");
+            featureEnabled = await siteGrain.IsFeatureEnabledAsync("EXTERNAL_REFERRAL_TRACKING");
+        }
+        catch (Exception ex) { error = $"Error checking feature status: {ex.Message}"; featureEnabled = false; }
+        finally { loading = false; featureChecked = true; }
+    }
+
+    private async Task LoadPatientReferrals()
+    {
+        if (string.IsNullOrWhiteSpace(patientId)) return;
+        loadingReferrals = true; error = null;
+        try
+        {
+            var indexGrain = Grains.GetGrain<IExternalReferralIndexGrain>("EXT-REF-IDX");
+            var entries = await indexGrain.GetByPatientAsync(patientId.Trim());
+            patientReferrals = entries.Select(e => new ReferralIndexDto
+            {
+                ReferralId = e.ReferralId, PatientId = e.PatientId, PatientName = e.PatientName,
+                ReferralType = e.ReferralType, ExternalFacilityName = e.ExternalFacilityName,
+                Status = e.Status, Urgency = e.Urgency, ReferralDate = e.ReferralDate,
+                AppointmentDateTime = e.AppointmentDateTime, ReferredByProviderName = e.ReferredByProviderName,
+                RequiresFollowUp = e.RequiresFollowUp
+            }).ToList();
+        }
+        catch (Exception ex) { error = $"Error loading referrals: {ex.Message}"; }
+        finally { loadingReferrals = false; }
+    }
+
+    private async Task CreateReferral()
+    {
+        if (string.IsNullOrWhiteSpace(patientId) || string.IsNullOrWhiteSpace(newReferralType) || string.IsNullOrWhiteSpace(newFacilityName)) return;
+        creatingReferral = true; error = null;
+        try
+        {
+            var refId = $"EXT-REF:{Guid.NewGuid()}";
+            var grain = Grains.GetGrain<IExternalReferralGrain>(refId);
+            await grain.CreateReferralAsync(patientId.Trim(), patientId.Trim(), newReferralType,
+                newFacilityName, null, newProviderName, null, newPurpose, newDiagnosis,
+                newUrgency, "SYSTEM", newProviderName, null, newAuthNumber, null, newSpecialInstructions);
+
+            var indexGrain = Grains.GetGrain<IExternalReferralIndexGrain>("EXT-REF-IDX");
+            await indexGrain.AddOrUpdateAsync(new ExternalReferralIndexEntry
+            {
+                ReferralId = refId, PatientId = patientId.Trim(), PatientName = patientId.Trim(),
+                ReferralType = newReferralType, ExternalFacilityName = newFacilityName,
+                Status = "SUBMITTED", Urgency = newUrgency, ReferralDate = DateTime.UtcNow,
+                ReferredByProviderName = newProviderName
+            });
+
+            showNewForm = false;
+            ResetNewForm();
+            await LoadPatientReferrals();
+        }
+        catch (Exception ex) { error = $"Error creating referral: {ex.Message}"; }
+        finally { creatingReferral = false; }
+    }
+
+    private void ResetNewForm()
+    {
+        newReferralType = "";
+        newFacilityName = "";
+        newProviderName = "";
+        newPurpose = "";
+        newDiagnosis = "";
+        newUrgency = "ROUTINE";
+        newAuthNumber = "";
+        newSpecialInstructions = "";
+    }
+
+    private async Task SearchDashboard()
+    {
+        loadingDashboard = true; error = null;
+        try
+        {
+            var indexGrain = Grains.GetGrain<IExternalReferralIndexGrain>("EXT-REF-IDX");
+            var entries = await indexGrain.SearchAsync(null, string.IsNullOrEmpty(dashboardStatus) ? null : dashboardStatus,
+                string.IsNullOrEmpty(dashboardFacility) ? null : dashboardFacility, 50);
+            dashboardResults = entries.Select(e => new ReferralIndexDto
+            {
+                ReferralId = e.ReferralId, PatientId = e.PatientId, PatientName = e.PatientName,
+                ReferralType = e.ReferralType, ExternalFacilityName = e.ExternalFacilityName,
+                Status = e.Status, Urgency = e.Urgency, ReferralDate = e.ReferralDate,
+                AppointmentDateTime = e.AppointmentDateTime, ReferredByProviderName = e.ReferredByProviderName,
+                RequiresFollowUp = e.RequiresFollowUp
+            }).ToList();
+        }
+        catch (Exception ex) { error = $"Error loading dashboard: {ex.Message}"; }
+        finally { loadingDashboard = false; }
+    }
+
+    private async Task LoadPendingFollowups()
+    {
+        loadingFollowups = true; error = null;
+        try
+        {
+            var indexGrain = Grains.GetGrain<IExternalReferralIndexGrain>("EXT-REF-IDX");
+            var entries = await indexGrain.GetPendingFollowUpsAsync(50);
+            pendingFollowups = entries.Select(e => new ReferralIndexDto
+            {
+                ReferralId = e.ReferralId, PatientId = e.PatientId, PatientName = e.PatientName,
+                ReferralType = e.ReferralType, ExternalFacilityName = e.ExternalFacilityName,
+                Status = e.Status, Urgency = e.Urgency, ReferralDate = e.ReferralDate,
+                AppointmentDateTime = e.AppointmentDateTime, ReferredByProviderName = e.ReferredByProviderName,
+                RequiresFollowUp = e.RequiresFollowUp
+            }).ToList();
+        }
+        catch (Exception ex) { error = $"Error loading pending follow-ups: {ex.Message}"; }
+        finally { loadingFollowups = false; }
+    }
+
+    private string GetStatusStyle(string status)
+    {
+        return status.ToUpperInvariant() switch
+        {
+            "SUBMITTED" => "background: #dbeafe; color: #1e40af; border: 1px solid #93c5fd;",
+            "AUTHORIZED" => "background: #ccfbf1; color: #0f766e; border: 1px solid #5eead4;",
+            "SCHEDULED" => "background: #f3e8ff; color: #7c3aed; border: 1px solid #c4b5fd;",
+            "IN_PROGRESS" => "background: #fff7ed; color: #c2410c; border: 1px solid #fed7aa;",
+            "COMPLETED" => "background: #dcfce7; color: #166534; border: 1px solid #bbf7d0;",
+            "DENIED" => "background: #fde8e8; color: #b91c1c; border: 1px solid #f5c6c6;",
+            "CANCELLED" => "background: #f3f4f6; color: #6b7280; border: 1px solid #d1d5db;",
+            _ => "background: #f3f4f6; color: #6b7280; border: 1px solid #d1d5db;"
+        };
+    }
+
+    private string GetUrgencyClass(string urgency)
+    {
+        return urgency.ToUpperInvariant() switch
+        {
+            "STAT" => "urgency-stat",
+            "URGENT" => "urgency-urgent",
+            _ => "urgency-routine"
+        };
+    }
+
+    private class FeatureStatusResponse { public bool Enabled { get; set; } }
+    private class ReferralIndexDto
+    {
+        public string ReferralId { get; set; } = "";
+        public string PatientId { get; set; } = "";
+        public string PatientName { get; set; } = "";
+        public string ReferralType { get; set; } = "";
+        public string ExternalFacilityName { get; set; } = "";
+        public string Status { get; set; } = "";
+        public string Urgency { get; set; } = "";
+        public DateTime ReferralDate { get; set; }
+        public DateTime? AppointmentDateTime { get; set; }
+        public string? ReferredByProviderName { get; set; }
+        public bool RequiresFollowUp { get; set; }
+    }
+}
+
+<style>
+    .btn { padding: 0.5rem 1.25rem; border: none; border-radius: 4px; cursor: pointer; font-size: 0.85rem; }
+    .btn-primary { background: #003f72; color: white; }
+    .btn-primary:disabled { background: #999; cursor: not-allowed; }
+    .btn-secondary { background: #e5e7eb; color: #374151; border: 1px solid #d1d5db; }
+    .btn-secondary:hover { background: #d1d5db; }
+    .alert { padding: 0.75rem 1rem; border-radius: 4px; margin-bottom: 1rem; }
+    .alert-error { background: #fde8e8; color: #b91c1c; border: 1px solid #f5c6c6; }
+    .alert-warning { background: #fef3c7; color: #92400e; border: 1px solid #fde68a; }
+    .alert-warning a { color: #003f72; font-weight: 600; }
+    .empty-state { color: #999; font-style: italic; padding: 2rem 0; }
+
+    .tab-bar { display: flex; gap: 0; border-bottom: 2px solid #d4d9e0; margin-bottom: 1.5rem; }
+    .tab-btn { padding: 0.6rem 1.25rem; border: none; background: transparent; cursor: pointer; font-size: 0.85rem; font-weight: 500; color: #666; border-bottom: 2px solid transparent; margin-bottom: -2px; }
+    .tab-btn.active { color: #003f72; border-bottom-color: #003f72; font-weight: 600; }
+    .tab-btn:hover { color: #003f72; }
+
+    .form-section { max-width: 700px; }
+    .form-row { display: flex; align-items: center; gap: 1rem; margin-bottom: 0.75rem; }
+    .form-row label:first-child { width: 160px; font-size: 0.85rem; font-weight: 500; color: #333; flex-shrink: 0; }
+    .form-input { flex: 1; padding: 0.4rem 0.6rem; border: 1px solid #ccc; border-radius: 4px; font-size: 0.85rem; max-width: 350px; }
+    .form-actions { display: flex; gap: 0.75rem; margin-top: 1rem; margin-bottom: 1.5rem; }
+
+    .section-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 1rem; }
+    .section-header h3 { margin: 0; font-size: 1rem; color: #003f72; }
+
+    .new-form { background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 4px; padding: 1.25rem; margin-bottom: 1.5rem; max-width: 700px; }
+    .new-form h4 { margin: 0 0 1rem 0; font-size: 0.9rem; color: #003f72; }
+
+    .data-table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+    .data-table th { text-align: left; padding: 0.5rem; font-weight: 600; color: #003f72; border-bottom: 2px solid #d4d9e0; font-size: 0.75rem; text-transform: uppercase; background: #f4f6f9; }
+    .data-table td { padding: 0.4rem 0.5rem; border-bottom: 1px solid #f0f0f0; }
+    .data-table tr:hover { background: #f9fafb; }
+    .code { font-family: monospace; color: #003f72; }
+
+    .status-badge { display: inline-block; padding: 0.2rem 0.6rem; border-radius: 3px; font-size: 0.75rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.03em; }
+
+    .urgency-badge { display: inline-block; padding: 0.15rem 0.5rem; border-radius: 3px; font-size: 0.75rem; font-weight: 600; text-transform: uppercase; }
+    .urgency-routine { background: #f3f4f6; color: #6b7280; }
+    .urgency-urgent { background: #fff7ed; color: #c2410c; }
+    .urgency-stat { background: #fde8e8; color: #b91c1c; }
+
+    .patient-id-small { font-size: 0.75rem; color: #999; }
+</style>

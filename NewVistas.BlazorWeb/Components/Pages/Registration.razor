@@ -1,0 +1,1237 @@
+@page "/registration"
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+@rendermode InteractiveServer
+@using NewVistas.BlazorWeb.Services
+@using NewVistas.Abstractions.GrainInterfaces
+@using NewVistas.Abstractions.GrainStates
+@inject OrleansGrainService Grains
+
+<PageTitle>Registration — NewVistas</PageTitle>
+
+<div class="container-fluid py-3">
+    <div class="d-flex align-items-center mb-3 gap-2">
+        <h2 class="mb-0">Registration</h2>
+        @if (!string.IsNullOrWhiteSpace(PatientId))
+        {
+            <span class="badge bg-secondary fs-6">@PatientId</span>
+        }
+    </div>
+
+    @if (string.IsNullOrWhiteSpace(PatientId))
+    {
+        <div class="alert alert-warning">No patient ID provided. Add <code>?patientId=PATIENT-1</code> to the URL.</div>
+    }
+    else
+    {
+        @if (error != null)
+        {
+            <div class="alert alert-danger">@error</div>
+        }
+        @if (success != null)
+        {
+            <div class="alert alert-success">@success</div>
+        }
+
+        <!-- Tab navigation -->
+        <ul class="nav nav-tabs mb-3">
+            <li class="nav-item">
+                <button class="nav-link @(activeTab == "enrollment" ? "active" : "")" @onclick='() => SetTab("enrollment")'>Enrollment</button>
+            </li>
+            <li class="nav-item">
+                <button class="nav-link @(activeTab == "prf" ? "active" : "")" @onclick='() => SetTab("prf")'>PRF Flags</button>
+            </li>
+            <li class="nav-item">
+                <button class="nav-link @(activeTab == "mst" ? "active" : "")" @onclick='() => SetTab("mst")'>MST History</button>
+            </li>
+            <li class="nav-item">
+                <button class="nav-link @(activeTab == "relations" ? "active" : "")" @onclick='() => SetTab("relations")'>Relations</button>
+            </li>
+            <li class="nav-item">
+                <button class="nav-link @(activeTab == "income" ? "active" : "")" @onclick='() => SetTab("income")'>Income</button>
+            </li>
+            <li class="nav-item">
+                <button class="nav-link @(activeTab == "facilities" ? "active" : "")" @onclick='() => SetTab("facilities")'>Treating Facilities</button>
+            </li>
+        </ul>
+
+        <!-- ── ENROLLMENT TAB ─────────────────────────────────────────────── -->
+        @if (activeTab == "enrollment")
+        {
+            @if (loadingEnrollment)
+            {
+                <div class="text-muted"><span class="spinner-border spinner-border-sm"></span> Loading enrollment…</div>
+            }
+            else if (enrollment != null)
+            {
+                <div class="row g-3 mb-4">
+                    <div class="col-md-3">
+                        <div class="card text-center">
+                            <div class="card-body">
+                                <div class="small text-muted">Status</div>
+                                <span class="badge @EnrollmentStatusBadge(enrollment.EnrollmentStatus) fs-6">@enrollment.EnrollmentStatus</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="card text-center">
+                            <div class="card-body">
+                                <div class="small text-muted">Priority Group</div>
+                                <strong>@(string.IsNullOrEmpty(enrollment.PriorityGroup) ? "—" : enrollment.PriorityGroup)@enrollment.PrioritySubgroup</strong>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="card text-center">
+                            <div class="card-body">
+                                <div class="small text-muted">Copay Exempt</div>
+                                <strong>@(enrollment.CopayExempt ? "Yes" : "No")</strong>
+                                @if (!string.IsNullOrEmpty(enrollment.CopayExemptionReason))
+                                {
+                                    <div class="small text-muted">@enrollment.CopayExemptionReason</div>
+                                }
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="card text-center">
+                            <div class="card-body">
+                                <div class="small text-muted">Means Test Required</div>
+                                <strong>@(enrollment.MeansTestRequired ? "Yes" : "No")</strong>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="row mb-4">
+                    <div class="col-md-6">
+                        <table class="table table-sm table-borderless">
+                            <tbody>
+                                <tr><th class="text-muted" style="width:180px">Application Date</th><td>@(enrollment.ApplicationDate?.ToString("d") ?? "—")</td></tr>
+                                <tr><th class="text-muted">Effective Date</th><td>@(enrollment.EffectiveDate?.ToString("d") ?? "—")</td></tr>
+                                <tr><th class="text-muted">Termination Date</th><td>@(enrollment.TerminationDate?.ToString("d") ?? "—")</td></tr>
+                                <tr><th class="text-muted">Source</th><td>@(enrollment.EnrollmentSource ?? "—")</td></tr>
+                                <tr><th class="text-muted">Site</th><td>@(enrollment.EnrollmentSiteName ?? enrollment.EnrollmentSiteId ?? "—")</td></tr>
+                                <tr><th class="text-muted">Last Change</th><td>@(enrollment.LastStatusChangeDate?.ToString("g") ?? "—")</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Set Status form -->
+                <div class="card mb-3" style="max-width:500px">
+                    <div class="card-header">Update Enrollment Status</div>
+                    <div class="card-body">
+                        <div class="mb-2">
+                            <label class="form-label">Status</label>
+                            <select class="form-select" @bind="newEnrollmentStatus">
+                                @foreach (string s in enrollmentStatusOptions)
+                                {
+                                    <option value="@s">@s</option>
+                                }
+                            </select>
+                        </div>
+                        <div class="mb-2">
+                            <label class="form-label">Changed By User ID</label>
+                            <input class="form-control" @bind="enrollmentChangedBy" placeholder="USER-1" />
+                        </div>
+                        <div class="mb-2">
+                            <label class="form-label">Notes (optional)</label>
+                            <input class="form-control" @bind="enrollmentNotes" />
+                        </div>
+                        <button class="btn btn-primary btn-sm" @onclick="SetEnrollmentStatus" disabled="@savingEnrollment">
+                            @if (savingEnrollment) { <span class="spinner-border spinner-border-sm"></span> } Update Status
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Set Priority Group form -->
+                <div class="card" style="max-width:500px">
+                    <div class="card-header">Set Priority Group</div>
+                    <div class="card-body">
+                        <div class="row g-2 mb-2">
+                            <div class="col">
+                                <label class="form-label">Priority Group</label>
+                                <input class="form-control" @bind="newPriorityGroup" placeholder="1" />
+                            </div>
+                            <div class="col">
+                                <label class="form-label">Subgroup (optional)</label>
+                                <input class="form-control" @bind="newPrioritySubgroup" placeholder="a" />
+                            </div>
+                        </div>
+                        <div class="row g-2 mb-2">
+                            <div class="col">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" @bind="newMeansTestRequired" id="mtReq" />
+                                    <label class="form-check-label" for="mtReq">Means Test Required</label>
+                                </div>
+                            </div>
+                            <div class="col">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" @bind="newCopayExempt" id="cpExempt" />
+                                    <label class="form-check-label" for="cpExempt">Copay Exempt</label>
+                                </div>
+                            </div>
+                        </div>
+                        @if (newCopayExempt)
+                        {
+                            <div class="mb-2">
+                                <label class="form-label">Exemption Reason Code</label>
+                                <input class="form-control" @bind="newCopayExemptionReason" placeholder="SC" />
+                            </div>
+                        }
+                        <button class="btn btn-primary btn-sm" @onclick="SetEnrollmentPriority" disabled="@savingEnrollment">
+                            @if (savingEnrollment) { <span class="spinner-border spinner-border-sm"></span> } Set Priority Group
+                        </button>
+                    </div>
+                </div>
+            }
+        }
+
+        <!-- ── PRF FLAGS TAB ───────────────────────────────────────────────── -->
+        @if (activeTab == "prf")
+        {
+            @if (loadingPrf)
+            {
+                <div class="text-muted"><span class="spinner-border spinner-border-sm"></span> Loading PRF flags…</div>
+            }
+            else if (prfState != null)
+            {
+                <h5>Active Flags</h5>
+                @if (!prfState.Assignments.Any(a => a.IsActive))
+                {
+                    <div class="text-muted mb-3">No active PRF flags.</div>
+                }
+                else
+                {
+                    <table class="table table-sm table-hover mb-4">
+                        <thead><tr><th>Flag Name</th><th>Type</th><th>Assigned</th><th>Review Due</th><th>Narrative</th><th></th></tr></thead>
+                        <tbody>
+                            @foreach (PrfFlagAssignmentDto flag in prfState.Assignments.Where(a => a.IsActive))
+                            {
+                                <tr>
+                                    <td><strong>@flag.FlagName</strong></td>
+                                    <td><span class="badge @(flag.IsNational ? "bg-danger" : "bg-secondary")">@flag.FlagType</span></td>
+                                    <td>@flag.AssignedDate.ToString("d")</td>
+                                    <td>@(prfState.ReviewDueDate?.ToString("d") ?? "—")</td>
+                                    <td class="small">@(flag.Narrative ?? "—")</td>
+                                    <td>
+                                        <button class="btn btn-outline-danger btn-sm" @onclick="() => DeactivateFlag(flag.FlagId)">Deactivate</button>
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                }
+
+                <!-- Assign Flag form -->
+                <div class="card" style="max-width:500px">
+                    <div class="card-header">Assign PRF Flag</div>
+                    <div class="card-body">
+                        <div class="mb-2">
+                            <label class="form-label">Flag</label>
+                            <select class="form-select" @bind="selectedNationalFlagId" @bind:after="UpdateSelectedFlag">
+                                <option value="">— Select national flag —</option>
+                                @foreach (PrfNationalFlagDto nf in nationalFlags)
+                                {
+                                    <option value="@nf.FlagId">@nf.FlagName</option>
+                                }
+                            </select>
+                        </div>
+                        <div class="mb-2">
+                            <label class="form-label">Assigned By User ID</label>
+                            <input class="form-control" @bind="prfAssignedBy" placeholder="USER-1" />
+                        </div>
+                        <div class="mb-2">
+                            <label class="form-label">Assigned By Name</label>
+                            <input class="form-control" @bind="prfAssignedByName" placeholder="Dr. Smith" />
+                        </div>
+                        <div class="mb-2">
+                            <label class="form-label">Narrative</label>
+                            <textarea class="form-control" rows="2" @bind="prfNarrative"></textarea>
+                        </div>
+                        <button class="btn btn-primary btn-sm" @onclick="AssignFlag" disabled="@savingPrf">
+                            @if (savingPrf) { <span class="spinner-border spinner-border-sm"></span> } Assign Flag
+                        </button>
+                    </div>
+                </div>
+            }
+        }
+
+        <!-- ── MST HISTORY TAB ────────────────────────────────────────────── -->
+        @if (activeTab == "mst")
+        {
+            @if (loadingMst)
+            {
+                <div class="text-muted"><span class="spinner-border spinner-border-sm"></span> Loading MST history…</div>
+            }
+            else if (mstHistory != null)
+            {
+                <div class="row g-3 mb-4">
+                    <div class="col-md-3">
+                        <div class="card text-center">
+                            <div class="card-body">
+                                <div class="small text-muted">Current Status</div>
+                                <span class="badge @MstStatusBadge(mstHistory.CurrentStatus) fs-6">@mstHistory.CurrentStatus</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="card text-center">
+                            <div class="card-body">
+                                <div class="small text-muted">MST Positive</div>
+                                <strong>@(mstHistory.MstPositive ? "Yes" : "No")</strong>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="card text-center">
+                            <div class="card-body">
+                                <div class="small text-muted">Last Screening</div>
+                                <strong>@(mstHistory.LastScreeningDate?.ToString("d") ?? "—")</strong>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="card text-center">
+                            <div class="card-body">
+                                <div class="small text-muted">Disclosure Location</div>
+                                <strong>@(mstHistory.DisclosureLocation ?? "—")</strong>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <h5>Screening History</h5>
+                @if (!mstHistory.Screenings.Any())
+                {
+                    <div class="text-muted mb-3">No screenings recorded.</div>
+                }
+                else
+                {
+                    <table class="table table-sm table-hover mb-4">
+                        <thead><tr><th>Date</th><th>Status</th><th>Screened By</th><th>Location</th><th>Notes</th></tr></thead>
+                        <tbody>
+                            @foreach (MstScreeningDto s in mstHistory.Screenings.OrderByDescending(x => x.ScreeningDate))
+                            {
+                                <tr>
+                                    <td>@s.ScreeningDate.ToString("d")</td>
+                                    <td><span class="badge @MstStatusBadge(s.ScreeningStatus)">@s.ScreeningStatus</span></td>
+                                    <td>@s.ScreenedByUserName</td>
+                                    <td>@(s.Location ?? "—")</td>
+                                    <td class="small">@(s.Notes ?? "—")</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                }
+
+                <!-- Record Screening form -->
+                <div class="card" style="max-width:500px">
+                    <div class="card-header">Record MST Screening</div>
+                    <div class="card-body">
+                        <div class="mb-2">
+                            <label class="form-label">Screening Date</label>
+                            <input type="date" class="form-control" @bind="mstScreeningDate" />
+                        </div>
+                        <div class="mb-2">
+                            <label class="form-label">Status</label>
+                            <select class="form-select" @bind="mstScreeningStatus">
+                                <option value="Unasked">Unasked</option>
+                                <option value="Verified">Verified (MST positive)</option>
+                                <option value="Denied">Denied</option>
+                                <option value="NoResponse">No Response</option>
+                            </select>
+                        </div>
+                        <div class="mb-2">
+                            <label class="form-label">Screened By User ID</label>
+                            <input class="form-control" @bind="mstScreenedBy" placeholder="USER-1" />
+                        </div>
+                        <div class="mb-2">
+                            <label class="form-label">Screened By Name</label>
+                            <input class="form-control" @bind="mstScreenedByName" placeholder="Dr. Smith" />
+                        </div>
+                        <div class="mb-2">
+                            <label class="form-label">Location (optional)</label>
+                            <input class="form-control" @bind="mstLocation" />
+                        </div>
+                        <div class="mb-2">
+                            <label class="form-label">Notes (optional)</label>
+                            <input class="form-control" @bind="mstNotes" />
+                        </div>
+                        <button class="btn btn-primary btn-sm" @onclick="RecordScreening" disabled="@savingMst">
+                            @if (savingMst) { <span class="spinner-border spinner-border-sm"></span> } Record Screening
+                        </button>
+                    </div>
+                </div>
+            }
+        }
+
+        <!-- ── PATIENT RELATIONS TAB ──────────────────────────────────────── -->
+        @if (activeTab == "relations")
+        {
+            @if (loadingRelations)
+            {
+                <div class="text-muted"><span class="spinner-border spinner-border-sm"></span> Loading relations…</div>
+            }
+            else if (relationsState != null)
+            {
+                @if (!relationsState.Relations.Any())
+                {
+                    <div class="text-muted mb-3">No patient relations on file.</div>
+                }
+                else
+                {
+                    <table class="table table-sm table-hover mb-4">
+                        <thead><tr><th>Name</th><th>Relationship</th><th>Phone</th><th>NOK</th><th>Emergency</th><th></th></tr></thead>
+                        <tbody>
+                            @foreach (PatientRelationDto r in relationsState.Relations)
+                            {
+                                <tr>
+                                    <td>@r.Name</td>
+                                    <td>@r.RelationshipType</td>
+                                    <td>@(r.Phone ?? "—")</td>
+                                    <td>@(r.IsPrimaryNextOfKin ? "✓" : "")</td>
+                                    <td>@(r.IsEmergencyContact ? "✓" : "")</td>
+                                    <td>
+                                        <button class="btn btn-outline-danger btn-sm" @onclick="() => RemoveRelation(r.RelationId)">Remove</button>
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                }
+
+                <!-- Add Relation form -->
+                <div class="card" style="max-width:500px">
+                    <div class="card-header">Add / Update Relation</div>
+                    <div class="card-body">
+                        <div class="mb-2">
+                            <label class="form-label">Name</label>
+                            <input class="form-control" @bind="relName" placeholder="Jane Doe" />
+                        </div>
+                        <div class="mb-2">
+                            <label class="form-label">Relationship</label>
+                            <select class="form-select" @bind="relType">
+                                <option value="Spouse">Spouse</option>
+                                <option value="Child">Child</option>
+                                <option value="Parent">Parent</option>
+                                <option value="Sibling">Sibling</option>
+                                <option value="Guardian">Guardian</option>
+                                <option value="EmergencyContact">Emergency Contact</option>
+                                <option value="PowerOfAttorney">Power of Attorney</option>
+                                <option value="Other">Other</option>
+                            </select>
+                        </div>
+                        <div class="mb-2">
+                            <label class="form-label">Phone</label>
+                            <input class="form-control" @bind="relPhone" placeholder="555-0100" />
+                        </div>
+                        <div class="row g-2 mb-2">
+                            <div class="col">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" @bind="relNok" id="relNok" />
+                                    <label class="form-check-label" for="relNok">Primary Next of Kin</label>
+                                </div>
+                            </div>
+                            <div class="col">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" @bind="relEmerg" id="relEmerg" />
+                                    <label class="form-check-label" for="relEmerg">Emergency Contact</label>
+                                </div>
+                            </div>
+                        </div>
+                        <button class="btn btn-primary btn-sm" @onclick="AddRelation" disabled="@savingRelations">
+                            @if (savingRelations) { <span class="spinner-border spinner-border-sm"></span> } Save Relation
+                        </button>
+                    </div>
+                </div>
+            }
+        }
+
+        <!-- ── INCOME TAB ─────────────────────────────────────────────────── -->
+        @if (activeTab == "income")
+        {
+            @if (loadingIncome)
+            {
+                <div class="text-muted"><span class="spinner-border spinner-border-sm"></span> Loading income…</div>
+            }
+            else if (incomeState != null)
+            {
+                <div class="row g-3 mb-4">
+                    <div class="col-md-3">
+                        <div class="card text-center">
+                            <div class="card-body">
+                                <div class="small text-muted">Reporting Year</div>
+                                <strong>@(incomeState.ReportingYear == 0 ? "—" : incomeState.ReportingYear.ToString())</strong>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="card text-center">
+                            <div class="card-body">
+                                <div class="small text-muted">Total Household Income</div>
+                                <strong>@incomeState.TotalHouseholdIncome.ToString("C")</strong>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="card text-center">
+                            <div class="card-body">
+                                <div class="small text-muted">Means Test Decision</div>
+                                <strong>@(incomeState.MeansTestDecision ?? "—")</strong>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="card text-center">
+                            <div class="card-body">
+                                <div class="small text-muted">Decision Date</div>
+                                <strong>@(incomeState.MeansTestDecisionDate?.ToString("d") ?? "—")</strong>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <h5>Household Members</h5>
+                @if (!incomeState.HouseholdMembers.Any())
+                {
+                    <div class="text-muted mb-3">No household members on file.</div>
+                }
+                else
+                {
+                    <table class="table table-sm table-hover mb-4">
+                        <thead><tr><th>Name</th><th>Relationship</th><th>Gross Income</th><th>Net Worth</th><th>Self</th></tr></thead>
+                        <tbody>
+                            @foreach (IncomePersonDto m in incomeState.HouseholdMembers)
+                            {
+                                <tr>
+                                    <td>@m.Name</td>
+                                    <td>@m.RelationshipType</td>
+                                    <td>@((m.GrossAnnualIncome ?? 0).ToString("C"))</td>
+                                    <td>@((m.NetWorth ?? 0).ToString("C"))</td>
+                                    <td>@(m.IsVeteranSelf ? "✓" : "")</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                }
+
+                <!-- Add Member form -->
+                <div class="card mb-3" style="max-width:500px">
+                    <div class="card-header">Add Household Member</div>
+                    <div class="card-body">
+                        <div class="mb-2">
+                            <label class="form-label">Name</label>
+                            <input class="form-control" @bind="incName" />
+                        </div>
+                        <div class="mb-2">
+                            <label class="form-label">Relationship</label>
+                            <input class="form-control" @bind="incRelationship" placeholder="Spouse" />
+                        </div>
+                        <div class="row g-2 mb-2">
+                            <div class="col">
+                                <label class="form-label">Gross Annual Income</label>
+                                <input type="number" class="form-control" @bind="incGrossIncome" />
+                            </div>
+                            <div class="col">
+                                <label class="form-label">Net Worth</label>
+                                <input type="number" class="form-control" @bind="incNetWorth" />
+                            </div>
+                        </div>
+                        <div class="row g-2 mb-2">
+                            <div class="col">
+                                <label class="form-label">Income Year</label>
+                                <input type="number" class="form-control" @bind="incYear" />
+                            </div>
+                            <div class="col d-flex align-items-end">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" @bind="incIsSelf" id="incSelf" />
+                                    <label class="form-check-label" for="incSelf">Veteran Self</label>
+                                </div>
+                            </div>
+                        </div>
+                        <button class="btn btn-primary btn-sm" @onclick="AddIncomeMember" disabled="@savingIncome">
+                            @if (savingIncome) { <span class="spinner-border spinner-border-sm"></span> } Add Member
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Means Test Decision form -->
+                <div class="card" style="max-width:500px">
+                    <div class="card-header">Record Means Test Decision</div>
+                    <div class="card-body">
+                        <div class="mb-2">
+                            <label class="form-label">Decision</label>
+                            <select class="form-select" @bind="mtDecision">
+                                <option value="EXEMPT">EXEMPT</option>
+                                <option value="COPAY REQUIRED">COPAY REQUIRED</option>
+                                <option value="HIGH INCOME">HIGH INCOME</option>
+                                <option value="DEFERRED">DEFERRED</option>
+                            </select>
+                        </div>
+                        <div class="mb-2">
+                            <label class="form-label">Decision Date</label>
+                            <input type="date" class="form-control" @bind="mtDecisionDate" />
+                        </div>
+                        <div class="mb-2">
+                            <label class="form-label">Threshold Applied ($)</label>
+                            <input type="number" class="form-control" @bind="mtThreshold" />
+                        </div>
+                        <button class="btn btn-primary btn-sm" @onclick="RecordMeansTest" disabled="@savingIncome">
+                            @if (savingIncome) { <span class="spinner-border spinner-border-sm"></span> } Record Decision
+                        </button>
+                    </div>
+                </div>
+            }
+        }
+
+        <!-- ── TREATING FACILITIES TAB ────────────────────────────────────── -->
+        @if (activeTab == "facilities")
+        {
+            @if (loadingFacilities)
+            {
+                <div class="text-muted"><span class="spinner-border spinner-border-sm"></span> Loading facilities…</div>
+            }
+            else if (facilitiesState != null)
+            {
+                @if (!string.IsNullOrEmpty(facilitiesState.PrimaryFacilityName))
+                {
+                    <div class="alert alert-info mb-3">
+                        <strong>Primary Facility:</strong> @facilitiesState.PrimaryFacilityName (@facilitiesState.PrimaryFacilityId)
+                    </div>
+                }
+
+                @if (!facilitiesState.Facilities.Any())
+                {
+                    <div class="text-muted mb-3">No treating facilities on file.</div>
+                }
+                else
+                {
+                    <table class="table table-sm table-hover mb-4">
+                        <thead><tr><th>Facility</th><th>Type</th><th>Last Activity</th><th>Primary</th><th>Status</th><th></th></tr></thead>
+                        <tbody>
+                            @foreach (TreatingFacilityDto f in facilitiesState.Facilities)
+                            {
+                                <tr>
+                                    <td>@f.FacilityName <span class="small text-muted">(@f.FacilityId)</span></td>
+                                    <td>@(f.FacilityType ?? "—")</td>
+                                    <td>@(f.LastActivityDate?.ToString("d") ?? "—")</td>
+                                    <td>@(f.FacilityId == facilitiesState.PrimaryFacilityId ? "⭐" : "")</td>
+                                    <td><span class="badge @(f.IsActive ? "bg-success" : "bg-secondary")">@(f.IsActive ? "Active" : "Inactive")</span></td>
+                                    <td>
+                                        @if (f.IsActive)
+                                        {
+                                            <button class="btn btn-outline-secondary btn-sm me-1" @onclick="() => SetPrimary(f.FacilityId, f.FacilityName)">Set Primary</button>
+                                            <button class="btn btn-outline-danger btn-sm" @onclick="() => DeactivateFacility(f.FacilityId)">Deactivate</button>
+                                        }
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                }
+
+                <!-- Add Facility form -->
+                <div class="card" style="max-width:500px">
+                    <div class="card-header">Add Treating Facility</div>
+                    <div class="card-body">
+                        <div class="mb-2">
+                            <label class="form-label">Station / Facility ID</label>
+                            <input class="form-control" @bind="facId" placeholder="500" />
+                        </div>
+                        <div class="mb-2">
+                            <label class="form-label">Facility Name</label>
+                            <input class="form-control" @bind="facName" placeholder="VA Medical Center" />
+                        </div>
+                        <div class="mb-2">
+                            <label class="form-label">Facility Type</label>
+                            <select class="form-select" @bind="facType">
+                                <option value="VAMC">VAMC</option>
+                                <option value="CBOC">CBOC</option>
+                                <option value="COMMUNITY CARE">COMMUNITY CARE</option>
+                                <option value="DOD">DOD</option>
+                                <option value="OTHER">OTHER</option>
+                            </select>
+                        </div>
+                        <div class="mb-2">
+                            <label class="form-label">Relationship Type</label>
+                            <select class="form-select" @bind="facRelType">
+                                <option value="BOTH">BOTH</option>
+                                <option value="INPATIENT">INPATIENT</option>
+                                <option value="OUTPATIENT">OUTPATIENT</option>
+                            </select>
+                        </div>
+                        <button class="btn btn-primary btn-sm" @onclick="AddFacility" disabled="@savingFacilities">
+                            @if (savingFacilities) { <span class="spinner-border spinner-border-sm"></span> } Add Facility
+                        </button>
+                    </div>
+                </div>
+            }
+        }
+    }
+</div>
+
+@code {
+    [SupplyParameterFromQuery] public string PatientId { get; set; } = string.Empty;
+
+    private string activeTab = "enrollment";
+    private string? error;
+    private string? success;
+
+    // ── State ────────────────────────────────────────────────────────────────
+
+    private EnrollmentDto?        enrollment;
+    private PrfStateDto?          prfState;
+    private MstHistoryDto?        mstHistory;
+    private PatientRelationStateDto? relationsState;
+    private IncomeHouseholdDto?   incomeState;
+    private TreatingFacilityListDto? facilitiesState;
+    private List<PrfNationalFlagDto> nationalFlags = new();
+
+    // ── Loading flags ────────────────────────────────────────────────────────
+
+    private bool loadingEnrollment, loadingPrf, loadingMst, loadingRelations, loadingIncome, loadingFacilities;
+    private bool savingEnrollment, savingPrf, savingMst, savingRelations, savingIncome, savingFacilities;
+
+    // ── Enrollment form ──────────────────────────────────────────────────────
+
+    private string newEnrollmentStatus  = "Verified";
+    private string enrollmentChangedBy  = string.Empty;
+    private string? enrollmentNotes;
+    private string newPriorityGroup     = string.Empty;
+    private string? newPrioritySubgroup;
+    private bool   newMeansTestRequired;
+    private bool   newCopayExempt;
+    private string? newCopayExemptionReason;
+
+    private static readonly string[] enrollmentStatusOptions =
+    {
+        "Unverified", "Verified", "Inactive", "Rejected", "Cancelled", "Closed",
+        "PendingReapplication", "PendingMTRefusal", "PendingPurple", "PendingEnvironmental",
+        "PendingMST", "PendingOther", "NotEligibleRefused", "NotEligibleOtherFederal",
+        "DeceasedVeteran", "PendingMeansTest", "PendingEligibility", "NotEligibleIncome",
+        "LimitedBenefits", "PendingCombatVeteran", "PendingCatastrophic",
+        "NotEligibleNonVeteran", "PendingAlienEligibility", "Suspended"
+    };
+
+    // ── PRF form ─────────────────────────────────────────────────────────────
+
+    private string selectedNationalFlagId = string.Empty;
+    private string prfAssignedBy    = string.Empty;
+    private string prfAssignedByName = string.Empty;
+    private string? prfNarrative;
+    private PrfNationalFlagDto? selectedNationalFlag;
+    // ── MST form ─────────────────────────────────────────────────────────────
+
+    private DateTime mstScreeningDate  = DateTime.Today;
+    private string   mstScreeningStatus = "Unasked";
+    private string   mstScreenedBy     = string.Empty;
+    private string   mstScreenedByName = string.Empty;
+    private string?  mstLocation;
+    private string?  mstNotes;
+
+    // ── Relations form ───────────────────────────────────────────────────────
+
+    private string relName   = string.Empty;
+    private string relType   = "Spouse";
+    private string? relPhone;
+    private bool   relNok;
+    private bool   relEmerg;
+
+    // ── Income form ──────────────────────────────────────────────────────────
+
+    private string  incName        = string.Empty;
+    private string  incRelationship = string.Empty;
+    private decimal? incGrossIncome;
+    private decimal? incNetWorth;
+    private int     incYear        = DateTime.UtcNow.Year - 1;
+    private bool    incIsSelf;
+    private string  mtDecision     = "EXEMPT";
+    private DateTime mtDecisionDate = DateTime.Today;
+    private decimal? mtThreshold;
+
+    // ── Facilities form ──────────────────────────────────────────────────────
+
+    private string facId      = string.Empty;
+    private string facName    = string.Empty;
+    private string facType    = "VAMC";
+    private string facRelType = "BOTH";
+
+    // ── Lifecycle ────────────────────────────────────────────────────────────
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (!string.IsNullOrWhiteSpace(PatientId))
+            await SetTab("enrollment");
+    }
+
+    private async Task SetTab(string tab)
+    {
+        activeTab = tab;
+        error     = null;
+        success   = null;
+
+        string pid = PatientId.Trim();
+
+        switch (tab)
+        {
+            case "enrollment":
+                if (enrollment == null)
+                {
+                    loadingEnrollment = true;
+                    var enrollGrain = Grains.GetGrain<IPatientEnrollmentGrain>($"ENROLLMENT:{pid}");
+                    PatientEnrollmentState state = await enrollGrain.GetAsync();
+                    enrollment = new EnrollmentDto(state.PatientId, state.EnrollmentStatus.ToString(),
+                        state.ApplicationDate, state.EffectiveDate, state.TerminationDate,
+                        state.EnrollmentPriority, state.PriorityGroup, state.PrioritySubgroup,
+                        state.EnrollmentSource, state.EnrollmentSiteId, state.EnrollmentSiteName,
+                        state.MeansTestRequired, state.MeansTestExempt, state.IncomeTestRequired,
+                        state.CopayExempt, state.CopayExemptionReason,
+                        state.LastStatusChangeDate, state.LastStatusChangedByUserId, state.Notes);
+                    loadingEnrollment = false;
+                }
+                break;
+            case "prf":
+                if (prfState == null)
+                {
+                    loadingPrf = true;
+                    var prfGrain = Grains.GetGrain<IPrfAssignmentGrain>($"PRF-ASSIGN:{pid}");
+                    PrfAssignmentState prfData = await prfGrain.GetAsync();
+                    prfState = new PrfStateDto(prfData.PatientId,
+                        prfData.Assignments.Select(a => new PrfFlagAssignmentDto(a.FlagId, a.FlagName, a.FlagType,
+                            a.IsNational, a.AssignedDate, a.AssignedByUserId, a.AssignedByUserName,
+                            a.ReviewDate, a.ReviewedByUserId, a.ReviewedByUserName,
+                            a.Narrative, a.IsActive, a.DeactivatedDate, a.DeactivatedReason)).ToList(),
+                        prfData.LastReviewDate, prfData.ReviewDueDate);
+                    var flagIndex = Grains.GetGrain<IPrfNationalFlagIndexGrain>("PRF-NATIONAL-IDX");
+                    List<PrfNationalFlagEntry> flags = await flagIndex.GetAllAsync();
+                    nationalFlags = flags.Select(f => new PrfNationalFlagDto(f.FlagId, f.FlagName, f.FlagType, "", true)).ToList();
+                    loadingPrf = false;
+                }
+                break;
+            case "mst":
+                if (mstHistory == null)
+                {
+                    loadingMst = true;
+                    var mstGrain = Grains.GetGrain<IMstHistoryGrain>($"MST:{pid}");
+                    MstHistoryState mstData = await mstGrain.GetAsync();
+                    mstHistory = new MstHistoryDto(mstData.PatientId, mstData.CurrentStatus.ToString(),
+                        mstData.LastScreeningDate, mstData.MstPositive, mstData.DisclosureLocation,
+                        mstData.DisclosureDate,
+                        mstData.Screenings.Select(s => new MstScreeningDto(s.ScreeningId, s.ScreeningDate, s.ScreeningStatus.ToString(),
+                            s.ScreenedByUserId, s.ScreenedByUserName, s.Location, s.Notes)).ToList());
+                    loadingMst = false;
+                }
+                break;
+            case "relations":
+                if (relationsState == null)
+                {
+                    loadingRelations = true;
+                    var relGrain = Grains.GetGrain<IPatientRelationGrain>($"PATIENT-RELATION:{pid}");
+                    PatientRelationState relData = await relGrain.GetAsync();
+                    relationsState = new PatientRelationStateDto(relData.PatientId,
+                        relData.Relations.Select(r => new PatientRelationDto(r.RelationId,
+                            r.RelationshipType.ToString(), r.Name, r.Phone, r.AlternatePhone, r.Address,
+                            r.IsPrimaryNextOfKin, r.IsEmergencyContact, r.Notes)).ToList());
+                    loadingRelations = false;
+                }
+                break;
+            case "income":
+                if (incomeState == null)
+                {
+                    loadingIncome = true;
+                    var incGrain = Grains.GetGrain<IIncomeHouseholdGrain>($"INCOME-HOUSEHOLD:{pid}");
+                    IncomeHouseholdState incData = await incGrain.GetAsync();
+                    incomeState = new IncomeHouseholdDto(incData.PatientId, incData.ReportingYear,
+                        incData.HouseholdMembers.Select(m => new IncomePersonDto(m.PersonId, m.RelationshipType,
+                            m.Name, m.Ssn, m.DateOfBirth, m.GrossAnnualIncome, m.NetWorth, m.IncomeYear, m.IsVeteranSelf)).ToList(),
+                        incData.TotalHouseholdIncome, incData.TotalNetWorth,
+                        incData.MeansTestDate, incData.MeansTestDecision, incData.MeansTestDecisionDate,
+                        incData.ThresholdApplied, incData.Notes);
+                    loadingIncome = false;
+                }
+                break;
+            case "facilities":
+                if (facilitiesState == null)
+                {
+                    loadingFacilities = true;
+                    var facGrain = Grains.GetGrain<ITreatingFacilityListGrain>($"TREATING-FAC:{pid}");
+                    TreatingFacilityListState facData = await facGrain.GetAsync();
+                    facilitiesState = new TreatingFacilityListDto(facData.PatientId,
+                        facData.Facilities.Select(f => new TreatingFacilityDto(f.FacilityId, f.FacilityName,
+                            f.FacilityType, f.LastActivityDate, f.IsActive, f.RelationshipType)).ToList(),
+                        facData.PrimaryFacilityId, facData.PrimaryFacilityName);
+                    loadingFacilities = false;
+                }
+                break;
+        }
+    }
+
+    // ── Enrollment actions ───────────────────────────────────────────────────
+
+    private async Task SetEnrollmentStatus()
+    {
+        savingEnrollment = true; error = null; success = null;
+        string pid = PatientId.Trim();
+        try
+        {
+            var enrollGrain = Grains.GetGrain<IPatientEnrollmentGrain>($"ENROLLMENT:{pid}");
+            EnrollmentStatus status = Enum.Parse<EnrollmentStatus>(newEnrollmentStatus);
+            await enrollGrain.UpdateStatusAsync(status, enrollmentChangedBy, enrollmentNotes);
+            enrollment = null;
+            await SetTab("enrollment");
+            success = "Enrollment status updated.";
+        }
+        catch (Exception ex) { error = $"Error: {ex.Message}"; }
+        savingEnrollment = false;
+    }
+
+    private async Task SetEnrollmentPriority()
+    {
+        savingEnrollment = true; error = null; success = null;
+        string pid = PatientId.Trim();
+        try
+        {
+            var enrollGrain = Grains.GetGrain<IPatientEnrollmentGrain>($"ENROLLMENT:{pid}");
+            await enrollGrain.SetPriorityGroupAsync(newPriorityGroup, newPrioritySubgroup, newMeansTestRequired, newCopayExempt, newCopayExemptionReason);
+            enrollment = null;
+            await SetTab("enrollment");
+            success = "Priority group updated.";
+        }
+        catch (Exception ex) { error = $"Error: {ex.Message}"; }
+        savingEnrollment = false;
+    }
+
+    // ── PRF actions ──────────────────────────────────────────────────────────
+
+    private void UpdateSelectedFlag()
+    {
+        selectedNationalFlag = nationalFlags.FirstOrDefault(f => f.FlagId == selectedNationalFlagId);
+    }
+
+    private async Task AssignFlag()
+    {
+        if (selectedNationalFlag == null) { error = "Select a flag."; return; }
+        savingPrf = true; error = null; success = null;
+        string pid = PatientId.Trim();
+        try
+        {
+            var prfGrain = Grains.GetGrain<IPrfAssignmentGrain>($"PRF-ASSIGN:{pid}");
+            await prfGrain.AssignFlagAsync(selectedNationalFlag.FlagId, selectedNationalFlag.FlagName,
+                selectedNationalFlag.FlagType, true, prfAssignedBy, prfAssignedByName, prfNarrative);
+            prfState = null;
+            await SetTab("prf");
+            success = "Flag assigned.";
+        }
+        catch (Exception ex) { error = $"Error: {ex.Message}"; }
+        savingPrf = false;
+    }
+
+    private async Task DeactivateFlag(string flagId)
+    {
+        string pid = PatientId.Trim();
+        try
+        {
+            var prfGrain = Grains.GetGrain<IPrfAssignmentGrain>($"PRF-ASSIGN:{pid}");
+            await prfGrain.DeactivateFlagAsync(flagId, "Clinically resolved", "USER-1");
+            prfState = null;
+            await SetTab("prf");
+            success = "Flag deactivated.";
+        }
+        catch (Exception ex) { error = $"Error: {ex.Message}"; }
+    }
+
+    // ── MST actions ──────────────────────────────────────────────────────────
+
+    private async Task RecordScreening()
+    {
+        savingMst = true; error = null; success = null;
+        string pid = PatientId.Trim();
+        try
+        {
+            var mstGrain = Grains.GetGrain<IMstHistoryGrain>($"MST:{pid}");
+            MstStatus status = Enum.Parse<MstStatus>(mstScreeningStatus);
+            await mstGrain.RecordScreeningAsync(mstScreeningDate, status, mstScreenedBy, mstScreenedByName, mstLocation, mstNotes);
+            mstHistory = null;
+            await SetTab("mst");
+            success = "Screening recorded.";
+        }
+        catch (Exception ex) { error = $"Error: {ex.Message}"; }
+        savingMst = false;
+    }
+
+    // ── Relations actions ────────────────────────────────────────────────────
+
+    private async Task AddRelation()
+    {
+        savingRelations = true; error = null; success = null;
+        string pid = PatientId.Trim();
+        try
+        {
+            var relGrain = Grains.GetGrain<IPatientRelationGrain>($"PATIENT-RELATION:{pid}");
+            RelationshipType relEnum = Enum.Parse<RelationshipType>(relType);
+            var relation = new PatientRelation
+            {
+                RelationId = string.Empty, RelationshipType = relEnum, Name = relName,
+                Phone = relPhone, IsPrimaryNextOfKin = relNok, IsEmergencyContact = relEmerg
+            };
+            await relGrain.AddOrUpdateRelationAsync(relation);
+            relationsState = null;
+            await SetTab("relations");
+            success = "Relation saved.";
+            relName = string.Empty; relPhone = null; relNok = false; relEmerg = false;
+        }
+        catch (Exception ex) { error = $"Error: {ex.Message}"; }
+        savingRelations = false;
+    }
+
+    private async Task RemoveRelation(string relationId)
+    {
+        string pid = PatientId.Trim();
+        try
+        {
+            var relGrain = Grains.GetGrain<IPatientRelationGrain>($"PATIENT-RELATION:{pid}");
+            await relGrain.RemoveRelationAsync(relationId);
+            relationsState = null;
+            await SetTab("relations");
+            success = "Relation removed.";
+        }
+        catch (Exception ex) { error = $"Error: {ex.Message}"; }
+    }
+
+    // ── Income actions ───────────────────────────────────────────────────────
+
+    private async Task AddIncomeMember()
+    {
+        savingIncome = true; error = null; success = null;
+        string pid = PatientId.Trim();
+        try
+        {
+            var incGrain = Grains.GetGrain<IIncomeHouseholdGrain>($"INCOME-HOUSEHOLD:{pid}");
+            var member = new IncomePerson
+            {
+                PersonId = string.Empty, RelationshipType = incRelationship, Name = incName,
+                GrossAnnualIncome = incGrossIncome, NetWorth = incNetWorth, IncomeYear = incYear, IsVeteranSelf = incIsSelf
+            };
+            await incGrain.AddOrUpdateMemberAsync(member);
+            incomeState = null;
+            await SetTab("income");
+            success = "Member added.";
+            incName = string.Empty; incRelationship = string.Empty; incGrossIncome = null; incNetWorth = null;
+        }
+        catch (Exception ex) { error = $"Error: {ex.Message}"; }
+        savingIncome = false;
+    }
+
+    private async Task RecordMeansTest()
+    {
+        savingIncome = true; error = null; success = null;
+        string pid = PatientId.Trim();
+        try
+        {
+            var incGrain = Grains.GetGrain<IIncomeHouseholdGrain>($"INCOME-HOUSEHOLD:{pid}");
+            await incGrain.RecordMeansTestDecisionAsync(mtDecision, mtDecisionDate, mtThreshold);
+            incomeState = null;
+            await SetTab("income");
+            success = "Means test decision recorded.";
+        }
+        catch (Exception ex) { error = $"Error: {ex.Message}"; }
+        savingIncome = false;
+    }
+
+    // ── Facilities actions ───────────────────────────────────────────────────
+
+    private async Task AddFacility()
+    {
+        savingFacilities = true; error = null; success = null;
+        string pid = PatientId.Trim();
+        try
+        {
+            var facGrain = Grains.GetGrain<ITreatingFacilityListGrain>($"TREATING-FAC:{pid}");
+            var entry = new TreatingFacilityEntry
+            {
+                FacilityId = facId, FacilityName = facName, FacilityType = facType,
+                IsActive = true, RelationshipType = facRelType
+            };
+            await facGrain.AddOrUpdateFacilityAsync(entry);
+            facilitiesState = null;
+            await SetTab("facilities");
+            success = "Facility added.";
+            facId = string.Empty; facName = string.Empty;
+        }
+        catch (Exception ex) { error = $"Error: {ex.Message}"; }
+        savingFacilities = false;
+    }
+
+    private async Task SetPrimary(string facilityId, string facilityName)
+    {
+        string pid = PatientId.Trim();
+        try
+        {
+            var facGrain = Grains.GetGrain<ITreatingFacilityListGrain>($"TREATING-FAC:{pid}");
+            await facGrain.SetPrimaryFacilityAsync(facilityId, facilityName);
+            facilitiesState = null;
+            await SetTab("facilities");
+            success = "Primary facility set.";
+        }
+        catch (Exception ex) { error = $"Error: {ex.Message}"; }
+    }
+
+    private async Task DeactivateFacility(string facilityId)
+    {
+        string pid = PatientId.Trim();
+        try
+        {
+            var facGrain = Grains.GetGrain<ITreatingFacilityListGrain>($"TREATING-FAC:{pid}");
+            await facGrain.DeactivateFacilityAsync(facilityId);
+            facilitiesState = null;
+            await SetTab("facilities");
+            success = "Facility deactivated.";
+        }
+        catch (Exception ex) { error = $"Error: {ex.Message}"; }
+    }
+
+    // ── Helpers ──────────────────────────────────────────────────────────────
+
+    private static string EnrollmentStatusBadge(string status) => status switch
+    {
+        "Verified"        => "bg-success",
+        "Inactive"        => "bg-secondary",
+        "Rejected"        => "bg-danger",
+        "Cancelled"       => "bg-danger",
+        "Closed"          => "bg-secondary",
+        _ when status.StartsWith("Pending") => "bg-warning text-dark",
+        _ when status.StartsWith("NotEligible") => "bg-danger",
+        _                 => "bg-info text-dark",
+    };
+
+    private static string MstStatusBadge(string status) => status switch
+    {
+        "Verified"    => "bg-danger",
+        "Denied"      => "bg-success",
+        "NoResponse"  => "bg-warning text-dark",
+        _             => "bg-secondary",
+    };
+
+    // ── Local DTOs ───────────────────────────────────────────────────────────
+
+    private record EnrollmentDto(
+        string PatientId,
+        string EnrollmentStatus,
+        DateTime? ApplicationDate,
+        DateTime? EffectiveDate,
+        DateTime? TerminationDate,
+        string EnrollmentPriority,
+        string PriorityGroup,
+        string? PrioritySubgroup,
+        string? EnrollmentSource,
+        string? EnrollmentSiteId,
+        string? EnrollmentSiteName,
+        bool MeansTestRequired,
+        bool MeansTestExempt,
+        bool IncomeTestRequired,
+        bool CopayExempt,
+        string? CopayExemptionReason,
+        DateTime? LastStatusChangeDate,
+        string? LastStatusChangedByUserId,
+        string? Notes);
+
+    private record PrfStateDto(
+        string PatientId,
+        List<PrfFlagAssignmentDto> Assignments,
+        DateTime? LastReviewDate,
+        DateTime? ReviewDueDate);
+
+    private record PrfFlagAssignmentDto(
+        string FlagId,
+        string FlagName,
+        string FlagType,
+        bool IsNational,
+        DateTime AssignedDate,
+        string AssignedByUserId,
+        string AssignedByUserName,
+        DateTime? ReviewDate,
+        string? ReviewedByUserId,
+        string? ReviewedByUserName,
+        string? Narrative,
+        bool IsActive,
+        DateTime? DeactivatedDate,
+        string? DeactivatedReason);
+
+    private record PrfNationalFlagDto(
+        string FlagId,
+        string FlagName,
+        string FlagType,
+        string Description,
+        bool IsActive);
+
+    private record MstHistoryDto(
+        string PatientId,
+        string CurrentStatus,
+        DateTime? LastScreeningDate,
+        bool MstPositive,
+        string? DisclosureLocation,
+        DateTime? DisclosureDate,
+        List<MstScreeningDto> Screenings);
+
+    private record MstScreeningDto(
+        string ScreeningId,
+        DateTime ScreeningDate,
+        string ScreeningStatus,
+        string ScreenedByUserId,
+        string ScreenedByUserName,
+        string? Location,
+        string? Notes);
+
+    private record PatientRelationStateDto(
+        string PatientId,
+        List<PatientRelationDto> Relations);
+
+    private record PatientRelationDto(
+        string RelationId,
+        string RelationshipType,
+        string Name,
+        string? Phone,
+        string? AlternatePhone,
+        string? Address,
+        bool IsPrimaryNextOfKin,
+        bool IsEmergencyContact,
+        string? Notes);
+
+    private record IncomeHouseholdDto(
+        string PatientId,
+        int ReportingYear,
+        List<IncomePersonDto> HouseholdMembers,
+        decimal TotalHouseholdIncome,
+        decimal TotalNetWorth,
+        DateTime? MeansTestDate,
+        string? MeansTestDecision,
+        DateTime? MeansTestDecisionDate,
+        decimal? ThresholdApplied,
+        string? Notes);
+
+    private record IncomePersonDto(
+        string PersonId,
+        string RelationshipType,
+        string Name,
+        string? Ssn,
+        DateTime? DateOfBirth,
+        decimal? GrossAnnualIncome,
+        decimal? NetWorth,
+        int IncomeYear,
+        bool IsVeteranSelf);
+
+    private record TreatingFacilityListDto(
+        string PatientId,
+        List<TreatingFacilityDto> Facilities,
+        string? PrimaryFacilityId,
+        string? PrimaryFacilityName);
+
+    private record TreatingFacilityDto(
+        string FacilityId,
+        string FacilityName,
+        string? FacilityType,
+        DateTime? LastActivityDate,
+        bool IsActive,
+        string? RelationshipType);
+}

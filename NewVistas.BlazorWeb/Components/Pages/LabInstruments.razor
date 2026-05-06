@@ -1,0 +1,470 @@
+@page "/labinstruments"
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+@rendermode InteractiveServer
+@using NewVistas.BlazorWeb.Services
+@using NewVistas.Abstractions.GrainInterfaces
+@using NewVistas.Abstractions.GrainStates
+@inject OrleansGrainService Grains
+
+<PageTitle>Lab Instruments — LA</PageTitle>
+
+<h2>Automated Lab Instruments (LA)</h2>
+<p class="subtitle">VistA File #62.4 — instrument configuration, HL7 message processing, auto-verify</p>
+
+<div class="tabs">
+    <button class="@TabClass("list")" @onclick='() => SetTab("list")'>Instrument List</button>
+    <button class="@TabClass("detail")" @onclick='() => SetTab("detail")'>Instrument Detail</button>
+    <button class="@TabClass("queue")" @onclick='() => SetTab("queue")'>Message Queue</button>
+</div>
+
+@if (!string.IsNullOrEmpty(error))
+{
+    <div class="error">@error</div>
+}
+
+@if (!string.IsNullOrEmpty(successMsg))
+{
+    <div class="success">@successMsg</div>
+}
+
+@* ── Tab 1: Instrument List ──────────────────────────────────── *@
+@if (activeTab == "list")
+{
+    <div class="toolbar">
+        <button @onclick="LoadInstruments" disabled="@loading">Refresh</button>
+        <button @onclick="LoadDemo" disabled="@loading" class="btn-demo">Load Demo Data</button>
+    </div>
+
+    @if (loading) { <p class="loading-msg">Loading...</p> }
+
+    @if (instruments is not null)
+    {
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>Name</th>
+                    <th>Type</th>
+                    <th>Status</th>
+                    <th>Section</th>
+                    <th>Manufacturer</th>
+                    <th>Model</th>
+                    <th>Port</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var inst in instruments)
+                {
+                    <tr>
+                        <td>@inst.Name</td>
+                        <td>@inst.InstrumentType</td>
+                        <td class="@StatusClass(inst.Status)">@inst.Status</td>
+                        <td>@inst.LabSection</td>
+                        <td>@inst.Manufacturer</td>
+                        <td>@inst.Model</td>
+                        <td>@inst.TcpPort</td>
+                        <td>
+                            <button class="btn-sm" @onclick="() => SelectInstrument(inst.InstrumentId)">Detail</button>
+                            <button class="btn-sm" @onclick="() => ViewQueue(inst.InstrumentId)">Queue</button>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    }
+}
+
+@* ── Tab 2: Instrument Detail ────────────────────────────────── *@
+@if (activeTab == "detail")
+{
+    <div class="toolbar">
+        <input @bind="selectedInstrumentId" placeholder="Instrument ID (e.g., LA-INST:CHEM-001)" class="input-id" />
+        <button @onclick="LoadDetail" disabled="@loading">Load Config</button>
+    </div>
+
+    @if (loading) { <p class="loading-msg">Loading...</p> }
+
+    @if (detail is not null)
+    {
+        <div class="detail-section">
+            <h3>@detail.Name</h3>
+            <div class="detail-grid">
+                <div><strong>ID:</strong> @detail.InstrumentId</div>
+                <div><strong>Type:</strong> @detail.InstrumentType</div>
+                <div><strong>Status:</strong> <span class="@StatusClass(detail.Status.ToString())">@detail.Status</span></div>
+                <div><strong>HL7 Version:</strong> @detail.HL7Version</div>
+                <div><strong>TCP:</strong> @detail.TcpHost:@detail.TcpPort</div>
+                <div><strong>Manufacturer:</strong> @detail.Manufacturer @detail.Model</div>
+                <div><strong>Serial:</strong> @detail.SerialNumber</div>
+                <div><strong>Section:</strong> @detail.LabSection</div>
+                <div><strong>Location:</strong> @detail.Location</div>
+                <div><strong>Auto-Download:</strong> @(detail.AutoDownload ? "Yes" : "No")</div>
+                <div><strong>Auto-Release:</strong> @(detail.AutoRelease ? "Yes" : "No")</div>
+                <div><strong>Messages Processed:</strong> @detail.TotalMessagesProcessed</div>
+                <div><strong>Errors:</strong> @detail.TotalErrors</div>
+                <div><strong>Last Message:</strong> @(detail.LastMessageReceivedDate?.ToString("g") ?? "—")</div>
+            </div>
+        </div>
+
+        <h4>Test Mappings (@mappings?.Count)</h4>
+        @if (mappings is not null && mappings.Count > 0)
+        {
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>External Code</th>
+                        <th>LOINC</th>
+                        <th>Test Name</th>
+                        <th>Specimen</th>
+                        <th>Units</th>
+                        <th>Normal Range</th>
+                        <th>Critical Range</th>
+                        <th>Auto-Verify</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var m in mappings)
+                    {
+                        <tr>
+                            <td>@m.ExternalTestCode</td>
+                            <td>@m.InternalLoincCode</td>
+                            <td>@m.TestName</td>
+                            <td>@m.Specimen</td>
+                            <td>@m.ResultUnits</td>
+                            <td>@m.NormalRangeLow - @m.NormalRangeHigh</td>
+                            <td>@m.CriticalLow - @m.CriticalHigh</td>
+                            <td>@(m.AutoVerifyEnabled ? "Yes" : "No")</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        }
+
+        <h4>HL7 Message Injection (Test)</h4>
+        <div class="inject-form">
+            <textarea @bind="rawHL7Input" rows="8" placeholder="Paste raw HL7 message here (MSH|^~\&|...)" class="hl7-input"></textarea>
+            <button @onclick="InjectMessage" disabled="@loading">Inject & Process</button>
+        </div>
+    }
+}
+
+@* ── Tab 3: Message Queue ────────────────────────────────────── *@
+@if (activeTab == "queue")
+{
+    <div class="toolbar">
+        <input @bind="selectedInstrumentId" placeholder="Instrument ID" class="input-id" />
+        <button @onclick="LoadQueueStats" disabled="@loading">Load Queue</button>
+    </div>
+
+    @if (loading) { <p class="loading-msg">Loading...</p> }
+
+    @if (queueStats is not null)
+    {
+        <div class="summary-cards">
+            <div class="card">
+                <span class="card-num">@queueStats.ProcessedCount</span>
+                <span class="card-label">Processed</span>
+            </div>
+            <div class="card card-warn">
+                <span class="card-num">@queueStats.ErrorCount</span>
+                <span class="card-label">Errors</span>
+            </div>
+            <div class="card card-pending">
+                <span class="card-num">@queueStats.IncomingQueue.Count(m => m.Status == "QUEUED")</span>
+                <span class="card-label">Queued</span>
+            </div>
+        </div>
+
+        @if (queueStats.RecentLog.Count > 0)
+        {
+            <h4>Recent Activity</h4>
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Time</th>
+                        <th>Message ID</th>
+                        <th>Status</th>
+                        <th>Patient</th>
+                        <th>Results</th>
+                        <th>Details</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var entry in queueStats.RecentLog.OrderByDescending(e => e.Timestamp).Take(25))
+                    {
+                        <tr>
+                            <td>@entry.Timestamp.ToString("g")</td>
+                            <td class="mono">@entry.MessageId[..Math.Min(12, entry.MessageId.Length)]...</td>
+                            <td class="@LogStatusClass(entry.Status)">@entry.Status</td>
+                            <td>@(entry.PatientId ?? "—")</td>
+                            <td>@entry.ResultCount</td>
+                            <td>@(entry.Message ?? "—")</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        }
+    }
+}
+
+@code {
+    private string activeTab = "list";
+    private string? error;
+    private string? successMsg;
+    private bool loading;
+
+    private List<InstrumentEntryDto>? instruments;
+    private string selectedInstrumentId = "";
+    private InstrumentDetailDto? detail;
+    private List<TestMappingDto>? mappings;
+    private QueueStatsDto? queueStats;
+    private string rawHL7Input = "";
+
+    private string TabClass(string tab) => activeTab == tab ? "tab active" : "tab";
+    private void SetTab(string tab) { activeTab = tab; error = null; successMsg = null; }
+    private string StatusClass(string status) => status switch
+    {
+        "ACTIVE" => "status-active",
+        "INACTIVE" => "status-inactive",
+        "MAINTENANCE" => "status-maint",
+        "ERROR" => "status-error",
+        _ => ""
+    };
+    private string LogStatusClass(string status) => status switch
+    {
+        "COMPLETED" => "status-active",
+        "ERROR" => "status-error",
+        "PROCESSING" => "status-maint",
+        _ => ""
+    };
+
+    private IInstrumentIndexGrain GetIndexGrain() => Grains.GetGrain<IInstrumentIndexGrain>("LA-INST-INDEX");
+
+    protected override async Task OnInitializedAsync() => await LoadInstruments();
+
+    private async Task LoadInstruments()
+    {
+        loading = true; error = null;
+        try
+        {
+            var grain = GetIndexGrain();
+            var entries = await grain.GetAllInstrumentsAsync();
+            instruments = entries.Select(e => new InstrumentEntryDto
+            {
+                InstrumentId = e.InstrumentId, Name = e.Name, InstrumentType = e.InstrumentType.ToString(),
+                Status = e.Status.ToString(), LabSection = e.LabSection, Manufacturer = e.Manufacturer,
+                Model = e.Model, TcpPort = e.TcpPort
+            }).ToList();
+        }
+        catch (Exception ex) { error = ex.Message; }
+        finally { loading = false; }
+    }
+
+    private async Task LoadDemo()
+    {
+        loading = true; error = null;
+        try
+        {
+            var grain = GetIndexGrain();
+            await grain.SeedDemoInstrumentsAsync();
+            successMsg = "Demo instrument data loaded.";
+            await LoadInstruments();
+        }
+        catch (Exception ex) { error = ex.Message; }
+        finally { loading = false; }
+    }
+
+    private async Task SelectInstrument(string id)
+    {
+        selectedInstrumentId = id;
+        activeTab = "detail";
+        await LoadDetail();
+    }
+
+    private async Task LoadDetail()
+    {
+        if (string.IsNullOrWhiteSpace(selectedInstrumentId)) return;
+        loading = true; error = null;
+        try
+        {
+            var instGrain = Grains.GetGrain<IAutoInstrumentGrain>(selectedInstrumentId.Trim());
+            var config = await instGrain.GetConfigAsync();
+            detail = new InstrumentDetailDto
+            {
+                InstrumentId = config.InstrumentId, Name = config.Name, InstrumentType = config.InstrumentType.ToString(),
+                Status = config.Status.ToString(), HL7Version = config.HL7Version ?? "", TcpHost = config.TcpHost ?? "",
+                TcpPort = config.TcpPort, AutoDownload = config.AutoDownload, AutoRelease = config.AutoRelease,
+                Manufacturer = config.Manufacturer, Model = config.Model, SerialNumber = config.SerialNumber,
+                LabSection = config.LabSection, Location = config.Location,
+                TotalMessagesProcessed = config.TotalMessagesProcessed, TotalErrors = config.TotalErrors,
+                LastMessageReceivedDate = config.LastMessageReceivedDate
+            };
+            var testMappings = await instGrain.GetTestMappingsAsync();
+            mappings = testMappings.Select(m => new TestMappingDto
+            {
+                ExternalTestCode = m.ExternalTestCode, InternalLoincCode = m.InternalLoincCode,
+                TestName = m.TestName, Specimen = m.Specimen, ResultUnits = m.ResultUnits,
+                NormalRangeLow = m.NormalRangeLow, NormalRangeHigh = m.NormalRangeHigh,
+                CriticalLow = m.CriticalLow, CriticalHigh = m.CriticalHigh,
+                AutoVerifyEnabled = m.AutoVerifyEnabled
+            }).ToList();
+        }
+        catch (Exception ex) { error = ex.Message; }
+        finally { loading = false; }
+    }
+
+    private async Task ViewQueue(string id)
+    {
+        selectedInstrumentId = id;
+        activeTab = "queue";
+        await LoadQueueStats();
+    }
+
+    private async Task LoadQueueStats()
+    {
+        if (string.IsNullOrWhiteSpace(selectedInstrumentId)) return;
+        loading = true; error = null;
+        try
+        {
+            var mqGrain = Grains.GetGrain<IInstrumentMessageQueueGrain>($"LA-MQ:{selectedInstrumentId.Trim()}");
+            var stats = await mqGrain.GetStatsAsync();
+            var recentLog = await mqGrain.GetRecentLogAsync();
+            queueStats = new QueueStatsDto
+            {
+                ProcessedCount = stats.ProcessedCount,
+                ErrorCount = stats.ErrorCount,
+                IncomingQueue = stats.IncomingQueue?.Select(q => new QueuedMessageDto { MessageId = q.MessageId, Status = q.Status.ToString() }).ToList() ?? new(),
+                RecentLog = recentLog.Select(l => new LogEntryDto
+                {
+                    MessageId = l.MessageId, Timestamp = l.Timestamp, Status = l.Status.ToString(),
+                    PatientId = l.PatientId, ResultCount = l.ResultCount, Message = l.Message
+                }).ToList()
+            };
+        }
+        catch (Exception ex) { error = ex.Message; }
+        finally { loading = false; }
+    }
+
+    private async Task InjectMessage()
+    {
+        if (string.IsNullOrWhiteSpace(rawHL7Input) || string.IsNullOrWhiteSpace(selectedInstrumentId)) return;
+        loading = true; error = null;
+        try
+        {
+            var mqGrain = Grains.GetGrain<IInstrumentMessageQueueGrain>($"LA-MQ:{selectedInstrumentId.Trim()}");
+            await mqGrain.EnqueueMessageAsync(rawHL7Input);
+            await mqGrain.ProcessAllAsync();
+            successMsg = "HL7 message injected and processed.";
+            rawHL7Input = "";
+            await LoadDetail();
+        }
+        catch (Exception ex) { error = ex.Message; }
+        finally { loading = false; }
+    }
+
+    // ── DTOs ──
+    class InstrumentEntryDto
+    {
+        public string InstrumentId { get; set; } = "";
+        public string Name { get; set; } = "";
+        public string InstrumentType { get; set; } = "";
+        public string Status { get; set; } = "";
+        public string? LabSection { get; set; }
+        public string? Manufacturer { get; set; }
+        public string? Model { get; set; }
+        public int TcpPort { get; set; }
+    }
+    class InstrumentDetailDto
+    {
+        public string InstrumentId { get; set; } = "";
+        public string Name { get; set; } = "";
+        public string InstrumentType { get; set; } = "";
+        public string Status { get; set; } = "";
+        public string HL7Version { get; set; } = "";
+        public string TcpHost { get; set; } = "";
+        public int TcpPort { get; set; }
+        public bool AutoDownload { get; set; }
+        public bool AutoRelease { get; set; }
+        public string? Manufacturer { get; set; }
+        public string? Model { get; set; }
+        public string? SerialNumber { get; set; }
+        public string? LabSection { get; set; }
+        public string? Location { get; set; }
+        public long TotalMessagesProcessed { get; set; }
+        public long TotalErrors { get; set; }
+        public DateTime? LastMessageReceivedDate { get; set; }
+    }
+    class TestMappingDto
+    {
+        public string ExternalTestCode { get; set; } = "";
+        public string InternalLoincCode { get; set; } = "";
+        public string TestName { get; set; } = "";
+        public string? Specimen { get; set; }
+        public string? ResultUnits { get; set; }
+        public double? NormalRangeLow { get; set; }
+        public double? NormalRangeHigh { get; set; }
+        public double? CriticalLow { get; set; }
+        public double? CriticalHigh { get; set; }
+        public bool AutoVerifyEnabled { get; set; }
+    }
+    class QueueStatsDto
+    {
+        public long ProcessedCount { get; set; }
+        public long ErrorCount { get; set; }
+        public List<QueuedMessageDto> IncomingQueue { get; set; } = new();
+        public List<LogEntryDto> RecentLog { get; set; } = new();
+    }
+    class QueuedMessageDto
+    {
+        public string MessageId { get; set; } = "";
+        public string Status { get; set; } = "";
+    }
+    class LogEntryDto
+    {
+        public string MessageId { get; set; } = "";
+        public DateTime Timestamp { get; set; }
+        public string Status { get; set; } = "";
+        public string? PatientId { get; set; }
+        public int ResultCount { get; set; }
+        public string? Message { get; set; }
+    }
+}
+
+<style>
+    .subtitle { color: #666; margin-top: -10px; }
+    .tabs { display: flex; gap: 4px; margin: 16px 0; }
+    .tab { padding: 8px 16px; border: 1px solid #ccc; background: #f5f5f5; cursor: pointer; border-radius: 4px 4px 0 0; }
+    .tab.active { background: #fff; border-bottom-color: #fff; font-weight: bold; }
+    .toolbar { display: flex; gap: 8px; align-items: center; margin: 8px 0; flex-wrap: wrap; }
+    .input-id { padding: 6px 10px; border: 1px solid #ccc; border-radius: 4px; min-width: 280px; }
+    .error { color: #c00; padding: 8px; background: #fee; border-radius: 4px; margin: 8px 0; }
+    .success { color: #060; padding: 8px; background: #efe; border-radius: 4px; margin: 8px 0; }
+    .loading-msg { color: #888; font-style: italic; }
+    .btn-demo { background: #e8f0fe; }
+    .btn-sm { padding: 3px 8px; font-size: 0.85em; }
+
+    .data-table { width: 100%; border-collapse: collapse; margin: 8px 0; font-size: 0.9em; }
+    .data-table th, .data-table td { padding: 6px 10px; border: 1px solid #ddd; text-align: left; }
+    .data-table th { background: #f0f0f0; font-weight: 600; }
+    .data-table tbody tr:hover { background: #f8f8f8; }
+
+    .status-active { color: #090; font-weight: bold; }
+    .status-inactive { color: #999; }
+    .status-maint { color: #c90; font-weight: bold; }
+    .status-error { color: #c00; font-weight: bold; }
+
+    .summary-cards { display: flex; gap: 12px; margin: 12px 0; }
+    .card { padding: 12px 20px; border: 1px solid #ddd; border-radius: 6px; text-align: center; min-width: 100px; }
+    .card-num { display: block; font-size: 1.8em; font-weight: bold; }
+    .card-label { font-size: 0.85em; color: #666; }
+    .card-warn .card-num { color: #c00; }
+    .card-pending .card-num { color: #c90; }
+
+    .detail-section { margin: 12px 0; }
+    .detail-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 8px; margin: 8px 0; }
+    .detail-grid div { padding: 4px 0; }
+
+    .inject-form { margin: 8px 0; }
+    .hl7-input { width: 100%; font-family: monospace; font-size: 0.85em; padding: 8px; border: 1px solid #ccc; border-radius: 4px; }
+    .mono { font-family: monospace; font-size: 0.85em; }
+</style>

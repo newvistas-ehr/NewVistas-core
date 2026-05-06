@@ -1,0 +1,49 @@
+<UserControl x:Class="NewVistas.Wpf_UI.Views.ProviderDashboardView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <ScrollViewer VerticalScrollBarVisibility="Auto">
+        <StackPanel Margin="24">
+            <TextBlock Style="{StaticResource PageTitle}" Text="Provider Dashboard"/>
+            <TextBlock Style="{StaticResource ErrorText}" Text="{Binding Error}"
+                       Visibility="{Binding Error, Converter={StaticResource NullToVisibility}}"/>
+
+            <StackPanel Orientation="Horizontal" Margin="0,0,0,12">
+                <TextBox Text="{Binding ProviderId, UpdateSourceTrigger=PropertyChanged}" Width="200" Margin="0,0,8,0"/>
+                <Button Content="Load Schedule" Style="{StaticResource PrimaryButton}"
+                        Command="{Binding LoadCommand}" Margin="0,0,8,0"/>
+                <Button Content="My Patients" Style="{StaticResource SecondaryButton}"
+                        Command="{Binding LoadMyPatientsCommand}" Margin="0,0,8,0"/>
+                <ProgressBar IsIndeterminate="True" Width="120" Height="20"
+                             Visibility="{Binding IsLoading, Converter={StaticResource BoolToVisibility}}"/>
+            </StackPanel>
+
+            <TextBlock Text="Schedule" FontWeight="Bold" Margin="0,0,0,4"/>
+            <DataGrid ItemsSource="{Binding ScheduleEntries}" AutoGenerateColumns="False" IsReadOnly="True" Height="250">
+                <DataGrid.Columns>
+                    <DataGridTextColumn Header="Date/Time" Binding="{Binding AppointmentDateTime, StringFormat=g}" Width="160"/>
+                    <DataGridTextColumn Header="Patient" Binding="{Binding PatientName}" Width="*"/>
+                    <DataGridTextColumn Header="Clinic" Binding="{Binding ClinicName}" Width="160"/>
+                    <DataGridTextColumn Header="Duration" Binding="{Binding DurationMinutes}" Width="70"/>
+                    <DataGridTextColumn Header="Status" Binding="{Binding Status}" Width="100"/>
+                </DataGrid.Columns>
+            </DataGrid>
+
+            <TextBlock Text="My Patients" FontWeight="Bold" Margin="0,12,0,4"/>
+            <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+                <TextBox Text="{Binding PatientSearch, UpdateSourceTrigger=PropertyChanged}" Width="250" Margin="0,0,8,0"/>
+                <Button Content="Search" Style="{StaticResource SecondaryButton}"
+                        Command="{Binding LoadMyPatientsCommand}"/>
+            </StackPanel>
+            <DataGrid ItemsSource="{Binding MyPatients}" AutoGenerateColumns="False" IsReadOnly="True" Height="250">
+                <DataGrid.Columns>
+                    <DataGridTextColumn Header="Patient Name" Binding="{Binding PatientName}" Width="*"/>
+                    <DataGridTextColumn Header="DOB" Binding="{Binding DateOfBirth, StringFormat=d}" Width="100"/>
+                    <DataGridTextColumn Header="SSN Last 4" Binding="{Binding SsnLast4}" Width="80"/>
+                    <DataGridTextColumn Header="Relationship" Binding="{Binding Relationship}" Width="100"/>
+                    <DataGridTextColumn Header="Last Seen" Binding="{Binding LastSeenDate, StringFormat=d}" Width="100"/>
+                    <DataGridTextColumn Header="Next Appt" Binding="{Binding NextAppointmentDate, StringFormat=d}" Width="100"/>
+                </DataGrid.Columns>
+            </DataGrid>
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>

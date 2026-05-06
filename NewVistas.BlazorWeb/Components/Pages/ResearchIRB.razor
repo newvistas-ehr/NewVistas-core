@@ -1,0 +1,547 @@
+@page "/research-irb"
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+@rendermode InteractiveServer
+@using NewVistas.BlazorWeb.Services
+@using NewVistas.Abstractions.GrainInterfaces
+@using NewVistas.Abstractions.GrainStates
+@inject OrleansGrainService Grains
+
+<PageTitle>Research / IRB Tracking</PageTitle>
+
+<h2>Research / IRB Tracking</h2>
+<p class="subtitle">Study protocols, IRB submissions, and research subject consent — VistA Research Module (~File #900)</p>
+
+@if (error != null)
+{
+    <div class="alert-error">@error</div>
+}
+
+<div class="tab-bar">
+    <button class="@TabClass(1)" @onclick="() => SetTab(1)">Study Registry</button>
+    <button class="@TabClass(2)" @onclick="() => SetTab(2)">Subjects / Consent</button>
+    <button class="@TabClass(3)" @onclick="() => SetTab(3)">Dashboard</button>
+</div>
+
+<!-- ── Tab 1: Study Registry ──────────────────────────────────────────────── -->
+@if (activeTab == 1)
+{
+    <div class="panel">
+        <div class="filter-bar">
+            <button class="@StudyFilterClass("all")" @onclick='() => SetStudyFilter("all")'>All Studies</button>
+            <button class="@StudyFilterClass("open")" @onclick='() => SetStudyFilter("open")'>Open for Enrollment</button>
+            <button class="@StudyFilterClass("expiring")" @onclick='() => SetStudyFilter("expiring")'>Expiring (60d)</button>
+        </div>
+
+        @if (loadingStudies)
+        {
+            <p>Loading studies...</p>
+        }
+        else if (studies.Count == 0)
+        {
+            <p class="empty-state">No studies found for the selected filter.</p>
+        }
+        else
+        {
+            <table>
+                <thead>
+                    <tr>
+                        <th>Protocol #</th>
+                        <th>Title</th>
+                        <th>PI</th>
+                        <th>Type / Phase</th>
+                        <th>Status</th>
+                        <th>Enrollment</th>
+                        <th>IRB Expiration</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (IrbStudyIndexEntry s in studies)
+                    {
+                        <tr class="@(IsExpiringSoon(s) ? "row-warning" : "")">
+                            <td>@s.IrbProtocolNumber</td>
+                            <td>@s.Title</td>
+                            <td>@s.PrincipalInvestigator</td>
+                            <td>@s.StudyType / @s.Phase</td>
+                            <td><span class="badge @StudyStatusBadge(s.Status)">@s.Status</span></td>
+                            <td>@s.CurrentEnrollment / @s.TargetEnrollment</td>
+                            <td>@(s.CurrentExpirationDate.HasValue ? s.CurrentExpirationDate.Value.ToLocalTime().ToString("MM/dd/yyyy") : "—")</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        }
+
+        <hr />
+        <h3>Register New Study</h3>
+        <div class="form-grid">
+            <label>IRB Protocol # <input @bind="newStudy.IrbProtocolNumber" placeholder="IRB-2025-001" /></label>
+            <label>Title <input @bind="newStudy.Title" placeholder="Full study title" /></label>
+            <label>Short Title <input @bind="newStudy.ShortTitle" placeholder="Abbreviated title" /></label>
+            <label>Principal Investigator <input @bind="newStudy.PrincipalInvestigator" placeholder="Smith, John MD" /></label>
+            <label>PI Employee ID <input @bind="newStudy.PiEmployeeId" placeholder="EMP-001" /></label>
+            <label>Sponsor <input @bind="newStudy.Sponsor" placeholder="NIH, VA, Industry" /></label>
+            <label>Study Type
+                <select @bind="newStudy.StudyType">
+                    <option value="Interventional">Interventional</option>
+                    <option value="Observational">Observational</option>
+                    <option value="Registry">Registry</option>
+                    <option value="Behavioral">Behavioral</option>
+                    <option value="DeviceStudy">Device Study</option>
+                    <option value="ExpandedAccess">Expanded Access</option>
+                    <option value="Other">Other</option>
+                </select>
+            </label>
+            <label>Phase
+                <select @bind="newStudy.Phase">
+                    <option value="NotApplicable">Not Applicable</option>
+                    <option value="Phase1">Phase 1</option>
+                    <option value="Phase1And2">Phase 1/2</option>
+                    <option value="Phase2">Phase 2</option>
+                    <option value="Phase2And3">Phase 2/3</option>
+                    <option value="Phase3">Phase 3</option>
+                    <option value="Phase4">Phase 4</option>
+                </select>
+            </label>
+            <label>Department <input @bind="newStudy.Department" placeholder="Oncology, Cardiology, etc." /></label>
+            <label>Target Enrollment <input type="number" @bind="newStudy.TargetEnrollment" min="1" /></label>
+            <label>Description <input @bind="newStudy.Description" placeholder="Brief study description..." /></label>
+        </div>
+        <button class="btn-primary" @onclick="CreateStudy" disabled="@creatingStudy">
+            @(creatingStudy ? "Registering..." : "Register Study")
+        </button>
+        @if (createStudyMessage != null) { <p class="form-message">@createStudyMessage</p> }
+    </div>
+}
+
+<!-- ── Tab 2: Subjects / Consent ──────────────────────────────────────────── -->
+@if (activeTab == 2)
+{
+    <div class="panel">
+        <div class="search-bar">
+            <input @bind="subjectStudyId" placeholder="Enter Study ID (IRB-STUDY:guid) to view subjects..." />
+            <button class="btn-secondary" @onclick="LoadSubjects">Load Subjects</button>
+        </div>
+
+        @if (loadingSubjects)
+        {
+            <p>Loading subjects...</p>
+        }
+        else if (subjects.Count == 0 && subjectStudyId != null)
+        {
+            <p class="empty-state">No subjects found for this study.</p>
+        }
+        else if (subjects.Count > 0)
+        {
+            <table>
+                <thead>
+                    <tr>
+                        <th>Patient</th>
+                        <th>Patient ID</th>
+                        <th>Arm</th>
+                        <th>Status</th>
+                        <th>Consent Date</th>
+                        <th>Enrollment Date</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (ResearchSubjectIndexEntry sub in subjects)
+                    {
+                        <tr>
+                            <td>@sub.PatientName</td>
+                            <td>@sub.PatientId</td>
+                            <td>@(string.IsNullOrEmpty(sub.Arm) ? "—" : sub.Arm)</td>
+                            <td><span class="badge @SubjectStatusBadge(sub.EnrollmentStatus)">@sub.EnrollmentStatus</span></td>
+                            <td>@(sub.ConsentDate.HasValue ? sub.ConsentDate.Value.ToLocalTime().ToString("MM/dd/yyyy") : "—")</td>
+                            <td>@(sub.EnrollmentDate.HasValue ? sub.EnrollmentDate.Value.ToLocalTime().ToString("MM/dd/yyyy") : "—")</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        }
+
+        <hr />
+        <h3>Enroll Research Subject</h3>
+        <div class="form-grid">
+            <label>Study ID <input @bind="newSubject.StudyId" placeholder="IRB-STUDY:..." /></label>
+            <label>Study Title <input @bind="newSubject.StudyTitle" placeholder="Study title (display)" /></label>
+            <label>Patient ID <input @bind="newSubject.PatientId" placeholder="PAT-001" /></label>
+            <label>Patient Name <input @bind="newSubject.PatientName" placeholder="Doe, John" /></label>
+            <label>Date of Birth <input type="date" @bind="newSubject.PatientDOB" /></label>
+            <label>Screening Date <input type="date" @bind="newSubject.ScreeningDate" /></label>
+            <label>Enrollment Date <input type="date" @bind="newSubject.EnrollmentDate" /></label>
+            <label>Consent Date <input type="date" @bind="newSubject.ConsentDate" /></label>
+            <label>Consent Type
+                <select @bind="newSubject.ConsentType">
+                    <option value="Written">Written</option>
+                    <option value="Oral">Oral</option>
+                    <option value="Waived">Waived</option>
+                    <option value="ChildAssent">Child Assent</option>
+                    <option value="LAR">LAR</option>
+                </select>
+            </label>
+            <label>Consent Obtained By <input @bind="newSubject.ConsentObtainedBy" placeholder="Jones, MD" /></label>
+            <label>Study Arm <input @bind="newSubject.Arm" placeholder="Treatment A, Placebo, etc." /></label>
+        </div>
+        <button class="btn-primary" @onclick="EnrollSubject" disabled="@enrollingSubject">
+            @(enrollingSubject ? "Enrolling..." : "Enroll Subject")
+        </button>
+        @if (enrollSubjectMessage != null) { <p class="form-message">@enrollSubjectMessage</p> }
+    </div>
+}
+
+<!-- ── Tab 3: Dashboard ───────────────────────────────────────────────────── -->
+@if (activeTab == 3)
+{
+    <div class="panel">
+        @if (loadingDashboard)
+        {
+            <p>Loading dashboard...</p>
+        }
+        else if (dashboard != null)
+        {
+            <div class="dashboard-grid">
+                <div class="stat-card">
+                    <div class="stat-number">@dashboard.TotalStudies</div>
+                    <div class="stat-label">Total Studies</div>
+                </div>
+                <div class="stat-card stat-green">
+                    <div class="stat-number">@dashboard.OpenForEnrollment</div>
+                    <div class="stat-label">Open for Enrollment</div>
+                </div>
+                <div class="stat-card stat-yellow">
+                    <div class="stat-number">@dashboard.Draft</div>
+                    <div class="stat-label">Draft / Pending IRB</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number">@dashboard.ClosedToEnrollment</div>
+                    <div class="stat-label">Closed to Enrollment</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number">@dashboard.Completed</div>
+                    <div class="stat-label">Completed</div>
+                </div>
+                <div class="stat-card stat-red">
+                    <div class="stat-number">@dashboard.Suspended</div>
+                    <div class="stat-label">Suspended</div>
+                </div>
+                <div class="stat-card stat-blue">
+                    <div class="stat-number">@dashboard.TotalCurrentEnrollment</div>
+                    <div class="stat-label">Total Enrolled Subjects</div>
+                </div>
+                <div class="stat-card stat-orange">
+                    <div class="stat-number">@dashboard.ExpiringNext60Days</div>
+                    <div class="stat-label">Approvals Expiring (60d)</div>
+                </div>
+            </div>
+        }
+    </div>
+}
+
+<style>
+    .subtitle { color: #6b7280; margin-top: -0.5rem; margin-bottom: 1rem; }
+    .tab-bar { display: flex; gap: 0.5rem; margin-bottom: 1rem; flex-wrap: wrap; }
+    .tab-btn { padding: 0.4rem 1rem; border: 1px solid #d1d5db; border-radius: 6px; background: #f9fafb; cursor: pointer; }
+    .tab-btn.active { background: #1d4ed8; color: white; border-color: #1d4ed8; }
+    .panel { background: white; border: 1px solid #e5e7eb; border-radius: 8px; padding: 1.5rem; }
+    .filter-bar { display: flex; gap: 0.5rem; margin-bottom: 1rem; flex-wrap: wrap; }
+    .filter-btn { padding: 0.3rem 0.8rem; border: 1px solid #d1d5db; border-radius: 4px; background: #f9fafb; cursor: pointer; font-size: 0.85rem; }
+    .filter-btn.active { background: #3b82f6; color: white; border-color: #3b82f6; }
+    .search-bar { display: flex; gap: 0.5rem; margin-bottom: 1rem; }
+    .search-bar input { flex: 1; padding: 0.4rem 0.75rem; border: 1px solid #d1d5db; border-radius: 4px; }
+    table { width: 100%; border-collapse: collapse; margin-bottom: 1rem; }
+    th { background: #f3f4f6; text-align: left; padding: 0.5rem 0.75rem; font-size: 0.85rem; }
+    td { padding: 0.5rem 0.75rem; border-bottom: 1px solid #f3f4f6; font-size: 0.9rem; }
+    tr.row-warning td { background: #fef9c3; }
+    .badge { padding: 0.15rem 0.5rem; border-radius: 4px; font-size: 0.78rem; font-weight: 600; }
+    .badge-open { background: #d1fae5; color: #065f46; }
+    .badge-draft { background: #f3f4f6; color: #374151; }
+    .badge-closed { background: #dbeafe; color: #1e40af; }
+    .badge-completed { background: #d1fae5; color: #065f46; }
+    .badge-suspended { background: #fee2e2; color: #991b1b; }
+    .badge-withdrawn { background: #fce7f3; color: #9d174d; }
+    .badge-screening { background: #fef3c7; color: #92400e; }
+    .badge-enrolled { background: #dbeafe; color: #1e40af; }
+    .badge-active { background: #d1fae5; color: #065f46; }
+    .badge-lost { background: #fce7f3; color: #9d174d; }
+    .badge-deceased { background: #f3f4f6; color: #374151; }
+    .empty-state { color: #6b7280; font-style: italic; }
+    .alert-error { background: #fee2e2; color: #991b1b; padding: 0.75rem 1rem; border-radius: 6px; margin-bottom: 1rem; }
+    .form-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 0.75rem; margin-bottom: 1rem; }
+    .form-grid label { display: flex; flex-direction: column; gap: 0.25rem; font-size: 0.85rem; font-weight: 500; }
+    .form-grid input, .form-grid select { padding: 0.4rem 0.6rem; border: 1px solid #d1d5db; border-radius: 4px; }
+    .btn-primary { padding: 0.5rem 1.25rem; background: #1d4ed8; color: white; border: none; border-radius: 6px; cursor: pointer; }
+    .btn-primary:disabled { opacity: 0.6; cursor: not-allowed; }
+    .btn-secondary { padding: 0.4rem 1rem; background: #6b7280; color: white; border: none; border-radius: 4px; cursor: pointer; }
+    .form-message { margin-top: 0.5rem; color: #059669; font-weight: 500; }
+    .dashboard-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 1rem; }
+    .stat-card { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 1.25rem; text-align: center; }
+    .stat-card.stat-green { border-color: #86efac; background: #f0fdf4; }
+    .stat-card.stat-yellow { border-color: #fde047; background: #fefce8; }
+    .stat-card.stat-red { border-color: #fca5a5; background: #fef2f2; }
+    .stat-card.stat-blue { border-color: #93c5fd; background: #eff6ff; }
+    .stat-card.stat-orange { border-color: #fdba74; background: #fff7ed; }
+    .stat-number { font-size: 2rem; font-weight: 700; color: #1e293b; }
+    .stat-label { font-size: 0.8rem; color: #64748b; margin-top: 0.25rem; }
+</style>
+
+@code {
+    int activeTab = 1;
+    string? error;
+
+    // Tab 1 — Studies
+    string studyFilter = "open";
+    bool loadingStudies = false;
+    List<IrbStudyIndexEntry> studies = new();
+
+    // Tab 2 — Subjects
+    string? subjectStudyId;
+    bool loadingSubjects = false;
+    List<ResearchSubjectIndexEntry> subjects = new();
+
+    // Tab 3 — Dashboard
+    bool loadingDashboard = false;
+    ResearchDashboard? dashboard;
+
+    // Forms
+    NewStudyForm newStudy = new();
+    bool creatingStudy = false;
+    string? createStudyMessage;
+
+    NewSubjectForm newSubject = new() { ScreeningDate = DateTime.Today, EnrollmentDate = DateTime.Today, ConsentDate = DateTime.Today };
+    bool enrollingSubject = false;
+    string? enrollSubjectMessage;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadStudies();
+        await LoadDashboard();
+    }
+
+    void SetTab(int tab) { activeTab = tab; error = null; }
+    string TabClass(int tab) => activeTab == tab ? "tab-btn active" : "tab-btn";
+
+    // ── Studies ───────────────────────────────────────────────────────────────
+
+    string StudyFilterClass(string f) => studyFilter == f ? "filter-btn active" : "filter-btn";
+
+    async Task SetStudyFilter(string f)
+    {
+        studyFilter = f;
+        await LoadStudies();
+    }
+
+    async Task LoadStudies()
+    {
+        loadingStudies = true;
+        error = null;
+        try
+        {
+            var indexGrain = Grains.GetGrain<IResearchStudyIndexGrain>("IRB-STUDY-IDX");
+            var grainEntries = studyFilter switch
+            {
+                "open" => await indexGrain.GetOpenStudiesAsync(),
+                "expiring" => await indexGrain.GetStudiesExpiringAsync(60),
+                _ => await indexGrain.GetAllStudiesAsync()
+            };
+            studies = grainEntries.Select(e => new IrbStudyIndexEntry(
+                e.StudyId, e.IrbProtocolNumber, e.Title, e.PrincipalInvestigator,
+                (IrbStudyType)(int)e.StudyType, (IrbStudyPhase)(int)e.Phase,
+                (IrbStudyStatus)(int)e.Status, e.CurrentEnrollment, e.TargetEnrollment,
+                e.CurrentExpirationDate)).ToList();
+        }
+        catch (Exception ex) { error = $"Error loading studies: {ex.Message}"; }
+        finally { loadingStudies = false; }
+    }
+
+    bool IsExpiringSoon(IrbStudyIndexEntry s)
+        => s.CurrentExpirationDate.HasValue
+            && s.CurrentExpirationDate.Value <= DateTime.UtcNow.AddDays(60)
+            && s.Status == IrbStudyStatus.OpenForEnrollment;
+
+    string StudyStatusBadge(IrbStudyStatus status) => status switch
+    {
+        IrbStudyStatus.OpenForEnrollment => "badge-open",
+        IrbStudyStatus.Draft => "badge-draft",
+        IrbStudyStatus.ClosedToEnrollment => "badge-closed",
+        IrbStudyStatus.Completed => "badge-completed",
+        IrbStudyStatus.Suspended => "badge-suspended",
+        IrbStudyStatus.Withdrawn => "badge-withdrawn",
+        _ => ""
+    };
+
+    async Task CreateStudy()
+    {
+        creatingStudy = true;
+        createStudyMessage = null;
+        error = null;
+        try
+        {
+            string studyId = $"IRB-STUDY:{Guid.NewGuid()}";
+            var studyGrain = Grains.GetGrain<IResearchStudyGrain>(studyId);
+            await studyGrain.CreateStudyAsync(
+                newStudy.IrbProtocolNumber, newStudy.Title, newStudy.ShortTitle,
+                newStudy.PrincipalInvestigator, newStudy.PiEmployeeId, newStudy.Sponsor,
+                Enum.Parse<IrbStudyType>(newStudy.StudyType),
+                Enum.Parse<IrbStudyPhase>(newStudy.Phase),
+                newStudy.Department, newStudy.TargetEnrollment, newStudy.Description);
+            createStudyMessage = $"Study '{newStudy.ShortTitle}' registered successfully.";
+            newStudy = new();
+            await LoadStudies();
+            await LoadDashboard();
+        }
+        catch (Exception ex) { error = $"Error: {ex.Message}"; }
+        finally { creatingStudy = false; }
+    }
+
+    // ── Subjects ──────────────────────────────────────────────────────────────
+
+    async Task LoadSubjects()
+    {
+        if (string.IsNullOrWhiteSpace(subjectStudyId)) return;
+        loadingSubjects = true;
+        error = null;
+        try
+        {
+            var subjectIndex = Grains.GetGrain<IResearchSubjectIndexGrain>($"IRB-SUBJECT-IDX:{subjectStudyId.Trim()}");
+            var entries = await subjectIndex.GetAllSubjectsAsync();
+            subjects = entries.Select(e => new ResearchSubjectIndexEntry(
+                e.SubjectId, e.StudyId, e.PatientId, e.PatientName,
+                (SubjectEnrollmentStatus)(int)e.EnrollmentStatus,
+                e.EnrollmentDate, e.ConsentDate, e.Arm)).ToList();
+        }
+        catch (Exception ex) { error = $"Error loading subjects: {ex.Message}"; }
+        finally { loadingSubjects = false; }
+    }
+
+    string SubjectStatusBadge(SubjectEnrollmentStatus status) => status switch
+    {
+        SubjectEnrollmentStatus.Screening => "badge-screening",
+        SubjectEnrollmentStatus.Enrolled => "badge-enrolled",
+        SubjectEnrollmentStatus.Active => "badge-active",
+        SubjectEnrollmentStatus.Completed => "badge-completed",
+        SubjectEnrollmentStatus.Withdrawn => "badge-withdrawn",
+        SubjectEnrollmentStatus.LostToFollowUp => "badge-lost",
+        SubjectEnrollmentStatus.Deceased => "badge-deceased",
+        _ => ""
+    };
+
+    async Task EnrollSubject()
+    {
+        enrollingSubject = true;
+        enrollSubjectMessage = null;
+        error = null;
+        try
+        {
+            string subjectId = $"IRB-SUBJECT:{Guid.NewGuid()}";
+            var subjectGrain = Grains.GetGrain<IResearchSubjectGrain>(subjectId);
+            await subjectGrain.EnrollSubjectAsync(
+                newSubject.StudyId, newSubject.StudyTitle,
+                newSubject.PatientId, newSubject.PatientName,
+                newSubject.PatientDOB, newSubject.ScreeningDate,
+                newSubject.EnrollmentDate, newSubject.ConsentDate,
+                Enum.Parse<ConsentType>(newSubject.ConsentType), newSubject.ConsentObtainedBy,
+                newSubject.Arm);
+            enrollSubjectMessage = $"Subject {newSubject.PatientName} enrolled successfully.";
+            if (subjectStudyId == newSubject.StudyId)
+                await LoadSubjects();
+            newSubject = new() { ScreeningDate = DateTime.Today, EnrollmentDate = DateTime.Today, ConsentDate = DateTime.Today };
+            await LoadDashboard();
+        }
+        catch (Exception ex) { error = $"Error: {ex.Message}"; }
+        finally { enrollingSubject = false; }
+    }
+
+    // ── Dashboard ─────────────────────────────────────────────────────────────
+
+    async Task LoadDashboard()
+    {
+        loadingDashboard = true;
+        try
+        {
+            var indexGrain = Grains.GetGrain<IResearchStudyIndexGrain>("IRB-STUDY-IDX");
+            var all = await indexGrain.GetAllStudiesAsync();
+            var expiring = await indexGrain.GetStudiesExpiringAsync(60);
+            dashboard = new ResearchDashboard(
+                TotalStudies: all.Count,
+                OpenForEnrollment: all.Count(s => s.Status == IrbStudyStatus.OpenForEnrollment),
+                Draft: all.Count(s => s.Status == IrbStudyStatus.Draft),
+                ClosedToEnrollment: all.Count(s => s.Status == IrbStudyStatus.ClosedToEnrollment),
+                Completed: all.Count(s => s.Status == IrbStudyStatus.Completed),
+                Suspended: all.Count(s => s.Status == IrbStudyStatus.Suspended),
+                Interventional: all.Count(s => s.StudyType == IrbStudyType.Interventional),
+                Observational: all.Count(s => s.StudyType == IrbStudyType.Observational),
+                TotalCurrentEnrollment: all.Sum(s => s.CurrentEnrollment),
+                ExpiringNext60Days: expiring.Count);
+        }
+        catch { /* non-critical */ }
+        finally { loadingDashboard = false; }
+    }
+
+    // ── Models ────────────────────────────────────────────────────────────────
+
+    class NewStudyForm
+    {
+        public string IrbProtocolNumber { get; set; } = string.Empty;
+        public string Title { get; set; } = string.Empty;
+        public string ShortTitle { get; set; } = string.Empty;
+        public string PrincipalInvestigator { get; set; } = string.Empty;
+        public string PiEmployeeId { get; set; } = string.Empty;
+        public string Sponsor { get; set; } = string.Empty;
+        public string StudyType { get; set; } = "Interventional";
+        public string Phase { get; set; } = "NotApplicable";
+        public string Department { get; set; } = string.Empty;
+        public int TargetEnrollment { get; set; } = 10;
+        public string Description { get; set; } = string.Empty;
+    }
+
+    class NewSubjectForm
+    {
+        public string StudyId { get; set; } = string.Empty;
+        public string StudyTitle { get; set; } = string.Empty;
+        public string PatientId { get; set; } = string.Empty;
+        public string PatientName { get; set; } = string.Empty;
+        public DateTime? PatientDOB { get; set; }
+        public DateTime ScreeningDate { get; set; } = DateTime.Today;
+        public DateTime EnrollmentDate { get; set; } = DateTime.Today;
+        public DateTime ConsentDate { get; set; } = DateTime.Today;
+        public string ConsentType { get; set; } = "Written";
+        public string ConsentObtainedBy { get; set; } = string.Empty;
+        public string Arm { get; set; } = string.Empty;
+    }
+
+    record IrbStudyIndexEntry(
+        string StudyId,
+        string IrbProtocolNumber,
+        string Title,
+        string PrincipalInvestigator,
+        IrbStudyType StudyType,
+        IrbStudyPhase Phase,
+        IrbStudyStatus Status,
+        int CurrentEnrollment,
+        int TargetEnrollment,
+        DateTime? CurrentExpirationDate);
+
+    record ResearchSubjectIndexEntry(
+        string SubjectId,
+        string StudyId,
+        string PatientId,
+        string PatientName,
+        SubjectEnrollmentStatus EnrollmentStatus,
+        DateTime? EnrollmentDate,
+        DateTime? ConsentDate,
+        string Arm);
+
+    record ResearchDashboard(
+        int TotalStudies,
+        int OpenForEnrollment,
+        int Draft,
+        int ClosedToEnrollment,
+        int Completed,
+        int Suspended,
+        int Interventional,
+        int Observational,
+        int TotalCurrentEnrollment,
+        int ExpiringNext60Days);
+
+    // Enums are imported from NewVistas.Abstractions.GrainStates via @using directive
+}

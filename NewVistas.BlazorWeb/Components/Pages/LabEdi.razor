@@ -1,0 +1,467 @@
+@page "/labedi"
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+@rendermode InteractiveServer
+@using NewVistas.BlazorWeb.Services
+@using NewVistas.Abstractions.GrainInterfaces
+@using NewVistas.Abstractions.GrainStates
+@inject OrleansGrainService Grains
+
+<PageTitle>Lab EDI — Electronic Data Interchange</PageTitle>
+
+<h2>Lab EDI — Reference Lab Integration</h2>
+<p class="subtitle">Electronic order/result interchange with external reference laboratories</p>
+
+<div class="tabs">
+    <button class="@TabClass("labs")" @onclick='() => SetTab("labs")'>Reference Labs</button>
+    <button class="@TabClass("orders")" @onclick='() => SetTab("orders")'>Orders</button>
+    <button class="@TabClass("dashboard")" @onclick='() => SetTab("dashboard")'>Dashboard</button>
+</div>
+
+@if (!string.IsNullOrEmpty(error))
+{
+    <div class="error">@error</div>
+}
+@if (!string.IsNullOrEmpty(successMsg))
+{
+    <div class="success">@successMsg</div>
+}
+
+@* ── Reference Labs Tab ───────────────────────────────────────────────────── *@
+@if (activeTab == "labs")
+{
+    <div class="toolbar">
+        <button @onclick="LoadLabs" disabled="@loading">Load Reference Labs</button>
+    </div>
+
+    @if (loading) { <p>Loading...</p> }
+
+    @if (labs is not null)
+    {
+        <h3>Reference Laboratories (@labs.Count)</h3>
+
+        @if (labs.Count == 0)
+        {
+            <p class="empty-msg">No reference labs configured.</p>
+        }
+        else
+        {
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Lab Name</th>
+                        <th>CLIA</th>
+                        <th>Connection Type</th>
+                        <th>Active</th>
+                        <th>Orders Sent</th>
+                        <th>Results Received</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (ReferenceLab lab in labs)
+                    {
+                        <tr class="@(selectedLabId == lab.LabId ? "selected-row" : "")">
+                            <td>@lab.LabName</td>
+                            <td><code>@(lab.CliaNumber ?? "—")</code></td>
+                            <td><span class="badge @ConnectionBadge(lab.ConnectionType)">@lab.ConnectionType</span></td>
+                            <td>
+                                @if (lab.IsActive)
+                                {
+                                    <span class="badge badge-active">Active</span>
+                                }
+                                else
+                                {
+                                    <span class="badge badge-inactive">Inactive</span>
+                                }
+                            </td>
+                            <td>@lab.OrdersSent</td>
+                            <td>@lab.ResultsReceived</td>
+                            <td>
+                                <button class="btn-sm" @onclick="() => LoadQueueStatus(lab.LabId, lab.LabName)">Queue Status</button>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        }
+    }
+
+    @if (queueStatus is not null && selectedLabId is not null)
+    {
+        <div class="detail-panel">
+            <h4>Queue Status — @selectedLabName</h4>
+            <div class="detail-grid">
+                <label>Pending Orders</label>
+                <span>@queueStatus.PendingOrders</span>
+
+                <label>In Transit</label>
+                <span>@queueStatus.InTransit</span>
+
+                <label>Awaiting Results</label>
+                <span>@queueStatus.AwaitingResults</span>
+
+                <label>Errors</label>
+                <span class="@(queueStatus.Errors > 0 ? "text-error" : "")">@queueStatus.Errors</span>
+
+                <label>Last Order Sent</label>
+                <span>@(queueStatus.LastOrderSent?.ToLocalTime().ToString("MM/dd/yyyy HH:mm") ?? "—")</span>
+
+                <label>Last Result Received</label>
+                <span>@(queueStatus.LastResultReceived?.ToLocalTime().ToString("MM/dd/yyyy HH:mm") ?? "—")</span>
+            </div>
+        </div>
+    }
+}
+
+@* ── Orders Tab ───────────────────────────────────────────────────────────── *@
+@if (activeTab == "orders")
+{
+    <div class="toolbar">
+        <input @bind="patientId" placeholder="Patient ID" class="input-id" />
+        <button @onclick="LoadOrders" disabled="@loading">Load Orders</button>
+    </div>
+
+    @if (loading) { <p>Loading...</p> }
+
+    @if (orders is not null)
+    {
+        <h3>EDI Orders — @patientId (@orders.Count)</h3>
+
+        @if (orders.Count == 0)
+        {
+            <p class="empty-msg">No EDI orders found for this patient.</p>
+        }
+        else
+        {
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Order ID</th>
+                        <th>Reference Lab</th>
+                        <th>Status</th>
+                        <th>Test Count</th>
+                        <th>Created</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (EdiOrder order in orders)
+                    {
+                        <tr class="@(selectedOrderId == order.OrderId ? "selected-row" : "")">
+                            <td><code>@order.OrderId</code></td>
+                            <td>@(order.ReferenceLabName ?? "—")</td>
+                            <td><span class="badge @OrderStatusBadge(order.Status)">@order.Status</span></td>
+                            <td>@order.TestCount</td>
+                            <td>@order.CreatedDate.ToLocalTime().ToString("MM/dd/yy HH:mm")</td>
+                            <td>
+                                <button class="btn-sm" @onclick="() => LoadOrderDetail(order.OrderId)">Detail</button>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        }
+    }
+
+    @if (orderDetail is not null)
+    {
+        <div class="detail-panel">
+            <h4>Order Detail — @orderDetail.OrderId</h4>
+            <div class="detail-grid">
+                <label>Order ID</label>
+                <span><code>@orderDetail.OrderId</code></span>
+
+                <label>Patient ID</label>
+                <span>@orderDetail.PatientId</span>
+
+                <label>Reference Lab</label>
+                <span>@(orderDetail.ReferenceLabName ?? "—")</span>
+
+                <label>Status</label>
+                <span><span class="badge @OrderStatusBadge(orderDetail.Status)">@orderDetail.Status</span></span>
+
+                <label>Created</label>
+                <span>@orderDetail.CreatedDate.ToLocalTime().ToString("MM/dd/yyyy HH:mm")</span>
+
+                @if (orderDetail.SentDate.HasValue)
+                {
+                    <label>Sent</label>
+                    <span>@orderDetail.SentDate.Value.ToLocalTime().ToString("MM/dd/yyyy HH:mm")</span>
+                }
+
+                @if (orderDetail.ResultReceivedDate.HasValue)
+                {
+                    <label>Result Received</label>
+                    <span>@orderDetail.ResultReceivedDate.Value.ToLocalTime().ToString("MM/dd/yyyy HH:mm")</span>
+                }
+            </div>
+
+            @if (orderDetail.Tests is not null && orderDetail.Tests.Count > 0)
+            {
+                <h5>Ordered Tests</h5>
+                <table class="data-table">
+                    <thead>
+                        <tr><th>Test Name</th><th>LOINC</th><th>Status</th><th>Result</th></tr>
+                    </thead>
+                    <tbody>
+                        @foreach (EdiTestItem t in orderDetail.Tests)
+                        {
+                            <tr>
+                                <td>@t.TestName</td>
+                                <td><code>@(t.LoincCode ?? "—")</code></td>
+                                <td><span class="badge @OrderStatusBadge(t.Status)">@t.Status</span></td>
+                                <td>@(t.ResultValue ?? "—") @(t.ResultUnits ?? "")</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            }
+        </div>
+    }
+}
+
+@* ── Dashboard Tab ────────────────────────────────────────────────────────── *@
+@if (activeTab == "dashboard")
+{
+    <div class="toolbar">
+        <button @onclick="LoadDashboard" disabled="@loading">Refresh Dashboard</button>
+        <button @onclick="SeedDemo" disabled="@loading" class="btn-demo">Seed Demo Data</button>
+    </div>
+
+    @if (loading) { <p>Loading...</p> }
+
+    @if (dashboardStats is not null)
+    {
+        <h3>Lab EDI Dashboard</h3>
+
+        <div class="stats-grid">
+            <div class="stat-card">
+                <div class="stat-value">@dashboardStats.TotalReferenceLabs</div>
+                <div class="stat-label">Reference Labs</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value">@dashboardStats.ActiveReferenceLabs</div>
+                <div class="stat-label">Active Labs</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value">@dashboardStats.TotalOrdersSent</div>
+                <div class="stat-label">Orders Sent</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value">@dashboardStats.TotalResultsReceived</div>
+                <div class="stat-label">Results Received</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value">@dashboardStats.PendingOrders</div>
+                <div class="stat-label">Pending Orders</div>
+            </div>
+            <div class="stat-card stat-card-error">
+                <div class="stat-value">@dashboardStats.ErrorCount</div>
+                <div class="stat-label">Errors</div>
+            </div>
+        </div>
+
+        <div class="detail-grid" style="margin-top: 1.5rem; max-width: 400px;">
+            <label>Avg Turnaround</label>
+            <span>@(dashboardStats.AvgTurnaroundHours?.ToString("F1") ?? "—") hours</span>
+
+            <label>Last Activity</label>
+            <span>@(dashboardStats.LastActivity?.ToLocalTime().ToString("MM/dd/yyyy HH:mm") ?? "—")</span>
+        </div>
+    }
+}
+
+<style>
+    .subtitle { color: #666; margin-top: -0.5rem; margin-bottom: 1rem; font-size: 0.9rem; }
+    .tabs { display: flex; gap: 0.25rem; margin-bottom: 1rem; }
+    .tabs button { padding: 0.4rem 1rem; border: 1px solid #ccc; background: #f5f5f5; cursor: pointer; border-radius: 4px 4px 0 0; }
+    .tabs button.active { background: white; border-bottom-color: white; font-weight: bold; }
+    .tabs button:disabled { opacity: 0.5; cursor: not-allowed; }
+    .toolbar { display: flex; gap: 0.5rem; align-items: center; margin-bottom: 1rem; }
+    .input-id { width: 220px; padding: 0.3rem 0.5rem; }
+    .error { color: darkred; background: #fff0f0; border: 1px solid #fcc; padding: 0.5rem; margin-bottom: 1rem; border-radius: 4px; }
+    .success { color: darkgreen; background: #f0fff0; border: 1px solid #cfc; padding: 0.5rem; margin-bottom: 1rem; border-radius: 4px; }
+    .data-table { width: 100%; border-collapse: collapse; font-size: 0.88rem; }
+    .data-table th { background: #2c5282; color: white; padding: 0.4rem 0.6rem; text-align: left; }
+    .data-table td { padding: 0.35rem 0.6rem; border-bottom: 1px solid #e2e8f0; }
+    .data-table tr:hover td { background: #ebf8ff; }
+    .selected-row td { background: #bee3f8 !important; }
+    .badge { display: inline-block; padding: 0.15rem 0.45rem; border-radius: 3px; font-size: 0.78rem; font-weight: bold; }
+    .badge-active { background: #c6f6d5; color: #22543d; }
+    .badge-inactive { background: #fed7d7; color: #742a2a; }
+    .badge-hl7 { background: #2c5282; color: white; }
+    .badge-sftp { background: #805ad5; color: white; }
+    .badge-api { background: #38a169; color: white; }
+    .badge-other { background: #a0aec0; color: white; }
+    .badge-pending { background: #fefcbf; color: #744210; }
+    .badge-sent { background: #bee3f8; color: #2c5282; }
+    .badge-completed { background: #c6f6d5; color: #22543d; }
+    .badge-error { background: #fed7d7; color: #742a2a; }
+    .badge-cancelled { background: #e2e8f0; color: #4a5568; }
+    .btn-sm { padding: 0.2rem 0.5rem; font-size: 0.8rem; cursor: pointer; border: 1px solid #cbd5e0; border-radius: 3px; }
+    .btn-demo { background: #e9d8fd; border-color: #b794f4; }
+    .text-error { color: #c53030; font-weight: bold; }
+    .empty-msg { color: #718096; font-style: italic; }
+    .detail-panel { margin-top: 1.5rem; background: #f7fafc; border: 1px solid #e2e8f0; border-radius: 4px; padding: 1rem; }
+    .detail-grid { display: grid; grid-template-columns: 170px 1fr; gap: 0.5rem; align-items: center; }
+    .detail-grid label { font-weight: 500; color: #4a5568; }
+    .stats-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 1rem; margin-top: 0.5rem; }
+    .stat-card { background: #f7fafc; border: 1px solid #e2e8f0; border-radius: 6px; padding: 1rem; text-align: center; }
+    .stat-card-error { border-color: #feb2b2; background: #fff5f5; }
+    .stat-value { font-size: 2rem; font-weight: bold; color: #2c5282; }
+    .stat-card-error .stat-value { color: #c53030; }
+    .stat-label { font-size: 0.82rem; color: #718096; margin-top: 0.25rem; }
+    code { background: #edf2f7; padding: 0.1rem 0.3rem; border-radius: 3px; font-size: 0.85rem; }
+</style>
+
+@code {
+    string activeTab = "labs";
+    bool loading;
+    string? error;
+    string? successMsg;
+
+    // Reference Labs
+    List<ReferenceLab>? labs;
+    string? selectedLabId;
+    string? selectedLabName;
+    QueueStatus? queueStatus;
+
+    // Orders
+    string patientId = string.Empty;
+    List<EdiOrder>? orders;
+    string? selectedOrderId;
+    EdiOrderDetail? orderDetail;
+
+    // Dashboard
+    DashboardStats? dashboardStats;
+
+    string TabClass(string tab) => activeTab == tab ? "active" : string.Empty;
+
+    void SetTab(string tab) { activeTab = tab; error = null; successMsg = null; }
+
+    string ConnectionBadge(string connType) => connType.ToUpperInvariant() switch
+    {
+        "HL7" or "HL7V2" => "badge-hl7",
+        "SFTP" => "badge-sftp",
+        "API" or "REST" => "badge-api",
+        _ => "badge-other"
+    };
+
+    string OrderStatusBadge(string status) => status.ToUpperInvariant() switch
+    {
+        "PENDING" => "badge-pending",
+        "SENT" or "TRANSMITTED" => "badge-sent",
+        "COMPLETED" or "RESULTED" => "badge-completed",
+        "ERROR" or "FAILED" => "badge-error",
+        "CANCELLED" => "badge-cancelled",
+        _ => "badge-other"
+    };
+
+    private ILabEdiIndexGrain GetIndexGrain() => Grains.GetGrain<ILabEdiIndexGrain>("LAB-EDI-INDEX");
+
+    async Task LoadLabs()
+    {
+        error = null; loading = true; labs = null; selectedLabId = null; queueStatus = null;
+        try
+        {
+            var grain = GetIndexGrain();
+            var labSummaries = await grain.GetReferenceLabsAsync();
+            labs = labSummaries.Select(l => new ReferenceLab(l.ReferenceLabId, l.LabName, l.CliaNumber,
+                l.ConnectionType, l.IsActive, (int)l.TotalOrders, (int)l.TotalResults)).ToList();
+        }
+        catch (Exception ex) { error = ex.Message; }
+        finally { loading = false; }
+    }
+
+    async Task LoadQueueStatus(string labId, string labName)
+    {
+        selectedLabId = labId;
+        selectedLabName = labName;
+        error = null;
+        try
+        {
+            var configGrain = Grains.GetGrain<ILabEdiConfigGrain>($"LAB-EDI-CFG:{labId}");
+            var config = await configGrain.GetConfigAsync();
+            queueStatus = new QueueStatus(0, 0, 0, 0, null, null);
+        }
+        catch (Exception ex) { error = ex.Message; }
+    }
+
+    async Task LoadOrders()
+    {
+        if (string.IsNullOrWhiteSpace(patientId)) { error = "Patient ID required."; return; }
+        error = null; loading = true; orders = null; selectedOrderId = null; orderDetail = null;
+        try
+        {
+            var grain = GetIndexGrain();
+            var orderSummaries = await grain.GetOrdersByPatientAsync(patientId.Trim(), 50);
+            orders = orderSummaries.Select(o => new EdiOrder(o.OrderId, o.ReferenceLab, o.Status.ToString(),
+                o.TestCount, o.CreatedDate)).ToList();
+        }
+        catch (Exception ex) { error = ex.Message; }
+        finally { loading = false; }
+    }
+
+    async Task LoadOrderDetail(string orderId)
+    {
+        selectedOrderId = orderId;
+        error = null;
+        try
+        {
+            var grain = Grains.GetGrain<ILabEdiOrderGrain>($"LAB-EDI-ORDER:{orderId}");
+            var state = await grain.GetOrderAsync();
+            orderDetail = new EdiOrderDetail(state.OrderId, state.PatientId, state.ReferenceLab,
+                state.Status.ToString(), state.CreatedDate, state.TransmittedDate, state.ResultReceivedDate, null);
+        }
+        catch (Exception ex) { error = ex.Message; }
+    }
+
+    async Task LoadDashboard()
+    {
+        error = null; loading = true;
+        try
+        {
+            var grain = GetIndexGrain();
+            var dashboard = await grain.GetDashboardAsync();
+            dashboardStats = new DashboardStats(dashboard.LabSummaries.Count, dashboard.ActiveReferenceLabs,
+                (int)dashboard.TotalOrders, (int)dashboard.TotalResults, dashboard.PendingOrders,
+                0, null, null);
+        }
+        catch (Exception ex) { error = ex.Message; }
+        finally { loading = false; }
+    }
+
+    async Task SeedDemo()
+    {
+        error = null; successMsg = null; loading = true;
+        try
+        {
+            var grain = GetIndexGrain();
+            await grain.SeedDemoDataAsync();
+            successMsg = "Demo data seeded successfully.";
+            await LoadDashboard();
+        }
+        catch (Exception ex) { error = ex.Message; }
+        finally { loading = false; }
+    }
+
+    record ReferenceLab(string LabId, string LabName, string? CliaNumber,
+        string ConnectionType, bool IsActive, int OrdersSent, int ResultsReceived);
+
+    record QueueStatus(int PendingOrders, int InTransit, int AwaitingResults,
+        int Errors, DateTime? LastOrderSent, DateTime? LastResultReceived);
+
+    record EdiOrder(string OrderId, string? ReferenceLabName, string Status,
+        int TestCount, DateTime CreatedDate);
+
+    record EdiTestItem(string TestName, string? LoincCode, string Status,
+        string? ResultValue, string? ResultUnits);
+
+    record EdiOrderDetail(string OrderId, string PatientId, string? ReferenceLabName,
+        string Status, DateTime CreatedDate, DateTime? SentDate, DateTime? ResultReceivedDate,
+        List<EdiTestItem>? Tests);
+
+    record DashboardStats(int TotalReferenceLabs, int ActiveReferenceLabs,
+        int TotalOrdersSent, int TotalResultsReceived, int PendingOrders,
+        int ErrorCount, double? AvgTurnaroundHours, DateTime? LastActivity);
+}

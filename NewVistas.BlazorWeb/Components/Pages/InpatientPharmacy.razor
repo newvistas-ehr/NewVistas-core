@@ -1,0 +1,493 @@
+@page "/inpatientpharmacy"
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+@rendermode InteractiveServer
+@using NewVistas.BlazorWeb.Services
+@using NewVistas.Abstractions.GrainInterfaces
+@using NewVistas.Abstractions.GrainStates
+@inject OrleansGrainService Grains
+
+<h2>Inpatient Pharmacy</h2>
+
+<div class="search-bar">
+    <input @bind="patientId" placeholder="Patient ID (e.g. P-DEMO-001)" class="input-field" />
+    <button @onclick="LoadOrders" disabled="@isLoading" class="btn-primary">
+        @(isLoading ? "Loading…" : "Load Orders")
+    </button>
+    <button @onclick="LoadDemo" disabled="@isLoading" class="btn-secondary">Load Demo</button>
+</div>
+
+@if (error != null)
+{
+    <div class="error-banner">@error</div>
+}
+
+@if (orders != null)
+{
+    <div class="profile-header">
+        <span>@orders.Count order(s) for <strong>@patientId</strong></span>
+        <span class="legend">
+            <span class="type-badge type-unit_dose">UD</span> Unit Dose &nbsp;
+            <span class="type-badge type-iv">IV</span> IV Admixture &nbsp;
+            <span class="type-badge type-lvp">LVP</span> Large Volume
+        </span>
+    </div>
+
+    <table class="order-table">
+        <thead>
+            <tr>
+                <th>Drug</th>
+                <th>Type</th>
+                <th>Status</th>
+                <th>Priority</th>
+                <th>Schedule</th>
+                <th>Dosage</th>
+                <th>Ward/Bed</th>
+                <th>Verified</th>
+                <th>Last Admin</th>
+                <th>Provider</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var order in orders)
+            {
+                <tr class="order-row @(selectedOrder?.OrderId == order.OrderId ? "selected" : "")"
+                    @onclick="() => SelectOrder(order)">
+                    <td>@order.DrugName</td>
+                    <td><span class="type-badge type-@order.OrderType.ToLower()">@order.OrderType.Replace("_"," ")</span></td>
+                    <td><span class="status-badge status-@order.Status.ToLower()">@order.Status</span></td>
+                    <td><span class="priority-chip priority-@order.Priority.ToLower()">@order.Priority</span></td>
+                    <td>@order.Schedule</td>
+                    <td>@order.Dosage</td>
+                    <td>@(order.WardName != null ? $"{order.WardName} / {order.RoomBed}" : "—")</td>
+                    <td>@(order.IsVerified ? "✓ RPh" : "⚠ Pending")</td>
+                    <td>@order.LastAdminDate?.ToString("MM/dd HH:mm")</td>
+                    <td>@order.ProviderName</td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+
+@if (detailOrder != null)
+{
+    <div class="detail-panel">
+        <h3>
+            @detailOrder.DrugName
+            <span class="type-badge type-@detailOrder.OrderType.ToLower()">@detailOrder.OrderType.Replace("_"," ")</span>
+            <span class="status-badge status-@detailOrder.Status.ToLower()">@detailOrder.Status</span>
+        </h3>
+
+        <div class="detail-grid">
+            <div><strong>Order ID:</strong> @detailOrder.OrderId</div>
+            <div><strong>Priority:</strong> <span class="priority-chip priority-@detailOrder.Priority.ToLower()">@detailOrder.Priority</span></div>
+            <div><strong>Route:</strong> @(detailOrder.Route ?? "—")</div>
+            <div><strong>Schedule:</strong> @(detailOrder.Schedule ?? "—")</div>
+            <div><strong>Dosage:</strong> @(detailOrder.Dosage ?? "—") @detailOrder.DoseUnit</div>
+            <div><strong>Qty/Dose:</strong> @(detailOrder.QuantityPerDose?.ToString() ?? "—")</div>
+            <div><strong>Ward:</strong> @(detailOrder.WardName ?? "—")</div>
+            <div><strong>Bed:</strong> @(detailOrder.RoomBed ?? "—")</div>
+            <div><strong>Start:</strong> @detailOrder.StartDate?.ToString("MM/dd/yyyy")</div>
+            <div><strong>Stop:</strong> @(detailOrder.StopDate?.ToString("MM/dd/yyyy") ?? "—")</div>
+            <div><strong>Provider:</strong> @(detailOrder.ProviderName ?? "—")</div>
+            @if (detailOrder.IsVerified)
+            {
+                <div><strong>Verified by:</strong> @detailOrder.PharmacistName on @detailOrder.VerifiedDate?.ToString("MM/dd/yyyy HH:mm")</div>
+            }
+            @if (!string.IsNullOrEmpty(detailOrder.IvSolution))
+            {
+                <div><strong>IV Solution:</strong> @detailOrder.IvSolution @(detailOrder.IvVolumeMl?.ToString() ?? "")mL</div>
+                <div><strong>Rate:</strong> @(detailOrder.InfusionRateStr ?? "—")</div>
+            }
+            @if (!string.IsNullOrEmpty(detailOrder.Comments))
+            {
+                <div><strong>Comments:</strong> @detailOrder.Comments</div>
+            }
+            @if (!string.IsNullOrEmpty(detailOrder.DiscontinueReason))
+            {
+                <div><strong>D/C Reason:</strong> @detailOrder.DiscontinueReason</div>
+            }
+            @if (!string.IsNullOrEmpty(detailOrder.HoldReason))
+            {
+                <div class="hold-reason"><strong>Hold Reason:</strong> @detailOrder.HoldReason</div>
+            }
+            <div><strong>BCMA Events:</strong> @detailOrder.BcmaAdministrationIds.Count</div>
+        </div>
+
+        @if (detailOrder.IvAdditives.Count > 0)
+        {
+            <h4>IV Additives</h4>
+            <table class="additive-table">
+                <thead><tr><th>Drug</th><th>Dose</th><th>Unit</th><th>Type</th></tr></thead>
+                <tbody>
+                    @foreach (var a in detailOrder.IvAdditives)
+                    {
+                        <tr>
+                            <td>@a.DrugName</td>
+                            <td>@a.Dose</td>
+                            <td>@a.DoseUnit</td>
+                            <td>@(a.IsBase ? "Primary" : "Additive")</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        }
+
+        @if (detailOrder.ScheduledAdminTimes.Count > 0)
+        {
+            <h4>Scheduled Administration Times</h4>
+            <div class="time-chips">
+                @foreach (var t in detailOrder.ScheduledAdminTimes.Take(10))
+                {
+                    <span class="time-chip">@t.ToString("MM/dd HH:mm")</span>
+                }
+            </div>
+        }
+
+        <div class="action-bar">
+            @if (!detailOrder.IsVerified && detailOrder.Status == "PENDING")
+            {
+                <button @onclick="VerifyOrder" disabled="@isActing" class="btn-action">✓ Verify (RPh)</button>
+            }
+            @if (detailOrder.Status == "ACTIVE" || detailOrder.Status == "PENDING")
+            {
+                <button @onclick="ShowDiscontinue" disabled="@isActing" class="btn-danger">Discontinue</button>
+                <button @onclick="HoldOrder" disabled="@isActing" class="btn-warning">Hold</button>
+            }
+            @if (detailOrder.Status == "HOLD")
+            {
+                <button @onclick="ResumeOrder" disabled="@isActing" class="btn-action">Resume</button>
+            }
+            @if (detailOrder.Status == "ACTIVE" || detailOrder.Status == "HOLD")
+            {
+                <button @onclick="ExpireOrder" disabled="@isActing" class="btn-secondary">Expire</button>
+            }
+            @if (detailOrder.Status == "ACTIVE" && (detailOrder.OrderType == "IV" || detailOrder.OrderType == "LVP"))
+            {
+                <button @onclick="ShowAddAdditiveForm" disabled="@isActing" class="btn-secondary">+ Additive</button>
+            }
+            @if (detailOrder.Status == "ACTIVE")
+            {
+                <button @onclick="RecordAdmin" disabled="@isActing" class="btn-action">Record Administration</button>
+            }
+        </div>
+
+        @if (showDiscontinueInput)
+        {
+            <div class="input-row">
+                <input @bind="discontinueReason" placeholder="Discontinue reason" class="input-field" />
+                <button @onclick="ConfirmDiscontinue" class="btn-danger">Confirm D/C</button>
+                <button @onclick="() => showDiscontinueInput = false" class="btn-secondary">Cancel</button>
+            </div>
+        }
+
+        @if (showAddAdditiveForm)
+        {
+            <div class="additive-form">
+                <h4>Add IV Additive</h4>
+                <input @bind="additiveDrugName" placeholder="Drug name" class="input-field" />
+                <input @bind="additiveDose" placeholder="Dose" class="input-field short" />
+                <input @bind="additiveDoseUnit" placeholder="Unit (MG, GM…)" class="input-field short" />
+                <label><input type="checkbox" @bind="additiveIsBase" /> Primary additive</label>
+                <button @onclick="ConfirmAddAdditive" class="btn-action">Add</button>
+                <button @onclick="() => showAddAdditiveForm = false" class="btn-secondary">Cancel</button>
+            </div>
+        }
+
+        @if (actionMessage != null)
+        {
+            <div class="action-message">@actionMessage</div>
+        }
+    </div>
+}
+
+<style>
+    .search-bar { display: flex; gap: 8px; align-items: center; margin-bottom: 16px; flex-wrap: wrap; }
+    .input-field { padding: 6px 10px; border: 1px solid #ccc; border-radius: 4px; min-width: 240px; }
+    .input-field.short { min-width: 100px; }
+    .btn-primary { padding: 6px 14px; background: #0078d4; color: white; border: none; border-radius: 4px; cursor: pointer; }
+    .btn-primary:hover { background: #005a9e; }
+    .btn-secondary { padding: 6px 14px; background: #f3f3f3; color: #333; border: 1px solid #ccc; border-radius: 4px; cursor: pointer; }
+    .btn-action { padding: 5px 12px; background: #107c41; color: white; border: none; border-radius: 4px; cursor: pointer; margin-right: 4px; }
+    .btn-action:hover { background: #0b5c30; }
+    .btn-danger { padding: 5px 12px; background: #d13438; color: white; border: none; border-radius: 4px; cursor: pointer; margin-right: 4px; }
+    .btn-warning { padding: 5px 12px; background: #ca5010; color: white; border: none; border-radius: 4px; cursor: pointer; margin-right: 4px; }
+    .error-banner { background: #fde7e9; border: 1px solid #d13438; color: #a4262c; padding: 8px 12px; border-radius: 4px; margin-bottom: 12px; }
+    .profile-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+    .legend { font-size: 0.85em; color: #555; }
+    .order-table { width: 100%; border-collapse: collapse; margin-bottom: 20px; font-size: 0.88em; }
+    .order-table th { background: #f3f3f3; padding: 6px 8px; text-align: left; border-bottom: 2px solid #ddd; }
+    .order-table td { padding: 5px 8px; border-bottom: 1px solid #eee; }
+    .order-row { cursor: pointer; }
+    .order-row:hover { background: #f0f6ff; }
+    .order-row.selected { background: #e6f0fb; }
+    .status-badge { display: inline-block; padding: 2px 7px; border-radius: 10px; font-size: 0.78em; font-weight: 600; }
+    .status-pending { background: #fff4ce; color: #7a4f00; }
+    .status-active { background: #dff6dd; color: #107c41; }
+    .status-discontinued { background: #fde7e9; color: #a4262c; }
+    .status-expired { background: #f3f3f3; color: #666; }
+    .status-hold { background: #ffe7d4; color: #8a3400; }
+    .status-on_call { background: #e8d5ff; color: #5c2d91; }
+    .type-badge { display: inline-block; padding: 2px 6px; border-radius: 3px; font-size: 0.75em; font-weight: 700; }
+    .type-unit_dose { background: #dae8ff; color: #005a9e; }
+    .type-iv { background: #ead5f5; color: #5c2d91; }
+    .type-lvp { background: #d5f5f0; color: #00695c; }
+    .priority-chip { display: inline-block; padding: 2px 6px; border-radius: 3px; font-size: 0.75em; font-weight: 600; }
+    .priority-routine { background: #f3f3f3; color: #555; }
+    .priority-stat { background: #fde7e9; color: #a4262c; }
+    .priority-now { background: #fff4ce; color: #7a4f00; }
+    .detail-panel { border: 1px solid #ddd; border-radius: 6px; padding: 16px; margin-top: 10px; background: #fafafa; }
+    .detail-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 5px 16px; margin-bottom: 12px; font-size: 0.9em; }
+    .action-bar { display: flex; flex-wrap: wrap; gap: 6px; margin: 10px 0; }
+    .input-row { display: flex; gap: 8px; margin-top: 8px; flex-wrap: wrap; align-items: center; }
+    .additive-form { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-top: 8px; padding: 10px; background: #f0f6ff; border-radius: 4px; }
+    .action-message { background: #dff6dd; color: #107c41; padding: 6px 10px; border-radius: 4px; margin-top: 8px; font-size: 0.9em; }
+    .hold-reason { color: #8a3400; }
+    .additive-table { width: 100%; border-collapse: collapse; margin: 6px 0 12px; font-size: 0.88em; }
+    .additive-table th { background: #f3f3f3; padding: 4px 8px; text-align: left; border-bottom: 1px solid #ddd; }
+    .additive-table td { padding: 4px 8px; border-bottom: 1px solid #eee; }
+    .time-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 12px; }
+    .time-chip { background: #e6f0fb; color: #005a9e; padding: 3px 8px; border-radius: 12px; font-size: 0.82em; }
+    h3 { margin-top: 0; }
+    h4 { margin-bottom: 4px; }
+</style>
+
+@code {
+    private string patientId = string.Empty;
+    private bool isLoading;
+    private bool isActing;
+    private string? error;
+    private string? actionMessage;
+    private bool showDiscontinueInput;
+    private string discontinueReason = string.Empty;
+    private bool showAddAdditiveForm;
+    private string additiveDrugName = string.Empty;
+    private string additiveDose = string.Empty;
+    private string additiveDoseUnit = string.Empty;
+    private bool additiveIsBase = true;
+
+    private List<OrderSummaryDto>? orders;
+    private OrderSummaryDto? selectedOrder;
+    private OrderDetailDto? detailOrder;
+
+    private IPatientInpatientProfileGrain GetProfileGrain() =>
+        Grains.GetGrain<IPatientInpatientProfileGrain>($"PSJ-PROFILE:{patientId.Trim()}");
+
+    private IInpatientOrderGrain GetOrderGrain(string orderId) =>
+        Grains.GetGrain<IInpatientOrderGrain>(orderId);
+
+    private async Task LoadOrders()
+    {
+        if (string.IsNullOrWhiteSpace(patientId)) return;
+        isLoading = true;
+        error = null;
+        orders = null;
+        detailOrder = null;
+        selectedOrder = null;
+
+        try
+        {
+            List<InpatientOrderIndexEntry> entries = await GetProfileGrain().GetAllOrdersAsync();
+            orders = entries.Select(e => new OrderSummaryDto(
+                e.OrderId, e.DrugName, e.DrugId, e.OrderType, e.Status, e.Priority,
+                e.Schedule, e.Dosage, e.StartDate, e.StopDate, e.IsVerified,
+                e.ProviderName, e.WardName, e.RoomBed, e.LastAdminDate)).ToList();
+        }
+        catch (Exception ex)
+        {
+            error = $"Failed to load orders: {ex.Message}";
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private async Task LoadDemo()
+    {
+        isLoading = true;
+        error = null;
+        if (string.IsNullOrWhiteSpace(patientId))
+            patientId = "P-DEMO-001";
+
+        try
+        {
+            error = "Demo load is only available when running the API server.";
+        }
+        catch (Exception ex)
+        {
+            error = $"Demo load failed: {ex.Message}";
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private async Task SelectOrder(OrderSummaryDto order)
+    {
+        selectedOrder = order;
+        actionMessage = null;
+        showDiscontinueInput = false;
+        showAddAdditiveForm = false;
+
+        try
+        {
+            InpatientOrderState state = await GetOrderGrain(order.OrderId).GetOrderAsync();
+            detailOrder = new OrderDetailDto(
+                state.OrderId, state.PatientId, state.AdmissionId, state.WardId, state.WardName,
+                state.RoomBed, state.OrderType, state.DrugName, state.DrugId, state.Dosage,
+                state.DoseUnit, state.Route, state.Schedule, state.Status, state.Priority,
+                state.StartDate, state.StopDate, state.DurationDays, state.QuantityPerDose,
+                state.IsVerified, state.VerifiedBy, state.VerifiedDate, state.ProviderId,
+                state.ProviderName, state.PharmacistId, state.PharmacistName, state.Comments,
+                state.DiscontinueReason, state.HoldReason, state.IvSolution, state.IvVolumeMl,
+                state.InfusionRateStr,
+                state.IvAdditives.Select(a => new IvAdditiveDto(a.DrugName, a.DrugId, a.Dose, a.DoseUnit, a.IsBase)).ToList(),
+                state.ScheduledAdminTimes,
+                state.BcmaAdministrationIds,
+                state.LastAdminDate, state.CreatedDate, state.LastModifiedDate);
+        }
+        catch (Exception ex)
+        {
+            error = $"Failed to load order detail: {ex.Message}";
+        }
+    }
+
+    private async Task VerifyOrder()
+        => await DoAction("verify", async g => await g.VerifyAsync("RPH-CURRENT", "On-Duty Pharmacist"));
+
+    private void ShowDiscontinue()
+    {
+        showDiscontinueInput = true;
+        discontinueReason = string.Empty;
+    }
+
+    private async Task ConfirmDiscontinue()
+    {
+        showDiscontinueInput = false;
+        await DoAction("discontinue", async g => await g.DiscontinueAsync(discontinueReason));
+    }
+
+    private async Task HoldOrder()
+        => await DoAction("hold", async g => await g.HoldAsync("Held by pharmacist"));
+
+    private async Task ResumeOrder()
+        => await DoAction("resume", async g => await g.ResumeAsync());
+
+    private async Task ExpireOrder()
+        => await DoAction("expire", async g => await g.ExpireAsync());
+
+    private async Task RecordAdmin()
+        => await DoAction("administered", async g => await g.RecordAdministrationAsync(string.Empty, DateTime.UtcNow));
+
+    private void ShowAddAdditiveForm()
+    {
+        showAddAdditiveForm = true;
+        additiveDrugName = string.Empty;
+        additiveDose = string.Empty;
+        additiveDoseUnit = string.Empty;
+        additiveIsBase = false;
+    }
+
+    private async Task ConfirmAddAdditive()
+    {
+        showAddAdditiveForm = false;
+        await DoAction("additive", async g => await g.AddIvAdditiveAsync(new IvAdditive
+        {
+            DrugName = additiveDrugName,
+            DrugId = null,
+            Dose = additiveDose,
+            DoseUnit = additiveDoseUnit,
+            IsBase = additiveIsBase
+        }));
+    }
+
+    private async Task DoAction(string action, Func<IInpatientOrderGrain, Task> grainAction)
+    {
+        if (detailOrder == null) return;
+        isActing = true;
+        error = null;
+        actionMessage = null;
+        try
+        {
+            IInpatientOrderGrain grain = GetOrderGrain(detailOrder.OrderId);
+            await grainAction(grain);
+            actionMessage = $"Action '{action}' completed.";
+            await SelectOrder(selectedOrder!);
+            await LoadOrders();
+        }
+        catch (Exception ex)
+        {
+            error = $"Action failed: {ex.Message}";
+        }
+        finally
+        {
+            isActing = false;
+        }
+    }
+
+    // Response DTOs
+    private record OrderSummaryDto(
+        string OrderId,
+        string DrugName,
+        string? DrugId,
+        string OrderType,
+        string Status,
+        string Priority,
+        string? Schedule,
+        string? Dosage,
+        DateTime? StartDate,
+        DateTime? StopDate,
+        bool IsVerified,
+        string? ProviderName,
+        string? WardName,
+        string? RoomBed,
+        DateTime? LastAdminDate);
+
+    private record OrderDetailDto(
+        string OrderId,
+        string PatientId,
+        string? AdmissionId,
+        string WardId,
+        string WardName,
+        string? RoomBed,
+        string OrderType,
+        string DrugName,
+        string? DrugId,
+        string? Dosage,
+        string? DoseUnit,
+        string? Route,
+        string? Schedule,
+        string Status,
+        string Priority,
+        DateTime? StartDate,
+        DateTime? StopDate,
+        int? DurationDays,
+        int? QuantityPerDose,
+        bool IsVerified,
+        string? VerifiedBy,
+        DateTime? VerifiedDate,
+        string? ProviderId,
+        string? ProviderName,
+        string? PharmacistId,
+        string? PharmacistName,
+        string? Comments,
+        string? DiscontinueReason,
+        string? HoldReason,
+        string? IvSolution,
+        int? IvVolumeMl,
+        string? InfusionRateStr,
+        List<IvAdditiveDto> IvAdditives,
+        List<DateTime> ScheduledAdminTimes,
+        List<string> BcmaAdministrationIds,
+        DateTime? LastAdminDate,
+        DateTime CreatedDate,
+        DateTime LastModifiedDate);
+
+    private record IvAdditiveDto(
+        string DrugName,
+        string? DrugId,
+        string Dose,
+        string DoseUnit,
+        bool IsBase);
+}

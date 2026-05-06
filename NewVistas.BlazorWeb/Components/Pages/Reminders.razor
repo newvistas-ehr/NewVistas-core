@@ -1,0 +1,135 @@
+@page "/reminders"
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+@rendermode InteractiveServer
+@using NewVistas.BlazorWeb.Services
+@using NewVistas.Abstractions.GrainInterfaces
+@using NewVistas.Abstractions.GrainStates
+@inject OrleansGrainService Grains
+
+<PageTitle>Reminders</PageTitle>
+<h1>⏰ Clinical Reminders</h1>
+
+<div class="lookup-bar">
+    <input type="text" @bind="patientId" @bind:event="oninput" @onkeydown="HandleKeyDown" placeholder="Patient ID" class="lookup-input" />
+    <button @onclick="Load" disabled="@(string.IsNullOrWhiteSpace(patientId) || loading)" class="btn btn-primary">@(loading ? "Loading..." : "Load")</button>
+    <button @onclick="ShowForm" disabled="@(string.IsNullOrWhiteSpace(patientId))" class="btn btn-secondary">+ Create Reminder</button>
+</div>
+
+@if (error != null) { <div class="alert alert-error">@error</div> }
+@if (success != null) { <div class="alert alert-success">@success</div> }
+
+@if (showNew)
+{
+    <div class="entry-form">
+        <h3>Create Reminder</h3>
+        <div class="form-grid">
+            <div class="form-row"><label>Reminder Name *</label><input type="text" @bind="f_name" placeholder="e.g. Influenza Vaccine" /></div>
+            <div class="form-row"><label>Category</label>
+                <select @bind="f_category"><option value="">—</option><option>IMMUNIZATION</option><option>PREVENTIVE</option><option>SAFETY</option><option>SCREENING</option><option>CHRONIC DISEASE</option></select>
+            </div>
+            <div class="form-row"><label>Priority</label>
+                <select @bind="f_priority"><option>NORMAL</option><option>HIGH</option><option>LOW</option></select>
+            </div>
+            <div class="form-row"><label>Frequency</label><input type="text" @bind="f_frequency" placeholder="e.g. 1Y, 6M" /></div>
+            <div class="form-row"><label>Due Date</label><input type="date" @bind="f_dueDate" /></div>
+        </div>
+        <div class="form-actions">
+            <button @onclick="Submit" disabled="@saving" class="btn btn-primary">@(saving ? "Saving..." : "Create")</button>
+            <button @onclick="() => showNew = false" class="btn btn-outline">Cancel</button>
+        </div>
+    </div>
+}
+
+@if (items != null)
+{
+    @if (items.Count == 0) { <div class="empty-state">No reminders found.</div> }
+    else
+    {
+        <table class="data-table">
+            <thead><tr><th>Reminder</th><th>Category</th><th>Due Date</th><th>Status</th><th>Actions</th></tr></thead>
+            <tbody>
+                @foreach (var s in items)
+                {
+                    <tr>
+                        <td>@s.ReminderName</td><td>@s.Category</td>
+                        <td class="date">@s.DueDate?.ToString("MM/dd/yyyy")</td>
+                        <td><span class="badge @(s.Status == "DUE" ? "badge-yellow" : "badge-green")">@s.Status</span></td>
+                        <td class="actions">
+                            @if (s.Status == "DUE")
+                            {
+                                <button @onclick="() => Complete(s.ReminderId)" class="btn-sm btn-complete">✓ Done</button>
+                            }
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    }
+}
+
+@code {
+    [SupplyParameterFromQuery] public string? patientId { get; set; }
+    private List<RemDto>? items; private bool loading, saving, showNew; private string? error, success;
+    private string f_name = "", f_category = "", f_priority = "NORMAL", f_frequency = "";
+    private DateTime? f_dueDate = DateTime.Today;
+
+    private IPatientWorkflowGrain GetWorkflow() => Grains.GetGrain<IPatientWorkflowGrain>(patientId!.Trim());
+
+    protected override async Task OnParametersSetAsync() { if (!string.IsNullOrWhiteSpace(patientId)) await Load(); }
+    private async Task HandleKeyDown(KeyboardEventArgs e) { if (e.Key == "Enter") await Load(); }
+    private void ShowForm() { showNew = true; success = null; f_name = ""; f_category = ""; f_priority = "NORMAL"; f_frequency = ""; f_dueDate = DateTime.Today; }
+
+    private async Task Load()
+    {
+        if (string.IsNullOrWhiteSpace(patientId)) return; loading = true; error = null;
+        try
+        {
+            var summaries = await GetWorkflow().GetRemindersAsync();
+            items = summaries.Select(s => new RemDto
+            {
+                ReminderId = s.ReminderId, ReminderName = s.ReminderName,
+                Status = s.Status, DueDate = s.DueDate
+            }).ToList();
+        }
+        catch (Exception ex) { error = $"Error: {ex.Message}"; } finally { loading = false; }
+    }
+
+    private async Task Submit()
+    {
+        if (string.IsNullOrWhiteSpace(f_name)) { error = "Reminder name is required."; return; }
+        saving = true; error = null;
+        try
+        {
+            await GetWorkflow().CreateReminderAsync(f_name, null, NullIfEmpty(f_category), f_priority, NullIfEmpty(f_frequency), f_dueDate);
+            showNew = false; success = "Reminder created."; await Load();
+        }
+        catch (Exception ex) { error = $"Error: {ex.Message}"; } finally { saving = false; }
+    }
+
+    private async Task Complete(string id)
+    {
+        try
+        {
+            await GetWorkflow().CompleteReminderAsync(id, null, null);
+            success = "Reminder completed."; await Load();
+        }
+        catch (Exception ex) { error = $"Error: {ex.Message}"; }
+    }
+
+    private static string? NullIfEmpty(string s) => string.IsNullOrWhiteSpace(s) ? null : s;
+    private class RemDto { public string ReminderId { get; set; } = ""; public string ReminderName { get; set; } = ""; public string? Category { get; set; } public string Status { get; set; } = ""; public DateTime? DueDate { get; set; } }
+}
+
+<style>
+    .lookup-bar { display: flex; gap: .5rem; margin-bottom: 1.5rem; align-items: center; } .lookup-input { width: 280px; padding: .5rem .75rem; border: 1px solid #ccc; border-radius: 4px; font-size: .9rem; }
+    .btn { padding: .5rem 1.25rem; border: none; border-radius: 4px; cursor: pointer; font-size: .85rem; } .btn-primary { background: #003f72; color: white; } .btn-primary:disabled { background: #999; } .btn-secondary { background: #16a34a; color: white; } .btn-secondary:disabled { background: #999; } .btn-outline { background: white; border: 1px solid #ccc; color: #333; }
+    .btn-sm { padding: 2px 8px; border: none; border-radius: 3px; cursor: pointer; font-size: .75rem; } .btn-complete { background: #16a34a; color: white; }
+    .alert { padding: .75rem 1rem; border-radius: 4px; margin-bottom: 1rem; font-size: .85rem; } .alert-error { background: #fde8e8; color: #b91c1c; border: 1px solid #f5c6c6; } .alert-success { background: #dcfce7; color: #166534; border: 1px solid #bbf7d0; }
+    .empty-state { color: #999; font-style: italic; padding: 2rem 0; }
+    .entry-form { border: 1px solid #d4d9e0; border-radius: 6px; padding: 1.25rem; margin-bottom: 1.5rem; background: #f9fafb; } .entry-form h3 { margin-bottom: 1rem; color: #003f72; }
+    .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: .75rem; } .form-row { display: flex; flex-direction: column; gap: .25rem; } .form-row.full { grid-column: 1 / -1; } .form-row label { font-size: .8rem; font-weight: 600; color: #555; } .form-row input, .form-row select { padding: .4rem .6rem; border: 1px solid #ccc; border-radius: 4px; font-size: .85rem; }
+    .form-actions { display: flex; gap: .5rem; margin-top: .75rem; }
+    .data-table { width: 100%; border-collapse: collapse; font-size: .85rem; border: 1px solid #d4d9e0; } .data-table thead { background: #f4f6f9; } .data-table th { text-align: left; padding: .5rem; font-weight: 600; color: #003f72; border-bottom: 2px solid #d4d9e0; font-size: .75rem; text-transform: uppercase; } .data-table td { padding: .4rem .5rem; border-bottom: 1px solid #f0f0f0; }
+    .date { color: #888; font-size: .8rem; white-space: nowrap; } .actions { white-space: nowrap; }
+    .badge { padding: 2px 8px; border-radius: 3px; font-size: .7rem; font-weight: 600; } .badge-yellow { background: #fef3c7; color: #92400e; } .badge-green { background: #dcfce7; color: #166534; }
+</style>

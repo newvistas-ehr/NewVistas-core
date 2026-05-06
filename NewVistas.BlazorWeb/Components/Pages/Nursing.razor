@@ -1,0 +1,937 @@
+@page "/nursing"
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+@rendermode InteractiveServer
+@using NewVistas.BlazorWeb.Services
+@using NewVistas.Abstractions.GrainInterfaces
+@using NewVistas.Abstractions.GrainStates
+@inject OrleansGrainService Grains
+
+<PageTitle>Nursing — VistA Files #210-212</PageTitle>
+
+<div class="lookup-bar">
+    <input type="text" @bind="patientId" placeholder="Patient ID" />
+    <button @onclick="Load" disabled="@(loading)">@(loading ? "Loading…" : "Load Patient")</button>
+</div>
+
+@if (error != null) { <div class="alert alert-error">@error</div> }
+@if (success != null) { <div class="alert alert-success">@success</div> }
+
+@if (loaded)
+{
+    <div class="tab-bar">
+        <button class="@TabClass(0)" @onclick="() => activeTab = 0">Assessments</button>
+        <button class="@TabClass(1)" @onclick="() => activeTab = 1">Care Plan</button>
+        <button class="@TabClass(2)" @onclick="() => activeTab = 2">Acuity</button>
+        <button class="@TabClass(3)" @onclick="() => activeTab = 3">Unit Census</button>
+    </div>
+
+    <!-- ── Assessments ───────────────────────────────────────────────────── -->
+    @if (activeTab == 0)
+    {
+        <section class="panel">
+            <h3>Nursing Assessments</h3>
+
+            @if (assessments is not null && assessments.Count > 0)
+            {
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>Date/Time</th>
+                            <th>Type</th>
+                            <th>Nurse</th>
+                            <th>Status</th>
+                            <th>Pain</th>
+                            <th>Morse</th>
+                            <th>Braden</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (AssessmentSummaryDto a in assessments)
+                        {
+                            <tr class="@(a.Status == "Signed" ? "row-signed" : string.Empty)"
+                                @onclick="() => SelectAssessment(a.AssessmentId)" style="cursor:pointer">
+                                <td>@a.AssessmentDateTime.ToString("MM/dd/yyyy HH:mm")</td>
+                                <td>@a.AssessmentType</td>
+                                <td>@a.NurseName</td>
+                                <td>@a.Status</td>
+                                <td>@(a.PainScore?.ToString() ?? "—")/10</td>
+                                <td>@(a.MorseScore?.ToString() ?? "—")</td>
+                                <td>@(a.BradenScore?.ToString() ?? "—")</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            }
+            else
+            {
+                <p class="empty-state">No assessments recorded.</p>
+            }
+
+            @if (selectedAssessment != null)
+            {
+                <div class="detail-card">
+                    <h4>Assessment Detail — @selectedAssessment.AssessmentType (@selectedAssessment.AssessmentDateTime.ToString("MM/dd/yyyy HH:mm"))</h4>
+                    <div class="detail-grid">
+                        <span>LOC:</span><span>@(selectedAssessment.LevelOfConsciousness ?? "—")</span>
+                        <span>Orientation:</span><span>@(selectedAssessment.Orientation.Count > 0 ? string.Join(", ", selectedAssessment.Orientation) : "—")</span>
+                        <span>Breath Sounds:</span><span>@(selectedAssessment.BreathSounds ?? "—")</span>
+                        <span>O2 Therapy:</span><span>@(selectedAssessment.OxygenTherapy ?? "—")</span>
+                        <span>SpO2:</span><span>@(selectedAssessment.SpO2?.ToString("F1") ?? "—")%</span>
+                        <span>Heart Rhythm:</span><span>@(selectedAssessment.HeartRhythm ?? "—")</span>
+                        <span>Edema:</span><span>@(selectedAssessment.Edema ?? "—")</span>
+                        <span>Skin:</span><span>@(selectedAssessment.SkinIntegrity ?? "—")</span>
+                        <span>Braden Score:</span><span>@(selectedAssessment.BradenScore?.ToString() ?? "—")</span>
+                        <span>Pain:</span><span>@(selectedAssessment.PainScore?.ToString() ?? "—")/10 @selectedAssessment.PainLocation</span>
+                        <span>Bowel Sounds:</span><span>@(selectedAssessment.BowelSounds ?? "—")</span>
+                        <span>Appetite:</span><span>@(selectedAssessment.AppetiteAssessment ?? "—")</span>
+                        <span>Urine Output:</span><span>@(selectedAssessment.UrineOutput?.ToString("F0") ?? "—") mL</span>
+                        <span>Foley:</span><span>@(selectedAssessment.HasFoley ? "Yes" : "No")</span>
+                        <span>Anxiety:</span><span>@(selectedAssessment.AnxietyLevel ?? "—")</span>
+                        <span>Mood:</span><span>@(selectedAssessment.Mood ?? "—")</span>
+                        <span>Morse Score:</span><span>@(selectedAssessment.MorseScoreTotal?.ToString() ?? "—") — @(selectedAssessment.FallRiskLevel ?? "—")</span>
+                        <span>Mobility:</span><span>@(selectedAssessment.AdlMobility ?? "—")</span>
+                    </div>
+                    @if (!string.IsNullOrEmpty(selectedAssessment.NarrativeNotes))
+                    {
+                        <p><strong>Notes:</strong> @selectedAssessment.NarrativeNotes</p>
+                    }
+                    @if (selectedAssessment.Status == NursingAssessmentStatus.Draft)
+                    {
+                        <button class="btn-primary" @onclick="() => SignAssessment(selectedAssessment.AssessmentId)">Sign Assessment</button>
+                    }
+                </div>
+            }
+
+            <hr />
+            <h4>Record New Assessment</h4>
+            <div class="form-grid">
+                <label>Type:</label>
+                <select @bind="newAssmt.AssessmentType">
+                    <option value="Initial">Initial</option>
+                    <option value="Shift">Shift</option>
+                    <option value="Focused">Focused</option>
+                    <option value="Discharge">Discharge</option>
+                    <option value="PRN">PRN</option>
+                </select>
+
+                <label>Nurse ID:</label><input @bind="newAssmt.NurseId" />
+                <label>Nurse Name:</label><input @bind="newAssmt.NurseName" />
+                <label>Location:</label><input @bind="newAssmt.LocationName" />
+
+                <label>LOC (AVPU):</label>
+                <select @bind="newAssmt.LevelOfConsciousness">
+                    <option value="">—</option>
+                    <option value="Alert">Alert</option>
+                    <option value="Verbal">Verbal</option>
+                    <option value="Pain">Pain</option>
+                    <option value="Unresponsive">Unresponsive</option>
+                </select>
+
+                <label>Breath Sounds:</label>
+                <select @bind="newAssmt.BreathSounds">
+                    <option value="">—</option>
+                    <option value="Clear">Clear</option>
+                    <option value="Diminished">Diminished</option>
+                    <option value="Crackles">Crackles</option>
+                    <option value="Wheezes">Wheezes</option>
+                    <option value="Rhonchi">Rhonchi</option>
+                    <option value="Absent">Absent</option>
+                </select>
+
+                <label>O2 Therapy:</label>
+                <select @bind="newAssmt.OxygenTherapy">
+                    <option value="">—</option>
+                    <option value="RoomAir">Room Air</option>
+                    <option value="NasalCannula">Nasal Cannula</option>
+                    <option value="SimpleMask">Simple Mask</option>
+                    <option value="NonRebreather">Non-Rebreather</option>
+                    <option value="Vent">Ventilator</option>
+                    <option value="HFNC">HFNC</option>
+                </select>
+
+                <label>SpO2 (%):</label><input type="number" @bind="newAssmt.SpO2" min="0" max="100" />
+                <label>Heart Rhythm:</label>
+                <select @bind="newAssmt.HeartRhythm">
+                    <option value="">—</option>
+                    <option value="Regular">Regular</option>
+                    <option value="Irregular">Irregular</option>
+                    <option value="Paced">Paced</option>
+                </select>
+
+                <label>Edema:</label>
+                <select @bind="newAssmt.Edema">
+                    <option value="">—</option>
+                    <option value="None">None</option>
+                    <option value="1+">1+</option>
+                    <option value="2+">2+</option>
+                    <option value="3+">3+</option>
+                    <option value="4+">4+</option>
+                </select>
+
+                <label>Skin Integrity:</label>
+                <select @bind="newAssmt.SkinIntegrity">
+                    <option value="">—</option>
+                    <option value="Intact">Intact</option>
+                    <option value="Impaired">Impaired</option>
+                </select>
+
+                <label>Braden Score (6-23):</label><input type="number" @bind="newAssmt.BradenScore" min="6" max="23" />
+                <label>Pain Score (0-10):</label><input type="number" @bind="newAssmt.PainScore" min="0" max="10" />
+                <label>Pain Location:</label><input @bind="newAssmt.PainLocation" />
+
+                <label>Bowel Sounds:</label>
+                <select @bind="newAssmt.BowelSounds">
+                    <option value="">—</option>
+                    <option value="Active">Active</option>
+                    <option value="Hyperactive">Hyperactive</option>
+                    <option value="Hypoactive">Hypoactive</option>
+                    <option value="Absent">Absent</option>
+                </select>
+
+                <label>Appetite:</label>
+                <select @bind="newAssmt.AppetiteAssessment">
+                    <option value="">—</option>
+                    <option value="Good">Good</option>
+                    <option value="Fair">Fair</option>
+                    <option value="Poor">Poor</option>
+                    <option value="NPO">NPO</option>
+                </select>
+
+                <label>Urine Output (mL):</label><input type="number" @bind="newAssmt.UrineOutput" />
+                <label>Foley Catheter:</label>
+                <select @bind="newAssmt.HasFoleyStr">
+                    <option value="false">No</option>
+                    <option value="true">Yes</option>
+                </select>
+
+                <label>Anxiety:</label>
+                <select @bind="newAssmt.AnxietyLevel">
+                    <option value="">—</option>
+                    <option value="None">None</option>
+                    <option value="Mild">Mild</option>
+                    <option value="Moderate">Moderate</option>
+                    <option value="Severe">Severe</option>
+                </select>
+
+                <label>Mood:</label>
+                <select @bind="newAssmt.Mood">
+                    <option value="">—</option>
+                    <option value="Calm">Calm</option>
+                    <option value="Anxious">Anxious</option>
+                    <option value="Agitated">Agitated</option>
+                    <option value="Depressed">Depressed</option>
+                    <option value="Flat">Flat</option>
+                </select>
+
+                <label>Morse Score (0-125):</label><input type="number" @bind="newAssmt.MorseScore" min="0" max="125" />
+                <label>Fall Risk:</label>
+                <select @bind="newAssmt.FallRiskLevel">
+                    <option value="">—</option>
+                    <option value="Low">Low</option>
+                    <option value="Moderate">Moderate</option>
+                    <option value="High">High</option>
+                </select>
+
+                <label>Mobility:</label>
+                <select @bind="newAssmt.AdlMobility">
+                    <option value="">—</option>
+                    <option value="Independent">Independent</option>
+                    <option value="AssistedDevice">Assisted Device</option>
+                    <option value="Assist1">Assist ×1</option>
+                    <option value="Assist2">Assist ×2</option>
+                    <option value="Dependent">Dependent</option>
+                    <option value="Bedrest">Bedrest</option>
+                </select>
+
+                <label>Narrative Notes:</label>
+                <textarea @bind="newAssmt.NarrativeNotes" rows="3" style="width:100%"></textarea>
+            </div>
+            <button class="btn-primary" @onclick="RecordAssessment" disabled="@saving">
+                @(saving ? "Saving…" : "Record Assessment")
+            </button>
+        </section>
+    }
+
+    <!-- ── Care Plan ──────────────────────────────────────────────────────── -->
+    @if (activeTab == 1)
+    {
+        <section class="panel">
+            <h3>Nursing Care Plan</h3>
+
+            @if (carePlan?.Problems.Count > 0)
+            {
+                @foreach (NursingCarePlanProblemDto p in carePlan.Problems)
+                {
+                    <div class="care-plan-problem @(p.Status == "Resolved" ? "problem-resolved" : string.Empty)">
+                        <h4>
+                            @(p.Priority.HasValue ? $"[{p.Priority}] " : string.Empty)@p.NursingDiagnosis
+                            <span class="status-badge">@p.Status</span>
+                        </h4>
+                        @if (!string.IsNullOrEmpty(p.RelatedTo))
+                        { <p><em>Related to:</em> @p.RelatedTo</p> }
+                        @if (!string.IsNullOrEmpty(p.EvidencedBy))
+                        { <p><em>As evidenced by:</em> @p.EvidencedBy</p> }
+
+                        @if (p.Goals.Count > 0)
+                        {
+                            <strong>Goals:</strong>
+                            <ul>
+                                @foreach (NursingGoalDto g in p.Goals)
+                                {
+                                    <li>@g.GoalText — <em>@g.Status</em>
+                                        @if (g.TargetDate.HasValue) { <span> (target: @g.TargetDate.Value.ToString("MM/dd"))</span> }
+                                    </li>
+                                }
+                            </ul>
+                        }
+
+                        @if (p.Interventions.Count > 0)
+                        {
+                            <strong>Interventions:</strong>
+                            <ul>
+                                @foreach (NursingInterventionDto i in p.Interventions.Where(x => x.IsActive))
+                                {
+                                    <li>@i.InterventionText @(i.Frequency != null ? $"({i.Frequency})" : string.Empty)</li>
+                                }
+                            </ul>
+                        }
+
+                        @if (p.Status == "Active")
+                        {
+                            <div class="inline-form">
+                                <button class="btn-sm" @onclick="() => resolveTarget = p.ProblemId">Resolve</button>
+                            </div>
+                        }
+
+                        @if (p.OutcomeEvaluations.Count > 0)
+                        {
+                            <strong>Evaluations:</strong>
+                            <ul>
+                                @foreach (NursingOutcomeEvalDto e in p.OutcomeEvaluations.TakeLast(3))
+                                {
+                                    <li>@e.EvaluationDateTime.ToString("MM/dd HH:mm") — @e.OutcomeRating @(e.Notes != null ? $"— {e.Notes}" : string.Empty)</li>
+                                }
+                            </ul>
+                        }
+                    </div>
+                }
+            }
+            else
+            {
+                <p class="empty-state">No nursing diagnoses on care plan.</p>
+            }
+
+            @if (resolveTarget != null)
+            {
+                <div class="inline-form">
+                    <strong>Resolve diagnosis:</strong>
+                    <input @bind="resolveNotes" placeholder="Resolution notes (optional)" />
+                    <button class="btn-primary" @onclick="ResolveSelectedDiagnosis">Confirm Resolve</button>
+                    <button @onclick="() => resolveTarget = null">Cancel</button>
+                </div>
+            }
+
+            <hr />
+            <h4>Add Nursing Diagnosis</h4>
+            <div class="form-grid">
+                <label>Nursing Diagnosis:</label><input @bind="newDx.NursingDiagnosis" placeholder="e.g. Acute Pain" />
+                <label>Related to:</label><input @bind="newDx.RelatedTo" />
+                <label>As evidenced by:</label><input @bind="newDx.EvidencedBy" />
+                <label>Priority:</label><input type="number" @bind="newDx.Priority" min="1" />
+                <label>Nurse ID:</label><input @bind="newDx.NurseId" />
+                <label>Nurse Name:</label><input @bind="newDx.NurseName" />
+            </div>
+            <button class="btn-primary" @onclick="AddDiagnosis" disabled="@saving">
+                @(saving ? "Saving…" : "Add Diagnosis")
+            </button>
+
+            @if (!string.IsNullOrEmpty(lastAddedProblemId))
+            {
+                <div class="inline-form" style="margin-top:1rem">
+                    <strong>Add goal to @lastAddedProblemId:</strong>
+                    <input @bind="newGoalText" placeholder="Measurable goal statement" />
+                    <button class="btn-sm" @onclick="AddGoal">Add Goal</button>
+
+                    <strong>Add intervention:</strong>
+                    <input @bind="newInterventionText" placeholder="Nursing action" />
+                    <input @bind="newInterventionFreq" placeholder="Frequency (e.g. Q4H)" style="width:120px" />
+                    <button class="btn-sm" @onclick="AddIntervention">Add Intervention</button>
+                </div>
+            }
+        </section>
+    }
+
+    <!-- ── Acuity ─────────────────────────────────────────────────────────── -->
+    @if (activeTab == 2)
+    {
+        <section class="panel">
+            <h3>Patient Acuity Classification</h3>
+
+            @if (acuity != null)
+            {
+                <div class="acuity-current">
+                    <span class="acuity-level @AcuityClass(acuity.CurrentAcuityLevel)">
+                        @acuity.CurrentAcuityLevel
+                    </span>
+                    @if (acuity.CurrentAcuityDateTime.HasValue)
+                    {
+                        <span> — Classified @acuity.CurrentAcuityDateTime.Value.ToString("MM/dd/yyyy HH:mm")
+                        by @acuity.CurrentAcuityNurseName (@acuity.CurrentShift shift)</span>
+                    }
+                </div>
+
+                @if (acuity.AcuityHistory.Count > 0)
+                {
+                    <table class="data-table" style="margin-top:.5rem">
+                        <thead><tr><th>Date/Time</th><th>Level</th><th>Score</th><th>Shift</th><th>Nurse</th></tr></thead>
+                        <tbody>
+                            @foreach (AcuityRecordDto r in acuity.AcuityHistory.AsEnumerable().Reverse().Take(10))
+                            {
+                                <tr>
+                                    <td>@r.RecordedDateTime.ToString("MM/dd HH:mm")</td>
+                                    <td>@r.Level</td>
+                                    <td>@(r.Score?.ToString() ?? "—")</td>
+                                    <td>@(r.Shift ?? "—")</td>
+                                    <td>@(r.NurseName ?? "—")</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                }
+            }
+
+            <hr />
+            <h4>Record Acuity Classification</h4>
+            <div class="form-grid">
+                <label>Acuity Level:</label>
+                <select @bind="newAcuity.LevelStr">
+                    <option value="1">1 — Minimal Care</option>
+                    <option value="2">2 — Average Care</option>
+                    <option value="3">3 — Above Average</option>
+                    <option value="4">4 — Intensive Care</option>
+                    <option value="5">5 — Critical Care</option>
+                </select>
+
+                <label>Score:</label><input type="number" @bind="newAcuity.Score" />
+                <label>Shift:</label>
+                <select @bind="newAcuity.Shift">
+                    <option value="Days">Days</option>
+                    <option value="Evenings">Evenings</option>
+                    <option value="Nights">Nights</option>
+                </select>
+
+                <label>Nurse ID:</label><input @bind="newAcuity.NurseId" />
+                <label>Nurse Name:</label><input @bind="newAcuity.NurseName" />
+                <label>Notes:</label><input @bind="newAcuity.Notes" />
+            </div>
+            <button class="btn-primary" @onclick="RecordAcuity" disabled="@saving">
+                @(saving ? "Saving…" : "Record Acuity")
+            </button>
+        </section>
+    }
+
+    <!-- ── Unit Census ────────────────────────────────────────────────────── -->
+    @if (activeTab == 3)
+    {
+        <section class="panel">
+            <h3>Nursing Unit Census</h3>
+
+            <div class="lookup-bar">
+                <input type="text" @bind="unitId" placeholder="Unit ID" />
+                <button @onclick="LoadUnit">Load Unit</button>
+            </div>
+
+            @if (unitState != null)
+            {
+                <div class="unit-header">
+                    <strong>@unitState.UnitName</strong>
+                    @if (!string.IsNullOrEmpty(unitState.UnitType)) { <span> (@unitState.UnitType)</span> }
+                    <span> — Beds: @unitState.BedAssignments.Count(b => b.IsOccupied)/@unitState.TotalBeds occupied</span>
+                    @if (!string.IsNullOrEmpty(unitState.ChargeNurseName))
+                    { <span> | Charge: @unitState.ChargeNurseName</span> }
+                </div>
+
+                <table class="data-table">
+                    <thead><tr><th>Bed</th><th>Patient</th><th>Admitted</th><th>Acuity</th><th>Nurse</th><th></th></tr></thead>
+                    <tbody>
+                        @foreach (NursingBedAssignmentDto b in unitState.BedAssignments.OrderBy(b => b.Bed))
+                        {
+                            <tr class="@(b.IsOccupied ? "row-occupied" : "row-vacant")">
+                                <td>@b.Bed</td>
+                                <td>@(b.PatientName ?? "Vacant")</td>
+                                <td>@(b.AdmissionDateTime?.ToString("MM/dd HH:mm") ?? "—")</td>
+                                <td>@(b.AcuityLevel?.ToString() ?? "—")</td>
+                                <td>@(b.AttendingNurseName ?? "—")</td>
+                                <td>
+                                    @if (b.IsOccupied)
+                                    {
+                                        <button class="btn-sm btn-danger" @onclick="() => DischargeFromBed(b.Bed)">Clear</button>
+                                    }
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            }
+
+            @if (units != null)
+            {
+                <h4>All Units</h4>
+                <table class="data-table">
+                    <thead><tr><th>Name</th><th>Type</th><th>Beds</th><th>Occupied</th></tr></thead>
+                    <tbody>
+                        @foreach (NursingUnitEntryDto u in units)
+                        {
+                            <tr>
+                                <td>@u.UnitName</td>
+                                <td>@(u.UnitType ?? "—")</td>
+                                <td>@u.TotalBeds</td>
+                                <td>@u.OccupiedBeds</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            }
+        </section>
+    }
+}
+
+@code {
+    // ── State ──────────────────────────────────────────────────────────────────
+    private string patientId = string.Empty;
+    private string unitId = string.Empty;
+    private int activeTab;
+    private bool loaded;
+    private bool loading;
+    private bool saving;
+    private string? error;
+    private string? success;
+
+    // Assessment
+    private List<AssessmentSummaryDto>? assessments;
+    private NursingAssessmentDetailDto? selectedAssessment;
+    private NewAssessmentForm newAssmt = new();
+
+    // Care Plan
+    private NursingCarePlanDto? carePlan;
+    private string? lastAddedProblemId;
+    private string? resolveTarget;
+    private string? resolveNotes;
+    private NewDiagnosisForm newDx = new();
+    private string newGoalText = string.Empty;
+    private string newInterventionText = string.Empty;
+    private string newInterventionFreq = string.Empty;
+
+    // Acuity
+    private NursingAcuityDto? acuity;
+    private NewAcuityForm newAcuity = new();
+
+    // Unit
+    private NursingUnitStateDto? unitState;
+    private List<NursingUnitEntryDto>? units;
+
+    // ── Grain helpers ────────────────────────────────────────────────────────────
+    private IPatientWorkflowGrain GetWorkflow() => Grains.GetGrain<IPatientWorkflowGrain>(patientId.Trim());
+
+    // ── Load ───────────────────────────────────────────────────────────────────
+    private async Task Load()
+    {
+        if (string.IsNullOrWhiteSpace(patientId)) return;
+        loading = true; error = null; success = null;
+        try
+        {
+            var wf = GetWorkflow();
+            var at  = wf.GetNursingAssessmentsAsync();
+            var cpt = wf.GetNursingCarePlanAsync();
+            var act = wf.GetNursingAcuityAsync();
+            await Task.WhenAll(at, cpt, act);
+
+            var indexEntries = await at;
+            assessments = indexEntries.Select(e => new AssessmentSummaryDto(
+                e.AssessmentId, e.AssessmentDateTime, e.AssessmentType,
+                e.NurseName, e.Status.ToString(), e.LocationName,
+                e.PainScore, e.MorseScore, e.BradenScore)).ToList();
+
+            var cpState = await cpt;
+            carePlan = new NursingCarePlanDto(
+                cpState.PatientId,
+                cpState.Problems.Select(p => new NursingCarePlanProblemDto(
+                    p.ProblemId, p.NursingDiagnosis, p.RelatedTo, p.EvidencedBy,
+                    p.Status.ToString(), p.Priority, p.CreatedDateTime,
+                    p.Goals.Select(g => new NursingGoalDto(g.GoalId, g.GoalText, g.TargetDate, g.Status.ToString())).ToList(),
+                    p.Interventions.Select(i => new NursingInterventionDto(i.InterventionId, i.InterventionText, i.Frequency, i.IsActive)).ToList(),
+                    p.OutcomeEvaluations.Select(oe => new NursingOutcomeEvalDto(oe.EvaluationId, oe.EvaluationDateTime, oe.EvaluatedByName, oe.OutcomeRating.ToString(), oe.Notes)).ToList(),
+                    p.ResolvedDateTime, p.ResolutionNotes)).ToList(),
+                cpState.LastModifiedDate);
+
+            var acState = await act;
+            acuity = new NursingAcuityDto(
+                acState.PatientId, acState.CurrentAcuityLevel, acState.CurrentAcuityScore,
+                acState.CurrentAcuityDateTime, acState.CurrentAcuityNurseId, acState.CurrentAcuityNurseName,
+                acState.CurrentShift,
+                acState.AcuityHistory.Select(r => new AcuityRecordDto(
+                    r.RecordedDateTime, r.Level, r.Score, r.NurseId, r.NurseName, r.Shift, r.Notes)).ToList());
+
+            var unitIndex = await Grains.GetGrain<INursingUnitIndexGrain>("NURS-UNIT-IDX").GetAsync();
+            units = unitIndex.Units.Select(u => new NursingUnitEntryDto(
+                u.UnitId, u.UnitName, u.UnitType, u.TotalBeds, u.OccupiedBeds)).ToList();
+
+            loaded = true;
+        }
+        catch (Exception ex) { error = $"Error: {ex.Message}"; }
+        finally { loading = false; }
+    }
+
+    // ── Assessment actions ─────────────────────────────────────────────────────
+    private async Task SelectAssessment(string id)
+    {
+        error = null;
+        try
+        {
+            var state = await GetWorkflow().GetNursingAssessmentAsync(id);
+            selectedAssessment = new NursingAssessmentDetailDto(
+                state.AssessmentId, state.PatientId, state.AssessmentDateTime, state.AssessmentType,
+                state.NurseId, state.NurseName, state.LocationId, state.LocationName,
+                state.Status, state.SignedById, state.SignedByName,
+                state.LevelOfConsciousness, state.Orientation, state.PupilResponse,
+                state.BreathSounds, state.OxygenTherapy, state.SpO2,
+                state.HeartRate, state.HeartRhythm, state.Edema,
+                state.SkinIntegrity, state.BradenScore,
+                state.PainScore, state.PainLocation,
+                state.BowelSounds, state.AppetiteAssessment,
+                state.UrineOutput, state.HasFoley, state.FoleyInsertedDate,
+                state.AnxietyLevel, state.Mood,
+                state.MorseScoreTotal, state.FallRiskLevel, state.FallPrecautions,
+                state.AdlMobility, state.NarrativeNotes);
+        }
+        catch (Exception ex) { error = $"Error: {ex.Message}"; }
+    }
+
+    private async Task RecordAssessment()
+    {
+        saving = true; error = null;
+        try
+        {
+            await GetWorkflow().CreateNursingAssessmentAsync(
+                DateTime.Now, newAssmt.AssessmentType, newAssmt.NurseId, newAssmt.NurseName,
+                null, newAssmt.LocationName, newAssmt.LevelOfConsciousness,
+                new List<string>(), newAssmt.BreathSounds, newAssmt.OxygenTherapy, newAssmt.SpO2,
+                newAssmt.HeartRhythm, newAssmt.Edema, newAssmt.SkinIntegrity, newAssmt.BradenScore,
+                newAssmt.PainScore, newAssmt.PainLocation, newAssmt.BowelSounds, newAssmt.AppetiteAssessment,
+                newAssmt.UrineOutput, newAssmt.HasFoleyStr == "true", newAssmt.AnxietyLevel,
+                newAssmt.Mood, newAssmt.MorseScore, newAssmt.FallRiskLevel,
+                new List<string>(), newAssmt.AdlMobility, newAssmt.NarrativeNotes);
+            success = "Assessment recorded."; newAssmt = new(); await Load();
+        }
+        catch (Exception ex) { error = $"Error: {ex.Message}"; }
+        finally { saving = false; }
+    }
+
+    private async Task SignAssessment(string id)
+    {
+        saving = true; error = null;
+        try
+        {
+            string nurseId = selectedAssessment?.SignedById ?? "SYS";
+            string nurseName = selectedAssessment?.SignedByName ?? "System";
+            await GetWorkflow().SignNursingAssessmentAsync(id, nurseId, nurseName);
+            success = "Assessment signed."; await Load(); selectedAssessment = null;
+        }
+        catch (Exception ex) { error = $"Error: {ex.Message}"; }
+        finally { saving = false; }
+    }
+
+    // ── Care Plan actions ──────────────────────────────────────────────────────
+    private async Task AddDiagnosis()
+    {
+        if (string.IsNullOrWhiteSpace(newDx.NursingDiagnosis)) return;
+        saving = true; error = null;
+        try
+        {
+            lastAddedProblemId = await GetWorkflow().AddNursingDiagnosisAsync(
+                newDx.NursingDiagnosis, newDx.RelatedTo, newDx.EvidencedBy,
+                newDx.Priority, newDx.NurseId, newDx.NurseName);
+            success = "Nursing diagnosis added."; newDx = new();
+            var cpState = await GetWorkflow().GetNursingCarePlanAsync();
+            carePlan = new NursingCarePlanDto(cpState.PatientId,
+                cpState.Problems.Select(p => new NursingCarePlanProblemDto(
+                    p.ProblemId, p.NursingDiagnosis, p.RelatedTo, p.EvidencedBy,
+                    p.Status.ToString(), p.Priority, p.CreatedDateTime,
+                    p.Goals.Select(g => new NursingGoalDto(g.GoalId, g.GoalText, g.TargetDate, g.Status.ToString())).ToList(),
+                    p.Interventions.Select(i => new NursingInterventionDto(i.InterventionId, i.InterventionText, i.Frequency, i.IsActive)).ToList(),
+                    p.OutcomeEvaluations.Select(oe => new NursingOutcomeEvalDto(oe.EvaluationId, oe.EvaluationDateTime, oe.EvaluatedByName, oe.OutcomeRating.ToString(), oe.Notes)).ToList(),
+                    p.ResolvedDateTime, p.ResolutionNotes)).ToList(),
+                cpState.LastModifiedDate);
+        }
+        catch (Exception ex) { error = $"Error: {ex.Message}"; }
+        finally { saving = false; }
+    }
+
+    private async Task AddGoal()
+    {
+        if (string.IsNullOrWhiteSpace(newGoalText) || lastAddedProblemId == null) return;
+        saving = true; error = null;
+        try
+        {
+            await GetWorkflow().AddCarePlanGoalAsync(lastAddedProblemId, newGoalText, null);
+            success = "Goal added."; newGoalText = string.Empty; await ReloadCarePlan();
+        }
+        catch (Exception ex) { error = $"Error: {ex.Message}"; }
+        finally { saving = false; }
+    }
+
+    private async Task AddIntervention()
+    {
+        if (string.IsNullOrWhiteSpace(newInterventionText) || lastAddedProblemId == null) return;
+        saving = true; error = null;
+        try
+        {
+            await GetWorkflow().AddCarePlanInterventionAsync(lastAddedProblemId, newInterventionText, newInterventionFreq, null, null);
+            success = "Intervention added."; newInterventionText = string.Empty; newInterventionFreq = string.Empty; await ReloadCarePlan();
+        }
+        catch (Exception ex) { error = $"Error: {ex.Message}"; }
+        finally { saving = false; }
+    }
+
+    private async Task ResolveSelectedDiagnosis()
+    {
+        if (resolveTarget == null) return;
+        saving = true; error = null;
+        try
+        {
+            await GetWorkflow().ResolveNursingDiagnosisAsync(resolveTarget, resolveNotes);
+            success = "Diagnosis resolved."; resolveTarget = null; resolveNotes = null; await ReloadCarePlan();
+        }
+        catch (Exception ex) { error = $"Error: {ex.Message}"; }
+        finally { saving = false; }
+    }
+
+    private async Task ReloadCarePlan()
+    {
+        var cpState = await GetWorkflow().GetNursingCarePlanAsync();
+        carePlan = new NursingCarePlanDto(cpState.PatientId,
+            cpState.Problems.Select(p => new NursingCarePlanProblemDto(
+                p.ProblemId, p.NursingDiagnosis, p.RelatedTo, p.EvidencedBy,
+                p.Status.ToString(), p.Priority, p.CreatedDateTime,
+                p.Goals.Select(g => new NursingGoalDto(g.GoalId, g.GoalText, g.TargetDate, g.Status.ToString())).ToList(),
+                p.Interventions.Select(i => new NursingInterventionDto(i.InterventionId, i.InterventionText, i.Frequency, i.IsActive)).ToList(),
+                p.OutcomeEvaluations.Select(oe => new NursingOutcomeEvalDto(oe.EvaluationId, oe.EvaluationDateTime, oe.EvaluatedByName, oe.OutcomeRating.ToString(), oe.Notes)).ToList(),
+                p.ResolvedDateTime, p.ResolutionNotes)).ToList(),
+            cpState.LastModifiedDate);
+    }
+
+    // ── Acuity actions ─────────────────────────────────────────────────────────
+    private async Task RecordAcuity()
+    {
+        if (string.IsNullOrWhiteSpace(newAcuity.NurseId)) return;
+        saving = true; error = null;
+        try
+        {
+            await GetWorkflow().RecordNursingAcuityAsync(
+                (AcuityLevel)int.Parse(newAcuity.LevelStr), newAcuity.Score,
+                newAcuity.NurseId, newAcuity.NurseName, newAcuity.Shift, newAcuity.Notes);
+            success = "Acuity recorded."; newAcuity = new();
+            var acState = await GetWorkflow().GetNursingAcuityAsync();
+            acuity = new NursingAcuityDto(
+                acState.PatientId, acState.CurrentAcuityLevel, acState.CurrentAcuityScore,
+                acState.CurrentAcuityDateTime, acState.CurrentAcuityNurseId, acState.CurrentAcuityNurseName,
+                acState.CurrentShift,
+                acState.AcuityHistory.Select(r => new AcuityRecordDto(
+                    r.RecordedDateTime, r.Level, r.Score, r.NurseId, r.NurseName, r.Shift, r.Notes)).ToList());
+        }
+        catch (Exception ex) { error = $"Error: {ex.Message}"; }
+        finally { saving = false; }
+    }
+
+    // ── Unit actions ───────────────────────────────────────────────────────────
+    private async Task LoadUnit()
+    {
+        if (string.IsNullOrWhiteSpace(unitId)) return;
+        error = null;
+        try
+        {
+            var state = await Grains.GetGrain<INursingUnitGrain>($"NURS-UNIT:{unitId}").GetAsync();
+            unitState = new NursingUnitStateDto(
+                state.UnitId, state.UnitName, state.UnitType, state.TotalBeds,
+                state.BedAssignments.Select(b => new NursingBedAssignmentDto(
+                    b.Bed, b.PatientId, b.PatientName, b.AdmissionDateTime,
+                    b.AcuityLevel, b.IsOccupied, b.AttendingNurseId, b.AttendingNurseName)).ToList(),
+                state.ChargeNurseId, state.ChargeNurseName);
+        }
+        catch (Exception ex) { error = $"Error: {ex.Message}"; }
+    }
+
+    private async Task DischargeFromBed(string bed)
+    {
+        error = null;
+        try
+        {
+            await Grains.GetGrain<INursingUnitGrain>($"NURS-UNIT:{unitId}").DischargeFromBedAsync(bed);
+            success = $"Bed {bed} cleared."; await LoadUnit();
+        }
+        catch (Exception ex) { error = $"Error: {ex.Message}"; }
+    }
+
+    // ── Helpers ────────────────────────────────────────────────────────────────
+    private string TabClass(int tab) => activeTab == tab ? "tab-btn active" : "tab-btn";
+    private string AcuityClass(AcuityLevel l) => l switch
+    {
+        AcuityLevel.CriticalCare      => "acuity-5",
+        AcuityLevel.IntensiveCare     => "acuity-4",
+        AcuityLevel.AboveAverageCare  => "acuity-3",
+        AcuityLevel.AverageCare       => "acuity-2",
+        AcuityLevel.MinimalCare       => "acuity-1",
+        _                             => string.Empty
+    };
+
+    // ── Form models ────────────────────────────────────────────────────────────
+    private class NewAssessmentForm
+    {
+        public string AssessmentType = "Shift";
+        public string NurseId = string.Empty;
+        public string NurseName = string.Empty;
+        public string? LocationName;
+        public string? LevelOfConsciousness;
+        public string? BreathSounds;
+        public string? OxygenTherapy;
+        public decimal? SpO2;
+        public string? HeartRhythm;
+        public string? Edema;
+        public string? SkinIntegrity;
+        public int? BradenScore;
+        public int? PainScore;
+        public string? PainLocation;
+        public string? BowelSounds;
+        public string? AppetiteAssessment;
+        public decimal? UrineOutput;
+        public string HasFoleyStr = "false";
+        public string? AnxietyLevel;
+        public string? Mood;
+        public int? MorseScore;
+        public string? FallRiskLevel;
+        public string? AdlMobility;
+        public string? NarrativeNotes;
+    }
+
+    private class NewDiagnosisForm
+    {
+        public string NursingDiagnosis = string.Empty;
+        public string? RelatedTo;
+        public string? EvidencedBy;
+        public int? Priority;
+        public string? NurseId;
+        public string? NurseName;
+    }
+
+    private class NewAcuityForm
+    {
+        public string LevelStr = "2";
+        public int? Score;
+        public string Shift = "Days";
+        public string NurseId = string.Empty;
+        public string NurseName = string.Empty;
+        public string? Notes;
+    }
+
+    // ── DTOs (deserialise from API) ────────────────────────────────────────────
+    private record AssessmentSummaryDto(
+        string AssessmentId, DateTime AssessmentDateTime, string AssessmentType,
+        string NurseName, string Status, string? LocationName,
+        int? PainScore, int? MorseScore, int? BradenScore);
+
+    private record NursingAssessmentDetailDto(
+        string AssessmentId, string PatientId, DateTime AssessmentDateTime, string AssessmentType,
+        string NurseId, string NurseName, string? LocationId, string? LocationName,
+        NursingAssessmentStatus Status, string? SignedById, string? SignedByName,
+        string? LevelOfConsciousness, List<string> Orientation, string? PupilResponse,
+        string? BreathSounds, string? OxygenTherapy, decimal? SpO2,
+        int? HeartRate, string? HeartRhythm, string? Edema,
+        string? SkinIntegrity, int? BradenScore,
+        int? PainScore, string? PainLocation,
+        string? BowelSounds, string? AppetiteAssessment,
+        decimal? UrineOutput, bool HasFoley, DateTime? FoleyInsertedDate,
+        string? AnxietyLevel, string? Mood,
+        int? MorseScoreTotal, string? FallRiskLevel, List<string> FallPrecautions,
+        string? AdlMobility, string? NarrativeNotes);
+
+    private record NursingCarePlanDto(
+        string PatientId, List<NursingCarePlanProblemDto> Problems, DateTime LastModifiedDate);
+
+    private record NursingCarePlanProblemDto(
+        string ProblemId, string NursingDiagnosis, string? RelatedTo, string? EvidencedBy,
+        string Status, int? Priority, DateTime CreatedDateTime,
+        List<NursingGoalDto> Goals, List<NursingInterventionDto> Interventions,
+        List<NursingOutcomeEvalDto> OutcomeEvaluations,
+        DateTime? ResolvedDateTime, string? ResolutionNotes);
+
+    private record NursingGoalDto(string GoalId, string GoalText, DateTime? TargetDate, string Status);
+
+    private record NursingInterventionDto(
+        string InterventionId, string InterventionText, string? Frequency, bool IsActive);
+
+    private record NursingOutcomeEvalDto(
+        string EvaluationId, DateTime EvaluationDateTime,
+        string EvaluatedByName, string OutcomeRating, string? Notes);
+
+    private record NursingAcuityDto(
+        string PatientId, AcuityLevel CurrentAcuityLevel, int? CurrentAcuityScore,
+        DateTime? CurrentAcuityDateTime, string? CurrentAcuityNurseId, string? CurrentAcuityNurseName,
+        string? CurrentShift, List<AcuityRecordDto> AcuityHistory);
+
+    private record AcuityRecordDto(
+        DateTime RecordedDateTime, AcuityLevel Level, int? Score,
+        string? NurseId, string? NurseName, string? Shift, string? Notes);
+
+    private record NursingUnitStateDto(
+        string UnitId, string UnitName, string? UnitType, int TotalBeds,
+        List<NursingBedAssignmentDto> BedAssignments,
+        string? ChargeNurseId, string? ChargeNurseName);
+
+    private record NursingBedAssignmentDto(
+        string Bed, string? PatientId, string? PatientName, DateTime? AdmissionDateTime,
+        AcuityLevel? AcuityLevel, bool IsOccupied,
+        string? AttendingNurseId, string? AttendingNurseName);
+
+    private record NursingUnitEntryDto(
+        string UnitId, string UnitName, string? UnitType, int TotalBeds, int OccupiedBeds);
+
+    private record AddDxResult(string ProblemId);
+
+}
+
+<style>
+    .lookup-bar { display: flex; gap: .5rem; margin-bottom: 1rem; align-items: center; }
+    .tab-bar { display: flex; gap: .25rem; margin-bottom: 1rem; }
+    .tab-btn { padding: .4rem .9rem; border: 1px solid #ccc; background: #f5f5f5; cursor: pointer; border-radius: 4px 4px 0 0; }
+    .tab-btn.active { background: #fff; border-bottom-color: #fff; font-weight: 600; }
+    .panel { border: 1px solid #ddd; padding: 1rem; border-radius: 4px; background: #fff; }
+    .data-table { width: 100%; border-collapse: collapse; font-size: .875rem; }
+    .data-table th, .data-table td { border: 1px solid #ddd; padding: .35rem .6rem; text-align: left; }
+    .data-table th { background: #f0f4f8; font-weight: 600; }
+    .data-table tr:hover { background: #f7fbff; }
+    .row-signed { color: #444; }
+    .row-occupied { background: #fef9e7; }
+    .row-vacant { color: #aaa; }
+    .form-grid { display: grid; grid-template-columns: 160px 1fr; gap: .4rem .6rem; align-items: center; margin-bottom: 1rem; }
+    .alert-error { color: #c0392b; background: #fdecea; border: 1px solid #f5c6cb; padding: .5rem .8rem; border-radius: 4px; margin-bottom: .5rem; }
+    .alert-success { color: #27ae60; background: #eafaf1; border: 1px solid #a9dfbf; padding: .5rem .8rem; border-radius: 4px; margin-bottom: .5rem; }
+    .btn-primary { background: #2980b9; color: #fff; border: none; padding: .45rem 1rem; border-radius: 4px; cursor: pointer; }
+    .btn-primary:hover { background: #1f6391; }
+    .btn-sm { background: #ecf0f1; border: 1px solid #bdc3c7; padding: .2rem .6rem; border-radius: 3px; cursor: pointer; font-size: .8rem; }
+    .btn-danger { background: #e74c3c; color: #fff; border: none; }
+    .detail-card { border: 1px solid #b8d4f0; background: #eaf2fb; padding: 1rem; border-radius: 4px; margin: 1rem 0; }
+    .detail-grid { display: grid; grid-template-columns: 150px 1fr; gap: .2rem .5rem; font-size: .875rem; margin-bottom: .5rem; }
+    .care-plan-problem { border: 1px solid #d5e8d4; background: #f6fef5; padding: .75rem; border-radius: 4px; margin-bottom: .75rem; }
+    .problem-resolved { opacity: .6; border-color: #ccc; }
+    .status-badge { font-size: .75rem; padding: .1rem .4rem; border-radius: 3px; background: #27ae60; color: #fff; margin-left: .5rem; }
+    .acuity-current { font-size: 1.1rem; margin-bottom: .5rem; }
+    .acuity-level { font-weight: 700; padding: .2rem .6rem; border-radius: 4px; }
+    .acuity-1 { background: #d5f5e3; color: #1e8449; }
+    .acuity-2 { background: #d6eaf8; color: #1a5276; }
+    .acuity-3 { background: #fef9e7; color: #7d6608; }
+    .acuity-4 { background: #fdebd0; color: #935116; }
+    .acuity-5 { background: #fadbd8; color: #922b21; }
+    .unit-header { font-size: 1rem; margin-bottom: .5rem; }
+    .inline-form { display: flex; gap: .5rem; align-items: center; flex-wrap: wrap; margin-top: .5rem; }
+    .empty-state { color: #888; font-style: italic; }
+</style>

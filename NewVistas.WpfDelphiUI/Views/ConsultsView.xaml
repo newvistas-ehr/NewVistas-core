@@ -1,0 +1,252 @@
+<UserControl x:Class="NewVistas.WpfDelphiUI.Views.ConsultsView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="clr-namespace:NewVistas.WpfDelphiUI.ViewModels"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             mc:Ignorable="d"
+             d:DataContext="{d:DesignInstance vm:ConsultsViewModel}"
+             Background="White">
+
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="*"/>     <!-- Internal consults -->
+            <RowDefinition Height="4"/>     <!-- Splitter -->
+            <RowDefinition Height="*"/>     <!-- External referrals + CHS -->
+        </Grid.RowDefinitions>
+
+        <!-- ════════════════════════════════════════════════════════════ -->
+        <!--  TOP HALF — Internal Consults                                -->
+        <!-- ════════════════════════════════════════════════════════════ -->
+        <DockPanel Grid.Row="0">
+            <Border DockPanel.Dock="Top" Style="{StaticResource CprsPanelHeader}">
+                <DockPanel>
+                    <TextBlock Text="Consults" Style="{StaticResource CprsPanelHeaderText}"/>
+                    <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" HorizontalAlignment="Right">
+                        <Button Content="New Consult" Margin="4,0" Padding="8,2"
+                                Command="{Binding ToggleRequestFormCommand}"/>
+                    </StackPanel>
+                </DockPanel>
+            </Border>
+            <TextBlock DockPanel.Dock="Top" Text="{Binding ErrorText}"
+                       Style="{StaticResource ErrorText}"
+                       Visibility="{Binding ErrorText, Converter={StaticResource NullToVis}}"/>
+
+            <!-- Request Consult Form -->
+            <Border DockPanel.Dock="Top" Background="#F0F0F0" BorderBrush="#C0C0C0" BorderThickness="0,0,0,1"
+                    Padding="8" Visibility="{Binding ShowRequestForm, Converter={StaticResource BoolToVis}}">
+                <StackPanel>
+                    <StackPanel Orientation="Horizontal" Margin="0,2">
+                        <TextBlock Text="Service:" Width="60" VerticalAlignment="Center"/>
+                        <TextBox Text="{Binding NewService, UpdateSourceTrigger=PropertyChanged}" Width="200" Margin="0,0,8,0"/>
+                        <TextBlock Text="Urgency:" Width="60" VerticalAlignment="Center"/>
+                        <ComboBox ItemsSource="{Binding Urgencies}" SelectedItem="{Binding NewUrgency}" Width="120"/>
+                    </StackPanel>
+                    <TextBlock Text="Reason for Request:" Margin="0,4,0,2"/>
+                    <TextBox Text="{Binding NewReason, UpdateSourceTrigger=PropertyChanged}"
+                             AcceptsReturn="True" Height="60" TextWrapping="Wrap"/>
+                    <StackPanel Orientation="Horizontal" Margin="0,4,0,0">
+                        <Button Content="Submit" Padding="16,2" Margin="0,0,4,0"
+                                Command="{Binding RequestConsultCommand}"/>
+                        <Button Content="Cancel" Padding="16,2"
+                                Command="{Binding ToggleRequestFormCommand}"/>
+                    </StackPanel>
+                </StackPanel>
+            </Border>
+
+            <ListView ItemsSource="{Binding Consults}" SelectedItem="{Binding SelectedConsult}"
+                      BorderThickness="0">
+                <ListView.View>
+                    <GridView>
+                        <GridViewColumn Header="Service"      Width="200"
+                                        DisplayMemberBinding="{Binding Service}"/>
+                        <GridViewColumn Header="Status"       Width="100"
+                                        DisplayMemberBinding="{Binding Status}"/>
+                        <GridViewColumn Header="Urgency"      Width="90"
+                                        DisplayMemberBinding="{Binding Urgency}"/>
+                        <GridViewColumn Header="Request Date" Width="110"
+                                        DisplayMemberBinding="{Binding RequestDate}"/>
+                    </GridView>
+                </ListView.View>
+            </ListView>
+        </DockPanel>
+
+        <GridSplitter Grid.Row="1" Height="4" HorizontalAlignment="Stretch"
+                      Background="{StaticResource ControlBrush}"/>
+
+        <!-- ════════════════════════════════════════════════════════════ -->
+        <!--  BOTTOM HALF — External Referrals (incl. CHS / PRC)          -->
+        <!-- ════════════════════════════════════════════════════════════ -->
+        <DockPanel Grid.Row="2">
+            <Border DockPanel.Dock="Top" Style="{StaticResource CprsPanelHeader}">
+                <TextBlock Text="External Referrals (CHS / Community Care)"
+                           Style="{StaticResource CprsPanelHeaderText}"/>
+            </Border>
+
+            <!-- CHS action bar — visible only when a CHS-flagged referral
+                 is selected and the user holds CanAuthorizeChs. -->
+            <Border DockPanel.Dock="Top" Background="#FFF8E1" BorderBrush="#C0A000" BorderThickness="0,0,0,1"
+                    Padding="8">
+                <Border.Style>
+                    <Style TargetType="Border">
+                        <Setter Property="Visibility" Value="Collapsed"/>
+                        <Style.Triggers>
+                            <MultiDataTrigger>
+                                <MultiDataTrigger.Conditions>
+                                    <Condition Binding="{Binding SelectedReferralIsChsCandidate}" Value="True"/>
+                                    <Condition Binding="{Binding CanAuthorizeChs}" Value="True"/>
+                                </MultiDataTrigger.Conditions>
+                                <Setter Property="Visibility" Value="Visible"/>
+                            </MultiDataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </Border.Style>
+
+                <StackPanel>
+                    <TextBlock Text="{Binding SelectedReferralDetails}" FontFamily="Courier New" FontSize="11"
+                               Margin="0,0,0,6"/>
+
+                    <StackPanel Orientation="Horizontal">
+                        <Button Content="Request CHS Auth" Padding="8,2" Margin="0,0,4,0"
+                                Command="{Binding ShowChsRequestFormCommand}"/>
+                        <Button Content="Approve" Padding="8,2" Margin="0,0,4,0"
+                                Command="{Binding ShowChsApproveFormCommand}"/>
+                        <Button Content="Deny" Padding="8,2" Margin="0,0,4,0"
+                                Command="{Binding ShowChsDenyFormCommand}"/>
+                    </StackPanel>
+
+                    <!-- CHS form: shape depends on ChsAction (REQUEST | APPROVE | DENY). -->
+                    <Border BorderBrush="#C0C0C0" BorderThickness="0,1,0,0" Padding="0,6,0,0" Margin="0,6,0,0"
+                            Visibility="{Binding ShowChsForm, Converter={StaticResource BoolToVis}}">
+                        <StackPanel>
+                            <TextBlock Text="{Binding ChsAction, StringFormat=CHS — {0}}"
+                                       FontWeight="Bold" Foreground="{StaticResource NavyBrush}"/>
+
+                            <!-- REQUEST fields -->
+                            <StackPanel Margin="0,4,0,0">
+                                <StackPanel.Style>
+                                    <Style TargetType="StackPanel">
+                                        <Setter Property="Visibility" Value="Collapsed"/>
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding ChsAction}" Value="REQUEST">
+                                                <Setter Property="Visibility" Value="Visible"/>
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </StackPanel.Style>
+                                <StackPanel Orientation="Horizontal" Margin="0,2">
+                                    <TextBlock Text="Estimated cost ($):" Width="160" VerticalAlignment="Center"/>
+                                    <TextBox Text="{Binding ChsEstimatedCost, UpdateSourceTrigger=PropertyChanged}"
+                                             Width="120"/>
+                                </StackPanel>
+                                <StackPanel Orientation="Horizontal" Margin="0,2">
+                                    <TextBlock Text="Medical Priority Class:" Width="160" VerticalAlignment="Center"/>
+                                    <ComboBox ItemsSource="{Binding PriorityClasses}"
+                                              SelectedItem="{Binding ChsPriorityClass}"
+                                              Width="80"/>
+                                </StackPanel>
+                                <StackPanel Orientation="Horizontal" Margin="0,2">
+                                    <TextBlock Text="Alternate resources checked:" Width="160" VerticalAlignment="Center"/>
+                                    <CheckBox IsChecked="{Binding ChsAlternateResourcesChecked}" VerticalAlignment="Center"/>
+                                </StackPanel>
+                                <StackPanel Margin="0,2">
+                                    <TextBlock Text="Notes:"/>
+                                    <TextBox Text="{Binding ChsAlternateResourcesNote, UpdateSourceTrigger=PropertyChanged}"
+                                             AcceptsReturn="True" Height="40" TextWrapping="Wrap"/>
+                                </StackPanel>
+                            </StackPanel>
+
+                            <!-- APPROVE fields -->
+                            <StackPanel Margin="0,4,0,0">
+                                <StackPanel.Style>
+                                    <Style TargetType="StackPanel">
+                                        <Setter Property="Visibility" Value="Collapsed"/>
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding ChsAction}" Value="APPROVE">
+                                                <Setter Property="Visibility" Value="Visible"/>
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </StackPanel.Style>
+                                <StackPanel Orientation="Horizontal" Margin="0,2">
+                                    <TextBlock Text="Authorized amount ($):" Width="160" VerticalAlignment="Center"/>
+                                    <TextBox Text="{Binding ChsAuthorizedAmount, UpdateSourceTrigger=PropertyChanged}"
+                                             Width="120"/>
+                                </StackPanel>
+                                <StackPanel Orientation="Horizontal" Margin="0,2">
+                                    <TextBlock Text="Authorization # (optional):" Width="160" VerticalAlignment="Center"/>
+                                    <TextBox Text="{Binding ChsAuthorizationNumber, UpdateSourceTrigger=PropertyChanged}"
+                                             Width="200"/>
+                                </StackPanel>
+                            </StackPanel>
+
+                            <!-- DENY fields -->
+                            <StackPanel Margin="0,4,0,0">
+                                <StackPanel.Style>
+                                    <Style TargetType="StackPanel">
+                                        <Setter Property="Visibility" Value="Collapsed"/>
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding ChsAction}" Value="DENY">
+                                                <Setter Property="Visibility" Value="Visible"/>
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </StackPanel.Style>
+                                <TextBlock Text="Denial reason:"/>
+                                <TextBox Text="{Binding ChsDenialReason, UpdateSourceTrigger=PropertyChanged}"
+                                         AcceptsReturn="True" Height="40" TextWrapping="Wrap"/>
+                            </StackPanel>
+
+                            <StackPanel Orientation="Horizontal" Margin="0,6,0,0">
+                                <Button Content="Submit" Padding="16,2" Margin="0,0,4,0">
+                                    <Button.Style>
+                                        <Style TargetType="Button">
+                                            <Setter Property="Command" Value="{Binding RequestChsCommand}"/>
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding ChsAction}" Value="APPROVE">
+                                                    <Setter Property="Command" Value="{Binding ApproveChsCommand}"/>
+                                                </DataTrigger>
+                                                <DataTrigger Binding="{Binding ChsAction}" Value="DENY">
+                                                    <Setter Property="Command" Value="{Binding DenyChsCommand}"/>
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </Button.Style>
+                                </Button>
+                                <Button Content="Cancel" Padding="16,2"
+                                        Command="{Binding CancelChsFormCommand}"/>
+                            </StackPanel>
+                        </StackPanel>
+                    </Border>
+                </StackPanel>
+            </Border>
+
+            <ListView ItemsSource="{Binding Referrals}" SelectedItem="{Binding SelectedReferral}"
+                      BorderThickness="0">
+                <ListView.View>
+                    <GridView>
+                        <GridViewColumn Header="Facility"   Width="180"
+                                        DisplayMemberBinding="{Binding ExternalFacilityName}"/>
+                        <GridViewColumn Header="Type"       Width="90"
+                                        DisplayMemberBinding="{Binding ReferralType}"/>
+                        <GridViewColumn Header="Status"     Width="90"
+                                        DisplayMemberBinding="{Binding Status}"/>
+                        <GridViewColumn Header="CHS"        Width="50"
+                                        DisplayMemberBinding="{Binding IsChsReferral}"/>
+                        <GridViewColumn Header="Priority"   Width="60"
+                                        DisplayMemberBinding="{Binding MedicalPriorityClass}"/>
+                        <GridViewColumn Header="Auth $"     Width="80">
+                            <GridViewColumn.CellTemplate>
+                                <DataTemplate>
+                                    <TextBlock Text="{Binding AuthorizedAmount, StringFormat=C, TargetNullValue=—}"/>
+                                </DataTemplate>
+                            </GridViewColumn.CellTemplate>
+                        </GridViewColumn>
+                        <GridViewColumn Header="Date"       Width="100"
+                                        DisplayMemberBinding="{Binding ReferralDate, StringFormat=yyyy-MM-dd}"/>
+                    </GridView>
+                </ListView.View>
+            </ListView>
+        </DockPanel>
+    </Grid>
+</UserControl>

@@ -1,0 +1,37 @@
+<UserControl x:Class="NewVistas.WpfDelphiUI.Views.MedicationsView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="clr-namespace:NewVistas.WpfDelphiUI.ViewModels"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             mc:Ignorable="d"
+             d:DataContext="{d:DesignInstance vm:MedicationsViewModel}"
+             Background="White">
+
+    <DockPanel>
+        <Border DockPanel.Dock="Top" Style="{StaticResource CprsPanelHeader}">
+            <TextBlock Text="Medications" Style="{StaticResource CprsPanelHeaderText}"/>
+        </Border>
+
+        <TextBlock DockPanel.Dock="Top" Text="{Binding ErrorText}"
+                   Style="{StaticResource ErrorText}"
+                   Visibility="{Binding ErrorText, Converter={StaticResource NullToVis}}"/>
+
+        <ListView ItemsSource="{Binding Prescriptions}" BorderThickness="0">
+            <ListView.View>
+                <GridView>
+                    <GridViewColumn Header="Drug"        Width="220"
+                                    DisplayMemberBinding="{Binding DrugName}"/>
+                    <GridViewColumn Header="Sig"         Width="280"
+                                    DisplayMemberBinding="{Binding Sig}"/>
+                    <GridViewColumn Header="Status"      Width="90"
+                                    DisplayMemberBinding="{Binding Status}"/>
+                    <GridViewColumn Header="Issue Date"  Width="100"
+                                    DisplayMemberBinding="{Binding IssueDate}"/>
+                    <GridViewColumn Header="Refills"     Width="60"
+                                    DisplayMemberBinding="{Binding Refills}"/>
+                </GridView>
+            </ListView.View>
+        </ListView>
+    </DockPanel>
+</UserControl>

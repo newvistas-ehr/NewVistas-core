@@ -1,0 +1,163 @@
+@page "/pain-assessment"
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+@rendermode InteractiveServer
+@using NewVistas.BlazorWeb.Services
+@using NewVistas.Abstractions.GrainInterfaces
+@using NewVistas.Abstractions.GrainStates
+@inject OrleansGrainService Grains
+
+<PageTitle>Pain Assessment</PageTitle>
+
+<h3>Pain Assessment Workflow</h3>
+<p class="text-muted">Structured Pain Assessment — DVPRS, Wong-Baker FACES, FLACC, NRS, CPOT, VAS</p>
+
+<div class="mb-3 d-flex gap-2">
+    <input class="form-control" style="max-width:260px" placeholder="Patient ID" @bind="patientId" @bind:event="oninput" />
+    <button class="btn btn-primary" @onclick="LoadAssessments" disabled="@loading">Load</button>
+</div>
+
+@if (error != null) { <div class="alert alert-danger">@error</div> }
+
+<ul class="nav nav-tabs mb-3">
+    <li class="nav-item"><button class="nav-link @(tab == "history" ? "active" : "")" @onclick='() => tab = "history"'>Pain History</button></li>
+    <li class="nav-item"><button class="nav-link @(tab == "detail" ? "active" : "")" @onclick='() => tab = "detail"'>Assessment Detail</button></li>
+    <li class="nav-item"><button class="nav-link @(tab == "new" ? "active" : "")" @onclick='() => tab = "new"'>New Assessment</button></li>
+    <li class="nav-item"><button class="nav-link @(tab == "reassess" ? "active" : "")" @onclick='() => tab = "reassess"'>Reassessment</button></li>
+</ul>
+
+@if (tab == "history" && assessments != null)
+{
+    <table class="table table-sm table-striped">
+        <thead><tr><th>Date/Time</th><th>Nurse</th><th>Tool</th><th>Score</th><th>Location</th><th>Reassess?</th><th>Post-Rx</th><th></th></tr></thead>
+        <tbody>
+            @foreach (var a in assessments)
+            {
+                <tr class="@(a.PainScore >= 7 ? "table-danger" : a.PainScore >= 4 ? "table-warning" : "")">
+                    <td>@a.AssessmentDateTime.ToString("MM/dd HH:mm")</td>
+                    <td>@a.NurseName</td>
+                    <td>@a.Tool</td>
+                    <td><strong>@a.PainScore/10</strong></td>
+                    <td>@(a.PainLocation ?? "—")</td>
+                    <td>@(a.IsReassessment ? "Yes" : "No")</td>
+                    <td>@(a.PostInterventionScore?.ToString() ?? "—")</td>
+                    <td><button class="btn btn-sm btn-outline-primary" @onclick="() => ViewDetail(a.AssessmentId)">View</button></td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+
+@if (tab == "detail" && selected != null)
+{
+    <div class="card mb-3">
+        <div class="card-header"><strong>Pain Assessment</strong> — @selected.Tool <span class="badge @PainBadge(selected.PainScore) ms-2">@selected.PainScore/10</span></div>
+        <div class="card-body">
+            <div class="row">
+                <div class="col-md-6">
+                    <dl class="row mb-0">
+                        <dt class="col-sm-5">Location</dt><dd class="col-sm-7">@(selected.PainLocation ?? "—")</dd>
+                        <dt class="col-sm-5">Character</dt><dd class="col-sm-7">@(selected.PainCharacter ?? "—")</dd>
+                        <dt class="col-sm-5">Onset</dt><dd class="col-sm-7">@(selected.PainOnset ?? "—")</dd>
+                        <dt class="col-sm-5">Radiation</dt><dd class="col-sm-7">@(selected.Radiation ?? "—")</dd>
+                        <dt class="col-sm-5">Aggravating</dt><dd class="col-sm-7">@(selected.AggravatingFactors ?? "—")</dd>
+                        <dt class="col-sm-5">Alleviating</dt><dd class="col-sm-7">@(selected.AlleviatingFactors ?? "—")</dd>
+                        <dt class="col-sm-5">Acceptable Level</dt><dd class="col-sm-7">@(selected.AcceptablePainLevel?.ToString() ?? "—")/10</dd>
+                        <dt class="col-sm-5">Intervention</dt><dd class="col-sm-7">@(selected.InterventionProvided ?? "—")</dd>
+                    </dl>
+                </div>
+                <div class="col-md-6">
+                    @if (selected.DvprsSupplemental != null)
+                    {
+                        <h6>DVPRS Supplemental</h6>
+                        <dl class="row mb-0">
+                            <dt class="col-sm-6">Activity</dt><dd class="col-sm-6">@(selected.DvprsSupplemental.ActivityInterference?.ToString() ?? "—")/10</dd>
+                            <dt class="col-sm-6">Sleep</dt><dd class="col-sm-6">@(selected.DvprsSupplemental.SleepInterference?.ToString() ?? "—")/10</dd>
+                            <dt class="col-sm-6">Mood</dt><dd class="col-sm-6">@(selected.DvprsSupplemental.MoodInterference?.ToString() ?? "—")/10</dd>
+                            <dt class="col-sm-6">Stress</dt><dd class="col-sm-6">@(selected.DvprsSupplemental.StressInterference?.ToString() ?? "—")/10</dd>
+                        </dl>
+                    }
+                    @if (selected.FlaccComponents != null)
+                    {
+                        <h6>FLACC Components</h6>
+                        <dl class="row mb-0">
+                            <dt class="col-sm-5">Face</dt><dd class="col-sm-7">@selected.FlaccComponents.Face</dd>
+                            <dt class="col-sm-5">Legs</dt><dd class="col-sm-7">@selected.FlaccComponents.Legs</dd>
+                            <dt class="col-sm-5">Activity</dt><dd class="col-sm-7">@selected.FlaccComponents.Activity</dd>
+                            <dt class="col-sm-5">Cry</dt><dd class="col-sm-7">@selected.FlaccComponents.Cry</dd>
+                            <dt class="col-sm-5">Consolability</dt><dd class="col-sm-7">@selected.FlaccComponents.Consolability</dd>
+                            <dt class="col-sm-5">Total</dt><dd class="col-sm-7"><strong>@selected.FlaccComponents.Total</strong></dd>
+                        </dl>
+                    }
+                    @if (selected.IsReassessment)
+                    {
+                        <h6>Reassessment</h6>
+                        <dl class="row mb-0">
+                            <dt class="col-sm-6">Post-Rx Score</dt><dd class="col-sm-6">@(selected.PostInterventionScore?.ToString() ?? "—")/10</dd>
+                            <dt class="col-sm-6">Minutes Since</dt><dd class="col-sm-6">@(selected.MinutesSinceIntervention?.ToString() ?? "—")</dd>
+                            <dt class="col-sm-6">Effective?</dt><dd class="col-sm-6">@(selected.InterventionEffective == true ? "Yes" : selected.InterventionEffective == false ? "No" : "—")</dd>
+                        </dl>
+                    }
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@if (tab == "new")
+{
+    <div class="card">
+        <div class="card-header">New Pain Assessment</div>
+        <div class="card-body">
+            <div class="row g-2 mb-2">
+                <div class="col-md-3"><label class="form-label">Tool</label><select class="form-select" @bind="nTool"><option value="@PainAssessmentTool.NumericRatingScale">NRS (0-10)</option><option value="@PainAssessmentTool.DVPRS">DVPRS</option><option value="@PainAssessmentTool.WongBakerFACES">Wong-Baker FACES</option><option value="@PainAssessmentTool.FLACC">FLACC</option><option value="@PainAssessmentTool.CPOT">CPOT</option><option value="@PainAssessmentTool.VisualAnalogScale">VAS</option></select></div>
+                <div class="col-md-2"><label class="form-label">Pain Score</label><input type="number" min="0" max="10" class="form-control" @bind="nScore" /></div>
+                <div class="col-md-3"><label class="form-label">Location</label><input class="form-control" @bind="nLocation" /></div>
+                <div class="col-md-2"><label class="form-label">Character</label><select class="form-select" @bind="nCharacter"><option>Sharp</option><option>Dull</option><option>Burning</option><option>Throbbing</option><option>Aching</option><option>Pressure</option><option>Stabbing</option></select></div>
+                <div class="col-md-2"><label class="form-label">Nurse ID</label><input class="form-control" @bind="nNurseId" /></div>
+            </div>
+            <div class="row g-2 mb-3">
+                <div class="col-md-3"><label class="form-label">Onset</label><select class="form-select" @bind="nOnset"><option>Acute</option><option>Chronic</option><option>Intermittent</option></select></div>
+                <div class="col-md-3"><label class="form-label">Intervention</label><input class="form-control" @bind="nIntervention" placeholder="e.g. Morphine 4mg IV" /></div>
+                <div class="col-md-2"><label class="form-label">Acceptable</label><input type="number" min="0" max="10" class="form-control" @bind="nAcceptable" /></div>
+                <div class="col-md-4"><label class="form-label">Notes</label><input class="form-control" @bind="nNotes" /></div>
+            </div>
+            <button class="btn btn-success" @onclick="RecordPain" disabled="@recording">@(recording ? "Recording..." : "Record Pain Assessment")</button>
+            @if (recordResult != null) { <div class="alert alert-success mt-2">@recordResult</div> }
+        </div>
+    </div>
+}
+
+@if (tab == "reassess")
+{
+    <div class="card">
+        <div class="card-header">Pain Reassessment (Post-Intervention)</div>
+        <div class="card-body">
+            <div class="row g-2 mb-3">
+                <div class="col-md-4"><label class="form-label">Initial Assessment ID</label><input class="form-control" @bind="rInitialId" /></div>
+                <div class="col-md-2"><label class="form-label">Post-Rx Score</label><input type="number" min="0" max="10" class="form-control" @bind="rPostScore" /></div>
+                <div class="col-md-2"><label class="form-label">Minutes Since</label><input type="number" class="form-control" @bind="rMinutes" /></div>
+                <div class="col-md-4"><label class="form-label">Intervention</label><input class="form-control" @bind="rIntervention" /></div>
+            </div>
+            <button class="btn btn-success" @onclick="Reassess" disabled="@recording">Reassess</button>
+        </div>
+    </div>
+}
+
+@code {
+    private string patientId = string.Empty, tab = "history";
+    private bool loading, recording;
+    private string? error, recordResult;
+    private List<PainAssessmentIndexEntry>? assessments;
+    private PainAssessmentState? selected;
+    private PainAssessmentTool nTool = PainAssessmentTool.NumericRatingScale;
+    private int nScore; private string nLocation = string.Empty, nCharacter = "Sharp", nOnset = "Acute", nIntervention = string.Empty, nNurseId = string.Empty, nNotes = string.Empty;
+    private int? nAcceptable;
+    private string rInitialId = string.Empty, rIntervention = string.Empty; private int rPostScore, rMinutes = 30;
+
+    private async Task LoadAssessments() { if (string.IsNullOrWhiteSpace(patientId)) return; loading = true; error = null; try { assessments = await Grains.GetGrain<IPatientWorkflowGrain>(patientId.Trim()).GetPainAssessmentsAsync(); } catch (Exception ex) { error = ex.Message; } finally { loading = false; } }
+    private async Task ViewDetail(string id) { try { selected = await Grains.GetGrain<IPatientWorkflowGrain>(patientId.Trim()).GetPainAssessmentAsync(id); tab = "detail"; } catch (Exception ex) { error = ex.Message; } }
+    private async Task RecordPain() { if (string.IsNullOrWhiteSpace(patientId)) return; recording = true; error = null; recordResult = null; try { string id = await Grains.GetGrain<IPatientWorkflowGrain>(patientId.Trim()).RecordPainAssessmentAsync(nTool, nScore, nLocation, nCharacter, nOnset, null, null, null, nAcceptable, null, null, string.IsNullOrWhiteSpace(nIntervention) ? null : nIntervention, nNurseId, "Nurse", nNotes); recordResult = $"Assessment recorded: {id}"; await LoadAssessments(); } catch (Exception ex) { error = ex.Message; } finally { recording = false; } }
+    private async Task Reassess() { if (string.IsNullOrWhiteSpace(patientId) || string.IsNullOrWhiteSpace(rInitialId)) return; recording = true; error = null; try { await Grains.GetGrain<IPatientWorkflowGrain>(patientId.Trim()).RecordPainReassessmentAsync(rInitialId, nTool, rPostScore, rMinutes, rIntervention, nNurseId, "Nurse", null); recordResult = "Reassessment recorded"; await LoadAssessments(); } catch (Exception ex) { error = ex.Message; } finally { recording = false; } }
+
+    private string PainBadge(int score) => score >= 7 ? "bg-danger" : score >= 4 ? "bg-warning text-dark" : score > 0 ? "bg-info" : "bg-success";
+}

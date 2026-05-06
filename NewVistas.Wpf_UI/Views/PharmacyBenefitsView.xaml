@@ -1,0 +1,87 @@
+<UserControl x:Class="NewVistas.Wpf_UI.Views.PharmacyBenefitsView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <ScrollViewer VerticalScrollBarVisibility="Auto">
+        <StackPanel Margin="24">
+            <TextBlock Style="{StaticResource PageTitle}" Text="Pharmacy Benefits / Prior Auth"/>
+            <TextBlock Style="{StaticResource ErrorText}" Text="{Binding Error}"
+                       Visibility="{Binding Error, Converter={StaticResource NullToVisibility}}"/>
+
+            <StackPanel Orientation="Horizontal" Margin="0,0,0,12">
+                <Button Content="Load Benefits" Style="{StaticResource PrimaryButton}"
+                        Command="{Binding LoadCommand}" Margin="0,0,8,0"/>
+                <ProgressBar IsIndeterminate="True" Width="120" Height="20"
+                             Visibility="{Binding IsLoading, Converter={StaticResource BoolToVisibility}}"/>
+            </StackPanel>
+
+            <!-- Benefit Plan Summary -->
+            <StackPanel Visibility="{Binding BenefitPlan, Converter={StaticResource NullToVisibility}}">
+                <TextBlock Style="{StaticResource SectionHeader}" Text="Benefit Plan"/>
+                <Border Style="{StaticResource FormPanel}">
+                    <UniformGrid Columns="3">
+                        <StackPanel Margin="8">
+                            <TextBlock Style="{StaticResource FieldLabel}" Text="Plan Name"/>
+                            <TextBlock FontSize="13" FontWeight="SemiBold" Text="{Binding BenefitPlan.PlanName}"/>
+                        </StackPanel>
+                        <StackPanel Margin="8">
+                            <TextBlock Style="{StaticResource FieldLabel}" Text="Insurance"/>
+                            <TextBlock FontSize="13" Text="{Binding BenefitPlan.InsuranceName}"/>
+                        </StackPanel>
+                        <StackPanel Margin="8">
+                            <TextBlock Style="{StaticResource FieldLabel}" Text="Member ID"/>
+                            <TextBlock FontSize="13" Text="{Binding BenefitPlan.MemberId}"/>
+                        </StackPanel>
+                        <StackPanel Margin="8">
+                            <TextBlock Style="{StaticResource FieldLabel}" Text="Tier 1 Copay"/>
+                            <TextBlock FontSize="13" Text="{Binding BenefitPlan.CopayTier1, StringFormat=C}"/>
+                        </StackPanel>
+                        <StackPanel Margin="8">
+                            <TextBlock Style="{StaticResource FieldLabel}" Text="Tier 2 Copay"/>
+                            <TextBlock FontSize="13" Text="{Binding BenefitPlan.CopayTier2, StringFormat=C}"/>
+                        </StackPanel>
+                        <StackPanel Margin="8">
+                            <TextBlock Style="{StaticResource FieldLabel}" Text="Tier 3 Copay"/>
+                            <TextBlock FontSize="13" Text="{Binding BenefitPlan.CopayTier3, StringFormat=C}"/>
+                        </StackPanel>
+                    </UniformGrid>
+                </Border>
+            </StackPanel>
+
+            <!-- Prior Authorizations -->
+            <StackPanel Orientation="Horizontal" Margin="0,8,0,8">
+                <TextBlock Style="{StaticResource SectionHeader}" Text="Prior Authorizations" VerticalAlignment="Center" Margin="0,0,16,0"/>
+                <Button Content="+ Request PA" Style="{StaticResource SecondaryButton}"
+                        Command="{Binding TogglePaFormCommand}"/>
+            </StackPanel>
+
+            <Border Style="{StaticResource FormPanel}"
+                    Visibility="{Binding ShowPaForm, Converter={StaticResource BoolToVisibility}}">
+                <StackPanel>
+                    <TextBlock Style="{StaticResource SectionHeader}" Text="Request Prior Authorization"/>
+                    <TextBlock Style="{StaticResource FieldLabel}" Text="Drug Name"/>
+                    <TextBox Text="{Binding DrugName, UpdateSourceTrigger=PropertyChanged}" Width="300" HorizontalAlignment="Left"/>
+                    <TextBlock Style="{StaticResource FieldLabel}" Text="Indication / Diagnosis"/>
+                    <TextBox Text="{Binding Indication, UpdateSourceTrigger=PropertyChanged}" Width="400" HorizontalAlignment="Left"/>
+                    <TextBlock Style="{StaticResource FieldLabel}" Text="Requested By"/>
+                    <TextBox Text="{Binding RequestedByName, UpdateSourceTrigger=PropertyChanged}" Width="300" HorizontalAlignment="Left"/>
+                    <StackPanel Orientation="Horizontal" Margin="0,12,0,0">
+                        <Button Content="Submit" Style="{StaticResource PrimaryButton}"
+                                Command="{Binding RequestPriorAuthCommand}" Margin="0,0,8,0"/>
+                        <Button Content="Cancel" Style="{StaticResource SecondaryButton}"
+                                Command="{Binding TogglePaFormCommand}"/>
+                    </StackPanel>
+                </StackPanel>
+            </Border>
+
+            <DataGrid ItemsSource="{Binding PriorAuths}">
+                <DataGrid.Columns>
+                    <DataGridTextColumn Header="Drug Name" Binding="{Binding DrugName}" Width="*"/>
+                    <DataGridTextColumn Header="Status" Binding="{Binding Status}" Width="110"/>
+                    <DataGridTextColumn Header="Provider" Binding="{Binding ProviderName}" Width="160"/>
+                    <DataGridTextColumn Header="Requested" Binding="{Binding RequestDate, StringFormat=d}" Width="110"/>
+                    <DataGridTextColumn Header="Expires" Binding="{Binding ExpirationDate, StringFormat=d}" Width="100"/>
+                </DataGrid.Columns>
+            </DataGrid>
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>

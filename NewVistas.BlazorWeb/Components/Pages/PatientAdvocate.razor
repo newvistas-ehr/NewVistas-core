@@ -1,0 +1,677 @@
+@page "/patient-advocate"
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+@rendermode InteractiveServer
+@using NewVistas.BlazorWeb.Services
+@using NewVistas.Abstractions.GrainInterfaces
+@using NewVistas.Abstractions.GrainStates
+@inject OrleansGrainService Grains
+
+<h2>Patient Advocate / Complaint Tracking</h2>
+<p>VistA File #745 &mdash; Formal complaints, grievances, and Congressional inquiries.</p>
+
+@if (error != null)
+{
+    <div class="alert alert-danger">@error</div>
+}
+
+@if (overdueCongressional > 0)
+{
+    <div class="alert alert-critical">
+        URGENT: @overdueCongressional Congressional @(overdueCongressional == 1 ? "inquiry" : "inquiries") past federal response deadline.
+    </div>
+}
+@if (overdueComplaints > 0)
+{
+    <div class="alert alert-warn">
+        @overdueComplaints patient @(overdueComplaints == 1 ? "complaint" : "complaints") past response due date.
+    </div>
+}
+
+<div class="tab-bar">
+    <button class="@(activeTab == "complaints" ? "tab active" : "tab")" @onclick='() => activeTab = "complaints"'>Complaints</button>
+    <button class="@(activeTab == "congressional" ? "tab active" : "tab")" @onclick='() => activeTab = "congressional"'>Congressional Inquiries</button>
+    <button class="@(activeTab == "dashboard" ? "tab active" : "tab")" @onclick='() => activeTab = "dashboard"'>Advocate Dashboard</button>
+</div>
+
+@if (activeTab == "complaints")
+{
+    <div class="section">
+        <h3>Patient Complaints &amp; Grievances</h3>
+
+        <div class="filter-bar">
+            <label>Filter by Status:</label>
+            <select @bind="complaintStatusFilter" @bind:after="FilterComplaints">
+                <option value="">All</option>
+                <option value="Received">Received</option>
+                <option value="Acknowledged">Acknowledged</option>
+                <option value="UnderInvestigation">Under Investigation</option>
+                <option value="ResponseDrafted">Response Drafted</option>
+                <option value="Resolved">Resolved</option>
+                <option value="Closed">Closed</option>
+                <option value="Escalated">Escalated</option>
+            </select>
+            <button class="btn btn-primary" @onclick="ShowFileComplaintForm">+ File New Complaint</button>
+        </div>
+
+        @if (loading)
+        {
+            <p>Loading...</p>
+        }
+        else if (filteredComplaints.Count == 0)
+        {
+            <p>No complaints found.</p>
+        }
+        else
+        {
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Patient</th>
+                        <th>Type</th>
+                        <th>Category</th>
+                        <th>Priority</th>
+                        <th>Status</th>
+                        <th>Received</th>
+                        <th>Response Due</th>
+                        <th>Assigned To</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var c in filteredComplaints)
+                    {
+                        bool isOverdue = c.ResponseDue.HasValue && c.ResponseDue.Value < DateTime.UtcNow
+                            && c.Status is "Received" or "Acknowledged" or "UnderInvestigation" or "ResponseDrafted" or "Escalated";
+                        <tr class="@(isOverdue ? "row-critical" : c.Priority == "Immediate" ? "row-warn" : "")">
+                            <td>@c.PatientName</td>
+                            <td>@c.ComplaintType</td>
+                            <td>@c.Category</td>
+                            <td><span class="badge @GetPriorityBadge(c.Priority)">@c.Priority</span></td>
+                            <td>@c.Status</td>
+                            <td>@c.ReceivedDate.ToString("MM/dd/yyyy")</td>
+                            <td class="@(isOverdue ? "text-critical" : "")">
+                                @(c.ResponseDue.HasValue ? c.ResponseDue.Value.ToString("MM/dd/yyyy") : "—")
+                                @if (isOverdue) { <span> !</span> }
+                            </td>
+                            <td>@(string.IsNullOrEmpty(c.AssignedAdvocateName) ? "Unassigned" : c.AssignedAdvocateName)</td>
+                            <td>
+                                @if (c.Status == "Received")
+                                {
+                                    <button class="btn btn-sm" @onclick="() => AcknowledgeComplaint(c.ComplaintId)">Acknowledge</button>
+                                }
+                                @if (c.Status is "Acknowledged" or "UnderInvestigation" or "ResponseDrafted")
+                                {
+                                    <button class="btn btn-sm btn-success" @onclick="() => ShowResolveForm(c.ComplaintId)">Resolve</button>
+                                }
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        }
+
+        @if (showFileComplaintForm)
+        {
+            <div class="form-panel">
+                <h4>File New Complaint</h4>
+                <div class="form-grid">
+                    <label>Patient ID: <input @bind="newComplaint.PatientId" /></label>
+                    <label>Patient Name: <input @bind="newComplaint.PatientName" /></label>
+                    <label>Complaint Date: <input type="date" @bind="newComplaint.ComplaintDate" /></label>
+                    <label>Type:
+                        <select @bind="newComplaint.ComplaintType">
+                            <option>Informal</option><option>Formal</option><option>Grievance</option>
+                            <option>CongressionalInquiry</option><option>OIGReferral</option>
+                            <option>MediaInquiry</option><option>LegalAction</option><option>Other</option>
+                        </select>
+                    </label>
+                    <label>Category:
+                        <select @bind="newComplaint.Category">
+                            <option>AccessToCare</option><option>QualityOfCare</option><option>StaffConduct</option>
+                            <option>Billing</option><option>FacilityEnvironment</option><option>PrivacyBreach</option>
+                            <option>BenefitsDetermination</option><option>WaitTime</option>
+                            <option>Communication</option><option>Medication</option><option>PatientRights</option><option>Other</option>
+                        </select>
+                    </label>
+                    <label>Priority:
+                        <select @bind="newComplaint.Priority">
+                            <option>Routine</option><option>Urgent</option><option>Immediate</option>
+                        </select>
+                    </label>
+                    <label>Source:
+                        <select @bind="newComplaint.Source">
+                            <option>PatientSelf</option><option>FamilyMember</option><option>Attorney</option>
+                            <option>CongressionalOffice</option><option>Internal</option><option>Other</option>
+                        </select>
+                    </label>
+                    <label>Department Involved: <input @bind="newComplaint.DepartmentInvolved" /></label>
+                    <label>Reporter Name (if not patient): <input @bind="newComplaint.ReporterName" /></label>
+                    <label>Reporter Relationship: <input @bind="newComplaint.ReporterRelationship" /></label>
+                    <label>Confidential: <input type="checkbox" @bind="newComplaint.IsConfidential" /></label>
+                </div>
+                <label>Narrative Description:<br /><textarea @bind="newComplaint.NarrativeDescription" rows="3" style="width:100%"></textarea></label>
+                <label>Specific Concern / Desired Resolution:<br /><textarea @bind="newComplaint.SpecificConcern" rows="2" style="width:100%"></textarea></label>
+                <div class="form-actions">
+                    <button class="btn btn-primary" @onclick="FileComplaint">File Complaint</button>
+                    <button class="btn" @onclick="() => showFileComplaintForm = false">Cancel</button>
+                </div>
+                @if (formError != null) { <div class="alert alert-danger">@formError</div> }
+            </div>
+        }
+
+        @if (showResolveForm)
+        {
+            <div class="form-panel">
+                <h4>Resolve Complaint</h4>
+                <label>Outcome:
+                    <select @bind="resolveOutcome">
+                        <option>Substantiated</option><option>Unsubstantiated</option>
+                        <option>PartiallySubstantiated</option><option>NoActionRequired</option>
+                        <option>Referred</option><option>Withdrawn</option><option>CouldNotDetermine</option>
+                    </select>
+                </label>
+                <label>Resolution Summary:<br /><textarea @bind="resolutionSummary" rows="3" style="width:100%"></textarea></label>
+                <div class="form-actions">
+                    <button class="btn btn-success" @onclick="ResolveComplaint">Resolve</button>
+                    <button class="btn" @onclick="() => showResolveForm = false">Cancel</button>
+                </div>
+            </div>
+        }
+    </div>
+}
+
+@if (activeTab == "congressional")
+{
+    <div class="section">
+        <h3>Congressional Inquiries</h3>
+        <p class="text-muted">Federal requirements: 7-day acknowledgment &bull; 20-day full response</p>
+
+        <div class="filter-bar">
+            <button class="btn btn-primary" @onclick="ShowCreateInquiryForm">+ New Congressional Inquiry</button>
+        </div>
+
+        @if (loadingInquiries)
+        {
+            <p>Loading...</p>
+        }
+        else if (inquiries.Count == 0)
+        {
+            <p>No congressional inquiries on record.</p>
+        }
+        else
+        {
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Patient</th>
+                        <th>Congressional Office</th>
+                        <th>Type</th>
+                        <th>Status</th>
+                        <th>Received</th>
+                        <th>Ack Due</th>
+                        <th>Response Due</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var i in inquiries)
+                    {
+                        bool ackOverdue = i.IsAcknowledgmentOverdue;
+                        bool respOverdue = i.IsResponseOverdue;
+                        <tr class="@(respOverdue ? "row-critical" : ackOverdue ? "row-warn" : "")">
+                            <td>@i.PatientName</td>
+                            <td>@i.CongressionalOfficeName</td>
+                            <td>@i.InquiryType</td>
+                            <td>@i.Status</td>
+                            <td>@i.ReceivedDate.ToString("MM/dd/yyyy")</td>
+                            <td class="@(ackOverdue ? "text-critical" : "")">@i.AcknowledgmentDue.ToString("MM/dd/yyyy")</td>
+                            <td class="@(respOverdue ? "text-critical" : "")">@i.ResponseDue.ToString("MM/dd/yyyy")</td>
+                            <td>
+                                @if (i.Status == "Received")
+                                {
+                                    <button class="btn btn-sm" @onclick="() => AcknowledgeInquiry(i.InquiryId)">Acknowledge</button>
+                                }
+                                @if (i.Status is "Acknowledged" or "UnderInvestigation")
+                                {
+                                    <button class="btn btn-sm btn-success" @onclick="() => ShowCompleteInquiryForm(i.InquiryId)">Complete</button>
+                                }
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        }
+
+        @if (showCreateInquiryForm)
+        {
+            <div class="form-panel">
+                <h4>New Congressional Inquiry</h4>
+                <div class="form-grid">
+                    <label>Patient ID: <input @bind="newInquiry.PatientId" /></label>
+                    <label>Patient Name: <input @bind="newInquiry.PatientName" /></label>
+                    <label>Inquiry Type:
+                        <select @bind="newInquiry.InquiryType">
+                            <option>HouseOfRepresentatives</option><option>Senate</option>
+                            <option>StateLegislature</option><option>Other</option>
+                        </select>
+                    </label>
+                    <label>Congressional Office: <input @bind="newInquiry.CongressionalOfficeName" /></label>
+                    <label>Contact Name: <input @bind="newInquiry.CongressionalContactName" /></label>
+                    <label>Phone: <input @bind="newInquiry.CongressionalPhone" /></label>
+                    <label>Email: <input @bind="newInquiry.CongressionalEmail" /></label>
+                    <label>Subject: <input @bind="newInquiry.Subject" /></label>
+                    <label>Linked Complaint ID (optional): <input @bind="newInquiry.LinkedComplaintId" /></label>
+                </div>
+                <label>Inquiry Text:<br /><textarea @bind="newInquiry.InquiryText" rows="4" style="width:100%"></textarea></label>
+                <div class="form-actions">
+                    <button class="btn btn-primary" @onclick="CreateInquiry">Create Inquiry</button>
+                    <button class="btn" @onclick="() => showCreateInquiryForm = false">Cancel</button>
+                </div>
+                @if (formError != null) { <div class="alert alert-danger">@formError</div> }
+            </div>
+        }
+
+        @if (showCompleteInquiryForm)
+        {
+            <div class="form-panel">
+                <h4>Complete Congressional Inquiry</h4>
+                <label>Resolution Outcome:
+                    <select @bind="resolveOutcome">
+                        <option>Substantiated</option><option>Unsubstantiated</option>
+                        <option>PartiallySubstantiated</option><option>NoActionRequired</option>
+                        <option>Referred</option><option>Withdrawn</option><option>CouldNotDetermine</option>
+                    </select>
+                </label>
+                <label>Final Response Text:<br /><textarea @bind="resolutionSummary" rows="4" style="width:100%"></textarea></label>
+                <div class="form-actions">
+                    <button class="btn btn-success" @onclick="CompleteInquiry">Submit Final Response</button>
+                    <button class="btn" @onclick="() => showCompleteInquiryForm = false">Cancel</button>
+                </div>
+            </div>
+        }
+    </div>
+}
+
+@if (activeTab == "dashboard")
+{
+    <div class="section">
+        <h3>Advocate Dashboard</h3>
+        @if (loadingDashboard)
+        {
+            <p>Loading...</p>
+        }
+        else
+        {
+            <div class="stat-grid">
+                <div class="stat-box">
+                    <div class="stat-value">@dashboard.TotalComplaints</div>
+                    <div class="stat-label">Total Complaints</div>
+                </div>
+                <div class="stat-box @(dashboard.OpenComplaints > 0 ? "warn" : "")">
+                    <div class="stat-value">@dashboard.OpenComplaints</div>
+                    <div class="stat-label">Open Complaints</div>
+                </div>
+                <div class="stat-box @(dashboard.OverdueComplaints > 0 ? "critical" : "")">
+                    <div class="stat-value">@dashboard.OverdueComplaints</div>
+                    <div class="stat-label">Overdue Complaints</div>
+                </div>
+                <div class="stat-box">
+                    <div class="stat-value">@dashboard.TotalCongressional</div>
+                    <div class="stat-label">Congressional Inquiries</div>
+                </div>
+                <div class="stat-box @(dashboard.PendingCongressional > 0 ? "warn" : "")">
+                    <div class="stat-value">@dashboard.PendingCongressional</div>
+                    <div class="stat-label">Pending Congressional</div>
+                </div>
+                <div class="stat-box @(dashboard.OverdueCongressional > 0 ? "critical" : "")">
+                    <div class="stat-value">@dashboard.OverdueCongressional</div>
+                    <div class="stat-label">Overdue Congressional</div>
+                </div>
+                <div class="stat-box @(dashboard.AcknowledgmentOverdue > 0 ? "critical" : "")">
+                    <div class="stat-value">@dashboard.AcknowledgmentOverdue</div>
+                    <div class="stat-label">Ack Overdue (7-day)</div>
+                </div>
+            </div>
+        }
+    </div>
+}
+
+@code {
+    string activeTab = "complaints";
+    string? error;
+    string? formError;
+    bool loading = true;
+    bool loadingInquiries = true;
+    bool loadingDashboard = true;
+
+    List<ComplaintDto> complaints = new();
+    List<ComplaintDto> filteredComplaints = new();
+    List<InquiryDto> inquiries = new();
+    DashboardDto dashboard = new();
+
+    string complaintStatusFilter = "";
+    int overdueComplaints = 0;
+    int overdueCongressional = 0;
+
+    // Form state
+    bool showFileComplaintForm = false;
+    bool showResolveForm = false;
+    bool showCreateInquiryForm = false;
+    bool showCompleteInquiryForm = false;
+    string selectedComplaintId = string.Empty;
+    string selectedInquiryId = string.Empty;
+    string resolveOutcome = "Substantiated";
+    string resolutionSummary = string.Empty;
+
+    NewComplaintModel newComplaint = new();
+    NewInquiryModel newInquiry = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        await Task.WhenAll(LoadComplaints(), LoadInquiries(), LoadDashboard());
+    }
+
+    async Task LoadComplaints()
+    {
+        try
+        {
+            loading = true;
+            var cmpIdx = Grains.GetGrain<IComplaintIndexGrain>("PA-COMPLAINT-IDX");
+            complaints = (await cmpIdx.GetAllComplaintsAsync()).Select(c => new ComplaintDto(
+                c.ComplaintId, c.PatientId, c.PatientName,
+                c.ReceivedDate, c.ComplaintType.ToString(), c.Category.ToString(),
+                c.Priority.ToString(), c.Status.ToString(), c.AssignedAdvocateName ?? "",
+                c.ResponseDue)).ToList();
+            overdueComplaints = complaints.Count(c =>
+                c.ResponseDue.HasValue && c.ResponseDue.Value < DateTime.UtcNow &&
+                c.Status is "Received" or "Acknowledged" or "UnderInvestigation" or "ResponseDrafted" or "Escalated");
+            FilterComplaints();
+        }
+        catch { error = "Failed to load complaints."; }
+        finally { loading = false; }
+    }
+
+    async Task LoadInquiries()
+    {
+        try
+        {
+            loadingInquiries = true;
+            var inqIdx = Grains.GetGrain<ICongressionalInquiryIndexGrain>("PA-CONGRESS-IDX");
+            inquiries = (await inqIdx.GetAllInquiriesAsync()).Select(i => new InquiryDto(
+                i.InquiryId, i.PatientId, i.PatientName,
+                i.ReceivedDate, i.InquiryType.ToString(), i.CongressionalOfficeName,
+                i.Status.ToString(), i.AcknowledgmentDue, i.ResponseDue,
+                i.IsAcknowledgmentOverdue, i.IsResponseOverdue)).ToList();
+            overdueCongressional = inquiries.Count(i => i.IsResponseOverdue);
+        }
+        catch { error = "Failed to load congressional inquiries."; }
+        finally { loadingInquiries = false; }
+    }
+
+    async Task LoadDashboard()
+    {
+        try
+        {
+            loadingDashboard = true;
+            var dashCmpIdx = Grains.GetGrain<IComplaintIndexGrain>("PA-COMPLAINT-IDX");
+            var dashInqIdx = Grains.GetGrain<ICongressionalInquiryIndexGrain>("PA-CONGRESS-IDX");
+            var allCmp = await dashCmpIdx.GetAllComplaintsAsync();
+            var allInq = await dashInqIdx.GetAllInquiriesAsync();
+            dashboard = new DashboardDto
+            {
+                TotalComplaints = allCmp.Count,
+                OpenComplaints = allCmp.Count(c => c.Status != ComplaintStatus.Closed && c.Status != ComplaintStatus.Resolved),
+                OverdueComplaints = allCmp.Count(c => c.ResponseDue.HasValue && c.ResponseDue.Value < DateTime.UtcNow && c.Status != ComplaintStatus.Closed && c.Status != ComplaintStatus.Resolved),
+                TotalCongressional = allInq.Count,
+                PendingCongressional = allInq.Count(i => i.Status != ComplaintStatus.Closed),
+                OverdueCongressional = allInq.Count(i => i.IsResponseOverdue),
+                AcknowledgmentOverdue = allInq.Count(i => i.IsAcknowledgmentOverdue)
+            };
+        }
+        catch { error = "Failed to load dashboard."; }
+        finally { loadingDashboard = false; }
+    }
+
+    void FilterComplaints()
+    {
+        filteredComplaints = string.IsNullOrEmpty(complaintStatusFilter)
+            ? complaints.ToList()
+            : complaints.Where(c => c.Status == complaintStatusFilter).ToList();
+    }
+
+    void ShowFileComplaintForm()
+    {
+        newComplaint = new() { ComplaintDate = DateTime.Today, ComplaintType = "Formal", Category = "QualityOfCare", Priority = "Routine", Source = "PatientSelf" };
+        formError = null;
+        showFileComplaintForm = true;
+    }
+
+    async Task FileComplaint()
+    {
+        if (string.IsNullOrWhiteSpace(newComplaint.PatientId) || string.IsNullOrWhiteSpace(newComplaint.NarrativeDescription))
+        {
+            formError = "Patient ID and narrative description are required.";
+            return;
+        }
+        var payload = new
+        {
+            newComplaint.PatientId, newComplaint.PatientName, newComplaint.ComplaintDate,
+            newComplaint.ComplaintType, newComplaint.Category, newComplaint.Priority, newComplaint.Source,
+            newComplaint.NarrativeDescription, newComplaint.SpecificConcern, newComplaint.DepartmentInvolved,
+            newComplaint.ReporterName, newComplaint.ReporterRelationship, newComplaint.IsConfidential,
+            CreatedBy = "Advocate"
+        };
+        string complaintId = $"PA-COMPLAINT:{Guid.NewGuid()}";
+        var cmpGrain = Grains.GetGrain<IComplaintGrain>(complaintId);
+        await cmpGrain.FileComplaintAsync(
+            newComplaint.PatientId, newComplaint.PatientName, newComplaint.ComplaintDate,
+            Enum.Parse<ComplaintType>(newComplaint.ComplaintType),
+            Enum.Parse<ComplaintCategory>(newComplaint.Category),
+            Enum.Parse<ComplaintPriority>(newComplaint.Priority),
+            Enum.Parse<InquirySource>(newComplaint.Source),
+            newComplaint.NarrativeDescription, newComplaint.SpecificConcern,
+            newComplaint.DepartmentInvolved, newComplaint.ReporterName,
+            newComplaint.ReporterRelationship, newComplaint.IsConfidential, "Advocate");
+        var cmpState = await cmpGrain.GetComplaintAsync();
+        var cmpIndex = Grains.GetGrain<IComplaintIndexGrain>("PA-COMPLAINT-IDX");
+        await cmpIndex.UpsertComplaintAsync(new ComplaintIndexEntry
+        {
+            ComplaintId = complaintId, PatientId = cmpState.PatientId, PatientName = cmpState.PatientName,
+            ReceivedDate = cmpState.ReceivedDate, ComplaintType = cmpState.ComplaintType,
+            Category = cmpState.Category, Priority = cmpState.Priority, Status = cmpState.Status,
+            ResponseDue = cmpState.ResponseDue
+        });
+        showFileComplaintForm = false; await LoadComplaints(); await LoadDashboard();
+    }
+
+    async Task AcknowledgeComplaint(string complaintId)
+    {
+        var ackGrain = Grains.GetGrain<IComplaintGrain>(complaintId);
+        await ackGrain.AcknowledgeComplaintAsync(DateTime.UtcNow);
+        await LoadComplaints();
+    }
+
+    void ShowResolveForm(string complaintId)
+    {
+        selectedComplaintId = complaintId;
+        resolveOutcome = "Substantiated";
+        resolutionSummary = string.Empty;
+        showResolveForm = true;
+    }
+
+    async Task ResolveComplaint()
+    {
+        var resGrain = Grains.GetGrain<IComplaintGrain>(selectedComplaintId);
+        await resGrain.ResolveComplaintAsync(Enum.Parse<ResolutionOutcome>(resolveOutcome), resolutionSummary);
+        showResolveForm = false; await LoadComplaints(); await LoadDashboard();
+    }
+
+    void ShowCreateInquiryForm()
+    {
+        newInquiry = new() { InquiryType = "Senate" };
+        formError = null;
+        showCreateInquiryForm = true;
+    }
+
+    async Task CreateInquiry()
+    {
+        if (string.IsNullOrWhiteSpace(newInquiry.PatientId) || string.IsNullOrWhiteSpace(newInquiry.Subject))
+        {
+            formError = "Patient ID and subject are required.";
+            return;
+        }
+        var payload = new
+        {
+            newInquiry.PatientId, newInquiry.PatientName, newInquiry.InquiryType,
+            newInquiry.CongressionalOfficeName, newInquiry.CongressionalContactName,
+            newInquiry.CongressionalPhone, newInquiry.CongressionalEmail,
+            newInquiry.Subject, newInquiry.InquiryText,
+            LinkedComplaintId = newInquiry.LinkedComplaintId ?? string.Empty,
+            CreatedBy = "Advocate"
+        };
+        string inquiryId = $"PA-CONGRESS:{Guid.NewGuid()}";
+        var inqGrain = Grains.GetGrain<ICongressionalInquiryGrain>(inquiryId);
+        await inqGrain.CreateInquiryAsync(
+            newInquiry.PatientId, newInquiry.PatientName,
+            Enum.Parse<CongressionalInquiryType>(newInquiry.InquiryType),
+            newInquiry.CongressionalOfficeName, newInquiry.CongressionalContactName,
+            newInquiry.CongressionalPhone, newInquiry.CongressionalEmail,
+            newInquiry.Subject, newInquiry.InquiryText,
+            newInquiry.LinkedComplaintId ?? string.Empty, "Advocate");
+        var inqState = await inqGrain.GetInquiryAsync();
+        var inqIndex = Grains.GetGrain<ICongressionalInquiryIndexGrain>("PA-CONGRESS-IDX");
+        await inqIndex.UpsertInquiryAsync(new CongressionalInquiryIndexEntry
+        {
+            InquiryId = inquiryId, PatientId = inqState.PatientId, PatientName = inqState.PatientName,
+            ReceivedDate = inqState.ReceivedDate, InquiryType = inqState.InquiryType,
+            CongressionalOfficeName = inqState.CongressionalOfficeName,
+            Status = inqState.Status, AcknowledgmentDue = inqState.AcknowledgmentDue,
+            ResponseDue = inqState.ResponseDue
+        });
+        showCreateInquiryForm = false; await LoadInquiries(); await LoadDashboard();
+    }
+
+    async Task AcknowledgeInquiry(string inquiryId)
+    {
+        var ackInqGrain = Grains.GetGrain<ICongressionalInquiryGrain>(inquiryId);
+        await ackInqGrain.AcknowledgeInquiryAsync(DateTime.UtcNow);
+        await LoadInquiries();
+    }
+
+    void ShowCompleteInquiryForm(string inquiryId)
+    {
+        selectedInquiryId = inquiryId;
+        resolveOutcome = "Substantiated";
+        resolutionSummary = string.Empty;
+        showCompleteInquiryForm = true;
+    }
+
+    async Task CompleteInquiry()
+    {
+        var compInqGrain = Grains.GetGrain<ICongressionalInquiryGrain>(selectedInquiryId);
+        await compInqGrain.CompleteInquiryAsync(resolutionSummary, Enum.Parse<ResolutionOutcome>(resolveOutcome));
+        showCompleteInquiryForm = false; await LoadInquiries(); await LoadDashboard();
+    }
+
+    static string GetPriorityBadge(string priority) => priority switch
+    {
+        "Immediate" => "badge-critical",
+        "Urgent"    => "badge-warn",
+        _           => "badge-info"
+    };
+
+    // ── DTOs ──────────────────────────────────────────────────────────────────
+
+    record ComplaintDto(
+        string ComplaintId, string PatientId, string PatientName,
+        DateTime ReceivedDate, string ComplaintType, string Category,
+        string Priority, string Status, string AssignedAdvocateName,
+        DateTime? ResponseDue);
+
+    record InquiryDto(
+        string InquiryId, string PatientId, string PatientName,
+        DateTime ReceivedDate, string InquiryType, string CongressionalOfficeName,
+        string Status, DateTime AcknowledgmentDue, DateTime ResponseDue,
+        bool IsAcknowledgmentOverdue, bool IsResponseOverdue);
+
+    class DashboardDto
+    {
+        public int TotalComplaints { get; set; }
+        public int OpenComplaints { get; set; }
+        public int OverdueComplaints { get; set; }
+        public int TotalCongressional { get; set; }
+        public int PendingCongressional { get; set; }
+        public int OverdueCongressional { get; set; }
+        public int AcknowledgmentOverdue { get; set; }
+    }
+
+    class NewComplaintModel
+    {
+        public string PatientId { get; set; } = string.Empty;
+        public string PatientName { get; set; } = string.Empty;
+        public DateTime ComplaintDate { get; set; } = DateTime.Today;
+        public string ComplaintType { get; set; } = "Formal";
+        public string Category { get; set; } = "QualityOfCare";
+        public string Priority { get; set; } = "Routine";
+        public string Source { get; set; } = "PatientSelf";
+        public string NarrativeDescription { get; set; } = string.Empty;
+        public string SpecificConcern { get; set; } = string.Empty;
+        public string DepartmentInvolved { get; set; } = string.Empty;
+        public string ReporterName { get; set; } = string.Empty;
+        public string ReporterRelationship { get; set; } = string.Empty;
+        public bool IsConfidential { get; set; }
+    }
+
+    class NewInquiryModel
+    {
+        public string PatientId { get; set; } = string.Empty;
+        public string PatientName { get; set; } = string.Empty;
+        public string InquiryType { get; set; } = "Senate";
+        public string CongressionalOfficeName { get; set; } = string.Empty;
+        public string CongressionalContactName { get; set; } = string.Empty;
+        public string CongressionalPhone { get; set; } = string.Empty;
+        public string CongressionalEmail { get; set; } = string.Empty;
+        public string Subject { get; set; } = string.Empty;
+        public string InquiryText { get; set; } = string.Empty;
+        public string? LinkedComplaintId { get; set; }
+    }
+}
+
+<style>
+    .tab-bar { display: flex; gap: 4px; margin-bottom: 16px; border-bottom: 2px solid #dee2e6; }
+    .tab { padding: 8px 16px; border: none; background: #f8f9fa; cursor: pointer; border-radius: 4px 4px 0 0; }
+    .tab.active { background: #0d6efd; color: white; }
+    .section { background: white; border: 1px solid #dee2e6; border-radius: 4px; padding: 16px; margin-bottom: 16px; }
+    .filter-bar { display: flex; gap: 12px; align-items: center; margin-bottom: 12px; flex-wrap: wrap; }
+    .data-table { width: 100%; border-collapse: collapse; font-size: 0.9em; }
+    .data-table th { background: #f8f9fa; padding: 8px; text-align: left; border-bottom: 2px solid #dee2e6; }
+    .data-table td { padding: 6px 8px; border-bottom: 1px solid #f0f0f0; }
+    .data-table tr:hover td { background: #f8f9fa; }
+    .row-critical td { background: #fff5f5 !important; }
+    .row-warn td { background: #fffbf0 !important; }
+    .text-critical { color: #dc3545; font-weight: bold; }
+    .alert { padding: 10px 14px; border-radius: 4px; margin-bottom: 12px; }
+    .alert-danger { background: #f8d7da; border: 1px solid #f5c2c7; color: #842029; }
+    .alert-critical { background: #f8d7da; border: 1px solid #dc3545; color: #842029; font-weight: bold; }
+    .alert-warn { background: #fff3cd; border: 1px solid #ffc107; color: #664d03; }
+    .btn { padding: 6px 14px; border: 1px solid #dee2e6; border-radius: 4px; cursor: pointer; background: #f8f9fa; }
+    .btn-primary { background: #0d6efd; color: white; border-color: #0d6efd; }
+    .btn-success { background: #198754; color: white; border-color: #198754; }
+    .btn-sm { padding: 3px 8px; font-size: 0.85em; margin-right: 4px; }
+    .badge { padding: 2px 8px; border-radius: 12px; font-size: 0.8em; }
+    .badge-critical { background: #dc3545; color: white; }
+    .badge-warn { background: #ffc107; color: #212529; }
+    .badge-info { background: #e2e8f0; color: #374151; }
+    .form-panel { background: #f8f9fa; border: 1px solid #dee2e6; border-radius: 4px; padding: 16px; margin-top: 16px; }
+    .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 12px; }
+    .form-grid label { display: flex; flex-direction: column; gap: 4px; font-size: 0.9em; }
+    .form-grid input, .form-grid select { padding: 4px 8px; border: 1px solid #ced4da; border-radius: 4px; }
+    .form-actions { display: flex; gap: 8px; margin-top: 12px; }
+    .stat-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 12px; }
+    .stat-box { background: #f8f9fa; border: 1px solid #dee2e6; border-radius: 6px; padding: 16px; text-align: center; }
+    .stat-box.warn { border-color: #ffc107; background: #fffbf0; }
+    .stat-box.critical { border-color: #dc3545; background: #fff5f5; }
+    .stat-value { font-size: 2em; font-weight: bold; color: #1a1a2e; }
+    .stat-label { font-size: 0.8em; color: #6c757d; margin-top: 4px; }
+    .text-muted { color: #6c757d; font-size: 0.9em; }
+</style>

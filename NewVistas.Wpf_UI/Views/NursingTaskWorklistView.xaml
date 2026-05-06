@@ -1,0 +1,44 @@
+<UserControl x:Class="NewVistas.Wpf_UI.Views.NursingTaskWorklistView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <ScrollViewer VerticalScrollBarVisibility="Auto">
+        <StackPanel Margin="24">
+            <TextBlock Style="{StaticResource PageTitle}" Text="Nursing Task Worklist"/>
+            <TextBlock Style="{StaticResource ErrorText}" Text="{Binding Error}"
+                       Visibility="{Binding Error, Converter={StaticResource NullToVisibility}}"/>
+            <TextBlock Foreground="Green" Text="{Binding ActionMessage}"
+                       Visibility="{Binding ActionMessage, Converter={StaticResource NullToVisibility}}" Margin="0,0,0,8"/>
+
+            <StackPanel Orientation="Horizontal" Margin="0,0,0,12">
+                <Button Content="Load Worklist" Style="{StaticResource PrimaryButton}"
+                        Command="{Binding LoadCommand}" Margin="0,0,8,0"/>
+                <Button Content="Refresh" Style="{StaticResource SecondaryButton}"
+                        Command="{Binding RefreshWorklistCommand}" Margin="0,0,8,0"/>
+                <ProgressBar IsIndeterminate="True" Width="120" Height="20"
+                             Visibility="{Binding IsLoading, Converter={StaticResource BoolToVisibility}}"/>
+            </StackPanel>
+
+            <TextBlock Text="Due Now" FontWeight="Bold" Margin="0,0,0,4"/>
+            <DataGrid ItemsSource="{Binding DueTasks}" AutoGenerateColumns="False" IsReadOnly="True" Height="200">
+                <DataGrid.Columns>
+                    <DataGridTextColumn Header="Priority" Binding="{Binding Priority}" Width="80"/>
+                    <DataGridTextColumn Header="Category" Binding="{Binding Category}" Width="100"/>
+                    <DataGridTextColumn Header="Description" Binding="{Binding Description}" Width="*"/>
+                    <DataGridTextColumn Header="Due" Binding="{Binding DueDateTime, StringFormat=HH:mm}" Width="70"/>
+                    <DataGridTextColumn Header="Status" Binding="{Binding Status}" Width="80"/>
+                </DataGrid.Columns>
+            </DataGrid>
+
+            <TextBlock Text="All Tasks" FontWeight="Bold" Margin="0,12,0,4"/>
+            <DataGrid ItemsSource="{Binding Worklist.Tasks}" AutoGenerateColumns="False" IsReadOnly="True" Height="250">
+                <DataGrid.Columns>
+                    <DataGridTextColumn Header="Priority" Binding="{Binding Priority}" Width="80"/>
+                    <DataGridTextColumn Header="Category" Binding="{Binding Category}" Width="100"/>
+                    <DataGridTextColumn Header="Description" Binding="{Binding Description}" Width="*"/>
+                    <DataGridTextColumn Header="Due" Binding="{Binding DueDateTime, StringFormat=HH:mm}" Width="70"/>
+                    <DataGridTextColumn Header="Status" Binding="{Binding Status}" Width="80"/>
+                </DataGrid.Columns>
+            </DataGrid>
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>

@@ -1,0 +1,84 @@
+<UserControl x:Class="NewVistas.Wpf_UI.Views.LabInstrumentsView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <ScrollViewer VerticalScrollBarVisibility="Auto">
+        <StackPanel Margin="24">
+            <TextBlock Style="{StaticResource PageTitle}" Text="Lab Instruments (LA Package)"/>
+            <TextBlock Style="{StaticResource ErrorText}" Text="{Binding Error}"
+                       Visibility="{Binding Error, Converter={StaticResource NullToVisibility}}"/>
+
+            <StackPanel Orientation="Horizontal" Margin="0,0,0,12">
+                <Button Content="Load Instruments" Style="{StaticResource PrimaryButton}"
+                        Command="{Binding LoadCommand}" Margin="0,0,8,0"/>
+                <Button Content="Load Demo" Style="{StaticResource SecondaryButton}"
+                        Command="{Binding LoadDemoCommand}" Margin="0,0,8,0"/>
+                <ProgressBar IsIndeterminate="True" Width="120" Height="20"
+                             Visibility="{Binding IsLoading, Converter={StaticResource BoolToVisibility}}"/>
+            </StackPanel>
+
+            <TextBlock Style="{StaticResource SectionHeader}" Text="Instruments"/>
+            <DataGrid ItemsSource="{Binding Instruments}" SelectedItem="{Binding SelectedInstrument}" AutoGenerateColumns="False" MaxHeight="200">
+                <DataGrid.Columns>
+                    <DataGridTextColumn Header="ID" Binding="{Binding InstrumentId}" Width="140"/>
+                    <DataGridTextColumn Header="Name" Binding="{Binding Name}" Width="*"/>
+                    <DataGridTextColumn Header="Model" Binding="{Binding Model}" Width="160"/>
+                    <DataGridTextColumn Header="Status" Binding="{Binding Status}" Width="100"/>
+                </DataGrid.Columns>
+            </DataGrid>
+
+            <StackPanel Orientation="Horizontal" Margin="0,8,0,0"
+                        Visibility="{Binding SelectedInstrument, Converter={StaticResource NullToVisibility}}">
+                <Button Content="View Detail" Style="{StaticResource SecondaryButton}"
+                        Command="{Binding LoadDetailCommand}" Margin="0,0,8,0"/>
+                <Button Content="View Queue" Style="{StaticResource SecondaryButton}"
+                        Command="{Binding LoadQueueCommand}"/>
+            </StackPanel>
+
+            <!-- Detail Panel -->
+            <Border Style="{StaticResource FormPanel}"
+                    Visibility="{Binding Detail, Converter={StaticResource NullToVisibility}}" Margin="0,12,0,0">
+                <StackPanel>
+                    <TextBlock Style="{StaticResource SectionHeader}" Text="Instrument Detail"/>
+                    <StackPanel Orientation="Horizontal" Margin="0,4,0,4">
+                        <TextBlock Style="{StaticResource FieldLabel}" Text="Name: " Margin="0,0,4,0"/>
+                        <TextBlock Text="{Binding Detail.Name}" FontWeight="SemiBold" Margin="0,0,16,0"/>
+                        <TextBlock Style="{StaticResource FieldLabel}" Text="Model: " Margin="0,0,4,0"/>
+                        <TextBlock Text="{Binding Detail.Model}" FontWeight="SemiBold"/>
+                    </StackPanel>
+                    <StackPanel Orientation="Horizontal" Margin="0,4,0,4">
+                        <TextBlock Style="{StaticResource FieldLabel}" Text="TCP: " Margin="0,0,4,0"/>
+                        <TextBlock Text="{Binding Detail.TcpHost}" Margin="0,0,4,0"/>
+                        <TextBlock Text=":" Margin="0,0,4,0"/>
+                        <TextBlock Text="{Binding Detail.TcpPort}" Margin="0,0,16,0"/>
+                        <TextBlock Style="{StaticResource FieldLabel}" Text="HL7: " Margin="0,0,4,0"/>
+                        <TextBlock Text="{Binding Detail.Hl7Version}"/>
+                    </StackPanel>
+                </StackPanel>
+            </Border>
+
+            <!-- Message Queue -->
+            <TextBlock Style="{StaticResource SectionHeader}" Text="Message Queue" Margin="0,12,0,0"/>
+            <DataGrid ItemsSource="{Binding Messages}" AutoGenerateColumns="False" MaxHeight="200">
+                <DataGrid.Columns>
+                    <DataGridTextColumn Header="Message ID" Binding="{Binding MessageId}" Width="200"/>
+                    <DataGridTextColumn Header="Type" Binding="{Binding MessageType}" Width="120"/>
+                    <DataGridTextColumn Header="Received" Binding="{Binding ReceivedDate}" Width="160"/>
+                    <DataGridTextColumn Header="Status" Binding="{Binding Status}" Width="*"/>
+                </DataGrid.Columns>
+            </DataGrid>
+
+            <!-- Inject HL7 Message -->
+            <Border Style="{StaticResource FormPanel}" Margin="0,12,0,0"
+                    Visibility="{Binding SelectedInstrument, Converter={StaticResource NullToVisibility}}">
+                <StackPanel>
+                    <TextBlock Style="{StaticResource SectionHeader}" Text="Inject HL7 Message"/>
+                    <TextBox Text="{Binding Hl7Message, UpdateSourceTrigger=PropertyChanged}"
+                             AcceptsReturn="True" Height="80" TextWrapping="Wrap"
+                             FontFamily="Courier New" FontSize="11"/>
+                    <Button Content="Inject &amp; Process" Style="{StaticResource PrimaryButton}"
+                            Command="{Binding InjectMessageCommand}" Margin="0,8,0,0" HorizontalAlignment="Left"/>
+                </StackPanel>
+            </Border>
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>

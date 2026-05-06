@@ -1,0 +1,515 @@
+@page "/surgery"
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+@rendermode InteractiveServer
+@using NewVistas.BlazorWeb.Services
+@using NewVistas.Abstractions.GrainInterfaces
+@using NewVistas.Abstractions.GrainStates
+@inject OrleansGrainService Grains
+
+<PageTitle>Surgery</PageTitle>
+<h1>Surgery</h1>
+
+<div class="lookup-bar">
+    <input type="text" @bind="patientId" @bind:event="oninput" @onkeydown="HandleKeyDown" placeholder="Patient ID" class="lookup-input" />
+    <button @onclick="Load" disabled="@(string.IsNullOrWhiteSpace(patientId) || loading)" class="btn btn-primary">
+        @if (loading) { <span>Loading...</span> } else { <span>Load</span> }
+    </button>
+    <button @onclick="ShowForm" disabled="@(string.IsNullOrWhiteSpace(patientId))" class="btn btn-secondary">+ Schedule Surgery</button>
+</div>
+
+@if (error != null) { <div class="alert alert-error">@error</div> }
+@if (success != null) { <div class="alert alert-success">@success</div> }
+
+@if (items != null || detail != null)
+{
+    <div class="tab-bar">
+        <button class="tab @(activeTab == "list" ? "tab-active" : "")" @onclick='() => SetTab("list")'>Surgeries</button>
+        @if (detail != null)
+        {
+            <button class="tab @(activeTab == "detail" ? "tab-active" : "")" @onclick='() => SetTab("detail")'>Surgery Detail</button>
+        }
+    </div>
+}
+
+@if (showNew)
+{
+    <div class="entry-form">
+        <h3>Schedule Surgery</h3>
+        <div class="form-grid">
+            <div class="form-row"><label>Principal Procedure *</label><input type="text" @bind="f_procedure" placeholder="e.g. Total Knee Replacement" /></div>
+            <div class="form-row"><label>CPT Code</label><input type="text" @bind="f_cpt" placeholder="e.g. 27447" /></div>
+            <div class="form-row"><label>Date of Operation *</label><input type="datetime-local" @bind="f_date" /></div>
+            <div class="form-row"><label>Surgeon Name</label><input type="text" @bind="f_surgeon" /></div>
+            <div class="form-row"><label>Anesthesia</label>
+                <select @bind="f_anesthesia"><option value="">--</option><option>GENERAL</option><option>SPINAL</option><option>REGIONAL</option><option>LOCAL</option><option>MAC</option></select>
+            </div>
+            <div class="form-row"><label>Specialty</label><input type="text" @bind="f_specialty" placeholder="e.g. Orthopedics" /></div>
+            <div class="form-row"><label>Pre-Op Diagnosis</label><input type="text" @bind="f_preop" /></div>
+            <div class="form-row"><label>Location</label><input type="text" @bind="f_location" /></div>
+            <div class="form-row full"><label>Comments</label><textarea @bind="f_comments" rows="3"></textarea></div>
+        </div>
+        <div class="form-actions">
+            <button @onclick="Submit" disabled="@saving" class="btn btn-primary">@(saving ? "Saving..." : "Schedule")</button>
+            <button @onclick="() => showNew = false" class="btn btn-outline">Cancel</button>
+        </div>
+    </div>
+}
+
+@if (activeTab == "list" && items != null)
+{
+    @if (items.Count == 0) { <div class="empty-state">No surgeries found.</div> }
+    else
+    {
+        <table class="data-table">
+            <thead><tr><th>Date</th><th>Procedure</th><th>CPT</th><th>Surgeon</th><th>Specialty</th><th>Status</th><th>Actions</th></tr></thead>
+            <tbody>
+                @foreach (var s in items)
+                {
+                    <tr class="clickable" @onclick="() => ViewDetail(s.SurgeryId)">
+                        <td class="date">@s.DateOfOperation.ToString("MM/dd/yyyy")</td>
+                        <td>@s.PrincipalProcedure</td><td>@s.CptCode</td>
+                        <td>@s.SurgeonName</td><td>@s.SurgicalSpecialty</td>
+                        <td><span class="badge @StatusCss(s.Status)">@s.Status</span></td>
+                        <td class="actions" @onclick:stopPropagation>
+                            @if (s.Status == "SCHEDULED")
+                            {
+                                <button @onclick="() => CompleteSurgery(s.SurgeryId)" class="btn-sm btn-complete">Complete</button>
+                                <button @onclick="() => CancelSurgery(s.SurgeryId)" class="btn-sm btn-cancel">Cancel</button>
+                            }
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    }
+}
+
+@if (activeTab == "detail" && detail != null)
+{
+    <div class="detail-panel">
+        <div class="detail-header">
+            <h3>@detail.PrincipalProcedure</h3>
+            <span class="badge @StatusCss(detail.Status)">@detail.Status</span>
+            <button @onclick="CloseDetail" class="btn btn-outline btn-sm-action">Close</button>
+        </div>
+        <div class="detail-grid">
+            <div><strong>Surgery ID:</strong> @detail.SurgeryId</div>
+            <div><strong>Date:</strong> @detail.DateOfOperation?.ToString("MM/dd/yyyy HH:mm")</div>
+            <div><strong>Surgeon:</strong> @(detail.SurgeonName ?? "--")</div>
+            <div><strong>Specialty:</strong> @(detail.SurgicalSpecialty ?? "--")</div>
+            <div><strong>CPT:</strong> @(detail.PrincipalProcedureCptCode ?? "--")</div>
+            <div><strong>Anesthesia:</strong> @(detail.AnesthesiaTechnique ?? "--")</div>
+            <div><strong>Pre-Op Dx:</strong> @(detail.PreOpDiagnosis ?? "--")</div>
+            <div><strong>Post-Op Dx:</strong> @(detail.PostOpDiagnosis ?? "--")</div>
+            <div><strong>Location:</strong> @(detail.LocationName ?? "--")</div>
+            <div><strong>Wound Class:</strong> @(detail.WoundClassification ?? "--")</div>
+            @if (!string.IsNullOrEmpty(detail.OperativeReport))
+            {
+                <div class="full"><strong>Operative Report:</strong><pre class="pre-wrap">@detail.OperativeReport</pre></div>
+            }
+            @if (!string.IsNullOrEmpty(detail.Comments))
+            {
+                <div class="full"><strong>Comments:</strong> @detail.Comments</div>
+            }
+        </div>
+
+        @* ── Pre-Op Assessment ── *@
+        <div class="section">
+            <h4>Pre-Op Assessment</h4>
+            @if (detail.AsaClassification.HasValue)
+            {
+                <div class="detail-grid">
+                    <div><strong>ASA Class:</strong> @detail.AsaClassification</div>
+                    <div><strong>Date:</strong> @detail.PreOpAssessmentDate?.ToString("MM/dd/yyyy")</div>
+                    <div><strong>Provider:</strong> @(detail.PreOpAssessmentProviderName ?? "--")</div>
+                    @if (!string.IsNullOrEmpty(detail.PreOpAssessmentNotes))
+                    {
+                        <div class="full"><strong>Notes:</strong> @detail.PreOpAssessmentNotes</div>
+                    }
+                </div>
+            }
+            else
+            {
+                <div class="entry-form">
+                    <div class="form-grid">
+                        <div class="form-row"><label>ASA Classification (1-6) *</label><input type="number" @bind="po_asa" min="1" max="6" /></div>
+                        <div class="form-row"><label>Provider Name</label><input type="text" @bind="po_provider" /></div>
+                        <div class="form-row"><label>Provider ID</label><input type="text" @bind="po_providerId" /></div>
+                        <div class="form-row full"><label>Assessment Notes</label><textarea @bind="po_notes" rows="3"></textarea></div>
+                    </div>
+                    <div class="form-actions">
+                        <button @onclick="SubmitPreOp" disabled="@saving" class="btn btn-primary">Record Pre-Op Assessment</button>
+                    </div>
+                </div>
+            }
+        </div>
+
+        @* ── Intra-Op Details ── *@
+        <div class="section">
+            <h4>Intra-Op Details</h4>
+            @if (detail.EstimatedBloodLoss.HasValue || detail.SpongeCountCorrect.HasValue)
+            {
+                <div class="detail-grid">
+                    <div><strong>EBL:</strong> @(detail.EstimatedBloodLoss?.ToString() ?? "--") mL</div>
+                    <div><strong>Sponge Count:</strong> @CountLabel(detail.SpongeCountCorrect)</div>
+                    <div><strong>Needle Count:</strong> @CountLabel(detail.NeedleCountCorrect)</div>
+                    <div><strong>Instrument Count:</strong> @CountLabel(detail.InstrumentCountCorrect)</div>
+                    <div><strong>Disposition:</strong> @(detail.DispositionAfterSurgery ?? "--")</div>
+                </div>
+            }
+            else
+            {
+                <div class="entry-form">
+                    <div class="form-grid">
+                        <div class="form-row"><label>Estimated Blood Loss (mL)</label><input type="number" @bind="io_ebl" min="0" /></div>
+                        <div class="form-row"><label>Sponge Count</label>
+                            <select @bind="io_sponge"><option value="">--</option><option value="1">Correct</option><option value="0">Incorrect</option></select>
+                        </div>
+                        <div class="form-row"><label>Needle Count</label>
+                            <select @bind="io_needle"><option value="">--</option><option value="1">Correct</option><option value="0">Incorrect</option></select>
+                        </div>
+                        <div class="form-row"><label>Instrument Count</label>
+                            <select @bind="io_instrument"><option value="">--</option><option value="1">Correct</option><option value="0">Incorrect</option></select>
+                        </div>
+                        <div class="form-row"><label>Disposition After Surgery</label>
+                            <select @bind="io_disposition"><option value="">--</option><option>PACU</option><option>ICU</option><option>WARD</option><option>HOME</option><option>MORGUE</option></select>
+                        </div>
+                    </div>
+                    <div class="form-actions">
+                        <button @onclick="SubmitIntraOp" disabled="@saving" class="btn btn-primary">Record Intra-Op Details</button>
+                    </div>
+                </div>
+            }
+        </div>
+
+        @* ── Complications ── *@
+        <div class="section">
+            <h4>Complications (@detail.Complications.Count)</h4>
+            @if (detail.Complications.Count > 0)
+            {
+                <table class="data-table">
+                    <thead><tr><th>Code</th><th>Description</th><th>Severity</th><th>Date</th><th>Treatment</th></tr></thead>
+                    <tbody>
+                        @foreach (var c in detail.Complications)
+                        {
+                            <tr>
+                                <td>@c.ComplicationCode</td><td>@c.Description</td>
+                                <td><span class="badge @SeverityCss(c.Severity)">@(c.Severity ?? "--")</span></td>
+                                <td class="date">@c.OccurrenceDate.ToString("MM/dd/yyyy")</td>
+                                <td>@(c.TreatmentAction ?? "--")</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            }
+            <div class="entry-form compact">
+                <div class="form-grid">
+                    <div class="form-row"><label>Complication Code *</label><input type="text" @bind="cx_code" placeholder="e.g. WOUND_INFECTION" /></div>
+                    <div class="form-row"><label>Description *</label><input type="text" @bind="cx_desc" /></div>
+                    <div class="form-row"><label>Severity</label>
+                        <select @bind="cx_severity"><option value="">--</option><option>MINOR</option><option>MAJOR</option><option>DEATH</option></select>
+                    </div>
+                    <div class="form-row"><label>Occurrence Date</label><input type="date" @bind="cx_date" /></div>
+                    <div class="form-row full"><label>Treatment Action</label><input type="text" @bind="cx_treatment" /></div>
+                </div>
+                <div class="form-actions">
+                    <button @onclick="SubmitComplication" disabled="@saving" class="btn btn-primary">Add Complication</button>
+                </div>
+            </div>
+        </div>
+
+        @* ── Implants ── *@
+        <div class="section">
+            <h4>Implants (@detail.Implants.Count)</h4>
+            @if (detail.Implants.Count > 0)
+            {
+                <table class="data-table">
+                    <thead><tr><th>Device</th><th>Manufacturer</th><th>Serial #</th><th>Lot #</th><th>Body Site</th></tr></thead>
+                    <tbody>
+                        @foreach (var imp in detail.Implants)
+                        {
+                            <tr>
+                                <td>@imp.DeviceName</td><td>@(imp.Manufacturer ?? "--")</td>
+                                <td>@(imp.SerialNumber ?? "--")</td><td>@(imp.LotNumber ?? "--")</td>
+                                <td>@(imp.BodySite ?? "--")</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            }
+            <div class="entry-form compact">
+                <div class="form-grid">
+                    <div class="form-row"><label>Device Name *</label><input type="text" @bind="im_name" /></div>
+                    <div class="form-row"><label>Manufacturer</label><input type="text" @bind="im_manufacturer" /></div>
+                    <div class="form-row"><label>Serial Number</label><input type="text" @bind="im_serial" /></div>
+                    <div class="form-row"><label>Lot Number</label><input type="text" @bind="im_lot" /></div>
+                    <div class="form-row"><label>Body Site</label><input type="text" @bind="im_site" /></div>
+                </div>
+                <div class="form-actions">
+                    <button @onclick="SubmitImplant" disabled="@saving" class="btn btn-primary">Add Implant</button>
+                </div>
+            </div>
+        </div>
+
+        @* ── Specimens ── *@
+        <div class="section">
+            <h4>Specimens (@detail.Specimens.Count)</h4>
+            @if (detail.Specimens.Count > 0)
+            {
+                <table class="data-table">
+                    <thead><tr><th>Type</th><th>Body Site</th><th>Accession #</th><th>Collection Date</th></tr></thead>
+                    <tbody>
+                        @foreach (var sp in detail.Specimens)
+                        {
+                            <tr>
+                                <td>@sp.SpecimenType</td><td>@(sp.BodySite ?? "--")</td>
+                                <td>@(sp.PathologyAccessionNumber ?? "--")</td>
+                                <td class="date">@sp.CollectionDateTime.ToString("MM/dd/yyyy HH:mm")</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            }
+            <div class="entry-form compact">
+                <div class="form-grid">
+                    <div class="form-row"><label>Specimen Type *</label><input type="text" @bind="sp_type" placeholder="e.g. TISSUE" /></div>
+                    <div class="form-row"><label>Body Site</label><input type="text" @bind="sp_site" /></div>
+                    <div class="form-row"><label>Accession Number</label><input type="text" @bind="sp_accession" /></div>
+                </div>
+                <div class="form-actions">
+                    <button @onclick="SubmitSpecimen" disabled="@saving" class="btn btn-primary">Add Specimen</button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    [SupplyParameterFromQuery] public string? patientId { get; set; }
+    private List<SurgerySummary>? items;
+    private SurgeryState? detail;
+    private bool loading, saving, showNew;
+    private string? error, success;
+    private string activeTab = "list";
+
+    // New surgery form
+    private string f_procedure = "", f_cpt = "", f_surgeon = "", f_anesthesia = "", f_specialty = "", f_preop = "", f_location = "", f_comments = "";
+    private DateTime f_date = DateTime.Now.AddDays(7);
+
+    // Pre-op form
+    private int po_asa = 1;
+    private string po_provider = "", po_providerId = "", po_notes = "";
+
+    // Intra-op form
+    private int? io_ebl;
+    private string io_sponge = "", io_needle = "", io_instrument = "", io_disposition = "";
+
+    // Complication form
+    private string cx_code = "", cx_desc = "", cx_severity = "", cx_treatment = "";
+    private DateTime cx_date = DateTime.Today;
+
+    // Implant form
+    private string im_name = "", im_manufacturer = "", im_serial = "", im_lot = "", im_site = "";
+
+    // Specimen form
+    private string sp_type = "", sp_site = "", sp_accession = "";
+
+    protected override async Task OnParametersSetAsync() { if (!string.IsNullOrWhiteSpace(patientId)) await Load(); }
+    private async Task HandleKeyDown(KeyboardEventArgs e) { if (e.Key == "Enter") await Load(); }
+    private void SetTab(string tab) { activeTab = tab; success = null; }
+    private void ShowForm() { showNew = true; success = null; f_procedure = ""; f_cpt = ""; f_surgeon = ""; f_specialty = ""; f_preop = ""; f_location = ""; f_comments = ""; f_anesthesia = ""; f_date = DateTime.Now.AddDays(7); }
+
+    private void CloseDetail() { detail = null; activeTab = "list"; }
+
+    private async Task Load()
+    {
+        if (string.IsNullOrWhiteSpace(patientId)) return;
+        loading = true; error = null;
+        try
+        {
+            var grain = Grains.GetGrain<IPatientWorkflowGrain>(patientId.Trim());
+            items = await grain.GetSurgeriesAsync(100);
+        }
+        catch (Exception ex) { error = ex.Message; } finally { loading = false; }
+    }
+
+    private async Task ViewDetail(string surgeryId)
+    {
+        error = null;
+        try
+        {
+            var grain = Grains.GetGrain<IPatientWorkflowGrain>(patientId!.Trim());
+            detail = await grain.GetSurgeryAsync(surgeryId);
+            activeTab = "detail";
+            ResetDetailForms();
+        }
+        catch (Exception ex) { error = ex.Message; }
+    }
+
+    private void ResetDetailForms()
+    {
+        po_asa = 1; po_provider = ""; po_providerId = ""; po_notes = "";
+        io_ebl = null; io_sponge = ""; io_needle = ""; io_instrument = ""; io_disposition = "";
+        cx_code = ""; cx_desc = ""; cx_severity = ""; cx_treatment = ""; cx_date = DateTime.Today;
+        im_name = ""; im_manufacturer = ""; im_serial = ""; im_lot = ""; im_site = "";
+        sp_type = ""; sp_site = ""; sp_accession = "";
+    }
+
+    private async Task Submit()
+    {
+        if (string.IsNullOrWhiteSpace(f_procedure)) { error = "Procedure is required."; return; }
+        saving = true; error = null;
+        try
+        {
+            var grain = Grains.GetGrain<IPatientWorkflowGrain>(patientId!.Trim());
+            await grain.ScheduleSurgeryAsync(
+                f_procedure, NullIfEmpty(f_cpt), f_date,
+                null, NullIfEmpty(f_surgeon), NullIfEmpty(f_anesthesia),
+                NullIfEmpty(f_specialty), NullIfEmpty(f_preop),
+                null, NullIfEmpty(f_location), NullIfEmpty(f_comments));
+            showNew = false; success = "Surgery scheduled."; await Load();
+        }
+        catch (Exception ex) { error = ex.Message; } finally { saving = false; }
+    }
+
+    private async Task CompleteSurgery(string id)
+    {
+        try
+        {
+            var grain = Grains.GetGrain<IPatientWorkflowGrain>(patientId!.Trim());
+            await grain.CompleteSurgeryAsync(id, "Procedure completed.", null);
+            success = "Surgery completed."; await Load();
+        }
+        catch (Exception ex) { error = ex.Message; }
+    }
+
+    private async Task CancelSurgery(string id)
+    {
+        try
+        {
+            var grain = Grains.GetGrain<IPatientWorkflowGrain>(patientId!.Trim());
+            await grain.CancelSurgeryAsync(id, null);
+            success = "Surgery cancelled."; await Load();
+        }
+        catch (Exception ex) { error = ex.Message; }
+    }
+
+    private async Task SubmitPreOp()
+    {
+        saving = true; error = null;
+        try
+        {
+            var grain = Grains.GetGrain<IPatientWorkflowGrain>(patientId!.Trim());
+            await grain.RecordPreOpAssessmentAsync(detail!.SurgeryId, NullIfEmpty(po_notes) ?? "", NullIfEmpty(po_providerId) ?? "", NullIfEmpty(po_provider) ?? "");
+            success = "Pre-op assessment recorded."; await ViewDetail(detail.SurgeryId);
+        }
+        catch (Exception ex) { error = ex.Message; } finally { saving = false; }
+    }
+
+    private async Task SubmitIntraOp()
+    {
+        saving = true; error = null;
+        try
+        {
+            int? sponge = string.IsNullOrEmpty(io_sponge) ? null : int.Parse(io_sponge);
+            int? needle = string.IsNullOrEmpty(io_needle) ? null : int.Parse(io_needle);
+            int? instrument = string.IsNullOrEmpty(io_instrument) ? null : int.Parse(io_instrument);
+            var grain = Grains.GetGrain<IPatientWorkflowGrain>(patientId!.Trim());
+            await grain.RecordIntraOpDetailsAsync(detail!.SurgeryId, io_ebl, sponge, needle, instrument, NullIfEmpty(io_disposition));
+            success = "Intra-op details recorded."; await ViewDetail(detail.SurgeryId);
+        }
+        catch (Exception ex) { error = ex.Message; } finally { saving = false; }
+    }
+
+    private async Task SubmitComplication()
+    {
+        if (string.IsNullOrWhiteSpace(cx_code) || string.IsNullOrWhiteSpace(cx_desc)) { error = "Code and description required."; return; }
+        saving = true; error = null;
+        try
+        {
+            var grain = Grains.GetGrain<IPatientWorkflowGrain>(patientId!.Trim());
+            await grain.AddSurgicalComplicationAsync(detail!.SurgeryId, cx_code, cx_desc, NullIfEmpty(cx_severity), NullIfEmpty(cx_treatment));
+            success = "Complication recorded."; cx_code = ""; cx_desc = ""; cx_severity = ""; cx_treatment = ""; await ViewDetail(detail.SurgeryId);
+        }
+        catch (Exception ex) { error = ex.Message; } finally { saving = false; }
+    }
+
+    private async Task SubmitImplant()
+    {
+        if (string.IsNullOrWhiteSpace(im_name)) { error = "Device name is required."; return; }
+        saving = true; error = null;
+        try
+        {
+            var grain = Grains.GetGrain<IPatientWorkflowGrain>(patientId!.Trim());
+            await grain.AddSurgicalImplantAsync(detail!.SurgeryId, im_name, NullIfEmpty(im_manufacturer), NullIfEmpty(im_serial), NullIfEmpty(im_lot));
+            success = "Implant recorded."; im_name = ""; im_manufacturer = ""; im_serial = ""; im_lot = ""; im_site = ""; await ViewDetail(detail.SurgeryId);
+        }
+        catch (Exception ex) { error = ex.Message; } finally { saving = false; }
+    }
+
+    private async Task SubmitSpecimen()
+    {
+        if (string.IsNullOrWhiteSpace(sp_type)) { error = "Specimen type is required."; return; }
+        saving = true; error = null;
+        try
+        {
+            var grain = Grains.GetGrain<IPatientWorkflowGrain>(patientId!.Trim());
+            await grain.AddSurgicalSpecimenAsync(detail!.SurgeryId, sp_type, NullIfEmpty(sp_site), NullIfEmpty(sp_accession));
+            success = "Specimen recorded."; sp_type = ""; sp_site = ""; sp_accession = ""; await ViewDetail(detail.SurgeryId);
+        }
+        catch (Exception ex) { error = ex.Message; } finally { saving = false; }
+    }
+
+    private static string? NullIfEmpty(string s) => string.IsNullOrWhiteSpace(s) ? null : s;
+    private static string StatusCss(string s) => s switch { "COMPLETED" => "badge-green", "CANCELLED" => "badge-red", _ => "badge-blue" };
+    private static string SeverityCss(string? s) => s switch { "MAJOR" => "badge-orange", "DEATH" => "badge-red", _ => "badge-blue" };
+    private static string CountLabel(int? v) => v switch { 1 => "Correct", 0 => "INCORRECT", _ => "--" };
+}
+
+<style>
+    h1 { color: #003f72; margin-bottom: 1.25rem; font-size: 1.4rem; }
+    .lookup-bar { display: flex; gap: .5rem; margin-bottom: 1.5rem; align-items: center; }
+    .lookup-input { width: 280px; padding: .5rem .75rem; border: 1px solid #ccc; border-radius: 4px; font-size: .9rem; }
+    .btn { padding: .5rem 1.25rem; border: none; border-radius: 4px; cursor: pointer; font-size: .85rem; }
+    .btn-primary { background: #003f72; color: white; } .btn-primary:hover { background: #002a4e; } .btn-primary:disabled { background: #999; cursor: not-allowed; }
+    .btn-secondary { background: #16a34a; color: white; } .btn-secondary:disabled { background: #999; }
+    .btn-outline { background: white; border: 1px solid #ccc; color: #333; }
+    .btn-sm { padding: 2px 8px; border: none; border-radius: 3px; cursor: pointer; font-size: .75rem; margin-right: 4px; }
+    .btn-sm-action { padding: 4px 12px; font-size: .8rem; }
+    .btn-complete { background: #16a34a; color: white; } .btn-cancel { background: #dc2626; color: white; }
+    .alert { padding: .75rem 1rem; border-radius: 4px; margin-bottom: 1rem; font-size: .85rem; }
+    .alert-error { background: #fde8e8; color: #b91c1c; border: 1px solid #f5c6c6; }
+    .alert-success { background: #dcfce7; color: #166534; border: 1px solid #bbf7d0; }
+    .empty-state { color: #999; font-style: italic; padding: 2rem 0; }
+    .tab-bar { display: flex; gap: 0; border-bottom: 2px solid #d4d9e0; margin-bottom: 1.25rem; }
+    .tab { background: none; border: none; padding: .6rem 1.25rem; cursor: pointer; font-size: .85rem; color: #555; border-bottom: 2px solid transparent; margin-bottom: -2px; }
+    .tab-active { color: #003f72; font-weight: 600; border-bottom-color: #003f72; }
+    .entry-form { border: 1px solid #d4d9e0; border-radius: 6px; padding: 1.25rem; margin-bottom: 1.5rem; background: #f9fafb; }
+    .entry-form.compact { margin-top: .75rem; padding: 1rem; }
+    .entry-form h3 { margin-bottom: 1rem; color: #003f72; }
+    .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: .75rem; }
+    .form-row { display: flex; flex-direction: column; gap: .25rem; }
+    .form-row.full { grid-column: 1 / -1; }
+    .form-row label { font-size: .8rem; font-weight: 600; color: #555; }
+    .form-row input, .form-row select, .form-row textarea { padding: .4rem .6rem; border: 1px solid #ccc; border-radius: 4px; font-size: .85rem; }
+    .form-row textarea { resize: vertical; }
+    .form-actions { display: flex; gap: .5rem; margin-top: .75rem; }
+    .data-table { width: 100%; border-collapse: collapse; font-size: .85rem; border: 1px solid #d4d9e0; }
+    .data-table thead { background: #f4f6f9; }
+    .data-table th { text-align: left; padding: .5rem; font-weight: 600; color: #003f72; border-bottom: 2px solid #d4d9e0; font-size: .75rem; text-transform: uppercase; }
+    .data-table td { padding: .4rem .5rem; border-bottom: 1px solid #f0f0f0; }
+    .data-table tr.clickable { cursor: pointer; }
+    .data-table tr.clickable:hover { background: #eef3f9; }
+    .date { color: #888; font-size: .8rem; white-space: nowrap; }
+    .actions { white-space: nowrap; }
+    .badge { padding: 2px 8px; border-radius: 3px; font-size: .7rem; font-weight: 600; }
+    .badge-blue { background: #dbeafe; color: #1e40af; } .badge-green { background: #dcfce7; color: #166534; } .badge-red { background: #fde8e8; color: #b91c1c; } .badge-orange { background: #fef3c7; color: #92400e; }
+    .detail-panel { border: 1px solid #d4d9e0; border-radius: 6px; padding: 1.25rem; margin-bottom: 1.5rem; }
+    .detail-header { display: flex; align-items: center; gap: .75rem; margin-bottom: 1rem; }
+    .detail-header h3 { margin: 0; color: #003f72; flex: 1; }
+    .detail-grid { display: grid; grid-template-columns: 1fr 1fr; gap: .5rem; font-size: .85rem; margin-bottom: .5rem; }
+    .detail-grid .full { grid-column: 1 / -1; }
+    .section { border-top: 1px solid #e5e7eb; padding-top: 1rem; margin-top: 1rem; }
+    .section h4 { color: #003f72; margin-bottom: .75rem; font-size: .95rem; }
+    .pre-wrap { white-space: pre-wrap; word-wrap: break-word; font-family: -apple-system, sans-serif; font-size: .85rem; margin: .25rem 0 0 0; }
+</style>

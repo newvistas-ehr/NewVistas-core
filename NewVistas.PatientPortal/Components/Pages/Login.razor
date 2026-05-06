@@ -1,0 +1,92 @@
+@page "/login"
+@layout NewVistas.PatientPortal.Components.Layout.LoginLayout
+@rendermode InteractiveServer
+@attribute [Microsoft.AspNetCore.Authorization.AllowAnonymous]
+@using NewVistas.PatientPortal.Services
+@inject PatientAuthStateProvider AuthProvider
+@inject NavigationManager Navigation
+
+<div class="login-container">
+    <div class="login-card">
+        <h2>MyHealth Portal</h2>
+        <p class="login-subtitle">Patient Sign-In</p>
+
+        @if (!string.IsNullOrEmpty(error))
+        {
+            <div class="alert alert-danger">@error</div>
+        }
+
+        <div class="form-group">
+            <label>Patient ID</label>
+            <input type="text" @bind="patientId" @bind:event="oninput"
+                   @onkeydown="HandleKeyDown" disabled="@isLoading"
+                   placeholder="Your patient ID" />
+        </div>
+
+        <div class="form-group">
+            <label>Password</label>
+            <input type="password" @bind="password" @bind:event="oninput"
+                   @onkeydown="HandleKeyDown" disabled="@isLoading" />
+        </div>
+
+        <button class="btn-login" @onclick="LoginAsync" disabled="@isLoading">
+            @if (isLoading) { <span>Signing in...</span> } else { <span>Sign In</span> }
+        </button>
+
+        <p class="register-link">
+            Don't have an account? <a href="/register">Register here</a>
+        </p>
+    </div>
+</div>
+
+@code {
+    private string patientId = string.Empty;
+    private string password = string.Empty;
+    private string? error;
+    private bool isLoading;
+
+    private async Task HandleKeyDown(Microsoft.AspNetCore.Components.Web.KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter") await LoginAsync();
+    }
+
+    private async Task LoginAsync()
+    {
+        if (string.IsNullOrWhiteSpace(patientId) || string.IsNullOrWhiteSpace(password))
+        {
+            error = "Please enter your Patient ID and password.";
+            return;
+        }
+        isLoading = true;
+        error = null;
+        try
+        {
+            PatientLoginResult result = await AuthProvider.LoginAsync(patientId.Trim(), password);
+            if (result.Success)
+                Navigation.NavigateTo("/", forceLoad: false);
+            else
+                error = result.Error ?? "Sign-in failed.";
+        }
+        catch (Exception ex)
+        {
+            error = $"Connection error: {ex.Message}";
+        }
+        finally { isLoading = false; }
+    }
+}
+
+<style>
+    .login-container { display: flex; justify-content: center; align-items: center; min-height: 80vh; }
+    .login-card { background: #fff; border: 1px solid #ddd; border-radius: 8px; padding: 2rem; width: 380px; box-shadow: 0 2px 12px rgba(0,0,0,0.1); }
+    .login-card h2 { margin: 0 0 0.25rem; color: #1a6b3c; }
+    .login-subtitle { color: #666; margin: 0 0 1.5rem; font-size: 0.9rem; }
+    .form-group { margin-bottom: 1rem; }
+    .form-group label { display: block; margin-bottom: 0.25rem; font-weight: 600; font-size: 0.85rem; }
+    .form-group input { width: 100%; padding: 0.5rem; border: 1px solid #ccc; border-radius: 4px; font-size: 0.95rem; box-sizing: border-box; }
+    .btn-login { width: 100%; padding: 0.6rem; background: #1a6b3c; color: #fff; border: none; border-radius: 4px; font-size: 1rem; cursor: pointer; }
+    .btn-login:hover { background: #228b4a; }
+    .btn-login:disabled { opacity: 0.6; cursor: not-allowed; }
+    .alert-danger { background: #f8d7da; color: #842029; padding: 0.5rem 0.75rem; border-radius: 4px; margin-bottom: 1rem; font-size: 0.9rem; }
+    .register-link { text-align: center; margin-top: 1rem; font-size: 0.85rem; color: #666; }
+    .register-link a { color: #1a6b3c; font-weight: 600; }
+</style>

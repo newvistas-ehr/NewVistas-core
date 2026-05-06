@@ -1,0 +1,439 @@
+@page "/pharmacybenefits"
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+@rendermode InteractiveServer
+@using NewVistas.BlazorWeb.Services
+@using NewVistas.Abstractions.GrainInterfaces
+@using NewVistas.Abstractions.GrainStates
+@inject OrleansGrainService Grains
+
+<PageTitle>Pharmacy Benefits (PBM)</PageTitle>
+
+<h2>Pharmacy Benefits Management</h2>
+<p class="subtitle">VistA File #59.9 — formulary, coverage, and prior authorizations</p>
+
+<div class="tabs">
+    <button class="@TabClass("patient")" @onclick='() => activeTab = "patient"'>Patient Benefits</button>
+    <button class="@TabClass("formulary")" @onclick='() => activeTab = "formulary"'>Plan Formulary</button>
+</div>
+
+@if (!string.IsNullOrEmpty(error))
+{
+    <div class="error">@error</div>
+}
+
+@* ── Patient Benefits Tab ──────────────────────────────────────────────────── *@
+@if (activeTab == "patient")
+{
+    <div class="toolbar">
+        <input @bind="patientId" placeholder="Patient ID" class="input-id" />
+        <button @onclick="LoadPatient" disabled="@loading">Load Patient</button>
+        <button @onclick="LoadDemo" disabled="@loading" class="btn-demo">Load Demo</button>
+    </div>
+
+    @if (loading) { <p>Loading…</p> }
+
+    @if (plan is not null)
+    {
+        <div class="plan-card">
+            <div class="plan-header">
+                <span class="plan-name">@plan.PlanName</span>
+                <span class="badge @(plan.IsActive ? "badge-active" : "badge-inactive")">@(plan.IsActive ? "ACTIVE" : "INACTIVE")</span>
+            </div>
+            <div class="plan-meta">
+                <span><b>Insurer:</b> @plan.InsuranceName</span>
+                <span><b>Member ID:</b> @(plan.MemberId ?? "—")</span>
+                <span><b>Group:</b> @(plan.GroupNumber ?? "—")</span>
+                <span><b>Effective:</b> @plan.EffectiveDate?.ToString("MM/dd/yyyy")</span>
+                <span><b>Expires:</b> @plan.TerminationDate?.ToString("MM/dd/yyyy")</span>
+            </div>
+            <div class="copay-tiers">
+                <div class="tier-box tier1">Tier 1<br/><b>$@plan.CopayTier1</b><br/><small>Preferred Generic</small></div>
+                <div class="tier-box tier2">Tier 2<br/><b>$@plan.CopayTier2</b><br/><small>Preferred Brand</small></div>
+                <div class="tier-box tier3">Tier 3<br/><b>$@plan.CopayTier3</b><br/><small>Non-Preferred</small></div>
+                <div class="tier-box">Deductible<br/><b>$@plan.AnnualDeductible</b><br/>
+                    @if (plan.DeductibleMet) { <span class="badge badge-active">MET</span> }
+                    else { <small>Not met</small> }
+                </div>
+            </div>
+        </div>
+
+        <h4>Coverage Check</h4>
+        <div class="toolbar">
+            <input @bind="coverageDrugId" placeholder="Drug ID (e.g. 50-WARFARIN)" class="input-id" />
+            <button @onclick="CheckCoverage" disabled="@loading">Check Coverage</button>
+        </div>
+        @if (coverage is not null)
+        {
+            <div class="coverage-result">
+                <span><b>Drug:</b> @(string.IsNullOrEmpty(coverage.DrugName) ? coverage.DrugId : coverage.DrugName)</span>
+                <span class="badge @CoverageBadge(coverage.CoverageStatus)">@coverage.CoverageStatus</span>
+                @if (coverage.Tier > 0)
+                {
+                    <span>Tier @coverage.Tier</span>
+                    <span>Copay: <b>$@(coverage.ApplicableCopay?.ToString("F2") ?? "—")</b></span>
+                }
+                @if (coverage.RequiresPriorAuth) { <span class="badge badge-pa">PA REQUIRED</span> }
+                @if (coverage.QuantityLimit.HasValue) { <span>Qty limit: @coverage.QuantityLimit</span> }
+            </div>
+        }
+
+        <h4>Prior Authorizations</h4>
+        @if (priorAuths is not null && priorAuths.Count > 0)
+        {
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Drug</th>
+                        <th>Status</th>
+                        <th>Requested</th>
+                        <th>Expires</th>
+                        <th>Provider</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (PaSummary pa in priorAuths)
+                    {
+                        <tr>
+                            <td>@pa.DrugName</td>
+                            <td><span class="badge @PaBadge(pa.Status)">@pa.Status</span></td>
+                            <td>@pa.RequestDate.ToString("MM/dd/yyyy")</td>
+                            <td>@(pa.ExpirationDate?.ToString("MM/dd/yyyy") ?? "—")</td>
+                            <td>@(pa.ProviderName ?? "—")</td>
+                            <td>
+                                @if (pa.Status == "PENDING")
+                                {
+                                    <button @onclick="() => OpenApprove(pa.PaId)" class="btn-sm btn-approve">Approve</button>
+                                    <button @onclick="() => OpenDeny(pa.PaId)" class="btn-sm btn-deny">Deny</button>
+                                }
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        }
+        else if (priorAuths is not null)
+        {
+            <p>No prior authorizations on file.</p>
+        }
+
+        @if (showApprovePanel)
+        {
+            <div class="action-panel">
+                <h4>Approve Prior Authorization</h4>
+                <label>Reviewer ID: <input @bind="reviewerId" /></label>
+                <label>Reviewer Name: <input @bind="reviewerName" /></label>
+                <label>Expiration Date: <input type="date" @bind="paExpDate" /></label>
+                <label>Notes: <input @bind="paDecisionNotes" /></label>
+                <button @onclick="SubmitApprove">Submit</button>
+                <button @onclick="CloseAction">Cancel</button>
+                @if (!string.IsNullOrEmpty(actionError)) { <span class="error">@actionError</span> }
+            </div>
+        }
+
+        @if (showDenyPanel)
+        {
+            <div class="action-panel">
+                <h4>Deny Prior Authorization</h4>
+                <label>Reviewer ID: <input @bind="reviewerId" /></label>
+                <label>Reviewer Name: <input @bind="reviewerName" /></label>
+                <label>Denial Reason: <input @bind="paDecisionNotes" /></label>
+                <button @onclick="SubmitDeny">Submit</button>
+                <button @onclick="CloseAction">Cancel</button>
+                @if (!string.IsNullOrEmpty(actionError)) { <span class="error">@actionError</span> }
+            </div>
+        }
+    }
+}
+
+@* ── Formulary Tab ────────────────────────────────────────────────────────── *@
+@if (activeTab == "formulary")
+{
+    <div class="toolbar">
+        <input @bind="formularyPlanId" placeholder="Plan ID (e.g. TRICARE-STD)" class="input-id" />
+        <button @onclick="LoadFormulary" disabled="@loading">Load Formulary</button>
+    </div>
+
+    @if (loading) { <p>Loading…</p> }
+
+    @if (formularyEntries is not null)
+    {
+        <div class="filter-bar">
+            <label>
+                Tier:
+                <select @bind="formularyTierFilter">
+                    <option value="0">All tiers</option>
+                    <option value="1">Tier 1 — Preferred Generic</option>
+                    <option value="2">Tier 2 — Preferred Brand</option>
+                    <option value="3">Tier 3 — Non-Preferred</option>
+                </select>
+            </label>
+            <label><input type="checkbox" @bind="formularyPaFilter" /> PA Required only</label>
+        </div>
+
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>Drug Name</th>
+                    <th>Tier</th>
+                    <th>Coverage</th>
+                    <th>PA?</th>
+                    <th>Copay Override</th>
+                    <th>Qty Limit</th>
+                    <th>Day Supply</th>
+                    <th>Step Therapy</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (FormularyRow e in FilteredFormulary)
+                {
+                    <tr>
+                        <td>@e.DrugName</td>
+                        <td><span class="badge @TierBadge(e.Tier)">Tier @e.Tier</span></td>
+                        <td><span class="badge @CoverageBadge(e.CoverageStatus)">@e.CoverageStatus</span></td>
+                        <td>@(e.RequiresPriorAuth ? "Yes" : "No")</td>
+                        <td>@(e.CopayOverride.HasValue ? $"${e.CopayOverride:F2}" : "—")</td>
+                        <td>@(e.QuantityLimit?.ToString() ?? "—")</td>
+                        <td>@(e.DaySupplyLimit?.ToString() ?? "—")</td>
+                        <td>@(e.StepTherapyRequired ? "Yes" : "No")</td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    }
+}
+
+@code {
+    string activeTab = "patient";
+
+    // Patient tab
+    string patientId = string.Empty;
+    bool loading;
+    string? error;
+    PlanResult? plan;
+    List<PaSummary>? priorAuths;
+    string coverageDrugId = string.Empty;
+    CoverageResult? coverage;
+
+    // PA actions
+    bool showApprovePanel;
+    bool showDenyPanel;
+    string? actionPaId;
+    string reviewerId = string.Empty;
+    string reviewerName = string.Empty;
+    DateTime? paExpDate;
+    string? paDecisionNotes;
+    string? actionError;
+
+    // Formulary tab
+    string formularyPlanId = string.Empty;
+    List<FormularyRow>? formularyEntries;
+    int formularyTierFilter;
+    bool formularyPaFilter;
+
+    IEnumerable<FormularyRow> FilteredFormulary =>
+        (formularyEntries ?? Enumerable.Empty<FormularyRow>())
+        .Where(e => (formularyTierFilter == 0 || e.Tier == formularyTierFilter) &&
+                    (!formularyPaFilter || e.RequiresPriorAuth));
+
+    string TabClass(string tab) => tab == activeTab ? "tab-btn active-tab" : "tab-btn";
+
+    private IPatientBenefitPlanGrain GetPlanGrain() =>
+        Grains.GetGrain<IPatientBenefitPlanGrain>($"PBM-PATIENT:{patientId.Trim()}");
+
+    private IPriorAuthIndexGrain GetPaIndexGrain() =>
+        Grains.GetGrain<IPriorAuthIndexGrain>($"PA-INDEX:{patientId.Trim()}");
+
+    private IFormularyIndexGrain GetFormularyGrain(string planId) =>
+        Grains.GetGrain<IFormularyIndexGrain>($"PBM-FORMULARY:{planId}");
+
+    async Task LoadPatient()
+    {
+        if (string.IsNullOrWhiteSpace(patientId)) return;
+        loading = true; error = null; plan = null; priorAuths = null; coverage = null;
+        try
+        {
+            PatientBenefitPlanState planState = await GetPlanGrain().GetPlanAsync();
+            plan = new PlanResult(planState.PatientId, planState.PlanId, planState.PlanName,
+                planState.InsuranceName, planState.GroupNumber, planState.MemberId,
+                planState.EffectiveDate, planState.TerminationDate, planState.IsActive,
+                planState.CopayTier1, planState.CopayTier2, planState.CopayTier3,
+                planState.DaySupplyLimit, planState.AnnualDeductible, planState.DeductibleMet);
+
+            List<PriorAuthIndexEntry> paEntries = await GetPaIndexGrain().GetAllAsync();
+            priorAuths = paEntries.Select(e => new PaSummary(
+                e.PaId, e.DrugName, e.Status, e.RequestDate,
+                e.ExpirationDate, e.ProviderName, e.DrugId)).ToList();
+        }
+        catch (Exception ex) { error = ex.Message; }
+        finally { loading = false; }
+    }
+
+    async Task LoadDemo()
+    {
+        loading = true; error = null;
+        error = "Demo load is only available when running the API server.";
+        patientId = "P-DEMO-001";
+        loading = false;
+    }
+
+    async Task CheckCoverage()
+    {
+        if (string.IsNullOrWhiteSpace(coverageDrugId) || plan is null) return;
+        error = null;
+        try
+        {
+            // Coverage check requires formulary lookup
+            FormularyEntry? entry = await GetFormularyGrain(plan.PlanId).GetDrugAsync(coverageDrugId.Trim());
+            if (entry != null)
+            {
+                coverage = new CoverageResult(entry.DrugId, entry.DrugName, entry.CoverageStatus,
+                    entry.Tier, entry.RequiresPriorAuth,
+                    entry.CopayOverride ?? (entry.Tier == 1 ? plan.CopayTier1 : entry.Tier == 2 ? plan.CopayTier2 : plan.CopayTier3),
+                    entry.QuantityLimit, entry.DaySupplyLimit);
+            }
+            else
+            {
+                coverage = new CoverageResult(coverageDrugId.Trim(), "", "NOT_COVERED", 0, false, null, null, null);
+            }
+        }
+        catch (Exception ex) { error = ex.Message; }
+    }
+
+    async Task LoadFormulary()
+    {
+        if (string.IsNullOrWhiteSpace(formularyPlanId)) return;
+        loading = true; error = null;
+        try
+        {
+            List<FormularyEntry> entries = await GetFormularyGrain(formularyPlanId.Trim()).GetAllAsync();
+            formularyEntries = entries.Select(e => new FormularyRow(
+                e.DrugId, e.DrugName, e.Tier, e.CoverageStatus,
+                e.RequiresPriorAuth, e.CopayOverride, e.QuantityLimit,
+                e.DaySupplyLimit, e.StepTherapyRequired, e.Notes)).ToList();
+        }
+        catch (Exception ex) { error = ex.Message; }
+        finally { loading = false; }
+    }
+
+    void OpenApprove(string paId) { CloseAction(); actionPaId = paId; showApprovePanel = true; }
+    void OpenDeny(string paId) { CloseAction(); actionPaId = paId; showDenyPanel = true; }
+    void CloseAction()
+    {
+        showApprovePanel = showDenyPanel = false;
+        actionPaId = null; reviewerId = reviewerName = string.Empty;
+        paExpDate = null; paDecisionNotes = null; actionError = null;
+    }
+
+    async Task SubmitApprove()
+    {
+        actionError = null;
+        try
+        {
+            var paGrain = Grains.GetGrain<IPriorAuthorizationGrain>($"PA:{actionPaId}");
+            await paGrain.ApproveAsync(reviewerId, reviewerName, paDecisionNotes, paExpDate);
+            CloseAction(); await LoadPatient();
+        }
+        catch (Exception ex) { actionError = ex.Message; }
+    }
+
+    async Task SubmitDeny()
+    {
+        actionError = null;
+        try
+        {
+            var paGrain = Grains.GetGrain<IPriorAuthorizationGrain>($"PA:{actionPaId}");
+            await paGrain.DenyAsync(reviewerId, reviewerName, paDecisionNotes ?? string.Empty);
+            CloseAction(); await LoadPatient();
+        }
+        catch (Exception ex) { actionError = ex.Message; }
+    }
+
+    string CoverageBadge(string status) => status switch
+    {
+        "COVERED" => "badge-covered",
+        "NOT_COVERED" => "badge-nocov",
+        "REQUIRES_PA" => "badge-pa",
+        "NON_FORMULARY" => "badge-nocov",
+        _ => "badge-normal"
+    };
+
+    string TierBadge(int tier) => tier switch
+    {
+        1 => "badge-tier1",
+        2 => "badge-tier2",
+        3 => "badge-tier3",
+        _ => "badge-nocov"
+    };
+
+    string PaBadge(string status) => status switch
+    {
+        "PENDING" => "badge-pending",
+        "APPROVED" => "badge-covered",
+        "DENIED" => "badge-nocov",
+        "EXPIRED" => "badge-expired",
+        _ => "badge-normal"
+    };
+
+    record PlanResult(string PatientId, string PlanId, string PlanName, string InsuranceName,
+        string? GroupNumber, string? MemberId, DateTime? EffectiveDate, DateTime? TerminationDate,
+        bool IsActive, decimal CopayTier1, decimal CopayTier2, decimal CopayTier3,
+        int DaySupplyLimit, decimal AnnualDeductible, bool DeductibleMet);
+
+    record PaSummary(string PaId, string DrugName, string Status, DateTime RequestDate,
+        DateTime? ExpirationDate, string? ProviderName, string? DrugId);
+
+    record CoverageResult(string DrugId, string DrugName, string CoverageStatus, int Tier,
+        bool RequiresPriorAuth, decimal? ApplicableCopay, int? QuantityLimit, int? DaySupplyLimit);
+
+    record FormularyRow(string DrugId, string DrugName, int Tier, string CoverageStatus,
+        bool RequiresPriorAuth, decimal? CopayOverride, int? QuantityLimit, int? DaySupplyLimit,
+        bool StepTherapyRequired, string? Notes);
+}
+
+<style>
+    .subtitle { color: #888; margin-top: -8px; font-size: 0.9em; }
+    .tabs { display: flex; gap: 4px; margin-bottom: 16px; }
+    .tab-btn { padding: 8px 20px; border: 1px solid #ccc; border-radius: 4px 4px 0 0; cursor: pointer; background: #f0f0f0; }
+    .active-tab { background: #fff; border-bottom-color: #fff; font-weight: bold; }
+    .toolbar { display: flex; gap: 8px; margin: 12px 0; align-items: center; }
+    .input-id { padding: 6px; border: 1px solid #ccc; border-radius: 4px; width: 260px; }
+    button { padding: 6px 14px; border: 1px solid #555; border-radius: 4px; cursor: pointer; background: #eee; }
+    button:hover:not(:disabled) { background: #ddd; }
+    button:disabled { opacity: .5; cursor: not-allowed; }
+    .btn-demo { background: #d0eaff; }
+    .plan-card { background: #f5f8ff; border: 1px solid #c0d0f0; border-radius: 8px; padding: 16px; margin-bottom: 20px; }
+    .plan-header { display: flex; align-items: center; gap: 12px; margin-bottom: 10px; }
+    .plan-name { font-size: 1.15em; font-weight: bold; }
+    .plan-meta { display: flex; flex-wrap: wrap; gap: 16px; color: #555; font-size: 0.9em; margin-bottom: 12px; }
+    .copay-tiers { display: flex; gap: 10px; }
+    .tier-box { text-align: center; padding: 10px 16px; border: 1px solid #c8c8c8; border-radius: 6px; background: #fff; min-width: 80px; font-size: 0.88em; }
+    .tier1 { border-color: #4a4; }
+    .tier2 { border-color: #44a; }
+    .tier3 { border-color: #a44; }
+    .coverage-result { display: flex; align-items: center; gap: 12px; padding: 10px; background: #f9f9f9; border: 1px solid #ddd; border-radius: 6px; margin-bottom: 16px; }
+    .filter-bar { display: flex; gap: 20px; margin-bottom: 10px; align-items: center; }
+    .data-table { width: 100%; border-collapse: collapse; font-size: 0.88em; margin-top: 10px; }
+    .data-table th { background: #444; color: #fff; padding: 6px 10px; text-align: left; }
+    .data-table td { padding: 5px 10px; border-bottom: 1px solid #eee; }
+    .data-table tr:hover { background: #f7f7f7; }
+    .badge { padding: 2px 8px; border-radius: 10px; font-size: 0.78em; font-weight: bold; }
+    .badge-active { background: #4a4; color: #fff; }
+    .badge-inactive { background: #888; color: #fff; }
+    .badge-covered { background: #4a4; color: #fff; }
+    .badge-nocov { background: #c44; color: #fff; }
+    .badge-pa { background: #e96; color: #fff; }
+    .badge-pending { background: #e96; color: #fff; }
+    .badge-expired { background: #888; color: #fff; }
+    .badge-normal { background: #aaa; color: #fff; }
+    .badge-tier1 { background: #4a4; color: #fff; }
+    .badge-tier2 { background: #44a; color: #fff; }
+    .badge-tier3 { background: #a44; color: #fff; }
+    .btn-sm { padding: 2px 7px; font-size: 0.78em; margin-right: 2px; }
+    .btn-approve { background: #d0ffd0; }
+    .btn-deny { background: #ffd0d0; }
+    .action-panel { margin-top: 16px; padding: 16px; background: #fffbe6; border: 1px solid #e0c060; border-radius: 6px; display: flex; flex-direction: column; gap: 8px; max-width: 420px; }
+    .action-panel label { display: flex; gap: 10px; align-items: center; }
+    .action-panel input { flex: 1; padding: 4px; border: 1px solid #ccc; border-radius: 3px; }
+    .error { color: #c00; margin: 8px 0; }
+</style>

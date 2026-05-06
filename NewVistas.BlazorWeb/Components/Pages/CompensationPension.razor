@@ -1,0 +1,625 @@
+@page "/compensation-pension"
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+@rendermode InteractiveServer
+@using NewVistas.BlazorWeb.Services
+@using NewVistas.Abstractions.GrainInterfaces
+@using NewVistas.Abstractions.GrainStates
+@inject OrleansGrainService Grains
+
+<h2>Compensation &amp; Pension</h2>
+<p>Disability exam scheduling, Disability Benefits Questionnaires (DBQs), and rating preparation.</p>
+
+<div style="margin-bottom:1rem;">
+    <label><strong>Patient ID:</strong></label>
+    <input @bind="patientId" placeholder="Enter patient ID" style="margin-left:.5rem;padding:.3rem .6rem;width:220px;" />
+    <button @onclick="LoadPatient" style="margin-left:.5rem;padding:.3rem .8rem;">Load</button>
+</div>
+
+@if (error != null)
+{
+    <div style="color:red;margin-bottom:1rem;">@error</div>
+}
+
+@if (patientLoaded)
+{
+    <!-- Tab bar -->
+    <div style="display:flex;gap:.5rem;margin-bottom:1rem;border-bottom:2px solid #ccc;">
+        <button class="tab-btn @(activeTab=="exams"?"active":"")" @onclick='()=>activeTab="exams"'>Exam Scheduling</button>
+        <button class="tab-btn @(activeTab=="dbqs"?"active":"")" @onclick='()=>activeTab="dbqs"'>DBQs</button>
+        <button class="tab-btn @(activeTab=="rating"?"active":"")" @onclick='()=>activeTab="rating"'>Rating Prep</button>
+    </div>
+
+    <!-- ── Exam Scheduling Tab ─────────────────────────────────────────── -->
+    @if (activeTab == "exams")
+    {
+        <div style="display:flex;gap:1.5rem;flex-wrap:wrap;">
+            <!-- Exam list -->
+            <div style="flex:2;min-width:340px;">
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.5rem;">
+                    <h4 style="margin:0;">C&amp;P Examinations</h4>
+                    <button @onclick="()=>showScheduleForm=!showScheduleForm" style="padding:.3rem .7rem;">
+                        @(showScheduleForm ? "Cancel" : "+ Schedule Exam")
+                    </button>
+                </div>
+
+                @if (showScheduleForm)
+                {
+                    <div class="form-card">
+                        <h5 style="margin-top:0;">Schedule New C&amp;P Exam</h5>
+                        <div class="form-row">
+                            <label>Patient Name</label>
+                            <input @bind="newExam.PatientName" placeholder="Full name" />
+                        </div>
+                        <div class="form-row">
+                            <label>Exam Type</label>
+                            <select @bind="newExam.ExamTypeStr">
+                                @foreach (string t in examTypes) { <option>@t</option> }
+                            </select>
+                        </div>
+                        <div class="form-row">
+                            <label>Scheduled Date</label>
+                            <input type="datetime-local" @bind="newExam.ScheduledDate" />
+                        </div>
+                        <div class="form-row">
+                            <label>Examiner Name</label>
+                            <input @bind="newExam.ExaminerName" placeholder="Dr. Smith" />
+                        </div>
+                        <div class="form-row">
+                            <label>Examiner Title</label>
+                            <input @bind="newExam.ExaminerTitle" placeholder="MD" />
+                        </div>
+                        <div class="form-row">
+                            <label>Examiner Type</label>
+                            <select @bind="newExam.ExaminerTypeStr">
+                                @foreach (string t in examinerTypes) { <option>@t</option> }
+                            </select>
+                        </div>
+                        <div class="form-row">
+                            <label>Location</label>
+                            <input @bind="newExam.ExamLocation" placeholder="Clinic / Room" />
+                        </div>
+                        <div class="form-row">
+                            <label>Facility</label>
+                            <input @bind="newExam.ExamFacility" placeholder="VA Medical Center" />
+                        </div>
+                        <div class="form-row">
+                            <label>Claim Number</label>
+                            <input @bind="newExam.ClaimNumber" placeholder="VBA claim #" />
+                        </div>
+                        <div class="form-row">
+                            <label>Benefit Type</label>
+                            <select @bind="newExam.BenefitType">
+                                <option>Compensation</option>
+                                <option>Pension</option>
+                            </select>
+                        </div>
+                        <div class="form-row">
+                            <label>Disability Codes</label>
+                            <input @bind="newExam.DisabilityCodes" placeholder="Comma-separated ICD-10 codes" />
+                        </div>
+                        <div class="form-row">
+                            <label>Requested By</label>
+                            <input @bind="newExam.CreatedBy" placeholder="User / provider" />
+                        </div>
+                        <button @onclick="ScheduleExam" style="margin-top:.5rem;padding:.3rem .8rem;">Schedule</button>
+                        @if (scheduleMsg != null) { <span style="margin-left:.5rem;color:green;">@scheduleMsg</span> }
+                    </div>
+                }
+
+                @if (loadingExams)
+                {
+                    <p>Loading exams…</p>
+                }
+                else if (exams.Count == 0)
+                {
+                    <p style="color:#666;">No C&amp;P exams on record.</p>
+                }
+                else
+                {
+                    <table class="cp-table">
+                        <thead>
+                            <tr>
+                                <th>Type</th>
+                                <th>Status</th>
+                                <th>Scheduled</th>
+                                <th>Examiner</th>
+                                <th>Claim #</th>
+                                <th>DBQs</th>
+                                <th></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (CPExamIndexEntry e in exams)
+                            {
+                                <tr>
+                                    <td>@e.ExamType</td>
+                                    <td><span class="badge @StatusBadge(e.Status)">@e.Status</span></td>
+                                    <td>@e.ScheduledDate.ToLocalTime().ToString("MM/dd/yy HH:mm")</td>
+                                    <td>@e.ExaminerName</td>
+                                    <td>@e.ClaimNumber</td>
+                                    <td>@e.DbqCount</td>
+                                    <td>
+                                        @if (e.Status == CPExamStatus.Scheduled || e.Status == CPExamStatus.Rescheduled)
+                                        {
+                                            <button @onclick="()=>SelectExamForCancel(e.ExamId)" style="padding:.2rem .5rem;font-size:.8rem;">Cancel</button>
+                                        }
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                }
+
+                @if (cancelExamId != null)
+                {
+                    <div class="form-card" style="margin-top:.5rem;">
+                        <h5 style="margin-top:0;">Cancel Exam</h5>
+                        <input @bind="cancelReason" placeholder="Reason for cancellation" style="width:100%;margin-bottom:.5rem;" />
+                        <button @onclick="CancelExam" style="padding:.3rem .7rem;">Confirm Cancel</button>
+                        <button @onclick="()=>cancelExamId=null" style="margin-left:.5rem;padding:.3rem .7rem;">Back</button>
+                    </div>
+                }
+            </div>
+        </div>
+    }
+
+    <!-- ── DBQs Tab ───────────────────────────────────────────────────────── -->
+    @if (activeTab == "dbqs")
+    {
+        <div style="display:flex;gap:1.5rem;flex-wrap:wrap;">
+            <div style="flex:2;min-width:340px;">
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.5rem;">
+                    <h4 style="margin:0;">Disability Benefits Questionnaires</h4>
+                    <button @onclick="()=>showDbqForm=!showDbqForm" style="padding:.3rem .7rem;">
+                        @(showDbqForm ? "Cancel" : "+ Create DBQ")
+                    </button>
+                </div>
+
+                @if (showDbqForm)
+                {
+                    <div class="form-card">
+                        <h5 style="margin-top:0;">Create New DBQ</h5>
+                        <div class="form-row">
+                            <label>Patient Name</label>
+                            <input @bind="newDbq.PatientName" placeholder="Full name" />
+                        </div>
+                        <div class="form-row">
+                            <label>Linked Exam ID</label>
+                            <input @bind="newDbq.ExamId" placeholder="CP-EXAM:…" />
+                        </div>
+                        <div class="form-row">
+                            <label>DBQ Type</label>
+                            <select @bind="newDbq.DbqTypeStr">
+                                @foreach (string t in dbqTypes) { <option>@t</option> }
+                            </select>
+                        </div>
+                        <div class="form-row">
+                            <label>Form Number</label>
+                            <input @bind="newDbq.DbqFormNumber" placeholder="21-0960A-1" />
+                        </div>
+                        <div class="form-row">
+                            <label>DBQ Title</label>
+                            <input @bind="newDbq.DbqTitle" placeholder="Knee and Lower Leg Conditions" />
+                        </div>
+                        <div class="form-row">
+                            <label>Claim Number</label>
+                            <input @bind="newDbq.ClaimNumber" placeholder="VBA claim #" />
+                        </div>
+                        <div class="form-row">
+                            <label>Condition Claimed</label>
+                            <input @bind="newDbq.ConditionClaimed" placeholder="Right knee osteoarthritis" />
+                        </div>
+                        <div class="form-row">
+                            <label>Diagnosis Code</label>
+                            <input @bind="newDbq.DiagnosisCode" placeholder="ICD-10" />
+                        </div>
+                        <div class="form-row">
+                            <label>Diagnosis</label>
+                            <input @bind="newDbq.DiagnosisDescription" placeholder="Full diagnosis text" />
+                        </div>
+                        <button @onclick="CreateDbq" style="margin-top:.5rem;padding:.3rem .8rem;">Create DBQ</button>
+                        @if (dbqMsg != null) { <span style="margin-left:.5rem;color:green;">@dbqMsg</span> }
+                    </div>
+                }
+
+                @if (loadingDbqs)
+                {
+                    <p>Loading DBQs…</p>
+                }
+                else if (dbqs.Count == 0)
+                {
+                    <p style="color:#666;">No DBQs on record.</p>
+                }
+                else
+                {
+                    <table class="cp-table">
+                        <thead>
+                            <tr>
+                                <th>Type</th>
+                                <th>Condition</th>
+                                <th>Status</th>
+                                <th>Rating %</th>
+                                <th>Service Conn.</th>
+                                <th>Completed</th>
+                                <th></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (DBQIndexEntry d in dbqs)
+                            {
+                                <tr>
+                                    <td>@d.DbqType</td>
+                                    <td>@d.ConditionClaimed</td>
+                                    <td><span class="badge @DbqBadge(d.Status)">@d.Status</span></td>
+                                    <td>@(d.ProposedRating > 0 ? $"{d.ProposedRating}%" : "—")</td>
+                                    <td>@d.ServiceConnectionType</td>
+                                    <td>@(d.CompletedDate.HasValue ? d.CompletedDate.Value.ToLocalTime().ToString("MM/dd/yy") : "—")</td>
+                                    <td>
+                                        @if (d.Status == DBQStatus.Draft || d.Status == DBQStatus.Completed)
+                                        {
+                                            <button @onclick="()=>SelectDbqForSign(d.DbqId)" style="padding:.2rem .5rem;font-size:.8rem;">Sign</button>
+                                        }
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                }
+
+                @if (signDbqId != null)
+                {
+                    <div class="form-card" style="margin-top:.5rem;">
+                        <h5 style="margin-top:0;">Sign DBQ</h5>
+                        <input @bind="signedBy" placeholder="Examiner name / credentials" style="width:100%;margin-bottom:.5rem;" />
+                        <button @onclick="SignDbq" style="padding:.3rem .7rem;">Sign &amp; Complete</button>
+                        <button @onclick="()=>signDbqId=null" style="margin-left:.5rem;padding:.3rem .7rem;">Back</button>
+                    </div>
+                }
+            </div>
+        </div>
+    }
+
+    <!-- ── Rating Prep Tab ────────────────────────────────────────────────── -->
+    @if (activeTab == "rating")
+    {
+        <div>
+            <h4>Rating Preparation Summary</h4>
+            <p style="color:#555;font-size:.9rem;">Completed and signed DBQs ready for VBA disability rating submission.</p>
+
+            @if (loadingDbqs)
+            {
+                <p>Loading…</p>
+            }
+            else
+            {
+                List<DBQIndexEntry> ratingDbqs = dbqs.Where(d => d.Status is DBQStatus.Completed or DBQStatus.Signed).ToList();
+                @if (ratingDbqs.Count == 0)
+                {
+                    <p style="color:#666;">No completed DBQs available for rating preparation.</p>
+                }
+                else
+                {
+                    <div style="display:flex;gap:.5rem;flex-wrap:wrap;margin-bottom:1rem;">
+                        <div class="stat-box">
+                            <div class="stat-num">@ratingDbqs.Count</div>
+                            <div class="stat-lbl">Completed DBQs</div>
+                        </div>
+                        <div class="stat-box">
+                            <div class="stat-num">@ratingDbqs.Count(d => d.Status == DBQStatus.Signed)</div>
+                            <div class="stat-lbl">Signed</div>
+                        </div>
+                        <div class="stat-box">
+                            <div class="stat-num">@(ratingDbqs.Any(d => d.ProposedRating > 0) ? ratingDbqs.Where(d => d.ProposedRating > 0).Max(d => d.ProposedRating) + "%" : "—")</div>
+                            <div class="stat-lbl">Highest Proposed</div>
+                        </div>
+                    </div>
+
+                    <table class="cp-table">
+                        <thead>
+                            <tr>
+                                <th>DBQ Type</th>
+                                <th>Condition Claimed</th>
+                                <th>Service Connection</th>
+                                <th>Proposed Rating</th>
+                                <th>Status</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (DBQIndexEntry d in ratingDbqs)
+                            {
+                                <tr>
+                                    <td>@d.DbqType</td>
+                                    <td>@d.ConditionClaimed</td>
+                                    <td>@d.ServiceConnectionType</td>
+                                    <td style="font-weight:bold;">@(d.ProposedRating > 0 ? $"{d.ProposedRating}%" : "—")</td>
+                                    <td><span class="badge @DbqBadge(d.Status)">@d.Status</span></td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                }
+            }
+        </div>
+    }
+}
+
+<style>
+    .tab-btn {
+        padding: .4rem 1rem;
+        border: 1px solid #ccc;
+        border-bottom: none;
+        background: #f5f5f5;
+        cursor: pointer;
+        border-radius: 4px 4px 0 0;
+    }
+    .tab-btn.active {
+        background: white;
+        font-weight: bold;
+        border-bottom: 2px solid white;
+        margin-bottom: -2px;
+    }
+    .form-card {
+        background: #f9f9f9;
+        border: 1px solid #ddd;
+        border-radius: 6px;
+        padding: 1rem;
+        margin-bottom: 1rem;
+    }
+    .form-row {
+        display: flex;
+        align-items: center;
+        gap: .5rem;
+        margin-bottom: .5rem;
+    }
+    .form-row label {
+        width: 140px;
+        font-size: .85rem;
+        color: #444;
+        flex-shrink: 0;
+    }
+    .form-row input, .form-row select {
+        flex: 1;
+        padding: .25rem .5rem;
+    }
+    .cp-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: .9rem;
+    }
+    .cp-table th, .cp-table td {
+        border: 1px solid #ddd;
+        padding: .4rem .6rem;
+        text-align: left;
+    }
+    .cp-table th {
+        background: #f0f0f0;
+        font-weight: 600;
+    }
+    .cp-table tr:hover { background: #fafafa; }
+    .badge {
+        display: inline-block;
+        padding: .15rem .5rem;
+        border-radius: 10px;
+        font-size: .78rem;
+        font-weight: 600;
+    }
+    .badge-scheduled { background: #dbeafe; color: #1e40af; }
+    .badge-rescheduled { background: #fef9c3; color: #854d0e; }
+    .badge-completed { background: #dcfce7; color: #166534; }
+    .badge-cancelled { background: #fee2e2; color: #991b1b; }
+    .badge-noshow { background: #f3f4f6; color: #374151; }
+    .badge-draft { background: #f3f4f6; color: #374151; }
+    .badge-signed { background: #dcfce7; color: #166534; }
+    .stat-box {
+        background: #f0f4ff;
+        border: 1px solid #c7d7ff;
+        border-radius: 6px;
+        padding: .6rem 1.2rem;
+        text-align: center;
+        min-width: 110px;
+    }
+    .stat-num { font-size: 1.6rem; font-weight: bold; color: #1e40af; }
+    .stat-lbl { font-size: .78rem; color: #555; }
+</style>
+
+@code {
+    string patientId = string.Empty;
+    string activeTab = "exams";
+    bool patientLoaded = false;
+    string? error;
+
+    // Exams
+    bool loadingExams;
+    bool showScheduleForm;
+    List<CPExamIndexEntry> exams = new();
+    NewExamModel newExam = new();
+    string? scheduleMsg;
+    string? cancelExamId;
+    string cancelReason = string.Empty;
+
+    // DBQs
+    bool loadingDbqs;
+    bool showDbqForm;
+    List<DBQIndexEntry> dbqs = new();
+    NewDbqModel newDbq = new();
+    string? dbqMsg;
+    string? signDbqId;
+    string signedBy = string.Empty;
+
+    string[] examTypes = Enum.GetNames(typeof(CPExamType));
+    string[] examinerTypes = Enum.GetNames(typeof(CPExaminerType));
+    string[] dbqTypes = Enum.GetNames(typeof(DBQType));
+
+    async Task LoadPatient()
+    {
+        error = null;
+        patientLoaded = false;
+        if (string.IsNullOrWhiteSpace(patientId)) { error = "Enter a patient ID."; return; }
+        await LoadExams();
+        await LoadDbqs();
+        patientLoaded = true;
+    }
+
+    async Task LoadExams()
+    {
+        loadingExams = true;
+        try
+        {
+            var workflow = Grains.GetGrain<IPatientWorkflowGrain>(patientId.Trim());
+            exams = await workflow.GetCPExamsAsync();
+        }
+        catch { exams = new(); }
+        finally { loadingExams = false; }
+    }
+
+    async Task LoadDbqs()
+    {
+        loadingDbqs = true;
+        try
+        {
+            var workflow = Grains.GetGrain<IPatientWorkflowGrain>(patientId.Trim());
+            dbqs = await workflow.GetDBQsAsync();
+        }
+        catch { dbqs = new(); }
+        finally { loadingDbqs = false; }
+    }
+
+    async Task ScheduleExam()
+    {
+        scheduleMsg = null;
+        try
+        {
+            var workflow = Grains.GetGrain<IPatientWorkflowGrain>(patientId.Trim());
+            await workflow.ScheduleCPExamAsync(
+                newExam.PatientName,
+                Enum.Parse<CPExamType>(newExam.ExamTypeStr),
+                newExam.ScheduledDate,
+                newExam.ExaminerName,
+                newExam.ExaminerTitle,
+                Enum.Parse<CPExaminerType>(newExam.ExaminerTypeStr),
+                newExam.ExamLocation,
+                newExam.ExamFacility,
+                newExam.ClaimNumber,
+                newExam.BenefitType,
+                newExam.DisabilityCodes
+                    .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                    .ToList(),
+                newExam.CreatedBy);
+            scheduleMsg = "Exam scheduled.";
+            newExam = new();
+            showScheduleForm = false;
+            await LoadExams();
+        }
+        catch { scheduleMsg = "Error scheduling exam."; }
+    }
+
+    void SelectExamForCancel(string examId)
+    {
+        cancelExamId = examId;
+        cancelReason = string.Empty;
+    }
+
+    async Task CancelExam()
+    {
+        if (cancelExamId is null) return;
+        try
+        {
+            var workflow = Grains.GetGrain<IPatientWorkflowGrain>(patientId.Trim());
+            await workflow.CancelCPExamAsync(cancelExamId, cancelReason);
+            cancelExamId = null;
+            await LoadExams();
+        }
+        catch { error = "Error cancelling exam."; }
+    }
+
+    async Task CreateDbq()
+    {
+        dbqMsg = null;
+        try
+        {
+            var workflow = Grains.GetGrain<IPatientWorkflowGrain>(patientId.Trim());
+            await workflow.CreateDBQAsync(
+                newDbq.ExamId,
+                newDbq.PatientName,
+                Enum.Parse<DBQType>(newDbq.DbqTypeStr),
+                newDbq.DbqFormNumber,
+                newDbq.DbqTitle,
+                newDbq.ClaimNumber,
+                newDbq.ConditionClaimed,
+                newDbq.DiagnosisCode,
+                newDbq.DiagnosisDescription);
+            dbqMsg = "DBQ created.";
+            newDbq = new();
+            showDbqForm = false;
+            await LoadDbqs();
+        }
+        catch { dbqMsg = "Error creating DBQ."; }
+    }
+
+    void SelectDbqForSign(string dbqId)
+    {
+        signDbqId = dbqId;
+        signedBy = string.Empty;
+    }
+
+    async Task SignDbq()
+    {
+        if (signDbqId is null) return;
+        try
+        {
+            var workflow = Grains.GetGrain<IPatientWorkflowGrain>(patientId.Trim());
+            await workflow.SignDBQAsync(signDbqId, signedBy);
+            signDbqId = null;
+            await LoadDbqs();
+        }
+        catch { error = "Error signing DBQ."; }
+    }
+
+    string StatusBadge(object status) => status.ToString()!.ToLower() switch
+    {
+        "scheduled"   => "badge-scheduled",
+        "rescheduled" => "badge-rescheduled",
+        "completed"   => "badge-completed",
+        "cancelled"   => "badge-cancelled",
+        "noshow"      => "badge-noshow",
+        _             => "badge-draft"
+    };
+
+    string DbqBadge(object status) => status.ToString()!.ToLower() switch
+    {
+        "signed"    => "badge-signed",
+        "completed" => "badge-completed",
+        "amended"   => "badge-rescheduled",
+        _           => "badge-draft"
+    };
+
+    class NewExamModel
+    {
+        public string PatientName { get; set; } = string.Empty;
+        public string ExamTypeStr { get; set; } = "Initial";
+        public DateTime ScheduledDate { get; set; } = DateTime.Now.AddDays(14);
+        public string ExaminerName { get; set; } = string.Empty;
+        public string ExaminerTitle { get; set; } = string.Empty;
+        public string ExaminerTypeStr { get; set; } = "VAPhysician";
+        public string ExamLocation { get; set; } = string.Empty;
+        public string ExamFacility { get; set; } = string.Empty;
+        public string ClaimNumber { get; set; } = string.Empty;
+        public string BenefitType { get; set; } = "Compensation";
+        public string DisabilityCodes { get; set; } = string.Empty;
+        public string CreatedBy { get; set; } = string.Empty;
+    }
+
+    class NewDbqModel
+    {
+        public string ExamId { get; set; } = string.Empty;
+        public string PatientName { get; set; } = string.Empty;
+        public string DbqTypeStr { get; set; } = "GeneralMedical";
+        public string DbqFormNumber { get; set; } = string.Empty;
+        public string DbqTitle { get; set; } = string.Empty;
+        public string ClaimNumber { get; set; } = string.Empty;
+        public string ConditionClaimed { get; set; } = string.Empty;
+        public string DiagnosisCode { get; set; } = string.Empty;
+        public string DiagnosisDescription { get; set; } = string.Empty;
+    }
+
+}

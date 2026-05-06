@@ -1,0 +1,453 @@
+@page "/cover-sheet"
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+@rendermode InteractiveServer
+@using NewVistas.BlazorWeb.Services
+@using NewVistas.Abstractions.GrainInterfaces
+@using NewVistas.Abstractions.GrainStates
+@inject OrleansGrainService Grains
+@inject NavigationManager Nav
+@inject PatientContextService PatientContext
+
+<PageTitle>Cover Sheet</PageTitle>
+
+<h1>📋 Cover Sheet</h1>
+
+<div class="lookup-bar">
+    <input type="text" @bind="patientId" @bind:event="oninput"
+           @onkeydown="HandleKeyDown"
+           placeholder="Patient ID" class="lookup-input" />
+    <button @onclick="LoadCoverSheet" disabled="@(string.IsNullOrWhiteSpace(patientId) || loading)" class="btn btn-primary">
+        @if (loading) { <span>Loading...</span> } else { <span>Load</span> }
+    </button>
+</div>
+
+@if (error != null)
+{
+    <div class="alert alert-error">@error</div>
+}
+
+@if (coverSheet != null)
+{
+    @if (coverSheet.Demographics != null)
+    {
+        <div class="patient-banner">
+            <div class="banner-name">@coverSheet.Demographics.Name</div>
+            <div class="banner-details">
+                <span>@coverSheet.Demographics.Sex</span>
+                @if (coverSheet.Demographics.Age.HasValue)
+                {
+                    <span>Age: @coverSheet.Demographics.Age</span>
+                }
+                @if (coverSheet.Demographics.IsAdmitted)
+                {
+                    <span class="badge badge-admit">Admitted — @coverSheet.Demographics.RoomBed</span>
+                }
+                @if (coverSheet.Demographics.IsServiceConnected)
+                {
+                    <span class="badge badge-sc">SC @coverSheet.Demographics.ServiceConnectedPercent%</span>
+                }
+                @if (!string.IsNullOrEmpty(cwadDisplay))
+                {
+                    <span class="badge badge-cwad">@cwadDisplay</span>
+                }
+            </div>
+        </div>
+    }
+
+    <!-- Workflow Actions Bar -->
+    <div class="actions-bar">
+        <span class="actions-label">Workflows:</span>
+        <button class="btn-action" @onclick='() => Nav.NavigateTo($"/orders?patientId={Uri.EscapeDataString(patientId!)}&action=new")'>New Order</button>
+        <button class="btn-action btn-action-med" @onclick='() => Nav.NavigateTo($"/orders?patientId={Uri.EscapeDataString(patientId!)}&action=new&type=Pharmacy")'>New Medication</button>
+        <button class="btn-action btn-action-lab" @onclick='() => Nav.NavigateTo($"/labs?patientId={Uri.EscapeDataString(patientId!)}")'>New Lab Order</button>
+        <button class="btn-action btn-action-consult" @onclick='() => Nav.NavigateTo($"/consults?patientId={Uri.EscapeDataString(patientId!)}")'>New Consult</button>
+    </div>
+
+    <div class="cover-grid">
+        <!-- Active Problems -->
+        <div class="cover-panel">
+            <div class="panel-header">⚠️ Active Problems</div>
+            @if (coverSheet.ActiveProblems?.Count > 0)
+            {
+                <table class="panel-table">
+                    @foreach (var p in coverSheet.ActiveProblems)
+                    {
+                        <tr>
+                            <td class="code">@p.DiagnosisCode</td>
+                            <td>@p.Diagnosis</td>
+                            <td class="date">@p.DateOfOnset?.ToString("MM/dd/yy")</td>
+                        </tr>
+                    }
+                </table>
+            }
+            else { <div class="panel-empty">No active problems</div> }
+        </div>
+
+        <!-- Allergies -->
+        <div class="cover-panel">
+            <div class="panel-header">🚫 Allergies</div>
+            @if (coverSheet.Allergies?.Count > 0)
+            {
+                <table class="panel-table">
+                    @foreach (var a in coverSheet.Allergies)
+                    {
+                        <tr>
+                            <td>@a.Allergen</td>
+                            <td class="severity">@a.Severity</td>
+                            <td class="reactions">@string.Join(", ", a.Reactions ?? [])</td>
+                        </tr>
+                    }
+                </table>
+            }
+            else { <div class="panel-empty">No Known Allergies</div> }
+        </div>
+
+        <!-- Active Medications -->
+        <div class="cover-panel">
+            <div class="panel-header">💊 Active Medications</div>
+            @if (coverSheet.ActiveMedications?.Count > 0)
+            {
+                <table class="panel-table">
+                    @foreach (var m in coverSheet.ActiveMedications)
+                    {
+                        <tr>
+                            <td>@m.DrugName</td>
+                            <td class="sig">@m.Sig</td>
+                            <td class="status">@m.Status</td>
+                        </tr>
+                    }
+                </table>
+            }
+            else { <div class="panel-empty">No active medications</div> }
+        </div>
+
+        <!-- Clinical Reminders -->
+        <div class="cover-panel">
+            <div class="panel-header">⏰ Clinical Reminders</div>
+            @if (coverSheet.ClinicalReminders?.Count > 0)
+            {
+                <table class="panel-table">
+                    @foreach (var r in coverSheet.ClinicalReminders)
+                    {
+                        <tr>
+                            <td>@r.ReminderName</td>
+                            <td class="status">@r.Status</td>
+                            <td class="date">@r.DueDate?.ToString("MM/dd/yy")</td>
+                        </tr>
+                    }
+                </table>
+            }
+            else { <div class="panel-empty">No reminders due</div> }
+        </div>
+
+        <!-- Recent Labs -->
+        <div class="cover-panel">
+            <div class="panel-header">🔬 Recent Labs</div>
+            @if (coverSheet.RecentLabs?.Count > 0)
+            {
+                <table class="panel-table">
+                    @foreach (var l in coverSheet.RecentLabs)
+                    {
+                        <tr>
+                            <td>@l.TestName</td>
+                            <td class="value @(l.Flag != null ? "flagged" : "")">@l.ResultValue @l.Units</td>
+                            <td class="flag">@l.Flag</td>
+                            <td class="date">@l.CollectionDate?.ToString("MM/dd/yy")</td>
+                        </tr>
+                    }
+                </table>
+            }
+            else { <div class="panel-empty">No recent labs</div> }
+        </div>
+
+        <!-- Vitals -->
+        <div class="cover-panel">
+            <div class="panel-header">❤️ Recent Vitals</div>
+            @if (coverSheet.RecentVitals?.Count > 0)
+            {
+                <table class="panel-table">
+                    @foreach (var v in coverSheet.RecentVitals)
+                    {
+                        <tr>
+                            <td>@v.VitalType</td>
+                            <td class="value @(v.AbnormalFlag != null ? "flagged" : "")">@v.Value @v.Units</td>
+                            <td class="date">@v.DateTimeTaken.ToString("MM/dd/yy HH:mm")</td>
+                        </tr>
+                    }
+                </table>
+            }
+            else { <div class="panel-empty">No recent vitals</div> }
+        </div>
+
+        <!-- Recent Visits -->
+        <div class="cover-panel">
+            <div class="panel-header" style="display:flex;align-items:center;justify-content:space-between;">
+                <span>📅 Appointments</span>
+                <button class="btn-followup" @onclick="ToggleFollowUpForm">+ Follow-Up</button>
+            </div>
+
+            @if (showFollowUpForm)
+            {
+                <div class="followup-form">
+                    <div class="fu-row">
+                        <label>Clinic</label>
+                        @if (followUpClinics is null)
+                        {
+                            <button @onclick="LoadFollowUpClinics" class="btn btn-secondary btn-sm">Load Clinics</button>
+                        }
+                        else
+                        {
+                            <select @bind="fuClinicId" style="flex:1;padding:0.3rem;">
+                                <option value="">— select clinic —</option>
+                                @foreach (var c in followUpClinics.Where(c => c.Status == "ACTIVE"))
+                                {
+                                    <option value="@c.ClinicId">@c.Name</option>
+                                }
+                            </select>
+                        }
+                    </div>
+                    <div class="fu-row">
+                        <label>Date / Time</label>
+                        <input type="datetime-local" @bind="fuDateTime" style="flex:1;padding:0.3rem;" />
+                    </div>
+                    <div class="fu-row">
+                        <label>Duration</label>
+                        <select @bind="fuDuration" style="flex:1;padding:0.3rem;">
+                            <option value="15">15 min</option>
+                            <option value="20">20 min</option>
+                            <option value="30">30 min</option>
+                            <option value="45">45 min</option>
+                            <option value="60">60 min</option>
+                        </select>
+                    </div>
+                    <div class="fu-row">
+                        <label>Provider</label>
+                        <input @bind="fuProvider" placeholder="(optional)" style="flex:1;padding:0.3rem;" />
+                    </div>
+                    <div class="fu-row">
+                        <label>Purpose</label>
+                        <input @bind="fuPurpose" placeholder="Follow-up reason" style="flex:1;padding:0.3rem;" />
+                    </div>
+                    @if (fuError != null) { <div class="alert alert-error" style="font-size:0.8rem;padding:0.4rem 0.6rem;">@fuError</div> }
+                    @if (fuSuccess != null) { <div class="alert" style="background:#d4edda;color:#155724;font-size:0.8rem;padding:0.4rem 0.6rem;">@fuSuccess</div> }
+                    <div style="display:flex;gap:0.5rem;margin-top:0.5rem;">
+                        <button @onclick="SubmitFollowUp" disabled="@(fuLoading || string.IsNullOrWhiteSpace(fuClinicId))" class="btn btn-primary">Book</button>
+                        <button @onclick="ToggleFollowUpForm" class="btn btn-secondary">Cancel</button>
+                    </div>
+                </div>
+            }
+
+            @if (coverSheet.RecentVisits?.Count > 0)
+            {
+                <table class="panel-table">
+                    @foreach (var v in coverSheet.RecentVisits)
+                    {
+                        <tr>
+                            <td>@v.ClinicName</td>
+                            <td class="date">@v.AppointmentDateTime.ToString("MM/dd/yy HH:mm")</td>
+                            <td class="status">@v.Status</td>
+                        </tr>
+                    }
+                </table>
+            }
+            else { <div class="panel-empty">No appointments</div> }
+        </div>
+
+        <!-- Active Orders -->
+        <div class="cover-panel">
+            <div class="panel-header">📝 Active Orders</div>
+            @if (coverSheet.ActiveOrders?.Count > 0)
+            {
+                <table class="panel-table">
+                    @foreach (var o in coverSheet.ActiveOrders)
+                    {
+                        <tr>
+                            <td>@o.OrderText</td>
+                            <td class="status">@o.Status</td>
+                            <td class="date">@o.StartDate?.ToString("MM/dd/yy")</td>
+                        </tr>
+                    }
+                </table>
+            }
+            else { <div class="panel-empty">No active orders</div> }
+        </div>
+    </div>
+}
+
+@code {
+    [SupplyParameterFromQuery] public string? patientId { get; set; }
+
+    private CoverSheetState? coverSheet;
+    private bool loading;
+    private string? error;
+    private string cwadDisplay = "";
+
+    // ─── Follow-Up Booking ─────────────────────────────────────────────────
+    private bool showFollowUpForm = false;
+    private List<ClinicEntry>? followUpClinics = null;
+    private string fuClinicId = string.Empty;
+    private DateTime fuDateTime = DateTime.Now.Date.AddDays(7).AddHours(9);
+    private int fuDuration = 30;
+    private string? fuProvider;
+    private string? fuPurpose;
+    private bool fuLoading = false;
+    private string? fuError;
+    private string? fuSuccess;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (string.IsNullOrWhiteSpace(patientId) && !string.IsNullOrWhiteSpace(PatientContext.PatientId))
+            patientId = PatientContext.PatientId;
+        if (!string.IsNullOrWhiteSpace(patientId))
+            await LoadCoverSheet();
+    }
+
+    private async Task HandleKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter")
+            await LoadCoverSheet();
+    }
+
+    private async Task LoadCoverSheet()
+    {
+        if (string.IsNullOrWhiteSpace(patientId)) return;
+
+        loading = true;
+        error = null;
+        coverSheet = null;
+        cwadDisplay = "";
+        showFollowUpForm = false;
+        fuError = null;
+        fuSuccess = null;
+
+        try
+        {
+            var workflow = Grains.GetGrain<IPatientWorkflowGrain>(patientId.Trim());
+            coverSheet = await workflow.GetCoverSheetAsync();
+            PatientContext.SetPatient(patientId.Trim(), coverSheet?.Demographics?.Name);
+            if (coverSheet?.Cwad != null)
+            {
+                cwadDisplay = coverSheet.Cwad.ToString();
+            }
+        }
+        catch (Exception ex)
+        {
+            error = $"Error loading cover sheet: {ex.Message}";
+        }
+        finally
+        {
+            loading = false;
+        }
+    }
+
+    private void ToggleFollowUpForm()
+    {
+        showFollowUpForm = !showFollowUpForm;
+        fuError = null;
+        fuSuccess = null;
+        if (showFollowUpForm && followUpClinics is null)
+            _ = LoadFollowUpClinics();
+    }
+
+    private async Task LoadFollowUpClinics()
+    {
+        try
+        {
+            followUpClinics = await Grains.GetGrain<IClinicIndexGrain>("SD-CLINIC-INDEX").GetAllClinicsAsync();
+        }
+        catch (Exception ex) { fuError = $"Error loading clinics: {ex.Message}"; }
+    }
+
+    private async Task SubmitFollowUp()
+    {
+        if (string.IsNullOrWhiteSpace(patientId) || string.IsNullOrWhiteSpace(fuClinicId)) return;
+        fuLoading = true; fuError = null; fuSuccess = null;
+        try
+        {
+            ClinicEntry? clinic = followUpClinics?.FirstOrDefault(c => c.ClinicId == fuClinicId);
+            string clinicName = clinic?.Name ?? fuClinicId;
+            var workflow = Grains.GetGrain<IPatientWorkflowGrain>(patientId.Trim());
+            await workflow.ScheduleAppointmentAsync(
+                fuClinicId, clinicName, fuDateTime.ToUniversalTime(),
+                fuDuration, null,
+                string.IsNullOrWhiteSpace(fuProvider) ? null : fuProvider,
+                string.IsNullOrWhiteSpace(fuPurpose) ? null : fuPurpose,
+                "FOLLOW-UP");
+            fuSuccess = $"Follow-up booked at {clinicName} on {fuDateTime:MM/dd/yy HH:mm}.";
+            showFollowUpForm = false;
+            await LoadCoverSheet();
+        }
+        catch (InvalidOperationException ex) when (ex.Message.Contains("booked") || ex.Message.Contains("conflict"))
+        {
+            fuError = $"Conflict: {ex.Message} Use the Scheduling page to override.";
+        }
+        catch (Exception ex) { fuError = $"Error: {ex.Message}"; }
+        finally { fuLoading = false; }
+    }
+}
+
+<style>
+    .lookup-bar { display: flex; gap: 0.5rem; margin-bottom: 1rem; }
+    .lookup-input { width: 280px; padding: 0.5rem 0.75rem; border: 1px solid #ccc; border-radius: 4px; font-size: 0.9rem; }
+    .btn { padding: 0.5rem 1.25rem; border: none; border-radius: 4px; cursor: pointer; font-size: 0.85rem; }
+    .btn-primary { background: #003f72; color: white; }
+    .btn-primary:hover { background: #002a4e; }
+    .btn-primary:disabled { background: #999; cursor: not-allowed; }
+
+    .alert { padding: 0.75rem 1rem; border-radius: 4px; margin-bottom: 1rem; }
+    .alert-error { background: #fde8e8; color: #b91c1c; border: 1px solid #f5c6c6; }
+
+    .patient-banner {
+        background: #eef3f9; border: 1px solid #c5d3e3; border-radius: 6px;
+        padding: 0.75rem 1rem; margin-bottom: 1rem;
+    }
+    .banner-name { font-size: 1.2rem; font-weight: 700; color: #003f72; }
+    .banner-details { display: flex; flex-wrap: wrap; gap: 0.75rem; margin-top: 0.35rem; font-size: 0.8rem; color: #555; }
+    .badge { padding: 2px 8px; border-radius: 3px; font-size: 0.7rem; font-weight: 600; }
+    .badge-admit { background: #fef3c7; color: #92400e; }
+    .badge-sc { background: #dcfce7; color: #166534; }
+    .badge-cwad { background: #fde8e8; color: #b91c1c; letter-spacing: 2px; }
+
+    .cover-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+        gap: 0.75rem;
+    }
+    .cover-panel {
+        border: 1px solid #d4d9e0; border-radius: 6px; overflow: hidden;
+        display: flex; flex-direction: column;
+    }
+    .panel-header {
+        background: #f4f6f9; padding: 0.5rem 0.75rem; font-weight: 600;
+        font-size: 0.85rem; border-bottom: 1px solid #d4d9e0; color: #003f72;
+    }
+    .panel-table { width: 100%; border-collapse: collapse; font-size: 0.8rem; }
+    .panel-table tr { border-bottom: 1px solid #f0f0f0; }
+    .panel-table tr:last-child { border-bottom: none; }
+    .panel-table td { padding: 0.35rem 0.5rem; }
+    .panel-table .code { color: #003f72; font-family: monospace; font-size: 0.75rem; width: 70px; }
+    .panel-table .date { color: #888; font-size: 0.75rem; white-space: nowrap; text-align: right; }
+    .panel-table .status { color: #666; font-size: 0.75rem; }
+    .panel-table .flag { color: #b91c1c; font-weight: 600; font-size: 0.75rem; }
+    .panel-table .value.flagged { color: #b91c1c; font-weight: 600; }
+    .panel-table .severity { color: #92400e; font-size: 0.75rem; }
+    .panel-table .reactions { color: #666; font-size: 0.75rem; }
+    .panel-table .sig { color: #555; font-size: 0.75rem; max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .panel-empty { padding: 1rem 0.75rem; color: #999; font-size: 0.8rem; font-style: italic; }
+    .btn-followup { font-size: 0.7rem; padding: 2px 8px; background: #0066cc; color: white; border: none; border-radius: 3px; cursor: pointer; }
+    .btn-followup:hover { background: #004ea8; }
+    .btn-secondary { background: #6c757d; color: white; border: none; padding: 0.4rem 0.9rem; border-radius: 4px; cursor: pointer; font-size: 0.85rem; }
+    .followup-form { padding: 0.75rem; border-bottom: 1px solid #d4d9e0; background: #f9fbff; }
+    .fu-row { display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.4rem; font-size: 0.8rem; }
+    .fu-row label { width: 70px; font-weight: 600; flex-shrink: 0; }
+    .actions-bar { display: flex; align-items: center; gap: 0.5rem; background: #f0f4f8; border: 1px solid #c5d3e3; border-radius: 6px; padding: 0.5rem 0.75rem; margin-bottom: 0.75rem; flex-wrap: wrap; }
+    .actions-label { font-weight: 600; font-size: 0.8rem; color: #003f72; margin-right: 0.25rem; }
+    .btn-action { font-size: 0.75rem; padding: 0.3rem 0.7rem; background: #003f72; color: white; border: none; border-radius: 4px; cursor: pointer; }
+    .btn-action:hover { background: #002a4e; }
+    .btn-action-med { background: #0d6efd; }
+    .btn-action-med:hover { background: #0b5ed7; }
+    .btn-action-lab { background: #198754; }
+    .btn-action-lab:hover { background: #157347; }
+    .btn-action-consult { background: #6f42c1; }
+    .btn-action-consult:hover { background: #5a32a3; }
+</style>

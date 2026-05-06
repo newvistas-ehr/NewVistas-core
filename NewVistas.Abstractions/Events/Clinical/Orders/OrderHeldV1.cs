@@ -1,0 +1,26 @@
+// Copyright 2026 Merrimack Valley Software Works, LLC. All rights reserved.
+using Orleans;
+
+namespace NewVistas.Abstractions.Events.Clinical.Orders;
+
+/// <summary>
+/// Causal event recording placement of an order on hold — VistA ORWDXA
+/// ACTION="HOLD". Per ORDER STATUS file (#100.01) entry 3, not all packages
+/// support hold (Lab cannot, Pharmacy can).
+/// </summary>
+[GenerateSerializer, Immutable]
+public sealed record OrderHeldV1 : IClinicalEvent
+{
+    [Id(0)] public string EventId { get; init; } = string.Empty;
+    [Id(1)] public string PatientId { get; init; } = string.Empty;
+    [Id(2)] public string Domain { get; init; } = "ORDERS";
+    [Id(3)] public DateTime OccurredUtc { get; init; }
+    [Id(4)] public string? UserId { get; init; }
+    [Id(5)] public string? UserName { get; init; }
+
+    [Id(6)] public string OrderId { get; init; } = string.Empty;
+
+    public string Canonicalize() => string.Join("|",
+        nameof(OrderHeldV1),
+        OrderId);
+}

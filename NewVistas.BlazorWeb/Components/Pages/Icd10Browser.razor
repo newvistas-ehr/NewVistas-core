@@ -1,0 +1,334 @@
+@page "/icd10"
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+@rendermode InteractiveServer
+@using NewVistas.BlazorWeb.Services
+@using NewVistas.Abstractions.GrainInterfaces
+@using NewVistas.Abstractions.GrainStates
+@inject OrleansGrainService Grains
+
+<PageTitle>ICD-10 Code Browser</PageTitle>
+
+<h1>📖 ICD-10-CM Code Browser</h1>
+
+<div class="icd-toolbar">
+    <div class="search-group">
+        <input type="text" @bind="searchText" @bind:event="oninput"
+               @onkeydown="HandleKeyDown"
+               placeholder="Search by code (M54) or description (diabetes)..." class="search-input" />
+        <label class="checkbox-label">
+            <input type="checkbox" @bind="billableOnly" /> Billable only
+        </label>
+        <button @onclick="Search" disabled="@searching" class="btn btn-primary">
+            @if (searching) { <span>Searching...</span> } else { <span>Search</span> }
+        </button>
+    </div>
+
+    <div class="action-group">
+        <button @onclick="LoadCodes" disabled="@loadingCodes" class="btn btn-secondary">
+            @if (loadingCodes) { <span>Loading...</span> } else { <span>Load ICD-10 Codes</span> }
+        </button>
+        <button @onclick="CheckStatus" class="btn btn-outline">Status</button>
+    </div>
+</div>
+
+@if (!codesLoaded && !loadingCodes && loadResult == null)
+{
+    <div class="load-banner">
+        <div class="load-banner-text">
+            <strong>⚠️ ICD-10 codes have not been loaded yet.</strong>
+            <span>Click the button below to load ~97,000 ICD-10-CM codes from the CMS order file.</span>
+        </div>
+        <button @onclick="LoadCodes" class="btn btn-load">
+            📥 Load ICD-10 Codes Now
+        </button>
+    </div>
+}
+
+@if (statusMessage != null)
+{
+    <div class="alert @statusClass">@statusMessage</div>
+}
+
+@if (loadResult != null)
+{
+    <div class="alert alert-success">
+        ✅ Loaded <strong>@loadResult.TotalCodesLoaded.ToString("N0")</strong> codes
+        (@loadResult.BillableCodes.ToString("N0") billable, @loadResult.HeaderCodes.ToString("N0") headers)
+        at @loadResult.LoadedAt.ToString("HH:mm:ss")
+    </div>
+}
+
+@if (indexStatus != null)
+{
+    <div class="status-bar">
+        <span>Index: @(indexStatus.IsLoaded ? "✅ Loaded" : "❌ Not loaded")</span>
+        <span>Total: @indexStatus.TotalCodes.ToString("N0")</span>
+        <span>Billable: @indexStatus.BillableCodes.ToString("N0")</span>
+        @if (indexStatus.LastLoadedDate.HasValue)
+        {
+            <span>Last loaded: @indexStatus.LastLoadedDate.Value.ToString("g")</span>
+        }
+    </div>
+}
+
+@if (results != null)
+{
+    <div class="results-header">
+        @if (results.Count == 0)
+        {
+            <span class="no-results">No results found for "@searchText"</span>
+        }
+        else
+        {
+            <span>@results.Count result(s)</span>
+        }
+    </div>
+
+    @if (results.Count > 0)
+    {
+        <table class="icd-table">
+            <thead>
+                <tr>
+                    <th class="col-code">Code</th>
+                    <th class="col-billable">Type</th>
+                    <th class="col-short">Short Description</th>
+                    <th class="col-long">Long Description</th>
+                    <th class="col-chapter">Chapter</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var entry in results)
+                {
+                    <tr class="@(!entry.IsBillable ? "header-row" : "")">
+                        <td class="code-cell">@entry.Code</td>
+                        <td class="billable-cell">
+                            @if (entry.IsBillable)
+                            {
+                                <span class="badge-billable">Billable</span>
+                            }
+                            else
+                            {
+                                <span class="badge-header">Header</span>
+                            }
+                        </td>
+                        <td>@entry.ShortDescription</td>
+                        <td class="long-desc">@entry.LongDescription</td>
+                        <td class="chapter-cell">@entry.Chapter</td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    }
+}
+
+@code {
+    private string searchText = "";
+    private bool billableOnly;
+    private bool searching;
+    private bool loadingCodes;
+    private bool codesLoaded;
+    private List<Icd10Code>? results;
+    private LoadResultDto? loadResult;
+    private IndexStatusDto? indexStatus;
+    private string? statusMessage;
+    private string statusClass = "alert-info";
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            var grain = Grains.GetGrain<IIcd10IndexGrain>("ICD10-INDEX");
+            var status = await grain.GetStatusAsync();
+            indexStatus = new IndexStatusDto
+            {
+                IsLoaded = status.IsLoaded, LastLoadedDate = status.LastLoadedDate,
+                TotalCodes = status.TotalCodes, BillableCodes = status.BillableCodes
+            };
+            codesLoaded = status.IsLoaded && status.TotalCodes > 0;
+        }
+        catch
+        {
+            // Grain may not be available yet — banner will show
+        }
+    }
+
+    private async Task HandleKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter")
+            await Search();
+    }
+
+    private async Task Search()
+    {
+        if (string.IsNullOrWhiteSpace(searchText)) return;
+
+        searching = true;
+        statusMessage = null;
+        loadResult = null;
+        indexStatus = null;
+
+        try
+        {
+            var grain = Grains.GetGrain<IIcd10IndexGrain>("ICD10-INDEX");
+            var entries = await grain.SearchAsync(searchText.Trim(), billableOnly, 100);
+            results = entries.Select(e => new Icd10Code
+            {
+                Code = e.Code, ShortDescription = e.ShortDescription,
+                LongDescription = e.LongDescription, IsBillable = e.IsBillable,
+                IsActive = true, Chapter = e.Chapter
+            }).ToList();
+        }
+        catch (Exception ex)
+        {
+            statusMessage = $"Search error: {ex.Message}";
+            statusClass = "alert-error";
+        }
+        finally
+        {
+            searching = false;
+        }
+    }
+
+    private async Task LoadCodes()
+    {
+        loadingCodes = true;
+        statusMessage = null;
+        loadResult = null;
+
+        try
+        {
+            // Loading codes requires controller-level parsing of CMS file;
+            // not available in direct grain mode. Check status instead.
+            statusMessage = "Code loading requires the API endpoint. Use the API to load codes.";
+            statusClass = "alert-info";
+            await CheckStatus();
+        }
+        catch (Exception ex)
+        {
+            statusMessage = $"Load error: {ex.Message}";
+            statusClass = "alert-error";
+        }
+        finally
+        {
+            loadingCodes = false;
+        }
+    }
+
+    private async Task CheckStatus()
+    {
+        statusMessage = null;
+
+        try
+        {
+            var grain = Grains.GetGrain<IIcd10IndexGrain>("ICD10-INDEX");
+            var status = await grain.GetStatusAsync();
+            indexStatus = new IndexStatusDto
+            {
+                IsLoaded = status.IsLoaded, LastLoadedDate = status.LastLoadedDate,
+                TotalCodes = status.TotalCodes, BillableCodes = status.BillableCodes
+            };
+            codesLoaded = status.IsLoaded && status.TotalCodes > 0;
+        }
+        catch (Exception ex)
+        {
+            statusMessage = $"Status error: {ex.Message}";
+            statusClass = "alert-error";
+        }
+    }
+
+    private class Icd10Code
+    {
+        public string Code { get; set; } = "";
+        public string ShortDescription { get; set; } = "";
+        public string LongDescription { get; set; } = "";
+        public bool IsBillable { get; set; }
+        public bool IsActive { get; set; }
+        public string? Chapter { get; set; }
+    }
+
+    private class LoadResultDto
+    {
+        public int TotalCodesLoaded { get; set; }
+        public int BillableCodes { get; set; }
+        public int HeaderCodes { get; set; }
+        public DateTime LoadedAt { get; set; }
+    }
+
+    private class IndexStatusDto
+    {
+        public bool IsLoaded { get; set; }
+        public DateTime? LastLoadedDate { get; set; }
+        public int TotalCodes { get; set; }
+        public int BillableCodes { get; set; }
+    }
+}
+
+<style>
+    .icd-toolbar { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 0.75rem; margin-bottom: 1rem; }
+    .search-group { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; }
+    .action-group { display: flex; gap: 0.5rem; }
+    .search-input { width: 360px; padding: 0.5rem 0.75rem; border: 1px solid #ccc; border-radius: 4px; font-size: 0.9rem; }
+    .checkbox-label { font-size: 0.85rem; display: flex; align-items: center; gap: 0.3rem; cursor: pointer; }
+
+    .btn { padding: 0.5rem 1rem; border: none; border-radius: 4px; cursor: pointer; font-size: 0.85rem; }
+    .btn-primary { background: #003f72; color: white; }
+    .btn-primary:hover { background: #002a4e; }
+    .btn-primary:disabled { background: #999; cursor: not-allowed; }
+    .btn-secondary { background: #16a34a; color: white; }
+    .btn-secondary:hover { background: #15803d; }
+    .btn-secondary:disabled { background: #999; cursor: not-allowed; }
+    .btn-outline { background: white; border: 1px solid #ccc; color: #333; }
+    .btn-outline:hover { background: #f4f6f9; }
+
+    .load-banner {
+        background: #fffbeb; border: 2px solid #f59e0b; border-radius: 8px;
+        padding: 1.25rem 1.5rem; margin-bottom: 1rem;
+        display: flex; align-items: center; justify-content: space-between; gap: 1rem;
+    }
+    .load-banner-text { display: flex; flex-direction: column; gap: 0.25rem; }
+    .load-banner-text strong { font-size: 0.95rem; color: #92400e; }
+    .load-banner-text span { font-size: 0.8rem; color: #78350f; }
+    .btn-load {
+        background: #f59e0b; color: white; font-weight: 700; font-size: 0.9rem;
+        padding: 0.6rem 1.5rem; white-space: nowrap;
+    }
+    .btn-load:hover { background: #d97706; }
+
+    .alert { padding: 0.75rem 1rem; border-radius: 4px; margin-bottom: 0.75rem; font-size: 0.85rem; }
+    .alert-error { background: #fde8e8; color: #b91c1c; border: 1px solid #f5c6c6; }
+    .alert-success { background: #dcfce7; color: #166534; border: 1px solid #bbf7d0; }
+    .alert-info { background: #dbeafe; color: #1e40af; border: 1px solid #bfdbfe; }
+
+    .status-bar {
+        display: flex; gap: 1.5rem; padding: 0.5rem 0.75rem;
+        background: #f4f6f9; border-radius: 4px; margin-bottom: 0.75rem;
+        font-size: 0.8rem; color: #555;
+    }
+
+    .results-header { font-size: 0.8rem; color: #666; margin-bottom: 0.5rem; }
+    .no-results { font-style: italic; }
+
+    .icd-table {
+        width: 100%; border-collapse: collapse; font-size: 0.8rem;
+        border: 1px solid #d4d9e0; border-radius: 6px; overflow: hidden;
+    }
+    .icd-table thead { background: #f4f6f9; }
+    .icd-table th {
+        text-align: left; padding: 0.5rem 0.5rem; font-weight: 600;
+        color: #003f72; border-bottom: 2px solid #d4d9e0; font-size: 0.75rem;
+        text-transform: uppercase; letter-spacing: 0.5px;
+    }
+    .icd-table td { padding: 0.4rem 0.5rem; border-bottom: 1px solid #f0f0f0; }
+    .icd-table tr:hover { background: #f9fafb; }
+    .icd-table .header-row { background: #fefce8; }
+
+    .col-code { width: 80px; }
+    .col-billable { width: 75px; }
+    .col-chapter { width: 200px; }
+    .code-cell { font-family: monospace; font-weight: 600; color: #003f72; }
+    .long-desc { color: #555; }
+    .chapter-cell { color: #888; font-size: 0.75rem; }
+
+    .badge-billable { background: #dcfce7; color: #166534; padding: 1px 6px; border-radius: 3px; font-size: 0.7rem; font-weight: 600; }
+    .badge-header { background: #fef3c7; color: #92400e; padding: 1px 6px; border-radius: 3px; font-size: 0.7rem; font-weight: 600; }
+</style>

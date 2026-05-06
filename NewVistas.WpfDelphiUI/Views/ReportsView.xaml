@@ -1,0 +1,155 @@
+<UserControl x:Class="NewVistas.WpfDelphiUI.Views.ReportsView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="clr-namespace:NewVistas.WpfDelphiUI.ViewModels"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             mc:Ignorable="d"
+             d:DataContext="{d:DesignInstance vm:ReportsViewModel}"
+             Background="White">
+
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="*"/>     <!-- Radiology -->
+            <RowDefinition Height="4"/>     <!-- Splitter -->
+            <RowDefinition Height="*"/>     <!-- GPRA -->
+        </Grid.RowDefinitions>
+
+        <!-- ════════════════════════════════════════════════════════════ -->
+        <!--  RADIOLOGY (per-patient)                                     -->
+        <!-- ════════════════════════════════════════════════════════════ -->
+        <DockPanel Grid.Row="0">
+            <Border DockPanel.Dock="Top" Style="{StaticResource CprsPanelHeader}">
+                <TextBlock Text="Radiology Reports" Style="{StaticResource CprsPanelHeaderText}"/>
+            </Border>
+            <TextBlock DockPanel.Dock="Top" Text="{Binding ErrorText}"
+                       Style="{StaticResource ErrorText}"
+                       Visibility="{Binding ErrorText, Converter={StaticResource NullToVis}}"/>
+            <ListView ItemsSource="{Binding Reports}" BorderThickness="0">
+                <ListView.View>
+                    <GridView>
+                        <GridViewColumn Header="Procedure"    Width="240"
+                                        DisplayMemberBinding="{Binding Procedure}"/>
+                        <GridViewColumn Header="Report Date"  Width="120"
+                                        DisplayMemberBinding="{Binding ReportDate}"/>
+                        <GridViewColumn Header="Status"       Width="90"
+                                        DisplayMemberBinding="{Binding Status}"/>
+                        <GridViewColumn Header="Impression"   Width="320"
+                                        DisplayMemberBinding="{Binding Impression}"/>
+                    </GridView>
+                </ListView.View>
+            </ListView>
+        </DockPanel>
+
+        <GridSplitter Grid.Row="1" Height="4" HorizontalAlignment="Stretch"
+                      Background="{StaticResource ControlBrush}"/>
+
+        <!-- ════════════════════════════════════════════════════════════ -->
+        <!--  GPRA (facility-wide population health)                      -->
+        <!-- ════════════════════════════════════════════════════════════ -->
+        <Grid Grid.Row="2">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="4"/>
+                <ColumnDefinition Width="2*"/>
+            </Grid.ColumnDefinitions>
+
+            <!-- LEFT: report list -->
+            <DockPanel Grid.Column="0">
+                <Border DockPanel.Dock="Top" Style="{StaticResource CprsPanelHeader}">
+                    <TextBlock Text="GPRA Reports (facility)" Style="{StaticResource CprsPanelHeaderText}"/>
+                </Border>
+                <ListView ItemsSource="{Binding GpraReports}" SelectedItem="{Binding SelectedGpraReport}"
+                          BorderThickness="0">
+                    <ListView.View>
+                        <GridView>
+                            <GridViewColumn Header="FY" Width="50"
+                                            DisplayMemberBinding="{Binding FiscalYear}"/>
+                            <GridViewColumn Header="Period" Width="60">
+                                <GridViewColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <TextBlock Text="{Binding ReportingPeriod, Converter={StaticResource ReportingPeriodLabelConverter}}"/>
+                                    </DataTemplate>
+                                </GridViewColumn.CellTemplate>
+                            </GridViewColumn>
+                            <GridViewColumn Header="Facility" Width="160"
+                                            DisplayMemberBinding="{Binding FacilityName}"/>
+                            <GridViewColumn Header="Status" Width="80">
+                                <GridViewColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <TextBlock Text="{Binding Status, Converter={StaticResource GpraStatusLabelConverter}}"/>
+                                    </DataTemplate>
+                                </GridViewColumn.CellTemplate>
+                            </GridViewColumn>
+                            <GridViewColumn Header="Indicators" Width="70"
+                                            DisplayMemberBinding="{Binding IndicatorCount}"/>
+                        </GridView>
+                    </ListView.View>
+                </ListView>
+            </DockPanel>
+
+            <GridSplitter Grid.Column="1" Width="4" HorizontalAlignment="Stretch"
+                          Background="{StaticResource ControlBrush}"/>
+
+            <!-- RIGHT: indicator drilldown for the selected report -->
+            <DockPanel Grid.Column="2">
+                <Border DockPanel.Dock="Top" Style="{StaticResource CprsPanelHeader}">
+                    <TextBlock Text="{Binding SelectedGpraReportHeader}" Style="{StaticResource CprsPanelHeaderText}"/>
+                </Border>
+                <ListView ItemsSource="{Binding GpraIndicators}" BorderThickness="0">
+                    <ListView.View>
+                        <GridView>
+                            <GridViewColumn Header="Measure" Width="100"
+                                            DisplayMemberBinding="{Binding MeasureId}"/>
+                            <GridViewColumn Header="Title" Width="200"
+                                            DisplayMemberBinding="{Binding Title}"/>
+                            <GridViewColumn Header="Category" Width="110">
+                                <GridViewColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <TextBlock Text="{Binding Category, Converter={StaticResource GpraCategoryLabelConverter}}"/>
+                                    </DataTemplate>
+                                </GridViewColumn.CellTemplate>
+                            </GridViewColumn>
+                            <GridViewColumn Header="Current %" Width="80">
+                                <GridViewColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <TextBlock Text="{Binding CurrentPerformanceRate, StringFormat={}{0:0.0}%}"/>
+                                    </DataTemplate>
+                                </GridViewColumn.CellTemplate>
+                            </GridViewColumn>
+                            <GridViewColumn Header="Baseline %" Width="80">
+                                <GridViewColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <TextBlock Text="{Binding BaselinePerformanceRate, StringFormat={}{0:0.0}%}"/>
+                                    </DataTemplate>
+                                </GridViewColumn.CellTemplate>
+                            </GridViewColumn>
+                            <GridViewColumn Header="Δ (pp)" Width="70">
+                                <GridViewColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <TextBlock Text="{Binding PercentagePointChange, StringFormat={}{0:+0.0;-0.0;0.0}}">
+                                            <TextBlock.Style>
+                                                <Style TargetType="TextBlock">
+                                                    <Style.Triggers>
+                                                        <DataTrigger Binding="{Binding IsImproved}" Value="True">
+                                                            <Setter Property="Foreground" Value="#0A6B0A"/>
+                                                        </DataTrigger>
+                                                        <DataTrigger Binding="{Binding IsImproved}" Value="False">
+                                                            <Setter Property="Foreground" Value="#CC0000"/>
+                                                        </DataTrigger>
+                                                    </Style.Triggers>
+                                                </Style>
+                                            </TextBlock.Style>
+                                        </TextBlock>
+                                    </DataTemplate>
+                                </GridViewColumn.CellTemplate>
+                            </GridViewColumn>
+                            <GridViewColumn Header="Target Met" Width="80"
+                                            DisplayMemberBinding="{Binding TargetMet}"/>
+                        </GridView>
+                    </ListView.View>
+                </ListView>
+            </DockPanel>
+        </Grid>
+    </Grid>
+</UserControl>

@@ -1,0 +1,341 @@
+@* Copyright 2026 James Smyth. All rights reserved. *@
+@page "/direct"
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+@rendermode InteractiveServer
+@using NewVistas.BlazorWeb.Services
+@using NewVistas.Abstractions.GrainInterfaces
+@using NewVistas.Abstractions.GrainStates
+@inject OrleansGrainService Grains
+
+<PageTitle>Direct Messaging</PageTitle>
+<h1>Direct Project Secure Messaging</h1>
+
+@if (error != null) { <div class="alert alert-error">@error</div> }
+@if (success != null) { <div class="alert alert-success">@success</div> }
+
+<div class="tab-bar">
+    <button class="tab-btn @(activeTab == 0 ? "active" : "")" @onclick="() => activeTab = 0">Addresses</button>
+    <button class="tab-btn @(activeTab == 1 ? "active" : "")" @onclick="() => activeTab = 1">Messages</button>
+    <button class="tab-btn @(activeTab == 2 ? "active" : "")" @onclick="() => activeTab = 2">Compose</button>
+</div>
+
+@* ── Addresses Tab ── *@
+@if (activeTab == 0)
+{
+    <div class="form-actions">
+        <button @onclick="LoadAllAddresses" disabled="@loadingAddresses" class="btn btn-primary">
+            @if (loadingAddresses) { <span>Loading...</span> } else { <span>Load All Addresses</span> }
+        </button>
+        <button @onclick="LoadActiveAddresses" disabled="@loadingAddresses" class="btn btn-secondary">Active Only</button>
+    </div>
+
+    @if (addresses != null && addresses.Count > 0)
+    {
+        <table class="data-table">
+            <thead><tr><th>Direct Address</th><th>Display Name</th><th>Owner Type</th><th>Organization</th><th>Active</th><th>Cert Expiry</th></tr></thead>
+            <tbody>
+                @foreach (var a in addresses)
+                {
+                    <tr>
+                        <td class="code">@a.DirectAddress</td>
+                        <td>@a.DisplayName</td>
+                        <td>@a.OwnerType</td>
+                        <td>@(a.OrganizationName ?? "---")</td>
+                        <td>@(a.IsActive ? "Yes" : "No")</td>
+                        <td>@(a.CertificateExpiration?.ToString("MM/dd/yyyy") ?? "---")</td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    }
+    else if (addresses != null) { <div class="empty-state">No Direct addresses registered.</div> }
+
+    <div class="form-section" style="margin-top: 2rem;">
+        <h3>Register New Address</h3>
+        <div class="form-row">
+            <label>Direct Address</label>
+            <input type="text" class="form-input" @bind="newAddress" placeholder="provider@direct.hospital.org" />
+        </div>
+        <div class="form-row">
+            <label>Display Name</label>
+            <input type="text" class="form-input" @bind="newDisplayName" placeholder="Dr. Jane Smith" />
+        </div>
+        <div class="form-row">
+            <label>Owner Type</label>
+            <select class="form-input" @bind="newOwnerType">
+                <option value="provider">Provider</option>
+                <option value="organization">Organization</option>
+            </select>
+        </div>
+        <div class="form-row">
+            <label>Organization</label>
+            <input type="text" class="form-input" @bind="newOrgName" placeholder="VA Medical Center" />
+        </div>
+        <div class="form-actions">
+            <button @onclick="RegisterAddress" disabled="@(string.IsNullOrWhiteSpace(newAddress) || string.IsNullOrWhiteSpace(newDisplayName) || savingAddress)" class="btn btn-primary">
+                @if (savingAddress) { <span>Saving...</span> } else { <span>Register Address</span> }
+            </button>
+        </div>
+    </div>
+}
+
+@* ── Messages Tab ── *@
+@if (activeTab == 1)
+{
+    <div class="form-actions">
+        <button @onclick="LoadAllMessages" disabled="@loadingMessages" class="btn btn-primary">All Messages</button>
+        <button @onclick="LoadInbox" disabled="@loadingMessages" class="btn btn-secondary">Inbox</button>
+        <button @onclick="LoadOutbox" disabled="@loadingMessages" class="btn btn-secondary">Outbox</button>
+        <button @onclick="LoadPending" disabled="@loadingMessages" class="btn btn-secondary">Pending</button>
+    </div>
+
+    <div class="form-section">
+        <div class="form-row">
+            <label>Filter by Patient</label>
+            <input type="text" class="form-input" @bind="msgFilterPatientId" @bind:event="oninput" placeholder="Patient ID" />
+            <button @onclick="LoadPatientMessages" disabled="@(string.IsNullOrWhiteSpace(msgFilterPatientId) || loadingMessages)" class="btn btn-primary">Filter</button>
+        </div>
+    </div>
+
+    @if (messages != null && messages.Count > 0)
+    {
+        <table class="data-table">
+            <thead><tr><th>Direction</th><th>From</th><th>To</th><th>Subject</th><th>Doc Type</th><th>Status</th><th>MDN</th><th>Date</th></tr></thead>
+            <tbody>
+                @foreach (var m in messages)
+                {
+                    <tr>
+                        <td><span class="dir-badge dir-@m.Direction">@m.Direction</span></td>
+                        <td class="code addr-cell">@m.FromAddress</td>
+                        <td class="code addr-cell">@m.ToAddress</td>
+                        <td>@m.Subject</td>
+                        <td>@m.DocumentType</td>
+                        <td><span class="status-badge status-@m.Status">@m.Status</span></td>
+                        <td>@m.MdnStatus</td>
+                        <td>@m.CreatedDate.ToString("MM/dd HH:mm")</td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    }
+    else if (messages != null) { <div class="empty-state">No messages found.</div> }
+}
+
+@* ── Compose Tab ── *@
+@if (activeTab == 2)
+{
+    <div class="form-section">
+        <h3>Send Direct Message with C-CDA</h3>
+        <div class="form-row">
+            <label>From Address</label>
+            <input type="text" class="form-input" @bind="sendFrom" placeholder="sender@direct.hospital.org" />
+        </div>
+        <div class="form-row">
+            <label>To Address</label>
+            <input type="text" class="form-input" @bind="sendTo" placeholder="recipient@direct.partner.org" />
+        </div>
+        <div class="form-row">
+            <label>Subject</label>
+            <input type="text" class="form-input" @bind="sendSubject" placeholder="Referral Summary" />
+        </div>
+        <div class="form-row">
+            <label>Patient ID</label>
+            <input type="text" class="form-input" @bind="sendPatientId" placeholder="Patient ID for C-CDA generation" />
+        </div>
+        <div class="form-row">
+            <label>Document Type</label>
+            <select class="form-input" @bind="sendDocType">
+                <option value="CCD">CCD (Continuity of Care)</option>
+                <option value="REFERRAL">Referral Note</option>
+                <option value="DISCHARGE">Discharge Summary</option>
+            </select>
+        </div>
+        <div class="form-actions">
+            <button @onclick="SendMessage" disabled="@(string.IsNullOrWhiteSpace(sendFrom) || string.IsNullOrWhiteSpace(sendTo) || string.IsNullOrWhiteSpace(sendPatientId) || sending)" class="btn btn-primary">
+                @if (sending) { <span>Sending...</span> } else { <span>Send Message</span> }
+            </button>
+        </div>
+    </div>
+}
+
+@code {
+    private int activeTab;
+    private string? error, success;
+
+    // Addresses
+    private bool loadingAddresses, savingAddress;
+    private List<DirectAddressSummary>? addresses;
+    private string newAddress = string.Empty, newDisplayName = string.Empty, newOwnerType = "provider", newOrgName = string.Empty;
+
+    // Messages
+    private bool loadingMessages;
+    private List<DirectMessageSummary>? messages;
+    private string? msgFilterPatientId;
+
+    // Compose
+    private string sendFrom = string.Empty, sendTo = string.Empty, sendSubject = string.Empty;
+    private string sendPatientId = string.Empty, sendDocType = "CCD";
+    private bool sending;
+
+    private IDirectAddressIndexGrain GetAddrIndex() => Grains.GetGrain<IDirectAddressIndexGrain>("DIRECT-ADDR-INDEX");
+    private IDirectMessageIndexGrain GetMsgIndex() => Grains.GetGrain<IDirectMessageIndexGrain>("DIRECT-MSG-INDEX");
+
+    // Address methods
+    private async Task LoadAllAddresses()
+    {
+        loadingAddresses = true; error = null;
+        try { addresses = await GetAddrIndex().GetAllAddressesAsync(); }
+        catch (Exception ex) { error = ex.Message; }
+        finally { loadingAddresses = false; }
+    }
+
+    private async Task LoadActiveAddresses()
+    {
+        loadingAddresses = true; error = null;
+        try { addresses = await GetAddrIndex().GetActiveAddressesAsync(); }
+        catch (Exception ex) { error = ex.Message; }
+        finally { loadingAddresses = false; }
+    }
+
+    private async Task RegisterAddress()
+    {
+        if (string.IsNullOrWhiteSpace(newAddress) || string.IsNullOrWhiteSpace(newDisplayName)) return;
+        savingAddress = true; error = null; success = null;
+        try
+        {
+            var state = new DirectAddressState
+            {
+                DirectAddress = newAddress.Trim(),
+                DisplayName = newDisplayName.Trim(),
+                OwnerType = newOwnerType,
+                OrganizationName = string.IsNullOrWhiteSpace(newOrgName) ? null : newOrgName.Trim(),
+                IsActive = true
+            };
+            var grain = Grains.GetGrain<IDirectAddressGrain>($"DIRECT-ADDR:{state.DirectAddress}");
+            await grain.SaveAddressAsync(state);
+            await GetAddrIndex().AddAddressAsync(new DirectAddressSummary
+            {
+                DirectAddress = state.DirectAddress,
+                DisplayName = state.DisplayName,
+                OwnerType = state.OwnerType,
+                IsActive = true,
+                OrganizationName = state.OrganizationName
+            });
+            success = $"Address {state.DirectAddress} registered.";
+            newAddress = string.Empty; newDisplayName = string.Empty; newOrgName = string.Empty;
+            await LoadAllAddresses();
+        }
+        catch (Exception ex) { error = ex.Message; }
+        finally { savingAddress = false; }
+    }
+
+    // Message methods
+    private async Task LoadAllMessages()
+    {
+        loadingMessages = true; error = null;
+        try { messages = await GetMsgIndex().GetAllMessagesAsync(); }
+        catch (Exception ex) { error = ex.Message; }
+        finally { loadingMessages = false; }
+    }
+
+    private async Task LoadInbox()
+    {
+        loadingMessages = true; error = null;
+        try { messages = await GetMsgIndex().GetInboundMessagesAsync(); }
+        catch (Exception ex) { error = ex.Message; }
+        finally { loadingMessages = false; }
+    }
+
+    private async Task LoadOutbox()
+    {
+        loadingMessages = true; error = null;
+        try { messages = await GetMsgIndex().GetOutboundMessagesAsync(); }
+        catch (Exception ex) { error = ex.Message; }
+        finally { loadingMessages = false; }
+    }
+
+    private async Task LoadPending()
+    {
+        loadingMessages = true; error = null;
+        try { messages = await GetMsgIndex().GetPendingDeliveryAsync(); }
+        catch (Exception ex) { error = ex.Message; }
+        finally { loadingMessages = false; }
+    }
+
+    private async Task LoadPatientMessages()
+    {
+        if (string.IsNullOrWhiteSpace(msgFilterPatientId)) return;
+        loadingMessages = true; error = null;
+        try { messages = await GetMsgIndex().GetMessagesByPatientAsync(msgFilterPatientId.Trim()); }
+        catch (Exception ex) { error = ex.Message; }
+        finally { loadingMessages = false; }
+    }
+
+    // Send
+    private async Task SendMessage()
+    {
+        if (string.IsNullOrWhiteSpace(sendFrom) || string.IsNullOrWhiteSpace(sendTo) || string.IsNullOrWhiteSpace(sendPatientId)) return;
+        sending = true; error = null; success = null;
+        try
+        {
+            // Generate C-CDA
+            var gen = Grains.GetGrain<IDirectCcdaGeneratorGrain>($"DIRECT-CCDA-GEN:{sendPatientId.Trim()}");
+            string ccda = await gen.GenerateCcdAsync(sendDocType);
+
+            // Get patient name
+            var workflow = Grains.GetGrain<IPatientWorkflowGrain>(sendPatientId.Trim());
+            PatientState patient = await workflow.GetPatientAsync();
+
+            // Create message grain
+            string messageId = $"DIRECT-MSG:{Guid.NewGuid():N}";
+            var msgGrain = Grains.GetGrain<IDirectMessageGrain>(messageId);
+            await msgGrain.CreateMessageAsync("outbound", sendFrom.Trim(), sendTo.Trim(),
+                sendSubject, sendPatientId.Trim(), patient.Name, sendDocType, ccda, null);
+            await msgGrain.MarkSentAsync(true, true, null, null);
+
+            // Update index
+            await GetMsgIndex().AddMessageAsync(new DirectMessageSummary
+            {
+                MessageId = messageId, Direction = "outbound",
+                FromAddress = sendFrom.Trim(), ToAddress = sendTo.Trim(),
+                Subject = sendSubject, PatientId = sendPatientId.Trim(),
+                DocumentType = sendDocType, Status = "sent",
+                CreatedDate = DateTime.UtcNow, MdnStatus = "none"
+            });
+
+            success = $"Message sent: {messageId}";
+            sendSubject = string.Empty;
+        }
+        catch (Exception ex) { error = ex.Message; }
+        finally { sending = false; }
+    }
+}
+
+<style>
+    h1 { color: #ddd; }
+    .btn { padding: 0.5rem 1.25rem; border: none; border-radius: 4px; cursor: pointer; font-size: 0.85rem; }
+    .btn-primary { background: #003f72; color: white; } .btn-primary:disabled { background: #555; cursor: not-allowed; }
+    .btn-secondary { background: #374151; color: #ddd; border: 1px solid #555; }
+    .alert { padding: 0.75rem 1rem; border-radius: 4px; margin-bottom: 1rem; }
+    .alert-error { background: #451a1a; color: #fca5a5; border: 1px solid #7f1d1d; }
+    .alert-success { background: #14332a; color: #6ee7b7; border: 1px solid #065f46; }
+    .empty-state { color: #888; font-style: italic; padding: 2rem 0; }
+    .tab-bar { display: flex; gap: 0; border-bottom: 2px solid #444; margin-bottom: 1.5rem; }
+    .tab-btn { padding: 0.6rem 1.25rem; border: none; background: transparent; cursor: pointer; font-size: 0.85rem; font-weight: 500; color: #999; border-bottom: 2px solid transparent; margin-bottom: -2px; }
+    .tab-btn.active { color: #60a5fa; border-bottom-color: #60a5fa; font-weight: 600; }
+    .form-section { max-width: 700px; } .form-section h3 { color: #ddd; }
+    .form-row { display: flex; align-items: center; gap: 1rem; margin-bottom: 0.75rem; }
+    .form-row label:first-child { width: 160px; font-size: 0.85rem; font-weight: 500; color: #ccc; flex-shrink: 0; }
+    .form-input { flex: 1; padding: 0.4rem 0.6rem; border: 1px solid #555; border-radius: 4px; font-size: 0.85rem; max-width: 350px; background: #2d2d2d; color: #ddd; }
+    select.form-input { appearance: auto; }
+    .form-actions { display: flex; gap: 0.75rem; margin-top: 1rem; margin-bottom: 1.5rem; }
+    .data-table { width: 100%; border-collapse: collapse; font-size: 0.85rem; color: #ddd; }
+    .data-table th { text-align: left; padding: 0.5rem; font-weight: 600; color: #60a5fa; border-bottom: 2px solid #444; font-size: 0.75rem; text-transform: uppercase; background: #252525; }
+    .data-table td { padding: 0.4rem 0.5rem; border-bottom: 1px solid #333; } .data-table tr:hover { background: #2a2a2a; }
+    .code { font-family: monospace; color: #60a5fa; } .addr-cell { font-size: 0.8rem; }
+    .dir-badge { display: inline-block; padding: 0.15rem 0.5rem; border-radius: 3px; font-size: 0.75rem; font-weight: 600; text-transform: uppercase; }
+    .dir-badge.dir-outbound { background: #1e3a5f; color: #93c5fd; } .dir-badge.dir-inbound { background: #14332a; color: #6ee7b7; }
+    .status-badge { display: inline-block; padding: 0.15rem 0.5rem; border-radius: 3px; font-size: 0.75rem; font-weight: 600; }
+    .status-badge.status-sent { background: #14332a; color: #6ee7b7; } .status-badge.status-received { background: #1e3a5f; color: #93c5fd; }
+    .status-badge.status-failed { background: #451a1a; color: #fca5a5; } .status-badge.status-draft { background: #374151; color: #ccc; }
+</style>

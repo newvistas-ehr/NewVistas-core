@@ -1,0 +1,379 @@
+@* Copyright 2026 James Smyth. All rights reserved. *@
+@page "/patient-recall"
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+@rendermode InteractiveServer
+@using NewVistas.BlazorWeb.Services
+@using NewVistas.Abstractions.GrainInterfaces
+@using NewVistas.Abstractions.GrainStates
+@inject OrleansGrainService Grains
+
+<PageTitle>Patient Recall</PageTitle>
+
+<h1>Patient Recall — Automated Recall Letters</h1>
+
+@if (loading)
+{
+    <div class="empty-state">Loading feature status...</div>
+}
+else if (featureChecked && !featureEnabled)
+{
+    <div class="alert alert-warning">
+        The <strong>PATIENT_RECALL</strong> feature is not enabled for this site.
+        Please enable it in <a href="/site-parameters">Site Parameters</a> before managing recalls.
+    </div>
+}
+
+@if (error != null) { <div class="alert alert-error">@error</div> }
+
+@if (!loading)
+{
+    <div class="tab-bar">
+        <button class="tab-btn @(activeTab == 0 ? "active" : "")" @onclick="() => activeTab = 0">Patient Recalls</button>
+        <button class="tab-btn @(activeTab == 1 ? "active" : "")" @onclick="() => activeTab = 1">Overdue</button>
+        <button class="tab-btn @(activeTab == 2 ? "active" : "")" @onclick="() => activeTab = 2">Dashboard</button>
+    </div>
+
+    @* Tab 0: Patient Recalls *@
+    @if (activeTab == 0)
+    {
+        <div class="form-section">
+            <div class="form-row">
+                <label>Patient ID</label>
+                <input type="text" class="form-input" @bind="patientId" @bind:event="oninput" placeholder="Enter patient ID" />
+                <button @onclick="LoadPatientRecalls" disabled="@(string.IsNullOrWhiteSpace(patientId) || loadingEntries)" class="btn btn-primary">
+                    @if (loadingEntries) { <span>Loading...</span> } else { <span>Load</span> }
+                </button>
+            </div>
+        </div>
+
+        @if (patientEntries != null)
+        {
+            <div class="section-header">
+                <h3>Recalls (@patientEntries.Count)</h3>
+                <button class="btn btn-secondary" @onclick="() => showNewForm = !showNewForm">
+                    @(showNewForm ? "Cancel" : "New Recall")
+                </button>
+            </div>
+
+            @if (showNewForm)
+            {
+                <div class="new-form">
+                    <h4>Create New Recall</h4>
+                    <div class="form-row"><label>Clinic ID</label><input type="text" class="form-input" @bind="newClinicId" placeholder="Clinic ID" /></div>
+                    <div class="form-row"><label>Clinic Name</label><input type="text" class="form-input" @bind="newClinicName" placeholder="Clinic name" /></div>
+                    <div class="form-row"><label>Recall Type</label>
+                        <select class="form-input" @bind="newRecallType">
+                            <option value="FOLLOW-UP">FOLLOW-UP</option>
+                            <option value="ANNUAL_EXAM">ANNUAL_EXAM</option>
+                            <option value="LAB_RECHECK">LAB_RECHECK</option>
+                            <option value="CHRONIC_CARE">CHRONIC_CARE</option>
+                            <option value="IMMUNIZATION">IMMUNIZATION</option>
+                            <option value="SCREENING">SCREENING</option>
+                            <option value="PROCEDURE">PROCEDURE</option>
+                        </select>
+                    </div>
+                    <div class="form-row"><label>Recall Date</label><input type="date" class="form-input" @bind="newRecallDate" /></div>
+                    <div class="form-row"><label>Provider Name</label><input type="text" class="form-input" @bind="newProviderName" placeholder="Provider (optional)" /></div>
+                    <div class="form-row"><label>Diagnosis</label><input type="text" class="form-input" @bind="newDiagnosis" placeholder="Diagnosis (optional)" /></div>
+                    <div class="form-row"><label>Instructions</label><input type="text" class="form-input" @bind="newInstructions" placeholder="Special instructions" /></div>
+                    <div class="form-actions">
+                        <button @onclick="CreateRecall" disabled="@(string.IsNullOrWhiteSpace(newClinicId) || creating)" class="btn btn-primary">
+                            @if (creating) { <span>Creating...</span> } else { <span>Create Recall</span> }
+                        </button>
+                    </div>
+                </div>
+            }
+
+            @if (patientEntries.Count > 0)
+            {
+                <table class="data-table">
+                    <thead><tr><th>Clinic</th><th>Type</th><th>Recall Date</th><th>Status</th><th>Provider</th><th>Letters</th><th>Contacts</th></tr></thead>
+                    <tbody>
+                        @foreach (var e in patientEntries)
+                        {
+                            <tr>
+                                <td>@e.ClinicName</td>
+                                <td class="code">@e.RecallType</td>
+                                <td>@e.RecallDate.ToString("MM/dd/yyyy")</td>
+                                <td><span class="status-badge" style="@GetStatusStyle(e.Status)">@e.Status</span></td>
+                                <td>@(e.ProviderName ?? "---")</td>
+                                <td>@e.LetterCount</td>
+                                <td>@e.ContactAttemptCount</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            }
+            else { <div class="empty-state">No recall entries for this patient.</div> }
+        }
+    }
+
+    @* Tab 1: Overdue *@
+    @if (activeTab == 1)
+    {
+        <div class="form-actions">
+            <button @onclick="LoadOverdue" disabled="@loadingOverdue" class="btn btn-primary">
+                @if (loadingOverdue) { <span>Loading...</span> } else { <span>Load Overdue Recalls</span> }
+            </button>
+        </div>
+
+        @if (overdueEntries != null)
+        {
+            @if (overdueEntries.Count > 0)
+            {
+                <table class="data-table">
+                    <thead><tr><th>Patient</th><th>Clinic</th><th>Type</th><th>Recall Date</th><th>Provider</th><th>Letters</th><th>Contacts</th></tr></thead>
+                    <tbody>
+                        @foreach (var e in overdueEntries)
+                        {
+                            <tr>
+                                <td>@e.PatientName <span class="patient-id-small">(@e.PatientId)</span></td>
+                                <td>@e.ClinicName</td>
+                                <td class="code">@e.RecallType</td>
+                                <td>@e.RecallDate.ToString("MM/dd/yyyy")</td>
+                                <td>@(e.ProviderName ?? "---")</td>
+                                <td>@e.LetterCount</td>
+                                <td>@e.ContactAttemptCount</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            }
+            else { <div class="empty-state">No overdue recalls found.</div> }
+        }
+    }
+
+    @* Tab 2: Dashboard *@
+    @if (activeTab == 2)
+    {
+        <div class="form-section">
+            <div class="form-row"><label>Clinic ID</label><input type="text" class="form-input" @bind="dashClinicId" placeholder="Filter by clinic" /></div>
+            <div class="form-row"><label>Status</label>
+                <select class="form-input" @bind="dashStatus">
+                    <option value="">All Statuses</option>
+                    <option value="PENDING">PENDING</option>
+                    <option value="LETTER_SENT">LETTER_SENT</option>
+                    <option value="CONTACTED">CONTACTED</option>
+                    <option value="APPOINTMENT_SCHEDULED">APPOINTMENT_SCHEDULED</option>
+                    <option value="COMPLETED">COMPLETED</option>
+                    <option value="CANCELLED">CANCELLED</option>
+                    <option value="OVERDUE">OVERDUE</option>
+                </select>
+            </div>
+            <div class="form-row"><label>Recall Type</label>
+                <select class="form-input" @bind="dashRecallType">
+                    <option value="">All Types</option>
+                    <option value="FOLLOW-UP">FOLLOW-UP</option>
+                    <option value="ANNUAL_EXAM">ANNUAL_EXAM</option>
+                    <option value="LAB_RECHECK">LAB_RECHECK</option>
+                    <option value="CHRONIC_CARE">CHRONIC_CARE</option>
+                    <option value="IMMUNIZATION">IMMUNIZATION</option>
+                    <option value="SCREENING">SCREENING</option>
+                    <option value="PROCEDURE">PROCEDURE</option>
+                </select>
+            </div>
+            <div class="form-actions">
+                <button @onclick="SearchDashboard" disabled="@loadingDashboard" class="btn btn-primary">
+                    @if (loadingDashboard) { <span>Searching...</span> } else { <span>Search</span> }
+                </button>
+            </div>
+        </div>
+
+        @if (dashboardResults != null)
+        {
+            @if (dashboardResults.Count > 0)
+            {
+                <table class="data-table">
+                    <thead><tr><th>Patient</th><th>Clinic</th><th>Type</th><th>Recall Date</th><th>Status</th><th>Provider</th><th>Letters</th><th>Contacts</th></tr></thead>
+                    <tbody>
+                        @foreach (var e in dashboardResults)
+                        {
+                            <tr>
+                                <td>@e.PatientName <span class="patient-id-small">(@e.PatientId)</span></td>
+                                <td>@e.ClinicName</td>
+                                <td class="code">@e.RecallType</td>
+                                <td>@e.RecallDate.ToString("MM/dd/yyyy")</td>
+                                <td><span class="status-badge" style="@GetStatusStyle(e.Status)">@e.Status</span></td>
+                                <td>@(e.ProviderName ?? "---")</td>
+                                <td>@e.LetterCount</td>
+                                <td>@e.ContactAttemptCount</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            }
+            else { <div class="empty-state">No entries match the search criteria.</div> }
+        }
+    }
+}
+
+@code {
+    private int activeTab;
+    private bool loading = true;
+    private bool featureEnabled;
+    private bool featureChecked;
+    private string? error;
+
+    // Tab 0
+    private string? patientId;
+    private bool loadingEntries;
+    private List<RecallDto>? patientEntries;
+    private bool showNewForm;
+    private bool creating;
+    private string newClinicId = "", newClinicName = "", newRecallType = "FOLLOW-UP";
+    private DateTime newRecallDate = DateTime.Today.AddMonths(3);
+    private string newProviderName = "", newDiagnosis = "", newInstructions = "";
+
+    // Tab 1
+    private bool loadingOverdue;
+    private List<RecallDto>? overdueEntries;
+
+    // Tab 2
+    private string dashClinicId = "", dashStatus = "", dashRecallType = "";
+    private bool loadingDashboard;
+    private List<RecallDto>? dashboardResults;
+
+    protected override async Task OnInitializedAsync()
+    {
+        loading = true; error = null;
+        try
+        {
+            var siteGrain = Grains.GetGrain<ISiteParametersGrain>("SITE:DEFAULT");
+            featureEnabled = await siteGrain.IsFeatureEnabledAsync("PATIENT_RECALL");
+        }
+        catch (Exception ex) { error = $"Error checking feature: {ex.Message}"; featureEnabled = false; }
+        finally { loading = false; featureChecked = true; }
+    }
+
+    private async Task LoadPatientRecalls()
+    {
+        if (string.IsNullOrWhiteSpace(patientId)) return;
+        loadingEntries = true; error = null;
+        try
+        {
+            var idx = Grains.GetGrain<IPatientRecallIndexGrain>("SD-RECALL-IDX");
+            patientEntries = (await idx.GetByPatientAsync(patientId.Trim())).Select(MapToDto).ToList();
+        }
+        catch (Exception ex) { error = ex.Message; }
+        finally { loadingEntries = false; }
+    }
+
+    private async Task CreateRecall()
+    {
+        if (string.IsNullOrWhiteSpace(patientId) || string.IsNullOrWhiteSpace(newClinicId)) return;
+        creating = true; error = null;
+        try
+        {
+            var id = $"SD-RECALL:{Guid.NewGuid()}";
+            var grain = Grains.GetGrain<IPatientRecallGrain>(id);
+            await grain.CreateEntryAsync(patientId.Trim(), patientId.Trim(), newClinicId, newClinicName,
+                newRecallType, newRecallDate, null,
+                string.IsNullOrWhiteSpace(newProviderName) ? null : newProviderName,
+                string.IsNullOrWhiteSpace(newDiagnosis) ? null : newDiagnosis,
+                string.IsNullOrWhiteSpace(newInstructions) ? null : newInstructions,
+                "SYSTEM", "System User");
+            showNewForm = false;
+            newClinicId = ""; newClinicName = ""; newRecallType = "FOLLOW-UP";
+            newRecallDate = DateTime.Today.AddMonths(3); newProviderName = ""; newDiagnosis = ""; newInstructions = "";
+            await LoadPatientRecalls();
+        }
+        catch (Exception ex) { error = ex.Message; }
+        finally { creating = false; }
+    }
+
+    private async Task LoadOverdue()
+    {
+        loadingOverdue = true; error = null;
+        try
+        {
+            var idx = Grains.GetGrain<IPatientRecallIndexGrain>("SD-RECALL-IDX");
+            overdueEntries = (await idx.GetOverdueAsync(50)).Select(MapToDto).ToList();
+        }
+        catch (Exception ex) { error = ex.Message; }
+        finally { loadingOverdue = false; }
+    }
+
+    private async Task SearchDashboard()
+    {
+        loadingDashboard = true; error = null;
+        try
+        {
+            var idx = Grains.GetGrain<IPatientRecallIndexGrain>("SD-RECALL-IDX");
+            var entries = await idx.SearchAsync(
+                string.IsNullOrEmpty(dashClinicId) ? null : dashClinicId,
+                string.IsNullOrEmpty(dashStatus) ? null : dashStatus,
+                string.IsNullOrEmpty(dashRecallType) ? null : dashRecallType, 50);
+            dashboardResults = entries.Select(MapToDto).ToList();
+        }
+        catch (Exception ex) { error = ex.Message; }
+        finally { loadingDashboard = false; }
+    }
+
+    private static RecallDto MapToDto(PatientRecallIndexEntry e) => new()
+    {
+        EntryId = e.EntryId, PatientId = e.PatientId, PatientName = e.PatientName,
+        ClinicId = e.ClinicId, ClinicName = e.ClinicName, RecallType = e.RecallType,
+        RecallDate = e.RecallDate, Status = e.Status, ProviderName = e.ProviderName,
+        LetterCount = e.LetterCount, ContactAttemptCount = e.ContactAttemptCount
+    };
+
+    private string GetStatusStyle(string status) => status.ToUpperInvariant() switch
+    {
+        "PENDING" => "background: #dbeafe; color: #1e40af; border: 1px solid #93c5fd;",
+        "LETTER_SENT" => "background: #f3e8ff; color: #7c3aed; border: 1px solid #c4b5fd;",
+        "CONTACTED" => "background: #ccfbf1; color: #0f766e; border: 1px solid #5eead4;",
+        "APPOINTMENT_SCHEDULED" => "background: #dcfce7; color: #166534; border: 1px solid #bbf7d0;",
+        "COMPLETED" => "background: #dcfce7; color: #166534; border: 1px solid #bbf7d0;",
+        "CANCELLED" => "background: #f3f4f6; color: #6b7280; border: 1px solid #d1d5db;",
+        "OVERDUE" => "background: #fde8e8; color: #b91c1c; border: 1px solid #f5c6c6;",
+        _ => "background: #f3f4f6; color: #6b7280; border: 1px solid #d1d5db;"
+    };
+
+    private class RecallDto
+    {
+        public string EntryId { get; set; } = "";
+        public string PatientId { get; set; } = "";
+        public string PatientName { get; set; } = "";
+        public string ClinicId { get; set; } = "";
+        public string ClinicName { get; set; } = "";
+        public string RecallType { get; set; } = "";
+        public DateTime RecallDate { get; set; }
+        public string Status { get; set; } = "";
+        public string? ProviderName { get; set; }
+        public int LetterCount { get; set; }
+        public int ContactAttemptCount { get; set; }
+    }
+}
+
+<style>
+    .btn { padding: 0.5rem 1.25rem; border: none; border-radius: 4px; cursor: pointer; font-size: 0.85rem; }
+    .btn-primary { background: #003f72; color: white; }
+    .btn-primary:disabled { background: #999; cursor: not-allowed; }
+    .btn-secondary { background: #e5e7eb; color: #374151; border: 1px solid #d1d5db; }
+    .btn-secondary:hover { background: #d1d5db; }
+    .alert { padding: 0.75rem 1rem; border-radius: 4px; margin-bottom: 1rem; }
+    .alert-error { background: #fde8e8; color: #b91c1c; border: 1px solid #f5c6c6; }
+    .alert-warning { background: #fef3c7; color: #92400e; border: 1px solid #fde68a; }
+    .alert-warning a { color: #003f72; font-weight: 600; }
+    .empty-state { color: #999; font-style: italic; padding: 2rem 0; }
+    .tab-bar { display: flex; gap: 0; border-bottom: 2px solid #d4d9e0; margin-bottom: 1.5rem; }
+    .tab-btn { padding: 0.6rem 1.25rem; border: none; background: transparent; cursor: pointer; font-size: 0.85rem; font-weight: 500; color: #666; border-bottom: 2px solid transparent; margin-bottom: -2px; }
+    .tab-btn.active { color: #003f72; border-bottom-color: #003f72; font-weight: 600; }
+    .tab-btn:hover { color: #003f72; }
+    .form-section { max-width: 700px; }
+    .form-row { display: flex; align-items: center; gap: 1rem; margin-bottom: 0.75rem; }
+    .form-row label:first-child { width: 160px; font-size: 0.85rem; font-weight: 500; color: #333; flex-shrink: 0; }
+    .form-input { flex: 1; padding: 0.4rem 0.6rem; border: 1px solid #ccc; border-radius: 4px; font-size: 0.85rem; max-width: 350px; }
+    .form-actions { display: flex; gap: 0.75rem; margin-top: 1rem; margin-bottom: 1.5rem; }
+    .section-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 1rem; }
+    .section-header h3 { margin: 0; font-size: 1rem; color: #003f72; }
+    .new-form { background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 4px; padding: 1.25rem; margin-bottom: 1.5rem; max-width: 700px; }
+    .new-form h4 { margin: 0 0 1rem 0; font-size: 0.9rem; color: #003f72; }
+    .data-table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+    .data-table th { text-align: left; padding: 0.5rem; font-weight: 600; color: #003f72; border-bottom: 2px solid #d4d9e0; font-size: 0.75rem; text-transform: uppercase; background: #f4f6f9; }
+    .data-table td { padding: 0.4rem 0.5rem; border-bottom: 1px solid #f0f0f0; }
+    .data-table tr:hover { background: #f9fafb; }
+    .code { font-family: monospace; color: #003f72; }
+    .status-badge { display: inline-block; padding: 0.2rem 0.6rem; border-radius: 3px; font-size: 0.75rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.03em; }
+    .patient-id-small { font-size: 0.75rem; color: #999; }
+</style>
