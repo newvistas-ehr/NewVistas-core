@@ -11,8 +11,8 @@ namespace NewVistas.SiloHost.Infrastructure.Profiles;
 
 /// <summary>
 /// Wiring that every profile applies identically — call filters, log-consistency
-/// providers, and the dev-only dashboard. Centralised so the three production
-/// profiles can't drift on these.
+/// providers, and streaming. Centralised so the three production profiles can't
+/// drift on these.
 /// </summary>
 internal static class CommonSiloConfig
 {
@@ -105,20 +105,6 @@ internal static class CommonSiloConfig
     {
         siloBuilder.AddMemoryGrainStorage(PubSubStoreName);
         siloBuilder.AddMemoryStreams(LabStreamsProviderName);
-        return siloBuilder;
-    }
-
-    /// <summary>
-    /// Enables the Orleans dashboard on :8080. Only called from the localhost-dev
-    /// profile today.
-    /// </summary>
-    public static ISiloBuilder AddDevDashboard(this ISiloBuilder siloBuilder)
-    {
-        siloBuilder.UseDashboard(options =>
-        {
-            options.Port = 8080;
-            options.HostSelf = true;
-        });
         return siloBuilder;
     }
 }

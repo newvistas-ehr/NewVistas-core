@@ -7,7 +7,7 @@ namespace NewVistas.SiloHost.Infrastructure.Profiles;
 
 /// <summary>
 /// Default development profile — localhost clustering, in-memory grain storage
-/// for every store, in-memory streams, and the Orleans dashboard on :8080.
+/// for every store, in-memory streams.
 ///
 /// State is lost on silo restart; this is the right shape for `dotnet run`
 /// against a hot-reload Blazor frontend and the unit-test fast path.
@@ -36,7 +36,6 @@ public sealed class LocalhostDevProfile : ISiteProfile
 
         siloBuilder
             .AddInMemoryStreaming()
-            .AddCommonSiloServices()
-            .AddDevDashboard();
+            .AddCommonSiloServices();
     }
 }

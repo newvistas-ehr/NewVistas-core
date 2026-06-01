@@ -4,7 +4,6 @@ var builder = DistributedApplication.CreateBuilder(args);
 // ─── Orleans Silo Host ──────────────────────────────────────────────────────
 // Must be running before any Orleans client can connect.
 // Exposes silo port 11111 and gateway port 30000 for Orleans clustering.
-// Orleans Dashboard is available at port 8080 in development.
 var silohost = builder.AddProject<Projects.NewVistas_SiloHost>("silohost");
 
 // ─── REST API Server ────────────────────────────────────────────────────────
