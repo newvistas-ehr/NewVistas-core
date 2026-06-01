@@ -108,17 +108,4 @@ internal static class CommonSiloConfig
         return siloBuilder;
     }
 
-    /// <summary>
-    /// Enables the Orleans dashboard on :8080. Only called from the localhost-dev
-    /// profile today.
-    /// </summary>
-    public static ISiloBuilder AddDevDashboard(this ISiloBuilder siloBuilder)
-    {
-        siloBuilder.UseDashboard(options =>
-        {
-            options.Port = 8080;
-            options.HostSelf = true;
-        });
-        return siloBuilder;
     }
-}

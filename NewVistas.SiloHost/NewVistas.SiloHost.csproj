@@ -17,7 +17,6 @@
     <PackageReference Include="Microsoft.Orleans.Streaming" Version="10.1.0" />
     <PackageReference Include="Microsoft.Orleans.EventSourcing" Version="10.1.0" />
     <PackageReference Include="Microsoft.Data.SqlClient" Version="7.0.1" />
-    <PackageReference Include="OrleansDashboard" Version="8.2.0" />
   </ItemGroup>
 
   <ItemGroup>

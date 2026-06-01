@@ -36,7 +36,6 @@ public sealed class LocalhostDevProfile : ISiteProfile
 
         siloBuilder
             .AddInMemoryStreaming()
-            .AddCommonSiloServices()
-            .AddDevDashboard();
+            .AddCommonSiloServices();
     }
 }
