@@ -104,7 +104,7 @@ You agree to notify the Project Owner of any facts or circumstances of which You
 
 **9.5 Assignment.** The Project Owner may assign this Agreement and the rights granted in it, in whole or in part, without Your consent, including in connection with a merger, acquisition, or sale of all or substantially all of the assets of the Project Owner.
 
-**9.6 Governing Law.** This Agreement is governed by the laws of [State / Jurisdiction], without regard to its conflict-of-laws principles. The parties consent to the exclusive jurisdiction of the state and federal courts located in [County, State] for any disputes arising out of this Agreement.
+**9.6 Governing Law.** This Agreement is governed by the laws of the Commonwealth of Massachusetts, without regard to its conflict-of-laws principles. The parties consent to the exclusive jurisdiction of the state and federal courts located in Middlesex County, Massachusetts for any disputes arising out of this Agreement.
 
 ---
 
