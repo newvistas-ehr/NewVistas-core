@@ -388,7 +388,20 @@ RPMS/
 /RPMS_TRIBAL_SETUP.md
 
 # Removed from public repo (consumed as NuGet package "fo-dicom" instead)
-Imaging/fo-dicom/
+# ...except the DICOM fixtures (ct.dcm / mr.dcm) that ImagingStoragePipelineTests
+# needs. Re-including a file under an ignored dir means un-ignoring each parent
+# level, so we ignore contents (dir/*) and whitelist (!) the path down to the data.
+Imaging/fo-dicom/*
+!Imaging/fo-dicom/fo-dicom/
+Imaging/fo-dicom/fo-dicom/*
+!Imaging/fo-dicom/fo-dicom/Tests/
+Imaging/fo-dicom/fo-dicom/Tests/*
+!Imaging/fo-dicom/fo-dicom/Tests/FO-DICOM.Benchmark/
+Imaging/fo-dicom/fo-dicom/Tests/FO-DICOM.Benchmark/*
+!Imaging/fo-dicom/fo-dicom/Tests/FO-DICOM.Benchmark/Data/
+Imaging/fo-dicom/fo-dicom/Tests/FO-DICOM.Benchmark/Data/*
+!Imaging/fo-dicom/fo-dicom/Tests/FO-DICOM.Benchmark/Data/ct.dcm
+!Imaging/fo-dicom/fo-dicom/Tests/FO-DICOM.Benchmark/Data/mr.dcm
 
 # Removed from public repo (VA user manuals available at https://www.va.gov/vdl/)
 NewVistas.Abstractions/Manuals/
