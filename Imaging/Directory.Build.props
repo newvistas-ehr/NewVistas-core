@@ -1,0 +1,5 @@
+<Project>
+  <!-- Intentionally empty. Stops MSBuild from importing the repo-root
+       Directory.Build.props (and its version) into the vendored fo-dicom
+       tree, which manages its own versioning. -->
+</Project>
