@@ -94,6 +94,13 @@ builder.Services.AddAuthorizationBuilder()
 builder.Services.AddControllers();
 builder.Services.AddOpenApi();
 
+// MPI inbound handler — applied by FederationInboundApplier for Domain=="MPI"
+// envelopes (patient registered, patient merged). DefaultMpiInboundHandler is
+// the standard implementation; deployments needing additional MPI event types
+// can replace this registration with their own IMpiInboundHandler.
+builder.Services.AddSingleton<NewVistas.Abstractions.Federation.IMpiInboundHandler,
+                              NewVistas.Abstractions.Federation.DefaultMpiInboundHandler>();
+
 // Federation inbound applier — receives clinical event envelopes shipped from
 // peer clusters via FederationController. Resolves IGrainFactory from the
 // Orleans client below.

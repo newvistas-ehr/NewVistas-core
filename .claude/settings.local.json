@@ -65,7 +65,8 @@
       "Read(//c/Users/James/AppData/Local/Temp/claude/c--Users-James-source-repos-dnasmyth-NewVistas/17759604-e8c5-4103-8ed1-495637931b03/tasks/**)",
       "Bash(xargs dirname *)",
       "Skill(schedule)",
-      "Skill(schedule:*)"
+      "Skill(schedule:*)",
+      "Bash(gh auth *)"
     ]
   }
 }
