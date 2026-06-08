@@ -15,6 +15,17 @@ namespace NewVistas.Abstractions.Services;
 /// truth; a live RxNav client (config-gated, using IHttpClientFactory) is a
 /// future enhancement. Even when enabled, a refresh updates only the DF→DFG and
 /// VistA-form→DF bridges — the curated DFG→route mapping is never overwritten.
+///
+/// TODO (deferred — needed later): build the live RxNav refresh path. Three parts:
+///   1. A real RxNavDoseFormClient : IRxNavDoseFormClient using IHttpClientFactory
+///      against rxnav.nlm.nih.gov, gated by an RxNavOptions section
+///      (Enabled=false by default) so the system stays offline-first.
+///   2. Register it in Program.cs in place of NullRxNavDoseFormClient when
+///      configured (TryAddSingleton already leaves the Null default as fallback).
+///   3. A controller endpoint (POST /api/dose-form-routes/refresh) that calls
+///      IDoseFormRouteIndexGrain.RefreshFromRxNavAsync() — controllers here are
+///      external-access-only, which is the appropriate home for an admin refresh.
+/// Until then RefreshFromRxNavAsync() is a safe no-op (returns 0).
 /// </summary>
 public interface IRxNavDoseFormClient
 {
