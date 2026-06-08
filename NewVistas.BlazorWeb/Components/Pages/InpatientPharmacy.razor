@@ -113,6 +113,17 @@
             <div><strong>BCMA Events:</strong> @detailOrder.BcmaAdministrationIds.Count</div>
         </div>
 
+        @if (!string.IsNullOrEmpty(detailOrder.RouteValidationWarning))
+        {
+            <div class="route-warning" role="alert">
+                ⚠ @detailOrder.RouteValidationWarning
+                @if (detailOrder.RouteSuggestions.Count > 0)
+                {
+                    <span class="route-suggest"> Suggested: @string.Join(", ", detailOrder.RouteSuggestions)</span>
+                }
+            </div>
+        }
+
         @if (detailOrder.IvAdditives.Count > 0)
         {
             <h4>IV Additives</h4>
@@ -249,6 +260,8 @@
     .time-chip { background: #e6f0fb; color: #005a9e; padding: 3px 8px; border-radius: 12px; font-size: 0.82em; }
     h3 { margin-top: 0; }
     h4 { margin-bottom: 4px; }
+    .route-warning { padding: 8px 12px; border-radius: 4px; margin-bottom: 8px; font-size: 0.9em; background: #fff4ce; border: 1px solid #d9a514; color: #8a6d00; }
+    .route-suggest { color: #6b5600; margin-left: 6px; }
 </style>
 
 @code {
@@ -345,7 +358,8 @@
                 state.IvAdditives.Select(a => new IvAdditiveDto(a.DrugName, a.DrugId, a.Dose, a.DoseUnit, a.IsBase)).ToList(),
                 state.ScheduledAdminTimes,
                 state.BcmaAdministrationIds,
-                state.LastAdminDate, state.CreatedDate, state.LastModifiedDate);
+                state.LastAdminDate, state.CreatedDate, state.LastModifiedDate,
+                state.RouteValidationWarning, state.RouteSuggestions);
         }
         catch (Exception ex)
         {
@@ -482,7 +496,9 @@
         List<string> BcmaAdministrationIds,
         DateTime? LastAdminDate,
         DateTime CreatedDate,
-        DateTime LastModifiedDate);
+        DateTime LastModifiedDate,
+        string? RouteValidationWarning,
+        List<string> RouteSuggestions);
 
     private record IvAdditiveDto(
         string DrugName,

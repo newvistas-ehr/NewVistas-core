@@ -1,6 +1,7 @@
 // Copyright 2026 Merrimack Valley Software Works, LLC. All rights reserved.
 using Microsoft.Extensions.DependencyInjection;
 using NewVistas.Abstractions.Federation;
+using NewVistas.Abstractions.Services;
 using Orleans.TestingHost;
 
 namespace NewVistas.UnitTests;
@@ -63,6 +64,11 @@ public static class SharedCluster
             siloBuilder.Services.AddSingleton<NewVistas.Abstractions.Federation.IMpiInboundHandler,
                 NewVistas.Abstractions.Federation.DefaultMpiInboundHandler>();
             siloBuilder.Services.AddSingleton<IOutboxStatistics, NoOpOutboxStatistics>();
+
+            // Route-vs-dose-form validation seam (injected into PharmacyGrain and
+            // InpatientOrderGrain). RxNav client defaults to the offline no-op.
+            siloBuilder.Services.AddSingleton<IRouteValidationService, RouteValidationService>();
+            siloBuilder.Services.AddSingleton<IRxNavDoseFormClient, NullRxNavDoseFormClient>();
 
             siloBuilder.AddMemoryGrainStorage("PubSubStore");
             siloBuilder.AddMemoryGrainStorage("accessControlStore");
@@ -151,6 +157,7 @@ public static class SharedCluster
             siloBuilder.AddMemoryGrainStorage("directMessageIndexStore");
             siloBuilder.AddMemoryGrainStorage("directMessageStore");
             siloBuilder.AddMemoryGrainStorage("doseUnitStore");
+            siloBuilder.AddMemoryGrainStorage("doseFormRouteStore");
             siloBuilder.AddMemoryGrainStorage("drgIndexStore");
             siloBuilder.AddMemoryGrainStorage("drgStore");
             siloBuilder.AddMemoryGrainStorage("drugAccountabilityStore");

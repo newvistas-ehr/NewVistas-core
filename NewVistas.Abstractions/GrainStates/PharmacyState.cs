@@ -279,6 +279,23 @@ public class PharmacyState : EventSourcedStateBase
     [Id(53)]
     public string? CounselingNotes { get; set; }
 
+    // ── Route / dose-form validation (RxNorm-derived, warn-only) ─────────────
+
+    /// <summary>
+    /// Advisory set when the prescribed Route is not a typical route for the
+    /// drug's dose form. Warn-only — the prescription is still created. Null when
+    /// the route is valid or could not be evaluated (unknown/unmapped dose form).
+    /// </summary>
+    [Id(54)]
+    public string? RouteValidationWarning { get; set; }
+
+    /// <summary>
+    /// Suggested valid routes for the drug's dose form, shown alongside
+    /// <see cref="RouteValidationWarning"/>. Empty when there is no warning.
+    /// </summary>
+    [Id(55)]
+    public List<string> RouteSuggestions { get; set; } = new();
+
     /// <summary>
     /// Deep copy. Used at event/state boundaries so that mutating the live
     /// prescription on the grain does not retroactively mutate the historical
@@ -350,7 +367,9 @@ public class PharmacyState : EventSourcedStateBase
         CounselingCompleted = CounselingCompleted,
         CounselingDate = CounselingDate,
         CounseledBy = CounseledBy,
-        CounselingNotes = CounselingNotes
+        CounselingNotes = CounselingNotes,
+        RouteValidationWarning = RouteValidationWarning,
+        RouteSuggestions = RouteSuggestions.ToList()
     };
 }
 

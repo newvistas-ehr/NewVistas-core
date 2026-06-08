@@ -1,4 +1,5 @@
 // Copyright 2026 Merrimack Valley Software Works, LLC. All rights reserved.
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using NewVistas.Abstractions.Services;
 using NewVistas.SiloHost.Infrastructure;
 using NewVistas.SiloHost.Infrastructure.Cdc;
@@ -11,6 +12,13 @@ builder.AddServiceDefaults();
 
 // Drug interaction silo-level cache (shared across all grains in the silo).
 builder.Services.AddSingleton<IDrugInteractionCacheService, DrugInteractionCacheService>();
+
+// Route-vs-dose-form validation (RxNorm-derived). The validation service is a
+// silo singleton shared by the pharmacy and inpatient order grains. The RxNav
+// client defaults to a no-op so the system runs fully offline; a live HTTP
+// client can replace it later via configuration.
+builder.Services.AddSingleton<IRouteValidationService, RouteValidationService>();
+builder.Services.TryAddSingleton<IRxNavDoseFormClient, NullRxNavDoseFormClient>();
 
 // Legacy flag still consulted directly by the database-init step below.
 // SiteProfileResolver consults the same flag independently for silo configuration.
@@ -102,7 +110,7 @@ static partial class Program
         "interactionScreeningStore", "interactionScreeningIndexStore",
         "drugFileStore", "drugIndexStore",
         "orderableItemStore", "orderableItemIndexStore",
-        "medRouteStore", "doseUnitStore",
+        "medRouteStore", "doseUnitStore", "doseFormRouteStore",
         "prescriptionIndexStore",
         "inpatientOrderStore", "inpatientProfileStore",
         "drugAccountabilityStore", "daLocationStore",

@@ -49,6 +49,11 @@ public static class SharedCluster
             // DI services required by specific grains
             siloBuilder.Services.AddSingleton<IDrugInteractionCacheService, DrugInteractionCacheService>();
 
+            // Route-vs-dose-form validation seam (injected into PharmacyGrain and
+            // InpatientOrderGrain). RxNav client defaults to the offline no-op.
+            siloBuilder.Services.AddSingleton<IRouteValidationService, RouteValidationService>();
+            siloBuilder.Services.AddSingleton<IRxNavDoseFormClient, NullRxNavDoseFormClient>();
+
             // Federation seam — default no-op sink so the stream grain's constructor
             // dependency resolves in the test cluster.
             siloBuilder.Services.AddSingleton<IClinicalEventReplicationSink, NullClinicalEventReplicationSink>();
@@ -154,6 +159,7 @@ public static class SharedCluster
             siloBuilder.AddMemoryGrainStorage("directMessageIndexStore");
             siloBuilder.AddMemoryGrainStorage("directMessageStore");
             siloBuilder.AddMemoryGrainStorage("doseUnitStore");
+            siloBuilder.AddMemoryGrainStorage("doseFormRouteStore");
             siloBuilder.AddMemoryGrainStorage("drgIndexStore");
             siloBuilder.AddMemoryGrainStorage("drgStore");
             siloBuilder.AddMemoryGrainStorage("drugAccountabilityStore");

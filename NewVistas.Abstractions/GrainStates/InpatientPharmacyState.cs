@@ -177,6 +177,23 @@ public class InpatientOrderState
 
     [Id(37)]
     public DateTime LastModifiedDate { get; set; } = DateTime.UtcNow;
+
+    // ── Route / dose-form validation (RxNorm-derived, warn-only) ─────────────
+
+    /// <summary>
+    /// Advisory set when the order's Route is not a typical route for the drug's
+    /// dose form. Warn-only — the order is still created. Null when the route is
+    /// valid or could not be evaluated (unknown/unmapped dose form).
+    /// </summary>
+    [Id(38)]
+    public string? RouteValidationWarning { get; set; }
+
+    /// <summary>
+    /// Suggested valid routes for the drug's dose form, shown alongside
+    /// <see cref="RouteValidationWarning"/>. Empty when there is no warning.
+    /// </summary>
+    [Id(39)]
+    public List<string> RouteSuggestions { get; set; } = new();
 }
 
 /// <summary>

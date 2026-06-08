@@ -3,6 +3,7 @@ using Orleans;
 using Orleans.Runtime;
 using NewVistas.Abstractions.GrainInterfaces;
 using NewVistas.Abstractions.GrainStates;
+using NewVistas.Abstractions.Services;
 
 namespace NewVistas.Abstractions.Grains;
 
@@ -12,12 +13,15 @@ namespace NewVistas.Abstractions.Grains;
 public class InpatientOrderGrain : Grain, IInpatientOrderGrain
 {
     private readonly IPersistentState<InpatientOrderState> _state;
+    private readonly IRouteValidationService _routeValidation;
 
     public InpatientOrderGrain(
         [PersistentState("inpatientOrderState", "inpatientOrderStore")]
-        IPersistentState<InpatientOrderState> state)
+        IPersistentState<InpatientOrderState> state,
+        IRouteValidationService routeValidation)
     {
         _state = state;
+        _routeValidation = routeValidation;
     }
 
     public override Task OnActivateAsync(CancellationToken cancellationToken)
@@ -41,6 +45,18 @@ public class InpatientOrderGrain : Grain, IInpatientOrderGrain
         int? quantityPerDose, string? providerId, string? providerName, string? comments,
         string? ivSolution, int? ivVolumeMl, string? infusionRateStr)
     {
+        // Route-vs-dose-form check (warn-only): stamp an advisory when the route
+        // is atypical for the drug's dose form. Never blocks the order.
+        if (!string.IsNullOrWhiteSpace(route))
+        {
+            RouteValidationResult vr = await _routeValidation.ValidateByDrugAsync(GrainFactory, drugId, route);
+            if (vr.Outcome == RouteValidationOutcome.Warn)
+            {
+                _state.State.RouteValidationWarning = vr.Message;
+                _state.State.RouteSuggestions = vr.SuggestedRoutes;
+            }
+        }
+
         _state.State.PatientId = patientId;
         _state.State.WardId = wardId;
         _state.State.WardName = wardName;
