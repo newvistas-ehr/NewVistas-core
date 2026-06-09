@@ -13,8 +13,8 @@ namespace NewVistas.FunctionalTests;
 /// <summary>
 /// End-to-end tests for the imaging ingestion pipeline — the NewVistas.ImageStorage
 /// library wired against the SharedCluster. Exercises the filesystem provider
-/// (on-prem default) against real fo-dicom parsing of DICOM fixtures that ship
-/// in the vendored <c>Imaging/fo-dicom/</c> tree.
+/// (on-prem default) against real fo-dicom parsing of small synthetic DICOM
+/// fixtures that ship with this test project under <c>Data/</c> (see Data/README.md).
 ///
 /// Covers:
 ///   • DICOM upload: parse → thumbnail → blob write → grain write
@@ -81,26 +81,12 @@ public class ImagingStoragePipelineTests
     // ─── Helpers ──────────────────────────────────────────────────────────────
 
     /// <summary>
-    /// Resolves a path to one of the DICOM fixtures shipped inside the vendored
-    /// fo-dicom tree. Walks up from the test binary's directory until it finds
-    /// the Imaging folder, so the path works regardless of where the test host
-    /// puts the compiled DLL.
+    /// Resolves a path to one of the synthetic DICOM fixtures that ship with this
+    /// test project under <c>Data/</c> (copied next to the test binary at build
+    /// time). See <c>Data/README.md</c> for how they are generated.
     /// </summary>
-    private static string DicomFixture(string name)
-    {
-        DirectoryInfo? dir = new(AppContext.BaseDirectory);
-        while (dir is not null && !Directory.Exists(Path.Combine(dir.FullName, "Imaging")))
-            dir = dir.Parent;
-
-        if (dir is null)
-            throw new DirectoryNotFoundException("Could not locate the repo-root Imaging folder from test base dir.");
-
-        return Path.Combine(
-            dir.FullName,
-            "Imaging", "fo-dicom", "fo-dicom",
-            "Tests", "FO-DICOM.Benchmark", "Data",
-            name);
-    }
+    private static string DicomFixture(string name) =>
+        Path.Combine(AppContext.BaseDirectory, "Data", name);
 
     private static async Task<Stream> GeneratePngAsync(int width, int height)
     {
@@ -116,7 +102,7 @@ public class ImagingStoragePipelineTests
     [Test]
     public async Task ImagingPipeline_CanIngestDicomCtFile()
     {
-        // Arrange — small CT fixture from the vendored fo-dicom benchmark data.
+        // Arrange — small synthetic CT fixture (Data/ct.dcm).
         string fixturePath = DicomFixture("ct.dcm");
         Assume.That(File.Exists(fixturePath), $"Test fixture not found: {fixturePath}");
 
@@ -191,7 +177,7 @@ public class ImagingStoragePipelineTests
     [Test]
     public async Task ImagingPipeline_CanIngestDicomMrFile()
     {
-        // Arrange — MR fixture (different modality to verify the parser branches
+        // Arrange — synthetic MR fixture (Data/mr.dcm); different modality to verify the parser branches
         // don't special-case CT and ensure transfer syntax is captured).
         string fixturePath = DicomFixture("mr.dcm");
         Assume.That(File.Exists(fixturePath), $"Test fixture not found: {fixturePath}");

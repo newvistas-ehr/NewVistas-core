@@ -35,5 +35,10 @@
     <ProjectReference Include="..\NewVistas.SiloHost\NewVistas.SiloHost.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <!-- Synthetic DICOM fixtures for ImagingStoragePipelineTests (see Data/README.md). -->
+    <None Include="Data\*.dcm" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
 </Project>
 
