@@ -5,6 +5,12 @@
 
 # Machine-specific development settings
 **/appsettings.Development.json
+**/appsettings.Local.json
+
+# AI assistant tooling — local settings/instructions, never commit or publish.
+# (CLAUDE.md itself IS tracked on Develop and scrubbed from public-clean at release.)
+.claude/settings.local.json
+CLAUDE.local.md
 
 # User-specific files
 *.rsuser
@@ -386,9 +392,3 @@ RPMS/
 /MVSW-PIH-Source-Code-License-DRAFT.docx
 /NewVistas-Introduction.pptx
 /RPMS_TRIBAL_SETUP.md
-
-# Removed from public repo (consumed as NuGet package "fo-dicom" instead)
-Imaging/fo-dicom/
-
-# Removed from public repo (VA user manuals available at https://www.va.gov/vdl/)
-NewVistas.Abstractions/Manuals/
