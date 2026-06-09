@@ -392,3 +392,9 @@ RPMS/
 /MVSW-PIH-Source-Code-License-DRAFT.docx
 /NewVistas-Introduction.pptx
 /RPMS_TRIBAL_SETUP.md
+
+# Removed from public repo (consumed as NuGet package "fo-dicom" instead)
+Imaging/fo-dicom/
+
+# Removed from public repo (VA user manuals available at https://www.va.gov/vdl/)
+NewVistas.Abstractions/Manuals/
