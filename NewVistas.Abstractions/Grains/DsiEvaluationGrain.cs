@@ -1,5 +1,6 @@
 // Copyright 2026 Merrimack Valley Software Works, LLC. All rights reserved.
 using Orleans;
+using Orleans.Concurrency;
 using NewVistas.Abstractions.GrainInterfaces;
 using NewVistas.Abstractions.GrainStates;
 
@@ -10,7 +11,11 @@ namespace NewVistas.Abstractions.Grains;
 /// §170.315(b)(11) — returns alerts with source attribution and HTI-1 transparency.
 ///
 /// Grain Key: "DSI-EVAL:{patientId}"
+///
+/// [StatelessWorker]: pure compute — reads patient data and active
+/// interventions, evaluates rules, holds nothing between calls.
 /// </summary>
+[StatelessWorker]
 public class DsiEvaluationGrain : Grain, IDsiEvaluationGrain
 {
     private readonly IGrainFactory _grainFactory;
@@ -26,17 +31,25 @@ public class DsiEvaluationGrain : Grain, IDsiEvaluationGrain
         int colonIdx = key.IndexOf(':');
         string patientId = colonIdx >= 0 ? key[(colonIdx + 1)..] : key;
 
-        // Get patient's clinical data
+        // Patient reads and the intervention-index read are independent; the
+        // workflow grain is [Reentrant], so issue them all together.
         IPatientWorkflowGrain w = _grainFactory.GetGrain<IPatientWorkflowGrain>(patientId);
-        PatientState patient = await w.GetPatientAsync();
-        List<ProblemSummary> problems = await w.GetAllProblemsAsync();
-        List<LabTestSummaryEntry> labs = await w.GetLabSummaryAsync();
-        List<VitalSummary> vitals = await w.GetLatestVitalsAsync();
-        List<MedicationSummary> meds = await w.GetActiveMedicationsAsync();
-
-        // Get all active interventions
         IDsiInterventionIndexGrain index = _grainFactory.GetGrain<IDsiInterventionIndexGrain>("DSI-INDEX");
-        List<DsiInterventionSummary> activeList = await index.GetActiveInterventionsAsync();
+
+        Task<PatientState> patientTask = w.GetPatientAsync();
+        Task<List<ProblemSummary>> problemsTask = w.GetAllProblemsAsync();
+        Task<List<LabTestSummaryEntry>> labsTask = w.GetLabSummaryAsync();
+        Task<List<VitalSummary>> vitalsTask = w.GetLatestVitalsAsync();
+        Task<List<MedicationSummary>> medsTask = w.GetActiveMedicationsAsync();
+        Task<List<DsiInterventionSummary>> activeListTask = index.GetActiveInterventionsAsync();
+        await Task.WhenAll(patientTask, problemsTask, labsTask, vitalsTask, medsTask, activeListTask);
+
+        PatientState patient = patientTask.Result;
+        List<ProblemSummary> problems = problemsTask.Result;
+        List<LabTestSummaryEntry> labs = labsTask.Result;
+        List<VitalSummary> vitals = vitalsTask.Result;
+        List<MedicationSummary> meds = medsTask.Result;
+        List<DsiInterventionSummary> activeList = activeListTask.Result;
 
         var results = new List<DsiEvaluationResult>();
 

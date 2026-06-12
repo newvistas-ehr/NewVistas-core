@@ -49,7 +49,7 @@ public interface IAnesthesiaRecordGrain : IGrainWithStringKey
 public interface IAnesthesiaRecordIndexGrain : IGrainWithStringKey
 {
     Task AddOrUpdateAsync(AnesthesiaRecordIndexEntry entry);
-    Task<List<AnesthesiaRecordIndexEntry>> GetByPatientAsync(string patientId);
+    Task<List<AnesthesiaRecordIndexEntry>> GetByPatientAsync(string patientId, int maxResults = 50);
     Task<List<AnesthesiaRecordIndexEntry>> GetByAnesthesiologistAsync(string anesthesiologistId, int maxResults = 50);
     Task<List<AnesthesiaRecordIndexEntry>> GetByStatusAsync(string status, int maxResults = 50);
     Task<List<AnesthesiaRecordIndexEntry>> SearchAsync(string? patientId, string? anesthesiologistId, string? status, string? anesthesiaType, int maxResults = 50);

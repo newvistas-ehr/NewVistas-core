@@ -43,11 +43,12 @@ public class PatientRecallIndexGrain : Grain, IPatientRecallIndexGrain
         return Task.FromResult(results);
     }
 
-    public Task<List<PatientRecallIndexEntry>> GetByPatientAsync(string patientId)
+    public Task<List<PatientRecallIndexEntry>> GetByPatientAsync(string patientId, int maxResults = 50)
     {
         List<PatientRecallIndexEntry> results = _state.State.Entries.Values
             .Where(e => e.PatientId == patientId)
             .OrderBy(e => e.RecallDate)
+            .Take(maxResults)
             .ToList();
         return Task.FromResult(results);
     }

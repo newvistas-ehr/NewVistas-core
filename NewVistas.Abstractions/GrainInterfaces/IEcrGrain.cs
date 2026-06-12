@@ -101,7 +101,7 @@ public interface IEcrCaseIndexGrain : IGrainWithStringKey
     Task UpdateCaseStatusAsync(string caseId, string status, string? determination);
     Task<List<EcrCaseSummary>> GetAllCasesAsync();
     Task<List<EcrCaseSummary>> GetCasesByStatusAsync(string status);
-    Task<List<EcrCaseSummary>> GetCasesByPatientAsync(string patientId);
+    Task<List<EcrCaseSummary>> GetCasesByPatientAsync(string patientId, int maxResults = 50);
     Task<List<EcrCaseSummary>> GetCasesByConditionAsync(string conditionName);
 }
 

@@ -2,6 +2,7 @@
 using System.Text;
 using System.Xml;
 using Orleans;
+using Orleans.Concurrency;
 using NewVistas.Abstractions.GrainInterfaces;
 using NewVistas.Abstractions.GrainStates;
 
@@ -13,7 +14,12 @@ namespace NewVistas.Abstractions.Grains;
 ///
 /// Template: 2.16.840.1.113883.10.20.22.1.2 (CCD)
 /// Grain Key: "DIRECT-CCDA-GEN:{patientId}"
+///
+/// [StatelessWorker]: pure compute — reads via the workflow grain and builds
+/// XML; holds nothing between calls, so concurrent requests scale out instead
+/// of queuing on one activation per patient.
 /// </summary>
+[StatelessWorker]
 public class DirectCcdaGeneratorGrain : Grain, IDirectCcdaGeneratorGrain
 {
     private readonly IGrainFactory _grainFactory;
@@ -29,15 +35,19 @@ public class DirectCcdaGeneratorGrain : Grain, IDirectCcdaGeneratorGrain
         int colonIdx = key.IndexOf(':');
         string patientId = colonIdx >= 0 ? key[(colonIdx + 1)..] : key;
 
+        // Independent reads; the workflow grain is [Reentrant], so issue them together.
         IPatientWorkflowGrain w = _grainFactory.GetGrain<IPatientWorkflowGrain>(patientId);
-        PatientState patient = await w.GetPatientAsync();
-        List<ProblemSummary> problems = await w.GetAllProblemsAsync();
-        List<AllergySummary> allergies = await w.GetAllergiesAsync();
-        List<MedicationSummary> meds = await w.GetActiveMedicationsAsync();
-        List<VitalSummary> vitals = await w.GetLatestVitalsAsync();
-        List<LabTestSummaryEntry> labs = await w.GetLabSummaryAsync();
+        Task<PatientState> patientTask = w.GetPatientAsync();
+        Task<List<ProblemSummary>> problemsTask = w.GetAllProblemsAsync();
+        Task<List<AllergySummary>> allergiesTask = w.GetAllergiesAsync();
+        Task<List<MedicationSummary>> medsTask = w.GetActiveMedicationsAsync();
+        Task<List<VitalSummary>> vitalsTask = w.GetLatestVitalsAsync();
+        Task<List<LabTestSummaryEntry>> labsTask = w.GetLabSummaryAsync();
+        await Task.WhenAll(patientTask, problemsTask, allergiesTask, medsTask, vitalsTask, labsTask);
 
-        return GenerateCcdaXml(patient, problems, allergies, meds, vitals, labs, documentType);
+        return GenerateCcdaXml(
+            patientTask.Result, problemsTask.Result, allergiesTask.Result,
+            medsTask.Result, vitalsTask.Result, labsTask.Result, documentType);
     }
 
     private static string GenerateCcdaXml(

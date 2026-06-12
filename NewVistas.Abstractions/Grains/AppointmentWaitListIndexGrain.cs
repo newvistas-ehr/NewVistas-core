@@ -43,11 +43,12 @@ public class AppointmentWaitListIndexGrain : Grain, IAppointmentWaitListIndexGra
         return Task.FromResult(results);
     }
 
-    public Task<List<AppointmentWaitListIndexEntry>> GetByPatientAsync(string patientId)
+    public Task<List<AppointmentWaitListIndexEntry>> GetByPatientAsync(string patientId, int maxResults = 50)
     {
         List<AppointmentWaitListIndexEntry> results = _state.State.Entries.Values
             .Where(e => e.PatientId == patientId)
             .OrderByDescending(e => e.WaitListDate)
+            .Take(maxResults)
             .ToList();
         return Task.FromResult(results);
     }

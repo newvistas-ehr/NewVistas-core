@@ -34,7 +34,9 @@ public static class SharedCluster
         }
     }
 
-    private class AllStoresConfigurator : ISiloConfigurator
+    // Internal (not private): MultiSiloIndexReaderTests reuses this configurator
+    // for its own TestClusterBuilder(2) cluster without duplicating the store list.
+    internal class AllStoresConfigurator : ISiloConfigurator
     {
         public void Configure(ISiloBuilder siloBuilder)
         {
@@ -48,6 +50,7 @@ public static class SharedCluster
 
             // DI services required by specific grains
             siloBuilder.Services.AddSingleton<IDrugInteractionCacheService, DrugInteractionCacheService>();
+            siloBuilder.Services.AddSingleton<IPatientIndexSnapshotService, PatientIndexSnapshotService>();
 
             // Route-vs-dose-form validation seam (injected into PharmacyGrain and
             // InpatientOrderGrain). RxNav client defaults to the offline no-op.
@@ -334,6 +337,7 @@ public static class SharedCluster
             siloBuilder.AddMemoryGrainStorage("patientBenefitStore");
             siloBuilder.AddMemoryGrainStorage("patientEnrollmentStore");
             siloBuilder.AddMemoryGrainStorage("patientIndexStore");
+            siloBuilder.AddMemoryGrainStorage("patientHistoryIndexStore");
             siloBuilder.AddMemoryGrainStorage("patientMergeStore");
             siloBuilder.AddMemoryGrainStorage("patientNoteIndexStore");
             siloBuilder.AddMemoryGrainStorage("patientOrderIndexStore");

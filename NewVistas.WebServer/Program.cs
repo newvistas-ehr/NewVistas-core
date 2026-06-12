@@ -2,8 +2,10 @@
 using System.Text;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.AspNetCore.ResponseCompression;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
+using Orleans.Configuration;
 using NewVistas.Abstractions.GrainInterfaces;
 using NewVistas.Abstractions.GrainStates;
 using NewVistas.Abstractions.Importers;
@@ -142,10 +144,20 @@ if (!string.IsNullOrWhiteSpace(federationTrustedCaPath))
 // ImageStorage:Provider config value.
 builder.Services.AddImageStorage(builder.Configuration);
 
+// Response compression for the external surfaces this server exists for
+// (FHIR bundles, portal payloads, lab acknowledgments) — large JSON compresses
+// 70-85%. EnableForHttps is safe here: responses are bearer-token-authenticated
+// API payloads, not cookie-personalized pages mixing attacker-controlled input.
+builder.Services.AddResponseCompression(options => options.EnableForHttps = true);
+
 // ─── Orleans Client ──────────────────────────────────────────────────────────
 // Connects to the Orleans SiloHost. Controllers use IGrainFactory to call grains.
 builder.Host.UseOrleansClient((context, clientBuilder) =>
 {
+    // Matches SiloMessagingOptions.ResponseTimeout in CommonSiloConfig.
+    clientBuilder.Configure<ClientMessagingOptions>(options =>
+        options.ResponseTimeout = TimeSpan.FromSeconds(60));
+
     if (context.HostingEnvironment.IsDevelopment())
     {
         // Development: connect to localhost silo (gateway port 30000)
@@ -185,6 +197,7 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseHttpsRedirection();
+app.UseResponseCompression();
 
 // Layer 1: Authentication must come before Authorization
 app.UseAuthentication();

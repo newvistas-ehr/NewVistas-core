@@ -75,4 +75,64 @@ public class PatientIndexState
     /// </summary>
     [Id(0)]
     public Dictionary<string, PatientIndexEntry> Patients { get; set; } = new();
+
+    /// <summary>
+    /// Monotonic index version, bumped on every mutation. PatientSearchGrain
+    /// readers validate their silo-local snapshot against this (version-exact
+    /// freshness — never time-based). The change ring buffer itself is NOT
+    /// persisted: after a rare index reactivation the empty ring simply forces
+    /// readers to take one full snapshot pull.
+    /// </summary>
+    [Id(1)]
+    public long Version { get; set; }
+}
+
+/// <summary>
+/// One index mutation, used for delta catch-up by search readers.
+/// </summary>
+[GenerateSerializer, Immutable]
+public sealed record PatientIndexChange
+{
+    /// <summary>Index version this change produced.</summary>
+    [Id(0)]
+    public long Version { get; init; }
+
+    /// <summary>The entry after the change.</summary>
+    [Id(1)]
+    public PatientIndexEntry Entry { get; init; } = new();
+
+    /// <summary>True when the entry was removed rather than upserted.</summary>
+    [Id(2)]
+    public bool IsRemoval { get; init; }
+}
+
+/// <summary>
+/// Full versioned copy of the patient index for silo-local search caching.
+/// </summary>
+[GenerateSerializer, Immutable]
+public sealed record PatientIndexSnapshot
+{
+    [Id(0)]
+    public long Version { get; init; }
+
+    [Id(1)]
+    public List<PatientIndexEntry> Entries { get; init; } = new();
+}
+
+/// <summary>
+/// Delta between a reader's snapshot version and the index's current version.
+/// When SnapshotRequired is true the reader's version predates the in-memory
+/// ring buffer and a full GetSnapshotAsync pull is needed instead.
+/// </summary>
+[GenerateSerializer, Immutable]
+public sealed record PatientIndexDelta
+{
+    [Id(0)]
+    public long Version { get; init; }
+
+    [Id(1)]
+    public bool SnapshotRequired { get; init; }
+
+    [Id(2)]
+    public List<PatientIndexChange> Changes { get; init; } = new();
 }

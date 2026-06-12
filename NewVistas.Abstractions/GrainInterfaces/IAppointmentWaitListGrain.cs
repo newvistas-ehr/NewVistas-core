@@ -53,7 +53,7 @@ public interface IAppointmentWaitListIndexGrain : IGrainWithStringKey
     Task AddOrUpdateAsync(AppointmentWaitListIndexEntry entry);
     Task RemoveAsync(string entryId);
     Task<List<AppointmentWaitListIndexEntry>> GetByClinicAsync(string clinicId, int maxResults = 50);
-    Task<List<AppointmentWaitListIndexEntry>> GetByPatientAsync(string patientId);
+    Task<List<AppointmentWaitListIndexEntry>> GetByPatientAsync(string patientId, int maxResults = 50);
     Task<List<AppointmentWaitListIndexEntry>> GetByStatusAsync(string status, int maxResults = 50);
     Task<List<AppointmentWaitListIndexEntry>> GetPendingByClinicAsync(string clinicId, int maxResults = 50);
     Task<List<AppointmentWaitListIndexEntry>> SearchAsync(string? clinicId, string? status, string? priority, int maxResults = 50);

@@ -55,11 +55,12 @@ public class QMIncidentIndexGrain : Grain, IQMIncidentIndexGrain
         return Task.FromResult(result);
     }
 
-    public Task<List<QMIncidentIndexEntry>> GetIncidentsByPatientAsync(string patientId)
+    public Task<List<QMIncidentIndexEntry>> GetIncidentsByPatientAsync(string patientId, int maxResults = 50)
     {
         List<QMIncidentIndexEntry> result = _state.State.Incidents
             .Where(i => i.PatientId == patientId)
             .OrderByDescending(i => i.OccurrenceDate)
+            .Take(maxResults)
             .ToList();
         return Task.FromResult(result);
     }

@@ -63,7 +63,7 @@ public interface IDsiEventIndexGrain : IGrainWithStringKey
     Task AddEventAsync(DsiEventSummary summary);
     Task UpdateResponseAsync(string eventId, string response);
     Task<List<DsiEventSummary>> GetAllEventsAsync();
-    Task<List<DsiEventSummary>> GetEventsByPatientAsync(string patientId);
+    Task<List<DsiEventSummary>> GetEventsByPatientAsync(string patientId, int maxResults = 50);
     Task<List<DsiEventSummary>> GetEventsByInterventionAsync(string interventionId);
     Task<List<DsiEventSummary>> GetPendingEventsAsync();
 }

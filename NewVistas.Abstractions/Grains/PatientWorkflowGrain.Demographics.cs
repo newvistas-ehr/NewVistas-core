@@ -68,7 +68,9 @@ public partial class PatientWorkflowGrain
     }
 
     public Task<List<PatientIndexEntry>> SearchPatientsAsync(string searchTerm, int maxResults = 25)
-        => GetPatientIndexGrain().SearchAsync(searchTerm, maxResults);
+        // Delegates to the StatelessWorker search reader so search CPU scales
+        // out instead of funneling through the singleton PATIENT-INDEX.
+        => GrainFactory.GetGrain<IPatientSearchGrain>("PATIENT-SEARCH").SearchAsync(searchTerm, maxResults);
 
     // ─── Lab Orders (LR file #63) ───────────────────────────────────────
 
@@ -84,7 +86,7 @@ public partial class PatientWorkflowGrain
             PatientId, testId, testName, testCode, orderId,
             orderingProviderId, orderingProviderName, specimenType, category);
 
-        await GetPatientGrain().AddLabTestIdAsync(labTestId);
+        await AppendCappedIdAsync(PatientHistoryDomains.Lab, labTestId, DateTime.UtcNow);
 
         return labTestId;
     }
@@ -109,6 +111,28 @@ public partial class PatientWorkflowGrain
                 CollectionDate = state.CollectionDateTime
             })
             .OrderByDescending(l => l.CollectionDate)
+            .ToList();
+    }
+
+    /// <summary>
+    /// Paged full lab result history (newest first); default reads return only the recent window.
+    /// </summary>
+    public async Task<List<LabResultSummary>> GetLabResultHistoryAsync(int offset, int maxResults)
+    {
+        var labIds = await GetHistoryPageIdsAsync(PatientHistoryDomains.Lab, offset, maxResults);
+        var tasks = labIds.Select(id => GrainFactory.GetGrain<ILabTestGrain>(id).GetLabTestAsync()).ToList();
+        var states = await Task.WhenAll(tasks);
+        return states
+            .Select(state => new LabResultSummary
+            {
+                LabTestId = state.LabTestId,
+                TestName = state.TestName ?? "",
+                ResultValue = state.ResultValue,
+                Units = state.ResultUnit,
+                Flag = state.AbnormalFlag,
+                Status = state.Status ?? "",
+                CollectionDate = state.CollectionDateTime
+            })
             .ToList();
     }
 
@@ -358,8 +382,9 @@ public partial class PatientWorkflowGrain
         // Get all lab test IDs for this patient
         try
         {
-            IPatientGrain patient = GrainFactory.GetGrain<IPatientGrain>(PatientId);
-            List<string> labTestIds = await patient.GetLabTestIdsAsync();
+            // COMPLETE lab set: the worklist filters for pending work — a
+            // pending collection older than the recent window must not vanish.
+            List<string> labTestIds = await GetCompleteIdsAsync(PatientHistoryDomains.Lab);
 
             foreach (string ltId in labTestIds)
             {

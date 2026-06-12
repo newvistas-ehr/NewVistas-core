@@ -43,6 +43,75 @@ public partial class PatientWorkflowGrain : Grain, IPatientWorkflowGrain
     private IPatientGrain GetPatientGrain() => GrainFactory.GetGrain<IPatientGrain>(PatientId);
     private IPatientIndexGrain GetPatientIndexGrain() => GrainFactory.GetGrain<IPatientIndexGrain>("PATIENT-INDEX");
 
+    // ─── Capped Domain ID Lists (recent window + full history index) ──────
+
+    private IPatientHistoryIndexGrain GetHistoryIndex(string domain)
+        => GrainFactory.GetGrain<IPatientHistoryIndexGrain>($"{PatientId}:{domain}");
+
+    /// <summary>
+    /// Records a new clinical item ID for a domain: full-history index first
+    /// (so no crash can lose the ID), lazy one-time migration of the legacy
+    /// unbounded list, then the capped recent-window append on PatientState.
+    /// Allergies must never go through this path.
+    /// </summary>
+    private async Task AppendCappedIdAsync(string domain, string id, DateTime? date)
+    {
+        IPatientHistoryIndexGrain history = GetHistoryIndex(domain);
+        IPatientGrain patient = GetPatientGrain();
+
+        // 1. History index first — crash after this point can duplicate work
+        //    on retry (idempotent) but never lose the ID.
+        await history.AddEntryAsync(new HistoryRef { ItemId = id, Date = date });
+
+        int cap = await GetSiteParams().GetRecentItemsDisplayCountAsync();
+
+        // 2. Lazy migration: flush the full legacy list to the history index
+        //    BEFORE the first trim. Crash before the flag write leaves the
+        //    full list intact — safe to retry.
+        if (!await patient.IsDomainMigratedAsync(domain))
+        {
+            List<string> existing = await patient.GetDomainIdsAsync(domain);
+            if (existing.Count > 0)
+                await history.AddRangeAsync(
+                    existing.Select(x => new HistoryRef { ItemId = x, Date = null }).ToList());
+
+            await patient.MarkDomainMigratedAndTrimAsync(domain, cap);
+        }
+
+        // 3. Recent-window append (trims only because the domain is migrated).
+        await patient.AddDomainIdCappedAsync(domain, id, cap);
+    }
+
+    /// <summary>
+    /// Returns the COMPLETE ID set for a domain — history index once migrated,
+    /// legacy PatientState list before. For clinical complete-set reads (due
+    /// reminders, etc.); display paths should use the recent window instead.
+    /// </summary>
+    private async Task<List<string>> GetCompleteIdsAsync(string domain)
+    {
+        IPatientGrain patient = GetPatientGrain();
+        return await patient.IsDomainMigratedAsync(domain)
+            ? await GetHistoryIndex(domain).GetAllIdsAsync()
+            : await patient.GetDomainIdsAsync(domain);
+    }
+
+    /// <summary>
+    /// Returns one newest-first page of a domain's FULL ID history — history
+    /// index once migrated, legacy PatientState list (reversed) before. Backs
+    /// the paged Get{Domain}HistoryAsync readers so only the requested page
+    /// fans out to item grains.
+    /// </summary>
+    private async Task<List<string>> GetHistoryPageIdsAsync(string domain, int offset, int maxResults)
+    {
+        IPatientGrain patient = GetPatientGrain();
+        if (await patient.IsDomainMigratedAsync(domain))
+            return await GetHistoryIndex(domain).GetPageAsync(offset, maxResults);
+
+        List<string> all = await patient.GetDomainIdsAsync(domain);
+        all.Reverse(); // append-chronological -> newest first
+        return all.Skip(offset).Take(maxResults).ToList();
+    }
+
     // ─── Cover Sheet (ORWCV.m START/BUILD/POLL) ──────────────────────────
 
     public async Task<CoverSheetState> GetCoverSheetAsync()

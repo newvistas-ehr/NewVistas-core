@@ -46,11 +46,12 @@ public class ROIRequestIndexGrain : Grain, IROIRequestIndexGrain
         return Task.FromResult(result);
     }
 
-    public Task<List<ROIRequestIndexEntry>> GetRequestsByPatientAsync(string patientId)
+    public Task<List<ROIRequestIndexEntry>> GetRequestsByPatientAsync(string patientId, int maxResults = 50)
     {
         List<ROIRequestIndexEntry> result = _state.State.Requests
             .Where(r => r.PatientId == patientId)
             .OrderByDescending(r => r.ReceivedDate)
+            .Take(maxResults)
             .ToList();
         return Task.FromResult(result);
     }

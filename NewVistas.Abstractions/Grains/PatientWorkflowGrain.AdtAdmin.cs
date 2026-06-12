@@ -97,7 +97,7 @@ public partial class PatientWorkflowGrain
         await grain.RecordAdmissionAsync(PatientId, movementDateTime, wardLocationId, wardLocationName,
             roomBed, null, treatingSpecialtyName, attendingPhysicianId, attendingPhysicianName,
             null, admissionDiagnosis, comments);
-        await GetPatientGrain().AddAdtIdAsync(adtId);
+        await AppendCappedIdAsync(PatientHistoryDomains.Adt, adtId, DateTime.UtcNow);
 
         if (!string.IsNullOrEmpty(wardLocationId))
         {
@@ -146,7 +146,7 @@ public partial class PatientWorkflowGrain
             toWardId, toWardName, toRoomBed,
             toSpecialtyId, toSpecialtyName,
             attendingPhysicianId, attendingPhysicianName, comments);
-        await GetPatientGrain().AddAdtIdAsync(transferId);
+        await AppendCappedIdAsync(PatientHistoryDomains.Adt, transferId, DateTime.UtcNow);
 
         if (!string.IsNullOrEmpty(sourceState.WardLocationId))
         {
@@ -176,6 +176,24 @@ public partial class PatientWorkflowGrain
         var tasks = ids.Select(id => GrainFactory.GetGrain<IAdtGrain>(id).GetMovementAsync()).ToList();
         var states = await Task.WhenAll(tasks);
         return states.OrderByDescending(s => s.MovementDateTime)
+            .Select(s => new AdtSummary
+            {
+                MovementId = s.MovementId, MovementType = s.TransactionType,
+                MovementDateTime = s.MovementDateTime, WardLocationName = s.WardLocationName,
+                RoomBed = s.RoomBed, AttendingPhysicianName = s.AttendingPhysicianName,
+                Status = s.TransactionType switch { "DISCHARGE" => "DISCHARGED", "TRANSFER" => "TRANSFERRED", _ => "ADMITTED" }
+            }).ToList();
+    }
+
+    /// <summary>
+    /// Paged full ADT movement history (newest first); default reads return only the recent window.
+    /// </summary>
+    public async Task<List<AdtSummary>> GetAdtHistoryAsync(int offset, int maxResults)
+    {
+        var ids = await GetHistoryPageIdsAsync(PatientHistoryDomains.Adt, offset, maxResults);
+        var tasks = ids.Select(id => GrainFactory.GetGrain<IAdtGrain>(id).GetMovementAsync()).ToList();
+        var states = await Task.WhenAll(tasks);
+        return states
             .Select(s => new AdtSummary
             {
                 MovementId = s.MovementId, MovementType = s.TransactionType,
@@ -254,7 +272,11 @@ public partial class PatientWorkflowGrain
     private async Task<CwadFlags> BuildCwadFlagsAsync(PatientState state)
     {
         var allergies = state.Allergies ?? [];
-        var documentIds = state.TiuDocumentIds ?? [];
+
+        // COMPLETE document set: state.TiuDocumentIds is a capped recent
+        // window — an old advance directive or crisis note must never fall
+        // off the CWAD flags.
+        var documentIds = await GetCompleteIdsAsync(PatientHistoryDomains.Tiu);
 
         var hasCrisis = false;
         var hasDirectives = false;
@@ -283,7 +305,9 @@ public partial class PatientWorkflowGrain
 
     private async Task<List<ReminderSummary>> LoadRemindersAsync(IPatientGrain patientGrain)
     {
-        var reminderIds = await patientGrain.GetClinicalReminderIdsAsync();
+        // COMPLETE reminder set: the DUE filter is an active-set query — a
+        // due reminder older than the capped recent window must still fire.
+        var reminderIds = await GetCompleteIdsAsync(PatientHistoryDomains.Reminder);
 
         // Fan-out: fire all grain calls concurrently
         var tasks = reminderIds.Select(id => GrainFactory.GetGrain<IClinicalReminderGrain>(id).GetReminderAsync()).ToList();

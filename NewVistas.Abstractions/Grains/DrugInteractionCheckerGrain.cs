@@ -10,14 +10,19 @@ namespace NewVistas.Abstractions.Grains;
 
 /// <summary>
 /// Drug Interaction Checker Grain — StatelessWorker that checks a list of drug
-/// ingredients against the silo-level interaction cache.
+/// ingredients against the version-validated interaction dataset.
 ///
 /// [StatelessWorker] allows Orleans to maintain multiple local activations per
 /// silo under load. All activations share the same IDrugInteractionCacheService
-/// singleton, so they all read from the same interaction snapshot.
+/// singleton, which this grain pull-through-populates: on each check it
+/// compares the cached snapshot version against DI-DATASET (one tiny call) and
+/// pulls a fresh snapshot only when the cache is missing or stale. Because the
+/// pull happens on the silo receiving the call, every silo self-populates.
 ///
-/// This grain has no persistent state and performs no writes. It is purely
-/// a computation kernel that wraps the cache lookup in Orleans grain semantics.
+/// FAIL-CLOSED: when the dataset is not loaded, returns DataUnavailable —
+/// never an empty "no interactions" result. An empty silo cache previously
+/// passed every check silently (fail-open), which on a multi-silo cluster
+/// meant unchecked medication orders.
 /// </summary>
 [StatelessWorker]
 public class DrugInteractionCheckerGrain : Grain, IDrugInteractionCheckerGrain
@@ -29,17 +34,36 @@ public class DrugInteractionCheckerGrain : Grain, IDrugInteractionCheckerGrain
         _cacheService = cacheService;
     }
 
-    public Task<List<DrugInteractionResult>> CheckInteractionsAsync(List<DrugIngredient> ingredients)
+    private IDrugInteractionDatasetGrain Dataset()
+        => GrainFactory.GetGrain<IDrugInteractionDatasetGrain>("DI-DATASET");
+
+    public async Task<DrugInteractionCheckResponse> CheckInteractionsAsync(List<DrugIngredient> ingredients)
     {
-        // Need at least two distinct ingredients to form a pair.
+        // Need at least two distinct ingredients to form a pair — legitimately
+        // nothing to check, not a data-availability problem.
         if (ingredients.Count < 2)
-            return Task.FromResult(new List<DrugInteractionResult>());
+            return new DrugInteractionCheckResponse { Status = DrugInteractionCheckStatus.Ok };
 
-        IReadOnlyDictionary<string, DrugInteractionPair> snapshot = _cacheService.GetSnapshot();
+        DrugInteractionDatasetVersion current = await Dataset().GetVersionAsync();
 
-        if (snapshot.Count == 0)
-            return Task.FromResult(new List<DrugInteractionResult>());
+        if (!current.IsLoaded)
+            return new DrugInteractionCheckResponse { Status = DrugInteractionCheckStatus.DataUnavailable };
 
+        CachedInteractionSnapshot? cached = _cacheService.GetSnapshot();
+        if (cached is null || cached.Version != current.Version)
+        {
+            DrugInteractionSnapshot fresh = await Dataset().GetSnapshotAsync();
+
+            // Re-check: a ClearAsync may have raced between the version probe
+            // and the snapshot pull.
+            if (!fresh.IsLoaded)
+                return new DrugInteractionCheckResponse { Status = DrugInteractionCheckStatus.DataUnavailable };
+
+            cached = new CachedInteractionSnapshot(fresh.Version, fresh.PairsByKey);
+            _cacheService.Swap(cached);
+        }
+
+        IReadOnlyDictionary<string, DrugInteractionPair> snapshot = cached.Pairs;
         List<DrugInteractionResult> results = new();
 
         // Evaluate every unique pair (n*(n-1)/2 combinations).
@@ -72,9 +96,14 @@ public class DrugInteractionCheckerGrain : Grain, IDrugInteractionCheckerGrain
             }
         }
 
-        return Task.FromResult(results);
+        return new DrugInteractionCheckResponse
+        {
+            Status = DrugInteractionCheckStatus.Ok,
+            Results = results,
+            DatasetVersion = cached.Version
+        };
     }
 
-    public Task<bool> IsCacheReadyAsync() =>
-        Task.FromResult(_cacheService.IsPopulated);
+    public async Task<bool> IsCacheReadyAsync()
+        => (await Dataset().GetVersionAsync()).IsLoaded;
 }

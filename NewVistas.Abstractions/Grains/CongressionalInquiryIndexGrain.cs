@@ -59,11 +59,12 @@ public class CongressionalInquiryIndexGrain : Grain, ICongressionalInquiryIndexG
         return Task.FromResult(result);
     }
 
-    public Task<List<CongressionalInquiryIndexEntry>> GetInquiriesByPatientAsync(string patientId)
+    public Task<List<CongressionalInquiryIndexEntry>> GetInquiriesByPatientAsync(string patientId, int maxResults = 50)
     {
         List<CongressionalInquiryIndexEntry> result = _state.State.Inquiries
             .Where(i => i.PatientId == patientId)
             .OrderByDescending(i => i.ReceivedDate)
+            .Take(maxResults)
             .ToList();
         return Task.FromResult(result);
     }

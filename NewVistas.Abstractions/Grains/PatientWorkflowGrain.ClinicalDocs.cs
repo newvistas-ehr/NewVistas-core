@@ -79,7 +79,7 @@ public partial class PatientWorkflowGrain
             locationId, locationName,
             visitId, referenceDate);
 
-        await GetPatientGrain().AddTiuDocumentIdAsync(documentId);
+        await AppendCappedIdAsync(PatientHistoryDomains.Tiu, documentId, DateTime.UtcNow);
 
         // Populate index + hot cache
         var state = await tiuGrain.GetDocumentAsync();
@@ -159,7 +159,7 @@ public partial class PatientWorkflowGrain
         await parentGrain.AddAddendumAsync(addendumId);
 
         // Track in patient's document list
-        await GetPatientGrain().AddTiuDocumentIdAsync(addendumId);
+        await AppendCappedIdAsync(PatientHistoryDomains.Tiu, addendumId, DateTime.UtcNow);
 
         // Populate index (addendum — excluded from hot cache)
         var addendumState = await addendumGrain.GetDocumentAsync();
@@ -236,7 +236,7 @@ public partial class PatientWorkflowGrain
             reasonForRequest, provisionalDiagnosis,
             orderId, locationId, locationName);
 
-        await GetPatientGrain().AddConsultIdAsync(consultId);
+        await AppendCappedIdAsync(PatientHistoryDomains.Consult, consultId, DateTime.UtcNow);
 
         return consultId;
     }
@@ -316,8 +316,10 @@ public partial class PatientWorkflowGrain
     /// </summary>
     public async Task<List<ConsultSummary>> GetConsultsAsync(string? statusFilter, int maxResults)
     {
-        var patientGrain = GetPatientGrain();
-        var consultIds = await patientGrain.GetConsultIdsAsync();
+        // COMPLETE consult set: status-filtered queries (e.g., PENDING) must
+        // see in-flight consults older than the capped recent window; the
+        // maxResults parameter caps the response.
+        var consultIds = await GetCompleteIdsAsync(PatientHistoryDomains.Consult);
 
         // Fan-out: fire all grain calls concurrently
         var tasks = consultIds.Select(id => GrainFactory.GetGrain<IConsultGrain>(id).GetConsultAsync()).ToList();
@@ -328,20 +330,34 @@ public partial class PatientWorkflowGrain
                 state.Status.Equals(statusFilter, StringComparison.OrdinalIgnoreCase))
             .OrderByDescending(state => state.RequestDateTime)
             .Take(maxResults)
-            .Select(state => new ConsultSummary
-            {
-                ConsultId = state.ConsultId,
-                ToService = state.ToService,
-                FromService = state.FromService,
-                Status = state.Status,
-                Urgency = state.Urgency,
-                RequestDateTime = state.RequestDateTime,
-                RequestingProviderName = state.RequestingProviderName,
-                AttentionProviderName = state.AttentionProviderName,
-                ProvisionalDiagnosis = state.ProvisionalDiagnosis,
-                HasResultDocument = !string.IsNullOrEmpty(state.ResultDocumentId)
-            })
+            .Select(ToConsultSummary)
             .ToList();
+    }
+
+    private static ConsultSummary ToConsultSummary(ConsultState state)
+        => new()
+        {
+            ConsultId = state.ConsultId,
+            ToService = state.ToService,
+            FromService = state.FromService,
+            Status = state.Status,
+            Urgency = state.Urgency,
+            RequestDateTime = state.RequestDateTime,
+            RequestingProviderName = state.RequestingProviderName,
+            AttentionProviderName = state.AttentionProviderName,
+            ProvisionalDiagnosis = state.ProvisionalDiagnosis,
+            HasResultDocument = !string.IsNullOrEmpty(state.ResultDocumentId)
+        };
+
+    /// <summary>
+    /// Paged full consult history (newest first); default reads return only the recent window.
+    /// </summary>
+    public async Task<List<ConsultSummary>> GetConsultHistoryAsync(int offset, int maxResults)
+    {
+        var ids = await GetHistoryPageIdsAsync(PatientHistoryDomains.Consult, offset, maxResults);
+        var tasks = ids.Select(id => GrainFactory.GetGrain<IConsultGrain>(id).GetConsultAsync()).ToList();
+        var states = await Task.WhenAll(tasks);
+        return states.Select(ToConsultSummary).ToList();
     }
 
     // ─── Surgery (File #130) ─────────────────────────────────────────────
@@ -357,7 +373,7 @@ public partial class PatientWorkflowGrain
         await grain.ScheduleSurgeryAsync(PatientId, principalProcedure, cptCode, dateOfOperation,
             surgeonId, surgeonName, anesthesiaTechnique, surgicalSpecialty, preOpDiagnosis,
             locationId, locationName, comments);
-        await GetPatientGrain().AddSurgeryIdAsync(surgeryId);
+        await AppendCappedIdAsync(PatientHistoryDomains.Surgery, surgeryId, DateTime.UtcNow);
         return surgeryId;
     }
 
@@ -392,6 +408,23 @@ public partial class PatientWorkflowGrain
             }).ToList();
     }
 
+    /// <summary>
+    /// Paged full surgery history (newest first); default reads return only the recent window.
+    /// </summary>
+    public async Task<List<SurgerySummary>> GetSurgeryHistoryAsync(int offset, int maxResults)
+    {
+        var ids = await GetHistoryPageIdsAsync(PatientHistoryDomains.Surgery, offset, maxResults);
+        var tasks = ids.Select(id => GrainFactory.GetGrain<ISurgeryGrain>(id).GetSurgeryAsync()).ToList();
+        var states = await Task.WhenAll(tasks);
+        return states
+            .Select(s => new SurgerySummary
+            {
+                SurgeryId = s.SurgeryId, PrincipalProcedure = s.PrincipalProcedure,
+                CptCode = s.PrincipalProcedureCptCode, DateOfOperation = s.DateOfOperation ?? DateTime.MinValue,
+                SurgeonName = s.SurgeonName, Status = s.Status, SurgicalSpecialty = s.SurgicalSpecialty
+            }).ToList();
+    }
+
     // ─── Radiology (File #75.1) ──────────────────────────────────────────
 
     public async Task<string> OrderRadiologyStudyAsync(
@@ -405,7 +438,7 @@ public partial class PatientWorkflowGrain
         await grain.OrderStudyAsync(PatientId, procedureName, procedureId, cptCode, imagingType,
             requestingProviderId, requestingProviderName, urgency, clinicalHistory, reasonForStudy,
             orderId, locationId, locationName);
-        await GetPatientGrain().AddRadiologyIdAsync(radiologyId);
+        await AppendCappedIdAsync(PatientHistoryDomains.Radiology, radiologyId, DateTime.UtcNow);
         return radiologyId;
     }
 
@@ -429,6 +462,24 @@ public partial class PatientWorkflowGrain
         var tasks = ids.Select(id => GrainFactory.GetGrain<IRadiologyGrain>(id).GetRadiologyAsync()).ToList();
         var states = await Task.WhenAll(tasks);
         return states.OrderByDescending(s => s.ExamDateTime ?? s.OrderDateTime).Take(maxResults)
+            .Select(s => new RadiologySummary
+            {
+                RadiologyId = s.RadiologyId, ProcedureName = s.ProcedureName,
+                ImagingType = s.ImagingType, Status = s.Status,
+                ExamDateTime = s.ExamDateTime, RequestingProviderName = s.RequestingProviderName,
+                HasReport = !string.IsNullOrEmpty(s.ReportText)
+            }).ToList();
+    }
+
+    /// <summary>
+    /// Paged full radiology history (newest first); default reads return only the recent window.
+    /// </summary>
+    public async Task<List<RadiologySummary>> GetRadiologyHistoryAsync(int offset, int maxResults)
+    {
+        var ids = await GetHistoryPageIdsAsync(PatientHistoryDomains.Radiology, offset, maxResults);
+        var tasks = ids.Select(id => GrainFactory.GetGrain<IRadiologyGrain>(id).GetRadiologyAsync()).ToList();
+        var states = await Task.WhenAll(tasks);
+        return states
             .Select(s => new RadiologySummary
             {
                 RadiologyId = s.RadiologyId, ProcedureName = s.ProcedureName,
@@ -656,8 +707,9 @@ public partial class PatientWorkflowGrain
 
         try
         {
-            IPatientGrain patient = GrainFactory.GetGrain<IPatientGrain>(PatientId);
-            List<string> radIds = await patient.GetRadiologyIdsAsync();
+            // COMPLETE radiology set: the worklist filters for in-flight exams —
+            // a pending exam older than the recent window must not vanish.
+            List<string> radIds = await GetCompleteIdsAsync(PatientHistoryDomains.Radiology);
 
             foreach (string radId in radIds)
             {

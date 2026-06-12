@@ -62,7 +62,15 @@ public enum DurOutcome
     Override = 3,
 
     /// <summary>Check was not applicable to this prescription.</summary>
-    NotApplicable = 4
+    NotApplicable = 4,
+
+    /// <summary>
+    /// Check could not run because required reference data is unavailable
+    /// (e.g., drug-interaction dataset not loaded). Blocks dispensing and is
+    /// NOT pharmacist-overridable — resolution is an administrator loading
+    /// the missing dataset.
+    /// </summary>
+    Unavailable = 5
 }
 
 /// <summary>

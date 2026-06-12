@@ -32,10 +32,10 @@ public class AutoRefillIndexGrain : Grain, IAutoRefillIndexGrain
         await _state.WriteStateAsync();
     }
 
-    public Task<List<AutoRefillIndexEntry>> GetByPatientAsync(string patientId) =>
+    public Task<List<AutoRefillIndexEntry>> GetByPatientAsync(string patientId, int maxResults = 50) =>
         Task.FromResult(_state.State.Entries.Values
             .Where(e => e.PatientId == patientId)
-            .OrderBy(e => e.NextRefillDate).ToList());
+            .OrderBy(e => e.NextRefillDate).Take(maxResults).ToList());
 
     public Task<List<AutoRefillIndexEntry>> GetByStatusAsync(string status, int maxResults = 50) =>
         Task.FromResult(_state.State.Entries.Values

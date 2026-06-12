@@ -16,8 +16,8 @@ public class PeriodontalChartIndexGrain : Grain, IPeriodontalChartIndexGrain
     public async Task AddOrUpdateAsync(PeriodontalChartIndexEntry entry)
     { _state.State.Entries[entry.ChartId] = entry; await _state.WriteStateAsync(); }
 
-    public Task<List<PeriodontalChartIndexEntry>> GetByPatientAsync(string patientId) =>
-        Task.FromResult(_state.State.Entries.Values.Where(e => e.PatientId == patientId).OrderByDescending(e => e.ExamDate).ToList());
+    public Task<List<PeriodontalChartIndexEntry>> GetByPatientAsync(string patientId, int maxResults = 50) =>
+        Task.FromResult(_state.State.Entries.Values.Where(e => e.PatientId == patientId).OrderByDescending(e => e.ExamDate).Take(maxResults).ToList());
 
     public Task<List<PeriodontalChartIndexEntry>> GetByProviderAsync(string providerId, int maxResults = 50) =>
         Task.FromResult(_state.State.Entries.Values.Where(e => e.ProviderId == providerId).OrderByDescending(e => e.ExamDate).Take(maxResults).ToList());

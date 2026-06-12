@@ -41,7 +41,7 @@ public interface IPeriodontalChartGrain : IGrainWithStringKey
 public interface IPeriodontalChartIndexGrain : IGrainWithStringKey
 {
     Task AddOrUpdateAsync(PeriodontalChartIndexEntry entry);
-    Task<List<PeriodontalChartIndexEntry>> GetByPatientAsync(string patientId);
+    Task<List<PeriodontalChartIndexEntry>> GetByPatientAsync(string patientId, int maxResults = 50);
     Task<List<PeriodontalChartIndexEntry>> GetByProviderAsync(string providerId, int maxResults = 50);
     Task<List<PeriodontalChartIndexEntry>> GetByClassificationAsync(string classification, int maxResults = 50);
     Task<List<PeriodontalChartIndexEntry>> SearchAsync(string? patientId, string? providerId, string? status, int maxResults = 50);

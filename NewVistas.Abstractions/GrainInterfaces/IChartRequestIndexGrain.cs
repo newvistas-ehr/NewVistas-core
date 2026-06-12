@@ -13,5 +13,5 @@ public interface IChartRequestIndexGrain : IGrainWithStringKey
     Task<List<ChartRequestIndexEntry>> GetAllRequestsAsync();
     Task<List<ChartRequestIndexEntry>> GetPendingRequestsAsync();
     Task<List<ChartRequestIndexEntry>> GetUrgentRequestsAsync();
-    Task<List<ChartRequestIndexEntry>> GetRequestsByPatientAsync(string patientId);
+    Task<List<ChartRequestIndexEntry>> GetRequestsByPatientAsync(string patientId, int maxResults = 50);
 }

@@ -47,6 +47,42 @@ public class PharmacyGrain : Grain, IPharmacyGrain
 
     public Task<PharmacyState> GetPrescriptionAsync() => Task.FromResult(_state.State);
 
+    /// <summary>
+    /// Pushes this prescription's current summary into the per-patient
+    /// PSO-INDEX. Called after every lifecycle write so the index stays the
+    /// authoritative COMPLETE prescription set — active-medication queries and
+    /// drug-interaction screening read the index, not PatientState's capped
+    /// recent-window ID list.
+    /// </summary>
+    private Task SyncPrescriptionIndexAsync()
+    {
+        if (string.IsNullOrEmpty(_state.State.PatientId))
+            return Task.CompletedTask;
+
+        IPatientPrescriptionIndexGrain index = GrainFactory
+            .GetGrain<IPatientPrescriptionIndexGrain>($"PSO-INDEX:{_state.State.PatientId}");
+
+        return index.AddOrUpdateEntryAsync(BuildIndexEntry(_state.State));
+    }
+
+    internal static PrescriptionIndexEntry BuildIndexEntry(PharmacyState state) => new()
+    {
+        PrescriptionId = state.PrescriptionId,
+        DrugName = state.DrugName ?? string.Empty,
+        DrugId = state.DrugId,
+        Status = state.Status ?? string.Empty,
+        IssueDate = state.IssueDate,
+        ExpirationDate = state.ExpirationDate,
+        Refills = state.Refills,
+        RefillsRemaining = state.RefillsRemaining,
+        Priority = state.Priority ?? "ROUTINE",
+        IsVerified = state.IsVerified,
+        CounselingRequired = state.CounselingRequired,
+        ProviderId = state.ProviderId,
+        ProviderName = state.ProviderName,
+        Dosage = state.Dosage
+    };
+
     public async Task CreatePrescriptionAsync(
         string patientId, string drugName, string? drugId,
         string? dosage, string? route, string? schedule, string? sig,
@@ -106,6 +142,7 @@ public class PharmacyGrain : Grain, IPharmacyGrain
 
         await _state.WriteStateAsync();
         await this.DrainOutboxAsync(_state, GrainFactory);
+        await SyncPrescriptionIndexAsync();
     }
 
     public async Task FillPrescriptionAsync(DateTime fillDate)
@@ -167,6 +204,7 @@ public class PharmacyGrain : Grain, IPharmacyGrain
 
         await _state.WriteStateAsync();
         await this.DrainOutboxAsync(_state, GrainFactory);
+        await SyncPrescriptionIndexAsync();
     }
 
     public async Task DiscontinueAsync(string reason)
@@ -192,6 +230,7 @@ public class PharmacyGrain : Grain, IPharmacyGrain
 
         await _state.WriteStateAsync();
         await this.DrainOutboxAsync(_state, GrainFactory);
+        await SyncPrescriptionIndexAsync();
     }
 
     public async Task ExpireAsync()
@@ -202,6 +241,7 @@ public class PharmacyGrain : Grain, IPharmacyGrain
         _state.State.Status = "EXPIRED";
         _state.State.LastModifiedDate = DateTime.UtcNow;
         await _state.WriteStateAsync();
+        await SyncPrescriptionIndexAsync();
     }
 
     public async Task PlaceOnHoldAsync(string reason)
@@ -214,6 +254,7 @@ public class PharmacyGrain : Grain, IPharmacyGrain
         _state.State.HoldDate = DateTime.UtcNow;
         _state.State.LastModifiedDate = DateTime.UtcNow;
         await _state.WriteStateAsync();
+        await SyncPrescriptionIndexAsync();
     }
 
     public async Task ResumeAsync()
@@ -224,6 +265,7 @@ public class PharmacyGrain : Grain, IPharmacyGrain
         _state.State.Status = "ACTIVE";
         _state.State.LastModifiedDate = DateTime.UtcNow;
         await _state.WriteStateAsync();
+        await SyncPrescriptionIndexAsync();
     }
 
     public async Task RefillAsync(DateTime fillDate)
@@ -330,6 +372,7 @@ public class PharmacyGrain : Grain, IPharmacyGrain
 
         await _state.WriteStateAsync();
         await this.DrainOutboxAsync(_state, GrainFactory);
+        await SyncPrescriptionIndexAsync();
     }
 
     public Task<RefillEligibilityResult> CheckRefillEligibilityAsync(DateTime proposedFillDate)
@@ -482,6 +525,7 @@ public class PharmacyGrain : Grain, IPharmacyGrain
 
         await _state.WriteStateAsync();
         await this.DrainOutboxAsync(_state, GrainFactory);
+        await SyncPrescriptionIndexAsync();
     }
 
     public async Task SetCounselingFlagAsync(bool required)

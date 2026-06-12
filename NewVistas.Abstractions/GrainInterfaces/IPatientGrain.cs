@@ -406,4 +406,36 @@ public interface IPatientGrain : IGrainWithStringKey
     /// Maps to VistA DG MERGE file (#15.1).
     /// </summary>
     Task MarkAsMergedAsync(string survivingPatientId, string mergedByUserId);
+
+    // --- Capped Domain ID Lists ---
+    // PatientState keeps a recent window of item IDs per clinical domain
+    // (site parameter RecentItemsDisplayCount); full history lives in
+    // IPatientHistoryIndexGrain. Allergies are never capped.
+
+    /// <summary>
+    /// Returns a copy of the ID list for a PatientHistoryDomains constant.
+    /// Pre-migration this is the complete history; post-migration it is the
+    /// recent window only (full history is in the history index).
+    /// </summary>
+    Task<List<string>> GetDomainIdsAsync(string domain);
+
+    /// <summary>
+    /// True once the domain's full ID history has been flushed to the
+    /// per-domain history index (i.e., trimming is permitted).
+    /// </summary>
+    Task<bool> IsDomainMigratedAsync(string domain);
+
+    /// <summary>
+    /// Appends an item ID to the domain list (duplicate-safe) and, if the
+    /// domain is migrated, trims the list to the most recent maxCount.
+    /// Never trims pre-migration — that would lose un-flushed history.
+    /// </summary>
+    Task AddDomainIdCappedAsync(string domain, string id, int maxCount);
+
+    /// <summary>
+    /// Marks the domain migrated and trims its list to maxCount in one state
+    /// write. Call ONLY after the full list has been flushed to the history
+    /// index (the workflow grain's AppendCappedIdAsync owns this ordering).
+    /// </summary>
+    Task MarkDomainMigratedAndTrimAsync(string domain, int maxCount);
 }

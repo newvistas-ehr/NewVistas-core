@@ -13,6 +13,10 @@ builder.AddServiceDefaults();
 // Drug interaction silo-level cache (shared across all grains in the silo).
 builder.Services.AddSingleton<IDrugInteractionCacheService, DrugInteractionCacheService>();
 
+// Patient-index read snapshot holder for the PatientSearchGrain stateless
+// workers (pull-through populated; one immutable index copy per silo).
+builder.Services.AddSingleton<IPatientIndexSnapshotService, PatientIndexSnapshotService>();
+
 // Route-vs-dose-form validation (RxNorm-derived). The validation service is a
 // silo singleton shared by the pharmacy and inpatient order grains. The RxNav
 // client defaults to a no-op so the system runs fully offline; a live HTTP
@@ -104,6 +108,7 @@ static partial class Program
         "labSummaryStore", "labBatchStore", "labIndexStore",
         "icd10Store",
         "patientIndexStore",
+        "patientHistoryIndexStore",
         "vaProductStore", "ndfProductIndexStore", "ndfGenericIndexStore", "ndfClassIndexStore",
         "drugInteractionStore",
         "durAssessmentStore", "durAssessmentIndexStore",

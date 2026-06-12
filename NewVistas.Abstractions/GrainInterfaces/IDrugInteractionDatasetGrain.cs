@@ -14,19 +14,39 @@ namespace NewVistas.Abstractions.GrainInterfaces;
 /// Interactions are defined at the ingredient level (File #50.416) so that
 /// all products containing a flagged ingredient are automatically covered.
 ///
-/// On activation, the grain repopulates the silo-level IDrugInteractionCacheService
-/// so that IDrugInteractionCheckerGrain StatelessWorker instances can check
-/// orders from the in-memory cache without touching persistent storage on every call.
+/// Distribution model (pull-through): this grain is the versioned source of
+/// truth. IDrugInteractionCheckerGrain StatelessWorker activations validate
+/// their silo-local cache against GetVersionAsync on every check and pull
+/// GetSnapshotAsync only when missing or stale — so every silo in the
+/// cluster self-populates, and freshness is version-exact (never time-based).
 ///
 /// MUMPS heritage: DRGINT.m, PSO*5.0*212 interaction check routines.
 /// </summary>
 public interface IDrugInteractionDatasetGrain : IGrainWithStringKey
 {
     /// <summary>
-    /// Bulk-loads interaction pairs into the dataset, replacing all prior data.
-    /// Immediately swaps the silo-level cache so checkers see the new data.
+    /// Bulk-loads interaction pairs into the dataset, replacing all prior data
+    /// and bumping the dataset version so checkers on every silo re-pull.
     /// </summary>
     Task LoadInteractionsAsync(List<DrugInteractionPair> pairs);
+
+    /// <summary>
+    /// Merges interaction pairs into the dataset without removing existing
+    /// pairs (incremental update), marking the dataset loaded and bumping the
+    /// version. Existing entries with the same canonical pair key are replaced.
+    /// </summary>
+    Task AddInteractionsAsync(List<DrugInteractionPair> pairs);
+
+    /// <summary>
+    /// Returns the current dataset version and load flag. Tiny payload —
+    /// called once per interaction check to validate silo-local caches.
+    /// </summary>
+    Task<DrugInteractionDatasetVersion> GetVersionAsync();
+
+    /// <summary>
+    /// Returns a versioned copy of the full dataset for silo-local caching.
+    /// </summary>
+    Task<DrugInteractionSnapshot> GetSnapshotAsync();
 
     /// <summary>
     /// Returns the interaction record for two ingredients, or null if no
@@ -45,7 +65,8 @@ public interface IDrugInteractionDatasetGrain : IGrainWithStringKey
     Task<DrugInteractionStatus> GetStatusAsync();
 
     /// <summary>
-    /// Clears all interaction data and resets the silo-level cache to empty.
+    /// Clears all interaction data and bumps the version. Checkers detect the
+    /// cleared dataset on their next version check and fail closed.
     /// </summary>
     Task ClearAsync();
 }

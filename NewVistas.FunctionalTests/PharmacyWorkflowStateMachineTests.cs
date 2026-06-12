@@ -139,7 +139,8 @@ public class PharmacyWorkflowStateMachineTests
         string ien1 = $"IEN-WF-{Guid.NewGuid():N}";
         string ien2 = $"IEN-WF-{Guid.NewGuid():N}";
         IDrugInteractionDatasetGrain ds = _cluster.GrainFactory.GetGrain<IDrugInteractionDatasetGrain>("DI-DATASET");
-        await ds.LoadInteractionsAsync(new List<DrugInteractionPair>
+        // Merge, not replace: parallel fixtures share this singleton.
+        await ds.AddInteractionsAsync(new List<DrugInteractionPair>
         {
             new DrugInteractionPair
             {
@@ -197,7 +198,8 @@ public class PharmacyWorkflowStateMachineTests
         string ien1 = $"IEN-OVR-{Guid.NewGuid():N}";
         string ien2 = $"IEN-OVR-{Guid.NewGuid():N}";
         IDrugInteractionDatasetGrain ds = _cluster.GrainFactory.GetGrain<IDrugInteractionDatasetGrain>("DI-DATASET");
-        await ds.LoadInteractionsAsync(new List<DrugInteractionPair>
+        // Merge, not replace: parallel fixtures share this singleton.
+        await ds.AddInteractionsAsync(new List<DrugInteractionPair>
         {
             new DrugInteractionPair
             {

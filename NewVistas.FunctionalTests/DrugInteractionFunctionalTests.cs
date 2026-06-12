@@ -23,7 +23,11 @@ namespace NewVistas.FunctionalTests;
 /// Every test is self-contained: it uses GUID-based ingredient IENs to
 /// avoid interference with other tests that share the "DI-DATASET" singleton.
 /// </summary>
-[TestFixture]
+// NonParallelizable: these tests exercise replace-all loads, Clear, and
+// global count/status assertions on the shared DI-DATASET singleton. Running
+// them concurrently with other fixtures (which merge-seed the same singleton)
+// races both directions.
+[TestFixture, NonParallelizable]
 public class DrugInteractionWorkflowTests
 {
     private TestCluster _cluster = default!;
@@ -208,6 +212,15 @@ public class DrugInteractionWorkflowTests
         Assert.That(all, Is.Empty);
         Assert.That(status.IsLoaded, Is.False);
         Assert.That(status.TotalPairs, Is.EqualTo(0));
+
+        // Restore a loaded dataset: the fail-closed checker blocks screening
+        // when IsLoaded is false, and this DI-DATASET singleton is shared with
+        // every other fixture on the SharedCluster.
+        await dataset.LoadInteractionsAsync(
+        [
+            Pair($"IEN-{run}-RESTORE-A", "A", $"IEN-{run}-RESTORE-B", "B",
+                InteractionSeverity.Minor, "Post-clear restore pair")
+        ]);
     }
 
     /// <summary>
@@ -266,11 +279,14 @@ public class DrugInteractionWorkflowTests
         IDrugInteractionCheckerGrain checker =
             _cluster.GrainFactory.GetGrain<IDrugInteractionCheckerGrain>(CheckerKey);
 
-        List<DrugInteractionResult> results = await checker.CheckInteractionsAsync(
+        DrugInteractionCheckResponse response = await checker.CheckInteractionsAsync(
         [
             Ingredient(ienW, "WARFARIN SODIUM"),
             Ingredient(ienA, "ASPIRIN")
         ]);
+
+        Assert.That(response.Status, Is.EqualTo(DrugInteractionCheckStatus.Ok));
+        List<DrugInteractionResult> results = response.Results;
 
         Assert.That(results, Has.Count.EqualTo(1));
         Assert.That(results[0].Interaction.Severity, Is.EqualTo(InteractionSeverity.Contraindicated));
@@ -288,10 +304,13 @@ public class DrugInteractionWorkflowTests
         IDrugInteractionCheckerGrain checker =
             _cluster.GrainFactory.GetGrain<IDrugInteractionCheckerGrain>(CheckerKey);
 
-        List<DrugInteractionResult> results =
+        DrugInteractionCheckResponse response =
             await checker.CheckInteractionsAsync([]);
 
-        Assert.That(results, Is.Empty);
+        // Fewer than two ingredients is legitimately "nothing to check",
+        // not a data-availability problem — Ok even before any load.
+        Assert.That(response.Status, Is.EqualTo(DrugInteractionCheckStatus.Ok));
+        Assert.That(response.Results, Is.Empty);
     }
 
     /// <summary>
@@ -303,12 +322,13 @@ public class DrugInteractionWorkflowTests
         IDrugInteractionCheckerGrain checker =
             _cluster.GrainFactory.GetGrain<IDrugInteractionCheckerGrain>(CheckerKey);
 
-        List<DrugInteractionResult> results = await checker.CheckInteractionsAsync(
+        DrugInteractionCheckResponse response = await checker.CheckInteractionsAsync(
         [
             Ingredient("IEN-SINGLE-1", "METFORMIN")
         ]);
 
-        Assert.That(results, Is.Empty);
+        Assert.That(response.Status, Is.EqualTo(DrugInteractionCheckStatus.Ok));
+        Assert.That(response.Results, Is.Empty);
     }
 
     /// <summary>
@@ -319,16 +339,28 @@ public class DrugInteractionWorkflowTests
     {
         string run = Guid.NewGuid().ToString("N")[..8];
 
+        // Fail-closed checker requires a loaded dataset; seed one with an
+        // unrelated pair so the check runs deterministically regardless of
+        // test ordering on the shared cluster.
+        IDrugInteractionDatasetGrain dataset =
+            _cluster.GrainFactory.GetGrain<IDrugInteractionDatasetGrain>(DatasetKey);
+        await dataset.LoadInteractionsAsync(
+        [
+            Pair($"IEN-{run}-UNREL-X", "X", $"IEN-{run}-UNREL-Y", "Y",
+                InteractionSeverity.Minor, "Unrelated seed pair")
+        ]);
+
         IDrugInteractionCheckerGrain checker =
             _cluster.GrainFactory.GetGrain<IDrugInteractionCheckerGrain>(CheckerKey);
 
-        List<DrugInteractionResult> results = await checker.CheckInteractionsAsync(
+        DrugInteractionCheckResponse response = await checker.CheckInteractionsAsync(
         [
             Ingredient($"IEN-{run}-SAFE1", "VITAMIN-C"),
             Ingredient($"IEN-{run}-SAFE2", "VITAMIN-D")
         ]);
 
-        Assert.That(results, Is.Empty);
+        Assert.That(response.Status, Is.EqualTo(DrugInteractionCheckStatus.Ok));
+        Assert.That(response.Results, Is.Empty);
     }
 
     /// <summary>
@@ -358,12 +390,15 @@ public class DrugInteractionWorkflowTests
         IDrugInteractionCheckerGrain checker =
             _cluster.GrainFactory.GetGrain<IDrugInteractionCheckerGrain>(CheckerKey);
 
-        List<DrugInteractionResult> results = await checker.CheckInteractionsAsync(
+        DrugInteractionCheckResponse response = await checker.CheckInteractionsAsync(
         [
             Ingredient(ienW, "WARFARIN"),
             Ingredient(ienA, "ASPIRIN"),
             Ingredient(ienI, "IBUPROFEN")
         ]);
+
+        Assert.That(response.Status, Is.EqualTo(DrugInteractionCheckStatus.Ok));
+        List<DrugInteractionResult> results = response.Results;
 
         Assert.That(results, Has.Count.EqualTo(2));
 
@@ -378,18 +413,30 @@ public class DrugInteractionWorkflowTests
     [Test]
     public async Task Checker_CheckInteractions_SkipsSelfInteraction()
     {
-        string ienSelf = $"IEN-SELF-{Guid.NewGuid():N}";
+        string run = Guid.NewGuid().ToString("N")[..8];
+        string ienSelf = $"IEN-SELF-{run}";
+
+        // Seed the dataset so the fail-closed checker runs deterministically
+        // regardless of test ordering on the shared cluster.
+        IDrugInteractionDatasetGrain dataset =
+            _cluster.GrainFactory.GetGrain<IDrugInteractionDatasetGrain>(DatasetKey);
+        await dataset.LoadInteractionsAsync(
+        [
+            Pair($"IEN-{run}-SELF-X", "X", $"IEN-{run}-SELF-Y", "Y",
+                InteractionSeverity.Minor, "Self-interaction seed pair")
+        ]);
 
         IDrugInteractionCheckerGrain checker =
             _cluster.GrainFactory.GetGrain<IDrugInteractionCheckerGrain>(CheckerKey);
 
-        List<DrugInteractionResult> results = await checker.CheckInteractionsAsync(
+        DrugInteractionCheckResponse response = await checker.CheckInteractionsAsync(
         [
             Ingredient(ienSelf, "METOPROLOL TARTRATE"),
             Ingredient(ienSelf, "METOPROLOL SUCCINATE")   // same active ingredient, different salt/form
         ]);
 
-        Assert.That(results, Is.Empty);
+        Assert.That(response.Status, Is.EqualTo(DrugInteractionCheckStatus.Ok));
+        Assert.That(response.Results, Is.Empty);
     }
 
     /// <summary>
@@ -439,18 +486,24 @@ public class DrugInteractionWorkflowTests
             _cluster.GrainFactory.GetGrain<IDrugInteractionCheckerGrain>(CheckerKey);
 
         // Forward order
-        List<DrugInteractionResult> fwd = await checker.CheckInteractionsAsync(
+        DrugInteractionCheckResponse fwdResponse = await checker.CheckInteractionsAsync(
         [
             Ingredient(ienW, "WARFARIN"),
             Ingredient(ienA, "ASPIRIN")
         ]);
 
         // Reverse order
-        List<DrugInteractionResult> rev = await checker.CheckInteractionsAsync(
+        DrugInteractionCheckResponse revResponse = await checker.CheckInteractionsAsync(
         [
             Ingredient(ienA, "ASPIRIN"),
             Ingredient(ienW, "WARFARIN")
         ]);
+
+        Assert.That(fwdResponse.Status, Is.EqualTo(DrugInteractionCheckStatus.Ok));
+        Assert.That(revResponse.Status, Is.EqualTo(DrugInteractionCheckStatus.Ok));
+
+        List<DrugInteractionResult> fwd = fwdResponse.Results;
+        List<DrugInteractionResult> rev = revResponse.Results;
 
         Assert.That(fwd, Has.Count.EqualTo(1));
         Assert.That(rev, Has.Count.EqualTo(1));

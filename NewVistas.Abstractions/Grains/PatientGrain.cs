@@ -1047,4 +1047,73 @@ public class PatientGrain : Grain, IPatientGrain
         _state.State.LastModifiedDate = DateTime.UtcNow;
         await _state.WriteStateAsync();
     }
+
+    // --- Capped Domain ID Lists (recent window + full history in IPatientHistoryIndexGrain) ---
+
+    /// <summary>
+    /// Maps a PatientHistoryDomains constant to its ID list in state.
+    /// Allergies are deliberately absent — never capped, never migrated.
+    /// </summary>
+    private List<string> GetDomainList(string domain) => domain switch
+    {
+        PatientHistoryDomains.Lab => _state.State.LabTestIds,
+        PatientHistoryDomains.Consult => _state.State.ConsultIds,
+        PatientHistoryDomains.Surgery => _state.State.SurgeryIds,
+        PatientHistoryDomains.Radiology => _state.State.RadiologyIds,
+        PatientHistoryDomains.Bcma => _state.State.BcmaIds,
+        PatientHistoryDomains.Imaging => _state.State.ImagingIds,
+        PatientHistoryDomains.Adt => _state.State.AdtIds,
+        PatientHistoryDomains.HealthFactor => _state.State.HealthFactorIds,
+        PatientHistoryDomains.MentalHealth => _state.State.MentalHealthIds,
+        PatientHistoryDomains.Reminder => _state.State.ClinicalReminderIds,
+        PatientHistoryDomains.Pharmacy => _state.State.PharmacyIds,
+        PatientHistoryDomains.Tiu => _state.State.TiuDocumentIds,
+        PatientHistoryDomains.Order => _state.State.OrderIds,
+        PatientHistoryDomains.Appointment => _state.State.AppointmentIds,
+        _ => throw new ArgumentException($"Unknown history domain '{domain}'.", nameof(domain))
+    };
+
+    public Task<List<string>> GetDomainIdsAsync(string domain)
+        => Task.FromResult(new List<string>(GetDomainList(domain)));
+
+    public Task<bool> IsDomainMigratedAsync(string domain)
+        => Task.FromResult(_state.State.HistoryMigratedDomains.Contains(domain));
+
+    public async Task AddDomainIdCappedAsync(string domain, string id, int maxCount)
+    {
+        List<string> list = GetDomainList(domain);
+        if (list.Contains(id))
+            return;
+
+        list.Add(id);
+
+        // Trim only after migration: until the full list has been flushed to
+        // the history index, trimming would lose the only copy of those IDs.
+        if (_state.State.HistoryMigratedDomains.Contains(domain) && list.Count > maxCount)
+            list.RemoveRange(0, list.Count - maxCount);
+
+        _state.State.LastModifiedDate = DateTime.UtcNow;
+        await _state.WriteStateAsync();
+    }
+
+    public async Task MarkDomainMigratedAndTrimAsync(string domain, int maxCount)
+    {
+        List<string> list = GetDomainList(domain);
+
+        bool changed = _state.State.HistoryMigratedDomains.Add(domain);
+
+        // Lists append chronologically, so trimming from the front keeps the
+        // most recent maxCount entries.
+        if (list.Count > maxCount)
+        {
+            list.RemoveRange(0, list.Count - maxCount);
+            changed = true;
+        }
+
+        if (changed)
+        {
+            _state.State.LastModifiedDate = DateTime.UtcNow;
+            await _state.WriteStateAsync();
+        }
+    }
 }

@@ -3,6 +3,7 @@ using Orleans;
 using Orleans.Runtime;
 using NewVistas.Abstractions.GrainInterfaces;
 using NewVistas.Abstractions.GrainStates;
+using NewVistas.Abstractions.Helpers;
 
 namespace NewVistas.Abstractions.Grains;
 
@@ -10,14 +11,24 @@ namespace NewVistas.Abstractions.Grains;
 /// Patient Index Grain — singleton cross-reference for patient search.
 /// Grain key: "PATIENT-INDEX"
 ///
-/// Search heuristic mirrors ORWPT LOOKUP (ORWPT.m):
-///   4-digit numeric     → SSN last-4 exact match (^DPT "BS5" x-ref)
-///   1–8 digit numeric   → DFN exact match (^DPT direct IEN)
-///   Otherwise           → case-insensitive Name prefix (^DPT "B" x-ref)
+/// Single WRITER and source of truth. Search traffic is served by the
+/// [StatelessWorker] PatientSearchGrain readers, which validate a silo-local
+/// snapshot against GetVersionAsync on every call and catch up via
+/// GetChangesSinceAsync (delta) or GetSnapshotAsync (full pull). The change
+/// ring buffer is in-memory only — persisting ~1000 changes would bloat every
+/// index write, and after a rare reactivation the empty ring just forces one
+/// full snapshot pull per silo.
+///
+/// Search heuristic (shared via PatientIndexSearchHelper) mirrors ORWPT LOOKUP.
 /// </summary>
 public class PatientIndexGrain : Grain, IPatientIndexGrain
 {
+    private const int MaxRecentChanges = 1000;
+
     private readonly IPersistentState<PatientIndexState> _state;
+
+    // Transient: rebuilt empty on activation (forces SnapshotRequired once).
+    private readonly List<PatientIndexChange> _recentChanges = new();
 
     public PatientIndexGrain(
         [PersistentState("patientIndexState", "patientIndexStore")]
@@ -29,7 +40,52 @@ public class PatientIndexGrain : Grain, IPatientIndexGrain
     public async Task AddOrUpdateAsync(PatientIndexEntry entry)
     {
         _state.State.Patients[entry.PatientId] = entry;
+        _state.State.Version++;
+
+        _recentChanges.Add(new PatientIndexChange
+        {
+            Version = _state.State.Version,
+            Entry = entry,
+            IsRemoval = false
+        });
+        if (_recentChanges.Count > MaxRecentChanges)
+            _recentChanges.RemoveRange(0, _recentChanges.Count - MaxRecentChanges);
+
         await _state.WriteStateAsync();
+    }
+
+    public Task<long> GetVersionAsync() => Task.FromResult(_state.State.Version);
+
+    public Task<PatientIndexSnapshot> GetSnapshotAsync() =>
+        Task.FromResult(new PatientIndexSnapshot
+        {
+            Version = _state.State.Version,
+            Entries = _state.State.Patients.Values.ToList()
+        });
+
+    public Task<PatientIndexDelta> GetChangesSinceAsync(long since)
+    {
+        if (since == _state.State.Version)
+            return Task.FromResult(new PatientIndexDelta { Version = _state.State.Version });
+
+        // Reader is behind the oldest buffered change (or the ring was reset
+        // by reactivation) → it must take a full snapshot.
+        if (since > _state.State.Version
+            || _recentChanges.Count == 0
+            || since < _recentChanges[0].Version - 1)
+        {
+            return Task.FromResult(new PatientIndexDelta
+            {
+                Version = _state.State.Version,
+                SnapshotRequired = true
+            });
+        }
+
+        return Task.FromResult(new PatientIndexDelta
+        {
+            Version = _state.State.Version,
+            Changes = _recentChanges.Where(c => c.Version > since).ToList()
+        });
     }
 
     public Task<PatientIndexEntry?> GetByPatientIdAsync(string patientId)
@@ -53,39 +109,7 @@ public class PatientIndexGrain : Grain, IPatientIndexGrain
     }
 
     public Task<List<PatientIndexEntry>> SearchAsync(string searchTerm, int maxResults = 25)
-    {
-        if (string.IsNullOrWhiteSpace(searchTerm))
-            return Task.FromResult(new List<PatientIndexEntry>());
-
-        string term = searchTerm.Trim();
-
-        IEnumerable<PatientIndexEntry> results;
-
-        if (term.Length == 4 && term.All(char.IsDigit))
-        {
-            // 4-digit all-numeric: SSN last-4 exact match
-            results = _state.State.Patients.Values
-                .Where(e => e.SsnLast4 == term);
-        }
-        else if (term.Length >= 1 && term.Length <= 8 && term.All(char.IsDigit))
-        {
-            // 1–8 digit numeric (not 4): DFN exact match
-            results = _state.State.Patients.Values
-                .Where(e => e.Dfn == term);
-        }
-        else
-        {
-            // Name prefix search — mirrors VistA "B" cross-reference on ^DPT
-            // Supports "LAST" or "LAST,FIRST" prefix, case-insensitive
-            results = _state.State.Patients.Values
-                .Where(e => e.Name.StartsWith(term, StringComparison.OrdinalIgnoreCase));
-        }
-
-        return Task.FromResult(results
-            .OrderBy(e => e.Name)
-            .Take(maxResults)
-            .ToList());
-    }
+        => Task.FromResult(PatientIndexSearchHelper.Search(_state.State.Patients.Values, searchTerm, maxResults));
 
     public Task<int> GetCountAsync()
         => Task.FromResult(_state.State.Patients.Count);

@@ -13,5 +13,5 @@ public interface ICongressionalInquiryIndexGrain : IGrainWithStringKey
     Task<List<CongressionalInquiryIndexEntry>> GetAllInquiriesAsync();
     Task<List<CongressionalInquiryIndexEntry>> GetPendingInquiriesAsync();
     Task<List<CongressionalInquiryIndexEntry>> GetOverdueInquiriesAsync();
-    Task<List<CongressionalInquiryIndexEntry>> GetInquiriesByPatientAsync(string patientId);
+    Task<List<CongressionalInquiryIndexEntry>> GetInquiriesByPatientAsync(string patientId, int maxResults = 50);
 }

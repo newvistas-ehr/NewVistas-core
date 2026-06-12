@@ -61,4 +61,22 @@ public interface IPatientIndexGrain : IGrainWithStringKey
     /// Pass null for no limit.
     /// </summary>
     Task<List<string>> GetAllPatientIdsAsync(int? maxResults = null);
+
+    // ── Versioned snapshot/delta serving for PatientSearchGrain readers ──
+
+    /// <summary>
+    /// Current monotonic index version (bumped on every mutation). Tiny
+    /// payload — search readers call this once per search to validate their
+    /// silo-local snapshot.
+    /// </summary>
+    Task<long> GetVersionAsync();
+
+    /// <summary>Full versioned copy of the index for silo-local caching.</summary>
+    Task<PatientIndexSnapshot> GetSnapshotAsync();
+
+    /// <summary>
+    /// Changes after the given version, or SnapshotRequired when the version
+    /// predates the in-memory change buffer (reader then takes a full pull).
+    /// </summary>
+    Task<PatientIndexDelta> GetChangesSinceAsync(long since);
 }

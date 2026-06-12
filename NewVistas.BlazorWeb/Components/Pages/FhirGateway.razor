@@ -5,6 +5,9 @@
 @using NewVistas.Abstractions.GrainInterfaces
 @using NewVistas.Abstractions.GrainStates
 @inject OrleansGrainService Grains
+@* HttpClient is INTENTIONAL here: this page exercises the public FHIR
+   endpoint (api/fhir/*) the way an external client would — the HTTP hop is
+   the thing under test. Do not "fix" this page to call grains directly. *@
 @inject HttpClient Http
 
 <PageTitle>FHIR Gateway — R4 Interoperability</PageTitle>

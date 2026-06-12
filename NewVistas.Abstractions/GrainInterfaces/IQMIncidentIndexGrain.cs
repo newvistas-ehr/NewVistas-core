@@ -20,7 +20,8 @@ public interface IQMIncidentIndexGrain : IGrainWithStringKey
     Task<List<GrainStates.QMIncidentIndexEntry>> GetIncidentsByStatusAsync(GrainStates.IncidentStatus status);
 
     /// <summary>Returns all incidents involving a specific patient.</summary>
-    Task<List<GrainStates.QMIncidentIndexEntry>> GetIncidentsByPatientAsync(string patientId);
+    /// <param name="maxResults">Maximum entries returned, newest first. Bounds the payload; full history is available by passing a larger value.</param>
+    Task<List<GrainStates.QMIncidentIndexEntry>> GetIncidentsByPatientAsync(string patientId, int maxResults = 50);
 
     /// <summary>Returns incidents matching the given occurrence category.</summary>
     Task<List<GrainStates.QMIncidentIndexEntry>> GetIncidentsByCategoryAsync(GrainStates.OccurrenceCategory category);

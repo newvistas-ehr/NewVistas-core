@@ -133,18 +133,32 @@ public partial class PatientWorkflowGrain
 
             if (newIngredients.Count >= 2)
             {
-                List<DrugInteractionResult> interactions = await InteractionChecker()
+                DrugInteractionCheckResponse checkResponse = await InteractionChecker()
                     .CheckInteractionsAsync(newIngredients);
 
-                if (interactions.Count > 0)
+                if (checkResponse.Status == DrugInteractionCheckStatus.DataUnavailable)
                 {
-                    DrugInteractionResult first = interactions[0];
+                    // FAIL CLOSED: interactions could not be verified. Unavailable
+                    // blocks the fill and is not pharmacist-overridable — an
+                    // administrator must load the interaction dataset.
+                    checks.Add(new DurCheckResult
+                    {
+                        CheckType = DurCheckType.DrugInteraction,
+                        Outcome = DurOutcome.Unavailable,
+                        Severity = "Significant",
+                        Message = "Unable to verify drug-drug interactions: interaction dataset "
+                            + "is not loaded. Fill is blocked until an administrator loads the dataset.",
+                    });
+                }
+                else if (checkResponse.Results.Count > 0)
+                {
+                    DrugInteractionResult first = checkResponse.Results[0];
                     checks.Add(new DurCheckResult
                     {
                         CheckType = DurCheckType.DrugInteraction,
                         Outcome = DurOutcome.Fail,
                         Severity = first.Interaction?.Severity.ToString() ?? "Significant",
-                        Message = $"Drug-drug interaction detected: {interactions.Count} interaction(s) found.",
+                        Message = $"Drug-drug interaction detected: {checkResponse.Results.Count} interaction(s) found.",
                         Details = first.Interaction?.ClinicalEffects,
                         ConflictingEntityName = first.Drug2.Name,
                     });

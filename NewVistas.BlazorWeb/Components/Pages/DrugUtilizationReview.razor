@@ -585,6 +585,7 @@
         DurOutcome.Warning => "Warning",
         DurOutcome.Override => "Override",
         DurOutcome.NotApplicable => "N/A",
+        DurOutcome.Unavailable => "Unavailable — blocked",
         _ => o.ToString()
     };
 
@@ -614,6 +615,7 @@
     private static string GetCheckRowClass(DurCheckResult c) => c.Outcome switch
     {
         DurOutcome.Fail => "row-alert",
+        DurOutcome.Unavailable => "row-alert",
         DurOutcome.Warning => "row-warning",
         DurOutcome.Override => "row-override",
         _ => ""

@@ -46,11 +46,12 @@ public class ComplaintIndexGrain : Grain, IComplaintIndexGrain
         return Task.FromResult(result);
     }
 
-    public Task<List<ComplaintIndexEntry>> GetComplaintsByPatientAsync(string patientId)
+    public Task<List<ComplaintIndexEntry>> GetComplaintsByPatientAsync(string patientId, int maxResults = 50)
     {
         List<ComplaintIndexEntry> result = _state.State.Complaints
             .Where(c => c.PatientId == patientId)
             .OrderByDescending(c => c.ReceivedDate)
+            .Take(maxResults)
             .ToList();
         return Task.FromResult(result);
     }

@@ -57,11 +57,12 @@ public class ChartRequestIndexGrain : Grain, IChartRequestIndexGrain
         return Task.FromResult(result);
     }
 
-    public Task<List<ChartRequestIndexEntry>> GetRequestsByPatientAsync(string patientId)
+    public Task<List<ChartRequestIndexEntry>> GetRequestsByPatientAsync(string patientId, int maxResults = 50)
     {
         List<ChartRequestIndexEntry> result = _state.State.Requests
             .Where(r => r.PatientId == patientId)
             .OrderByDescending(r => r.RequestDate)
+            .Take(maxResults)
             .ToList();
         return Task.FromResult(result);
     }

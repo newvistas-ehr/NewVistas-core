@@ -172,13 +172,21 @@ public class DirectController : ControllerBase
     /// </summary>
     [HttpGet("ccda/{patientId}")]
     [Produces("application/xml")]
-    public async Task<IActionResult> GenerateCcda(string patientId, [FromQuery] string documentType = "CCD")
+    public async Task<IActionResult> GenerateCcda(
+        string patientId, [FromQuery] string documentType = "CCD", CancellationToken cancellationToken = default)
     {
         try
         {
+            // Skip the expensive document build if the client already disconnected.
+            cancellationToken.ThrowIfCancellationRequested();
+
             IDirectCcdaGeneratorGrain gen = _grainFactory.GetGrain<IDirectCcdaGeneratorGrain>($"DIRECT-CCDA-GEN:{patientId}");
             string ccda = await gen.GenerateCcdAsync(documentType);
             return Content(ccda, "application/xml");
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            return StatusCode(499); // client closed request
         }
         catch (Exception ex)
         {

@@ -45,8 +45,50 @@ public partial class PatientWorkflowGrain
         allIngredients.AddRange(existingMedicationIngredients);
 
         // Run the existing interaction checker
-        List<DrugInteractionResult> results = await InteractionChecker()
+        DrugInteractionCheckResponse checkResponse = await InteractionChecker()
             .CheckInteractionsAsync(allIngredients);
+
+        // FAIL CLOSED: dataset not loaded means interactions could NOT be
+        // verified. Record one synthetic blocking finding so the existing
+        // ScreenAsync flow lands the screening in BlockedPendingOverride and
+        // the fill stays blocked until an administrator loads the dataset.
+        if (checkResponse.Status == DrugInteractionCheckStatus.DataUnavailable)
+        {
+            List<InteractionFinding> unavailableFinding = new()
+            {
+                new InteractionFinding
+                {
+                    Drug1Name = drugName,
+                    Drug2Name = "(all active medications)",
+                    Severity = InteractionSeverity.Unknown,
+                    Description = "Unable to verify drug interactions: the drug-interaction "
+                        + "dataset is not loaded. Fill is blocked until an administrator "
+                        + "loads the dataset.",
+                    IsBlocking = true,
+                    IsOverridden = false,
+                }
+            };
+
+            string unavailableScreeningId = $"IXSCREEN:{prescriptionId}";
+            IInteractionScreeningGrain unavailableGrain = InteractionScreening(unavailableScreeningId);
+            await unavailableGrain.ScreenAsync(prescriptionId, PatientId, drugName, screenedBy, unavailableFinding);
+
+            InteractionScreeningState unavailableState = await unavailableGrain.GetAsync();
+            await InteractionScreeningIndex().AddEntryAsync(new InteractionScreeningIndexEntry
+            {
+                ScreeningId = unavailableScreeningId,
+                PrescriptionId = prescriptionId,
+                DrugName = drugName,
+                Status = unavailableState.Status,
+                BlockingCount = unavailableState.BlockingCount,
+                TotalInteractionCount = unavailableState.TotalInteractionCount,
+                ScreenedDate = unavailableState.ScreenedDate,
+            });
+
+            return unavailableScreeningId;
+        }
+
+        List<DrugInteractionResult> results = checkResponse.Results;
 
         // Filter to only interactions that involve at least one new drug ingredient
         HashSet<string> newIens = newDrugIngredients

@@ -1,6 +1,7 @@
 // Copyright 2026 Merrimack Valley Software Works, LLC. All rights reserved.
 using Microsoft.Extensions.Logging;
 using NewVistas.Abstractions.GrainInterfaces;
+using NewVistas.Abstractions.GrainStates;
 using NewVistas.Abstractions.Helpers;
 
 namespace NewVistas.Abstractions.Importers;
@@ -93,6 +94,9 @@ public class ConsultImporter
                     if (patKey != null)
                     {
                         IPatientGrain patient = _grainFactory.GetGrain<IPatientGrain>(patKey);
+                        // Full-history index first — the PatientState list is a capped recent window.
+                        await _grainFactory.GetGrain<IPatientHistoryIndexGrain>($"{patKey}:{PatientHistoryDomains.Consult}")
+                            .AddEntryAsync(new HistoryRef { ItemId = grainKey, Date = null });
                         await patient.AddConsultIdAsync(grainKey);
                     }
                 }

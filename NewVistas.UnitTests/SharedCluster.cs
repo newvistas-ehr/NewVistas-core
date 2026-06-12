@@ -70,6 +70,11 @@ public static class SharedCluster
             siloBuilder.Services.AddSingleton<IRouteValidationService, RouteValidationService>();
             siloBuilder.Services.AddSingleton<IRxNavDoseFormClient, NullRxNavDoseFormClient>();
 
+            // Silo-local caches for the StatelessWorker reader grains
+            // (drug-interaction checker, patient search).
+            siloBuilder.Services.AddSingleton<IDrugInteractionCacheService, DrugInteractionCacheService>();
+            siloBuilder.Services.AddSingleton<IPatientIndexSnapshotService, PatientIndexSnapshotService>();
+
             siloBuilder.AddMemoryGrainStorage("PubSubStore");
             siloBuilder.AddMemoryGrainStorage("accessControlStore");
             siloBuilder.AddMemoryGrainStorage("adtStore");
@@ -332,6 +337,7 @@ public static class SharedCluster
             siloBuilder.AddMemoryGrainStorage("patientBenefitStore");
             siloBuilder.AddMemoryGrainStorage("patientEnrollmentStore");
             siloBuilder.AddMemoryGrainStorage("patientIndexStore");
+            siloBuilder.AddMemoryGrainStorage("patientHistoryIndexStore");
             siloBuilder.AddMemoryGrainStorage("patientMergeStore");
             siloBuilder.AddMemoryGrainStorage("patientNoteIndexStore");
             siloBuilder.AddMemoryGrainStorage("patientOrderIndexStore");

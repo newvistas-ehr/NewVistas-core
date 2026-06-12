@@ -23,6 +23,7 @@ public class AuthorizationCallFilterTests
         {
             // Stores needed by grains under test
             siloBuilder.AddMemoryGrainStorage("patientStore");
+            siloBuilder.AddMemoryGrainStorage("patientHistoryIndexStore");
             siloBuilder.AddMemoryGrainStorage("accessControlStore");
             siloBuilder.AddMemoryGrainStorage("problemStore");
             siloBuilder.AddMemoryGrainStorage("orderStore");

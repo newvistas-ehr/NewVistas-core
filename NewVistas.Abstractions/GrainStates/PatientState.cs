@@ -380,6 +380,16 @@ public class PatientState : EventSourcedStateBase
     public string? MergedByUserId { get; set; }
 
     /// <summary>
+    /// Domains (PatientHistoryDomains constants) whose full ID history has
+    /// been flushed to the per-domain IPatientHistoryIndexGrain. A domain's
+    /// ID list in this state is NEVER trimmed until its domain appears here —
+    /// the crash-safety invariant of the lazy capping migration.
+    /// Allergies are never capped and never appear here.
+    /// </summary>
+    [Id(80)]
+    public HashSet<string> HistoryMigratedDomains { get; set; } = new();
+
+    /// <summary>
     /// Legacy problem ID list — no longer used. Kept for serialization compatibility.
     /// </summary>
     [Id(45)]

@@ -57,7 +57,7 @@ public partial class PatientWorkflowGrain
             urgency, instructions, indication, "NEW", providerId);
 
         // Link to patient (legacy — kept for backward compatibility)
-        await GetPatientGrain().AddOrderIdAsync(orderId);
+        await AppendCappedIdAsync(PatientHistoryDomains.Order, orderId, DateTime.UtcNow);
 
         // Add to the full-history order index
         OrderState state = await orderGrain.GetOrderAsync();
@@ -218,18 +218,16 @@ public partial class PatientWorkflowGrain
         else
             templates = templates.Where(t => t.IsDefaultSelected).ToList();
 
-        var createdIds = new List<string>();
-        foreach (OrderTemplate tmpl in templates)
-        {
-            string orderId = await PlaceOrderAsync(
+        // Place all selected orders in parallel — this grain is [Reentrant]
+        // and order-ID sequence carries no clinical meaning.
+        string[] createdIds = await Task.WhenAll(templates.Select(tmpl =>
+            PlaceOrderAsync(
                 tmpl.OrderType, tmpl.OrderableItem, tmpl.OrderableItemId,
                 providerId, providerName,
                 locationId, locationName,
-                tmpl.Urgency, tmpl.Instructions, null);
-            createdIds.Add(orderId);
-        }
+                tmpl.Urgency, tmpl.Instructions, null)));
 
-        return createdIds;
+        return createdIds.ToList();
     }
 
     // ─── Problem List Workflow (GMPLSAVE.m EN, GMPLEDIT.m) ───────────────
@@ -392,7 +390,7 @@ public partial class PatientWorkflowGrain
             durationMinutes, providerId, providerName,
             purpose, appointmentType, null, allowDoubleBook);
 
-        await GetPatientGrain().AddAppointmentIdAsync(appointmentId);
+        await AppendCappedIdAsync(PatientHistoryDomains.Appointment, appointmentId, DateTime.UtcNow);
 
         // Register slot in the clinic schedule index for conflict detection
         await GetClinicScheduleIndex(clinicId).AddOrUpdateAsync(new ClinicScheduleEntry
@@ -1192,15 +1190,75 @@ public partial class PatientWorkflowGrain
 
     public async Task<List<MedicationSummary>> GetActiveMedicationsAsync()
     {
-        var patientGrain = GetPatientGrain();
-        var pharmacyIds = await patientGrain.GetPharmacyIdsAsync();
+        // PATIENT SAFETY: the active-medication set must be COMPLETE — it
+        // feeds drug-interaction screening. PatientState.PharmacyIds is a
+        // capped recent window, so the authoritative source is the per-patient
+        // PSO-INDEX (maintained by PharmacyGrain on every lifecycle write).
+        IPatientPrescriptionIndexGrain pso =
+            GrainFactory.GetGrain<IPatientPrescriptionIndexGrain>($"PSO-INDEX:{PatientId}");
 
-        // Fan-out: fire all grain calls concurrently
-        var tasks = pharmacyIds.Select(id => GrainFactory.GetGrain<IPharmacyGrain>(id).GetPrescriptionAsync()).ToList();
-        var states = await Task.WhenAll(tasks);
+        // Self-healing backfill: prescriptions created before the index was
+        // grain-maintained exist only in the legacy ID list. If the index is
+        // empty but legacy IDs exist, populate it once from the complete set.
+        if (await pso.GetTotalCountAsync() == 0)
+        {
+            List<string> legacyIds = await GetCompleteIdsAsync(PatientHistoryDomains.Pharmacy);
+            if (legacyIds.Count > 0)
+            {
+                PharmacyState[] all = await Task.WhenAll(legacyIds.Select(id =>
+                    GrainFactory.GetGrain<IPharmacyGrain>(id).GetPrescriptionAsync()));
+                foreach (PharmacyState rx in all)
+                    await pso.AddOrUpdateEntryAsync(PharmacyGrain.BuildIndexEntry(rx));
+            }
+        }
+
+        // Complete active set from the index; fan out only over actives for
+        // the full summaries (Sig/FillDate live on the prescription grain).
+        List<PrescriptionIndexEntry> entries = await pso.GetAllAsync();
+        List<string> activeIds = entries
+            .Where(e => e.Status is "ACTIVE" or "HOLD")
+            .Select(e => e.PrescriptionId)
+            .ToList();
+
+        var states = await Task.WhenAll(activeIds.Select(id =>
+            GrainFactory.GetGrain<IPharmacyGrain>(id).GetPrescriptionAsync()));
 
         return states
             .Where(state => state.Status is "ACTIVE" or "HOLD")
+            .Select(state => new MedicationSummary
+            {
+                PrescriptionId = state.PrescriptionId,
+                DrugName = state.DrugName ?? "",
+                Sig = state.Sig,
+                Status = state.Status ?? "",
+                FillDate = state.FillDate,
+                RefillsRemaining = state.RefillsRemaining
+            })
+            .ToList();
+    }
+
+    /// <summary>
+    /// Paged full medication history (newest first); default reads return only the recent window.
+    /// </summary>
+    public async Task<List<MedicationSummary>> GetMedicationHistoryAsync(int offset, int maxResults)
+    {
+        // PHARMACY pages from the per-patient PSO index (already IssueDate
+        // descending) rather than the generic history index — the PSO index
+        // is the authoritative complete prescription set for this patient.
+        IPatientPrescriptionIndexGrain pso =
+            GrainFactory.GetGrain<IPatientPrescriptionIndexGrain>($"PSO-INDEX:{PatientId}");
+
+        List<PrescriptionIndexEntry> entries = await pso.GetAllAsync();
+        List<string> pageIds = entries
+            .Skip(offset)
+            .Take(maxResults)
+            .Select(e => e.PrescriptionId)
+            .ToList();
+
+        var states = await Task.WhenAll(pageIds.Select(id =>
+            GrainFactory.GetGrain<IPharmacyGrain>(id).GetPrescriptionAsync()));
+
+        return states
             .Select(state => new MedicationSummary
             {
                 PrescriptionId = state.PrescriptionId,

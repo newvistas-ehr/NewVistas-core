@@ -97,10 +97,10 @@ public class DsiEventIndexGrain : Grain, IDsiEventIndexGrain
     public Task<List<DsiEventSummary>> GetAllEventsAsync()
         => Task.FromResult(_state.State.Events.OrderByDescending(e => e.FiredDate).ToList());
 
-    public Task<List<DsiEventSummary>> GetEventsByPatientAsync(string patientId)
+    public Task<List<DsiEventSummary>> GetEventsByPatientAsync(string patientId, int maxResults = 50)
         => Task.FromResult(_state.State.Events
             .Where(e => e.PatientId == patientId)
-            .OrderByDescending(e => e.FiredDate).ToList());
+            .OrderByDescending(e => e.FiredDate).Take(maxResults).ToList());
 
     public Task<List<DsiEventSummary>> GetEventsByInterventionAsync(string interventionId)
         => Task.FromResult(_state.State.Events

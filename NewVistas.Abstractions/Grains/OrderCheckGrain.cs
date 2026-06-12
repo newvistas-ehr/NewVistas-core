@@ -68,17 +68,26 @@ public class OrderCheckGrain : Grain, IOrderCheckGrain
         }
 
         // ── Check 2: Duplicate Order Detection ─────────────────────────────
+        // Reads the per-patient order index (complete, status-filtered) rather
+        // than PatientState.OrderIds, which is a capped recent window — an
+        // active order older than the window must still trigger the alert.
         try
         {
-            List<string> orderIds = await patientGrain.GetOrderIdsAsync();
-            var orderTasks = orderIds.Select(id =>
-                GrainFactory.GetGrain<IOrderGrain>(id).GetOrderAsync()).ToList();
-            var existingOrders = await Task.WhenAll(orderTasks);
+            var orderIndex = GrainFactory.GetGrain<IPatientOrderIndexGrain>(patientId);
+            List<OrderIndexEntry> current = await orderIndex.GetEntriesByFilterAsync(2); // 2 = Current
+
+            // Fan out only over same-type current orders (small set) for the
+            // OrderableItemId comparison the index doesn't carry.
+            var sameTypeKeys = current
+                .Where(e => e.OrderType == orderType)
+                .Select(e => e.OrderGrainKey)
+                .ToList();
+            var existingOrders = await Task.WhenAll(sameTypeKeys.Select(key =>
+                GrainFactory.GetGrain<IOrderGrain>(key).GetOrderAsync()));
 
             foreach (var existing in existingOrders)
             {
                 if (existing.Status is not ("Active" or "Pending")) continue;
-                if (existing.OrderType != orderType) continue;
 
                 string existingText = (existing.OrderableItem ?? "").ToUpperInvariant();
                 if (existingText == upperText ||
@@ -108,17 +117,31 @@ public class OrderCheckGrain : Grain, IOrderCheckGrain
             {
                 var checker = GrainFactory.GetGrain<IDrugInteractionCheckerGrain>("CHECKER");
                 bool cacheReady = await checker.IsCacheReadyAsync();
-                if (cacheReady)
+                if (!cacheReady)
                 {
-                    // Get patient's active medications
-                    List<string> pharmacyIds = await patientGrain.GetPharmacyIdsAsync();
-                    var rxTasks = pharmacyIds.Select(id =>
-                        GrainFactory.GetGrain<IPharmacyGrain>(id).GetPrescriptionAsync()).ToList();
-                    var prescriptions = await Task.WhenAll(rxTasks);
+                    // Fail closed: silence here previously implied "no interactions".
+                    // Surface the inability to verify as an explicit high-severity alert.
+                    results.Add(new OrderCheckResult
+                    {
+                        CheckType = "DRUG_DRUG",
+                        Severity = "HIGH",
+                        Message = "Drug interactions could NOT be verified: the interaction dataset " +
+                                  "is not loaded. Contact an administrator before dispensing.",
+                        OrderText = orderText
+                    });
+                }
+                else
+                {
+                    // Complete active-medication set from the PSO index — the
+                    // capped PatientState.PharmacyIds window would hide active
+                    // prescriptions from interaction checking (patient safety).
+                    var psoIndex = GrainFactory
+                        .GetGrain<IPatientPrescriptionIndexGrain>($"PSO-INDEX:{patientId}");
+                    List<PrescriptionIndexEntry> rxEntries = await psoIndex.GetAllAsync();
 
-                    var activeRxNames = prescriptions
-                        .Where(p => p.Status is "ACTIVE" or "HOLD")
-                        .Select(p => p.DrugName ?? "")
+                    var activeRxNames = rxEntries
+                        .Where(e => e.Status is "ACTIVE" or "HOLD")
+                        .Select(e => e.DrugName)
                         .Where(n => !string.IsNullOrEmpty(n))
                         .ToList();
 

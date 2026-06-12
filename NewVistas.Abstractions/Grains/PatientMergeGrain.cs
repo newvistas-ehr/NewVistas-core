@@ -163,6 +163,51 @@ public class PatientMergeGrain : Grain, IPatientMergeGrain
             moved["Appointments"] = await MergeIdListAsync(
                 sourceGrain.GetAppointmentIdsAsync, targetGrain.GetAppointmentIdsAsync, targetGrain.AddAppointmentIdAsync);
 
+            // ── Phase 2b: Full-History Indexes ──────────────────────────
+            // The Phase 2 ID-list copies read PatientState lists, which are a
+            // capped recent window once a domain is migrated. Merge the
+            // source's COMPLETE per-domain ID history into the target's
+            // IPatientHistoryIndexGrain so older item references survive the
+            // merge. Only domains in PatientHistoryDomains are history-merged.
+            await MergeHistoryIndexAsync(sourcePatientId, targetPatientId, sourceGrain,
+                PatientHistoryDomains.Lab, sourceGrain.GetLabTestIdsAsync);
+            await MergeHistoryIndexAsync(sourcePatientId, targetPatientId, sourceGrain,
+                PatientHistoryDomains.Order, sourceGrain.GetOrderIdsAsync);
+            await MergeHistoryIndexAsync(sourcePatientId, targetPatientId, sourceGrain,
+                PatientHistoryDomains.Pharmacy, sourceGrain.GetPharmacyIdsAsync);
+            await MergeHistoryIndexAsync(sourcePatientId, targetPatientId, sourceGrain,
+                PatientHistoryDomains.Bcma, sourceGrain.GetBcmaIdsAsync);
+            await MergeHistoryIndexAsync(sourcePatientId, targetPatientId, sourceGrain,
+                PatientHistoryDomains.Radiology, sourceGrain.GetRadiologyIdsAsync);
+            await MergeHistoryIndexAsync(sourcePatientId, targetPatientId, sourceGrain,
+                PatientHistoryDomains.Tiu, sourceGrain.GetTiuDocumentIdsAsync);
+            await MergeHistoryIndexAsync(sourcePatientId, targetPatientId, sourceGrain,
+                PatientHistoryDomains.Consult, sourceGrain.GetConsultIdsAsync);
+            await MergeHistoryIndexAsync(sourcePatientId, targetPatientId, sourceGrain,
+                PatientHistoryDomains.Surgery, sourceGrain.GetSurgeryIdsAsync);
+            await MergeHistoryIndexAsync(sourcePatientId, targetPatientId, sourceGrain,
+                PatientHistoryDomains.Reminder, sourceGrain.GetClinicalReminderIdsAsync);
+            await MergeHistoryIndexAsync(sourcePatientId, targetPatientId, sourceGrain,
+                PatientHistoryDomains.HealthFactor, sourceGrain.GetHealthFactorIdsAsync);
+            await MergeHistoryIndexAsync(sourcePatientId, targetPatientId, sourceGrain,
+                PatientHistoryDomains.MentalHealth, sourceGrain.GetMentalHealthIdsAsync);
+            await MergeHistoryIndexAsync(sourcePatientId, targetPatientId, sourceGrain,
+                PatientHistoryDomains.Imaging, sourceGrain.GetImagingIdsAsync);
+            await MergeHistoryIndexAsync(sourcePatientId, targetPatientId, sourceGrain,
+                PatientHistoryDomains.Adt, sourceGrain.GetAdtIdsAsync);
+            await MergeHistoryIndexAsync(sourcePatientId, targetPatientId, sourceGrain,
+                PatientHistoryDomains.Appointment, sourceGrain.GetAppointmentIdsAsync);
+
+            // PHARMACY additionally has a per-patient PSO index (the
+            // authoritative complete prescription set, feeding drug-interaction
+            // screening) — copy the source's entries into the target's index.
+            IPatientPrescriptionIndexGrain sourcePso =
+                GrainFactory.GetGrain<IPatientPrescriptionIndexGrain>($"PSO-INDEX:{sourcePatientId}");
+            IPatientPrescriptionIndexGrain targetPso =
+                GrainFactory.GetGrain<IPatientPrescriptionIndexGrain>($"PSO-INDEX:{targetPatientId}");
+            foreach (PrescriptionIndexEntry psoEntry in await sourcePso.GetAllAsync())
+                await targetPso.AddOrUpdateEntryAsync(psoEntry);
+
             // ── Phase 3: Update Patient Index ───────────────────────────
             IPatientIndexGrain indexGrain = GrainFactory.GetGrain<IPatientIndexGrain>("PATIENT-INDEX");
 
@@ -327,6 +372,34 @@ public class PatientMergeGrain : Grain, IPatientMergeGrain
             }
         }
         return count;
+    }
+
+    /// <summary>
+    /// Merge a domain's FULL ID history from source into target's history
+    /// index. Reads the source history index once the domain is migrated
+    /// (the legacy PatientState list is then only a capped recent window),
+    /// otherwise the legacy list. AddRangeAsync deduplicates by ItemId.
+    /// </summary>
+    private async Task MergeHistoryIndexAsync(
+        string sourcePatientId,
+        string targetPatientId,
+        IPatientGrain sourceGrain,
+        string domain,
+        Func<Task<List<string>>> getLegacySourceIds)
+    {
+        IPatientHistoryIndexGrain sourceHistory =
+            GrainFactory.GetGrain<IPatientHistoryIndexGrain>($"{sourcePatientId}:{domain}");
+
+        List<string> sourceIds = await sourceGrain.IsDomainMigratedAsync(domain)
+            ? await sourceHistory.GetAllIdsAsync()
+            : await getLegacySourceIds();
+
+        if (sourceIds.Count == 0) return;
+
+        IPatientHistoryIndexGrain targetHistory =
+            GrainFactory.GetGrain<IPatientHistoryIndexGrain>($"{targetPatientId}:{domain}");
+        await targetHistory.AddRangeAsync(
+            sourceIds.Select(id => new HistoryRef { ItemId = id, Date = null }).ToList());
     }
 
     /// <summary>

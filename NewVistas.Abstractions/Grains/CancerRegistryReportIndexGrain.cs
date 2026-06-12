@@ -46,9 +46,10 @@ public class CancerRegistryReportIndexGrain : Grain, ICancerRegistryReportIndexG
     public Task<List<CancerRegistryReportIndexEntry>> GetAllReportsAsync()
         => Task.FromResult(_state.State.Reports.ToList());
 
-    public Task<List<CancerRegistryReportIndexEntry>> GetReportsByPatientAsync(string patientId)
+    public Task<List<CancerRegistryReportIndexEntry>> GetReportsByPatientAsync(string patientId, int maxResults = 50)
         => Task.FromResult(_state.State.Reports
-            .Where(r => r.PatientId == patientId).ToList());
+            .Where(r => r.PatientId == patientId)
+            .OrderByDescending(r => r.CreatedDate).Take(maxResults).ToList());
 
     public Task<List<CancerRegistryReportIndexEntry>> GetReportsByStatusAsync(string status)
     {

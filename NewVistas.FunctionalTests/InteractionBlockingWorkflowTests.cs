@@ -36,8 +36,10 @@ public class InteractionBlockingWorkflowTests
         string ien1, string name1, string ien2, string name2,
         InteractionSeverity severity, string description)
     {
-        // Load via dataset grain — this populates the silo cache
-        await Dataset().LoadInteractionsAsync(new List<DrugInteractionPair>
+        // Merge (not replace): fixtures run in parallel and share the
+        // DI-DATASET singleton — a replace-all load would wipe other
+        // fixtures' seeded pairs mid-test.
+        await Dataset().AddInteractionsAsync(new List<DrugInteractionPair>
         {
             new DrugInteractionPair
             {
@@ -61,6 +63,13 @@ public class InteractionBlockingWorkflowTests
     {
         string patientId = $"PATIENT-{Guid.NewGuid()}";
         IPatientWorkflowGrain wf = Workflow(patientId);
+
+        // The fail-closed checker requires a loaded dataset — seed an unrelated
+        // pair so this test is deterministic regardless of ordering on the
+        // shared cluster.
+        string seed = Guid.NewGuid().ToString("N")[..8];
+        await SeedInteraction($"IEN-{seed}-A", "SEED A", $"IEN-{seed}-B", "SEED B",
+            InteractionSeverity.Minor, "Unrelated seed pair");
 
         // Screen with ingredients that have no known interactions
         string screeningId = await wf.ScreenPrescriptionForInteractionsAsync(

@@ -302,7 +302,11 @@
         loading = true; error = null; checkResults = null;
         try
         {
-            checkResults = await GetChecker().CheckInteractionsAsync(valid);
+            DrugInteractionCheckResponse response = await GetChecker().CheckInteractionsAsync(valid);
+            if (response.Status == DrugInteractionCheckStatus.DataUnavailable)
+                error = "Drug interaction dataset is not loaded — interactions cannot be verified.";
+            else
+                checkResults = response.Results;
         }
         catch (Exception ex) { error = ex.Message; }
         finally { loading = false; }

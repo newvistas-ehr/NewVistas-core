@@ -4,7 +4,6 @@ using Orleans.Runtime;
 using NewVistas.Abstractions.GrainInterfaces;
 using NewVistas.Abstractions.GrainStates;
 using NewVistas.Abstractions.Helpers;
-using NewVistas.Abstractions.Services;
 
 namespace NewVistas.Abstractions.Grains;
 
@@ -14,34 +13,21 @@ namespace NewVistas.Abstractions.Grains;
 ///
 /// Responsibilities:
 ///   - Persist the interaction pair dictionary to durable storage.
-///   - Maintain the silo-level IDrugInteractionCacheService in sync.
-///   - Re-populate the cache on activation so StatelessWorker checkers can
-///     operate immediately after a silo restart without waiting for a reload.
+///   - Serve versioned snapshots so StatelessWorker checkers on EVERY silo
+///     can pull-through-populate their silo-local caches. (The previous
+///     push-based design only populated the cache on the silo hosting this
+///     grain — checkers on other silos silently saw an empty cache.)
+///   - Bump Version on every load/clear so checker caches are version-exact.
 /// </summary>
 public class DrugInteractionDatasetGrain : Grain, IDrugInteractionDatasetGrain
 {
     private readonly IPersistentState<DrugInteractionDatasetState> _state;
-    private readonly IDrugInteractionCacheService _cacheService;
 
     public DrugInteractionDatasetGrain(
         [PersistentState("drugInteractionDataset", "drugInteractionStore")]
-        IPersistentState<DrugInteractionDatasetState> state,
-        IDrugInteractionCacheService cacheService)
+        IPersistentState<DrugInteractionDatasetState> state)
     {
         _state = state;
-        _cacheService = cacheService;
-    }
-
-    /// <summary>
-    /// On activation: if the dataset was previously loaded, push the persisted
-    /// pairs into the cache so checkers don't start with an empty cache.
-    /// </summary>
-    public override Task OnActivateAsync(CancellationToken cancellationToken)
-    {
-        if (_state.State.IsLoaded && _state.State.PairsByKey.Count > 0)
-            _cacheService.Swap(new Dictionary<string, DrugInteractionPair>(_state.State.PairsByKey));
-
-        return base.OnActivateAsync(cancellationToken);
     }
 
     public async Task LoadInteractionsAsync(List<DrugInteractionPair> pairs)
@@ -59,12 +45,42 @@ public class DrugInteractionDatasetGrain : Grain, IDrugInteractionDatasetGrain
         _state.State.IsLoaded = true;
         _state.State.LastLoadedDate = DateTime.UtcNow;
         _state.State.TotalPairs = _state.State.PairsByKey.Count;
+        _state.State.Version++;
 
         await _state.WriteStateAsync();
-
-        // Swap the cache atomically so StatelessWorker checkers see new data.
-        _cacheService.Swap(new Dictionary<string, DrugInteractionPair>(_state.State.PairsByKey));
     }
+
+    public async Task AddInteractionsAsync(List<DrugInteractionPair> pairs)
+    {
+        foreach (DrugInteractionPair pair in pairs)
+        {
+            string key = DrugInteractionKeyHelper.MakePairKey(pair.IngredientIen1, pair.IngredientIen2);
+            _state.State.PairsByKey[key] = pair;
+        }
+
+        _state.State.IsLoaded = true;
+        _state.State.LastLoadedDate = DateTime.UtcNow;
+        _state.State.TotalPairs = _state.State.PairsByKey.Count;
+        _state.State.Version++;
+
+        await _state.WriteStateAsync();
+    }
+
+    public Task<DrugInteractionDatasetVersion> GetVersionAsync() =>
+        Task.FromResult(new DrugInteractionDatasetVersion
+        {
+            Version = _state.State.Version,
+            IsLoaded = _state.State.IsLoaded
+        });
+
+    public Task<DrugInteractionSnapshot> GetSnapshotAsync() =>
+        Task.FromResult(new DrugInteractionSnapshot
+        {
+            Version = _state.State.Version,
+            IsLoaded = _state.State.IsLoaded,
+            // Copy: the snapshot crosses silo boundaries and is cached by readers.
+            PairsByKey = new Dictionary<string, DrugInteractionPair>(_state.State.PairsByKey)
+        });
 
     public Task<DrugInteractionPair?> GetInteractionAsync(string ingredientIen1, string ingredientIen2)
     {
@@ -82,7 +98,9 @@ public class DrugInteractionDatasetGrain : Grain, IDrugInteractionDatasetGrain
             IsLoaded = _state.State.IsLoaded,
             LastLoadedDate = _state.State.LastLoadedDate,
             TotalPairs = _state.State.TotalPairs,
-            IsCachePopulated = _cacheService.IsPopulated
+            // Pull-through caching: data availability mirrors IsLoaded on every silo.
+            IsCachePopulated = _state.State.IsLoaded,
+            Version = _state.State.Version
         });
 
     public async Task ClearAsync()
@@ -91,10 +109,8 @@ public class DrugInteractionDatasetGrain : Grain, IDrugInteractionDatasetGrain
         _state.State.IsLoaded = false;
         _state.State.LastLoadedDate = null;
         _state.State.TotalPairs = 0;
+        _state.State.Version++;
 
         await _state.WriteStateAsync();
-
-        // Reset the cache to empty so checkers stop firing alerts.
-        _cacheService.Swap(new Dictionary<string, DrugInteractionPair>());
     }
 }

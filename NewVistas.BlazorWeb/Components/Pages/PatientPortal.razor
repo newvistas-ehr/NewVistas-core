@@ -5,6 +5,9 @@
 @using NewVistas.Abstractions.GrainInterfaces
 @using NewVistas.Abstractions.GrainStates
 @inject OrleansGrainService Grains
+@* HttpClient is INTENTIONAL here: portal users are external users, so portal
+   operations go through the WebServer (api/portal/*) where authentication
+   lives — do not "fix" this page to call grains directly. *@
 @inject HttpClient Http
 
 <PageTitle>Patient Portal</PageTitle>

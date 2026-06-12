@@ -154,6 +154,89 @@ public class DrugInteractionDatasetState
     /// </summary>
     [Id(3)]
     public int TotalPairs { get; set; }
+
+    /// <summary>
+    /// Monotonic dataset version, incremented on every LoadInteractionsAsync
+    /// and ClearAsync. Checker grains compare their cached snapshot version
+    /// against this to decide whether to re-pull (never time-based).
+    /// </summary>
+    [Id(4)]
+    public long Version { get; set; }
+}
+
+/// <summary>
+/// Lightweight version probe for the interaction dataset. Returned by
+/// IDrugInteractionDatasetGrain.GetVersionAsync — one tiny payload per
+/// interaction check so StatelessWorker checkers can validate their
+/// silo-local cache without shipping the full pair dictionary.
+/// </summary>
+[GenerateSerializer, Immutable]
+public sealed record DrugInteractionDatasetVersion
+{
+    /// <summary>Current monotonic dataset version.</summary>
+    [Id(0)]
+    public long Version { get; init; }
+
+    /// <summary>Whether the dataset has been loaded with interaction data.</summary>
+    [Id(1)]
+    public bool IsLoaded { get; init; }
+}
+
+/// <summary>
+/// Full versioned copy of the interaction dataset. Returned by
+/// IDrugInteractionDatasetGrain.GetSnapshotAsync when a checker's
+/// silo-local cache is missing or stale (pull-through population).
+/// </summary>
+[GenerateSerializer, Immutable]
+public sealed record DrugInteractionSnapshot
+{
+    /// <summary>Dataset version this snapshot represents.</summary>
+    [Id(0)]
+    public long Version { get; init; }
+
+    /// <summary>Whether the dataset has been loaded with interaction data.</summary>
+    [Id(1)]
+    public bool IsLoaded { get; init; }
+
+    /// <summary>All interaction pairs keyed by canonical pair key.</summary>
+    [Id(2)]
+    public Dictionary<string, DrugInteractionPair> PairsByKey { get; init; } = new();
+}
+
+/// <summary>
+/// Status of an interaction check. DataUnavailable means the interaction
+/// dataset has not been loaded — callers MUST fail closed (block the
+/// fill/order), never treat it as "no interactions found".
+/// </summary>
+[GenerateSerializer]
+public enum DrugInteractionCheckStatus
+{
+    /// <summary>Check ran against loaded data; Results is authoritative.</summary>
+    Ok = 0,
+
+    /// <summary>Interaction dataset not loaded — interactions could NOT be verified.</summary>
+    DataUnavailable = 1
+}
+
+/// <summary>
+/// Envelope returned by IDrugInteractionCheckerGrain.CheckInteractionsAsync.
+/// Forces every caller to distinguish "no interactions found" (Ok + empty
+/// Results) from "could not check" (DataUnavailable) — the latter blocks.
+/// </summary>
+[GenerateSerializer]
+public sealed class DrugInteractionCheckResponse
+{
+    /// <summary>Whether the check ran against loaded interaction data.</summary>
+    [Id(0)]
+    public DrugInteractionCheckStatus Status { get; set; }
+
+    /// <summary>Interactions found. Only meaningful when Status is Ok.</summary>
+    [Id(1)]
+    public List<DrugInteractionResult> Results { get; set; } = new();
+
+    /// <summary>Dataset version the check ran against (0 when unavailable).</summary>
+    [Id(2)]
+    public long DatasetVersion { get; set; }
 }
 
 /// <summary>
@@ -176,9 +259,14 @@ public class DrugInteractionStatus
     public int TotalPairs { get; set; }
 
     /// <summary>
-    /// Whether the silo-level cache has been populated (may differ from IsLoaded
-    /// immediately after a silo restart before the dataset grain activates).
+    /// Whether interaction data is available to checkers. With pull-through
+    /// caching this mirrors IsLoaded (checkers self-populate on any silo);
+    /// retained for DTO compatibility.
     /// </summary>
     [Id(3)]
     public bool IsCachePopulated { get; set; }
+
+    /// <summary>Current monotonic dataset version.</summary>
+    [Id(4)]
+    public long Version { get; set; }
 }

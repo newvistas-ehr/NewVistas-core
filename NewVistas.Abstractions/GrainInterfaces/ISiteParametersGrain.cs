@@ -47,6 +47,19 @@ public interface ISiteParametersGrain : IGrainWithStringKey
     Task<int> GetNotesDisplayCountAsync();
 
     /// <summary>
+    /// Sets the number of recent item IDs kept per clinical domain in
+    /// PatientState (allergies are never capped).
+    /// </summary>
+    Task SetRecentItemsDisplayCountAsync(int count);
+
+    /// <summary>
+    /// Gets the number of recent item IDs kept per clinical domain in
+    /// PatientState. Older IDs live in the per-domain history indexes.
+    /// Default 5.
+    /// </summary>
+    Task<int> GetRecentItemsDisplayCountAsync();
+
+    /// <summary>
     /// Sets a named parameter value.
     /// </summary>
     Task SetParameterAsync(string parameterName, string value);

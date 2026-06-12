@@ -10,15 +10,19 @@ namespace NewVistas.Abstractions.GrainInterfaces;
 ///
 /// Grain Key: "CHECKER" (key is ignored by StatelessWorker routing; use any constant)
 ///
-/// This grain carries no persistent state. It reads interaction pairs from
-/// IDrugInteractionCacheService (silo-level singleton) for lock-free, O(n²)
-/// pairwise checking. Orleans may maintain multiple local activations per silo
-/// under load, all sharing the same singleton cache instance.
+/// This grain carries no persistent state. It validates the silo-local
+/// IDrugInteractionCacheService against the DI-DATASET grain's version on
+/// every check (one tiny call) and pull-through-populates the cache when it
+/// is missing or stale — so checkers on EVERY silo see current data.
+///
+/// FAIL-CLOSED CONTRACT: when the dataset is not loaded, the response status
+/// is DataUnavailable. Callers must block the fill/order — never interpret
+/// an unavailable check as "no interactions found".
 ///
 /// Call pattern (mirrors DRGINT^PSO interaction check in VistA CPRS):
 ///   1. Collect all DrugIngredient objects from the patient's active prescriptions.
 ///   2. Call CheckInteractionsAsync with the complete ingredient list.
-///   3. Surface returned DrugInteractionResult objects as clinical alerts.
+///   3. If Status is DataUnavailable, block. Otherwise surface Results as alerts.
 ///
 /// The checker does NOT modify any state. It is safe to call concurrently.
 /// </summary>
@@ -26,11 +30,12 @@ public interface IDrugInteractionCheckerGrain : IGrainWithStringKey
 {
     /// <summary>
     /// Checks all pairwise combinations of the provided drug ingredients
-    /// against the silo-level interaction cache.
+    /// against the (version-validated) interaction dataset.
     ///
-    /// Returns one DrugInteractionResult per interacting pair found.
-    /// Pairs with no known interaction are omitted. An empty list means
-    /// no interactions were detected.
+    /// Returns Ok with one DrugInteractionResult per interacting pair found
+    /// (empty Results = no interactions detected), or DataUnavailable when
+    /// the dataset has not been loaded — in which case the caller must
+    /// fail closed.
     ///
     /// Self-interaction (same IngredientIen appearing more than once,
     /// e.g., two products containing the same active ingredient) is skipped.
@@ -38,11 +43,11 @@ public interface IDrugInteractionCheckerGrain : IGrainWithStringKey
     /// Time complexity: O(n²) on the number of distinct ingredient IENs.
     /// Typical medication lists (5–15 drugs) make this negligible.
     /// </summary>
-    Task<List<DrugInteractionResult>> CheckInteractionsAsync(List<DrugIngredient> ingredients);
+    Task<DrugInteractionCheckResponse> CheckInteractionsAsync(List<DrugIngredient> ingredients);
 
     /// <summary>
-    /// Returns true when the silo-level cache contains at least one interaction pair.
-    /// Use to detect whether IDrugInteractionDatasetGrain has been loaded yet.
+    /// Returns true when the interaction dataset has been loaded. Cluster-correct:
+    /// queries the DI-DATASET grain rather than any silo-local cache.
     /// </summary>
     Task<bool> IsCacheReadyAsync();
 }

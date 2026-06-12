@@ -50,7 +50,7 @@ public interface IPatientRecallIndexGrain : IGrainWithStringKey
     Task AddOrUpdateAsync(PatientRecallIndexEntry entry);
     Task RemoveAsync(string entryId);
     Task<List<PatientRecallIndexEntry>> GetByClinicAsync(string clinicId, int maxResults = 50);
-    Task<List<PatientRecallIndexEntry>> GetByPatientAsync(string patientId);
+    Task<List<PatientRecallIndexEntry>> GetByPatientAsync(string patientId, int maxResults = 50);
     Task<List<PatientRecallIndexEntry>> GetByStatusAsync(string status, int maxResults = 50);
     Task<List<PatientRecallIndexEntry>> GetOverdueAsync(int maxResults = 50);
     Task<List<PatientRecallIndexEntry>> GetDueInRangeAsync(DateTime rangeStart, DateTime rangeEnd, int maxResults = 50);

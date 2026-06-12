@@ -24,7 +24,7 @@ public interface IAuditReportIndexGrain : IGrainWithStringKey
 {
     Task AddReportAsync(AuditReportSummary summary);
     Task<List<AuditReportSummary>> GetAllReportsAsync();
-    Task<List<AuditReportSummary>> GetReportsByPatientAsync(string patientId);
+    Task<List<AuditReportSummary>> GetReportsByPatientAsync(string patientId, int maxResults = 50);
     Task<List<AuditReportSummary>> GetReportsByTypeAsync(string reportType);
 }
 

@@ -99,6 +99,9 @@ public class OrderImporter
                     if (patKey != null)
                     {
                         IPatientGrain patient = _grainFactory.GetGrain<IPatientGrain>(patKey);
+                        // Full-history index first — the PatientState list is a capped recent window.
+                        await _grainFactory.GetGrain<IPatientHistoryIndexGrain>($"{patKey}:{PatientHistoryDomains.Order}")
+                            .AddEntryAsync(new HistoryRef { ItemId = grainKey, Date = startDate });
                         await patient.AddOrderIdAsync(grainKey);
 
                         IPatientOrderIndexGrain orderIndex =

@@ -301,9 +301,26 @@ Key log categories to watch:
 
 **Recovery Time Objective (RTO)**: Depends primarily on SQL Server restore time + application deployment time. The SiloHost cluster itself starts in seconds.
 
----
+### Encryption at Rest (Required for Production)
 
-## Maintenance Operations
+Grain state is stored as Orleans **binary serialization** in SQL Server. This is
+**not encryption** — the serialization format is public, and string fields
+(names, SSNs, diagnoses) are stored as length-prefixed UTF-8 readable in a hex
+dump of the table without any application assemblies. Do not represent the
+binary format as a security control.
+
+For HIPAA encryption at rest:
+
+1. **Enable SQL Server Transparent Data Encryption (TDE)** on `NewVistasDB`
+   (SQL Server Standard 2019+ or Azure SQL, where it is on by default). TDE
+   encrypts data files, log files, and backups and is completely transparent
+   to the Orleans ADO.NET provider — no application changes.
+2. **Encrypt backups** (`BACKUP ... WITH ENCRYPTION` if not using TDE-covered
+   backups) and protect the certificate/key material separately from the
+   backups themselves.
+3. **SQL Express demo mode does not support TDE.** Demo machines using
+   `--use-sqlexpress` must rely on full-disk encryption (BitLocker). This is
+   acceptable for demos only — never for production PHI.
 
 ### Rolling Restart (Zero Downtime)
 

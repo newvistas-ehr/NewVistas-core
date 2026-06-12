@@ -201,11 +201,14 @@ public class MpiFederationAnnouncerTests
             siloBuilder.AddMemoryGrainStorage("mpiCorrelationStore");
             siloBuilder.AddMemoryGrainStorage("mpiSearchStore");
             siloBuilder.AddMemoryGrainStorage("patientStore");
+            siloBuilder.AddMemoryGrainStorage("patientHistoryIndexStore");
             siloBuilder.AddMemoryGrainStorage("patientIndexStore");
             siloBuilder.AddMemoryGrainStorage("patientClinicalStreamStore");
             siloBuilder.AddMemoryGrainStorage("patientEnrollmentStore");
             siloBuilder.AddMemoryGrainStorage("autoEligibilityDeterminationStore");
             siloBuilder.AddMemoryGrainStorage("patientMergeStore");
+            // Merge now copies PSO-INDEX prescription entries between patients.
+            siloBuilder.AddMemoryGrainStorage("prescriptionIndexStore");
             siloBuilder.AddMemoryGrainStorage("siteParametersStore");
             siloBuilder.AddLogStorageBasedLogConsistencyProvider("ClinicalLogConsistency");
 

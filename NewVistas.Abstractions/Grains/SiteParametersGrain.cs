@@ -62,6 +62,15 @@ public class SiteParametersGrain : Grain, ISiteParametersGrain
 
     public Task<int> GetNotesDisplayCountAsync() => Task.FromResult(_state.State.NotesDisplayCount);
 
+    public async Task SetRecentItemsDisplayCountAsync(int count)
+    {
+        _state.State.RecentItemsDisplayCount = count;
+        _state.State.LastModifiedDate = DateTime.UtcNow;
+        await _state.WriteStateAsync();
+    }
+
+    public Task<int> GetRecentItemsDisplayCountAsync() => Task.FromResult(_state.State.RecentItemsDisplayCount);
+
     public async Task SetParameterAsync(string parameterName, string value)
     {
         _state.State.Parameters[parameterName] = value;

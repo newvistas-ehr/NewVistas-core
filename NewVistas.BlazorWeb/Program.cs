@@ -17,6 +17,10 @@ builder.Services.AddRazorComponents()
 // to the M server. Pages inject IGrainFactory instead of calling the REST API.
 builder.Host.UseOrleansClient((context, clientBuilder) =>
 {
+    // Matches SiloMessagingOptions.ResponseTimeout in CommonSiloConfig.
+    clientBuilder.Configure<Orleans.Configuration.ClientMessagingOptions>(options =>
+        options.ResponseTimeout = TimeSpan.FromSeconds(60));
+
     if (context.HostingEnvironment.IsDevelopment())
     {
         // Development: connect to localhost silo (gateway port 30000)

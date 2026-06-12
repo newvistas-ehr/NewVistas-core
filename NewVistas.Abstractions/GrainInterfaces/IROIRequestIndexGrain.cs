@@ -12,7 +12,7 @@ public interface IROIRequestIndexGrain : IGrainWithStringKey
     Task UpsertRequestAsync(ROIRequestIndexEntry entry);
     Task<List<ROIRequestIndexEntry>> GetAllRequestsAsync();
     Task<List<ROIRequestIndexEntry>> GetRequestsByStatusAsync(ROIRequestStatus status);
-    Task<List<ROIRequestIndexEntry>> GetRequestsByPatientAsync(string patientId);
+    Task<List<ROIRequestIndexEntry>> GetRequestsByPatientAsync(string patientId, int maxResults = 50);
     Task<List<ROIRequestIndexEntry>> GetOverdueRequestsAsync();
     Task<List<ROIRequestIndexEntry>> GetRequestsByRequesterTypeAsync(RequesterType requesterType);
 }

@@ -154,7 +154,11 @@ public class FhirController : ControllerBase
             if (string.IsNullOrWhiteSpace(name))
                 return Ok(FhirBundle("searchset", new List<object>()));
 
-            List<PatientIndexEntry> results = await W("SEARCH").SearchPatientsAsync(name, _count);
+            // StatelessWorker search reader — scales out instead of funneling
+            // through the singleton PATIENT-INDEX (or a "SEARCH" workflow grain).
+            List<PatientIndexEntry> results = await _grainFactory
+                .GetGrain<IPatientSearchGrain>("PATIENT-SEARCH")
+                .SearchAsync(name, _count);
             var entries = new List<object>();
 
             foreach (PatientIndexEntry entry in results)

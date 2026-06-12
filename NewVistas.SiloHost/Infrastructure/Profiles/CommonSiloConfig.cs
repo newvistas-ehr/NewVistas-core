@@ -5,6 +5,7 @@ using NewVistas.Abstractions.Federation;
 using NewVistas.Abstractions.Reporting;
 using NewVistas.Abstractions.Security;
 using NewVistas.SiloHost.Infrastructure.Federation;
+using Orleans.Configuration;
 using Orleans.Hosting;
 
 namespace NewVistas.SiloHost.Infrastructure.Profiles;
@@ -45,6 +46,19 @@ internal static class CommonSiloConfig
         siloBuilder.AddIncomingGrainCallFilter<AuthorizationCallFilter>();
         siloBuilder.AddIncomingGrainCallFilter<AuditCallFilter>();
         siloBuilder.AddLogStorageBasedLogConsistencyProvider(ClinicalLogConsistencyProvider);
+
+        // Idle grain collection: the default is 2 hours, which keeps a whole
+        // shift's worth of patient activations (large states) in silo memory.
+        // 30 minutes covers an active encounter; reactivation is cheap.
+        siloBuilder.Configure<GrainCollectionOptions>(options =>
+            options.CollectionAge = TimeSpan.FromMinutes(30));
+
+        // Response timeout: pinned explicitly (default 30s). Cover-sheet
+        // builds fan out 10+ grain calls against large patient records; 60s
+        // gives degraded-but-working responses under load instead of opaque
+        // timeout failures. Clients pin the matching ClientMessagingOptions.
+        siloBuilder.Configure<SiloMessagingOptions>(options =>
+            options.ResponseTimeout = TimeSpan.FromSeconds(60));
 
         siloBuilder.Services.TryAddSingleton<IClinicalEventReplicationSink, NullClinicalEventReplicationSink>();
 

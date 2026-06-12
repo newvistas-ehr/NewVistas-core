@@ -242,6 +242,7 @@ public class IhsTribalRegistrationEligibilityTests
             siloBuilder.AddMemoryGrainStorage("mpiCorrelationStore");
             siloBuilder.AddMemoryGrainStorage("mpiSearchStore");
             siloBuilder.AddMemoryGrainStorage("patientStore");
+            siloBuilder.AddMemoryGrainStorage("patientHistoryIndexStore");
             siloBuilder.AddMemoryGrainStorage("patientIndexStore");
             siloBuilder.AddMemoryGrainStorage("patientClinicalStreamStore");
             siloBuilder.AddMemoryGrainStorage("patientEnrollmentStore");

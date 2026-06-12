@@ -67,9 +67,15 @@ public class DurAssessmentGrain : Grain, IDurAssessmentGrain
         _state.State.WarningCheckCount = checks.Count(c => c.Outcome == DurOutcome.Warning);
         _state.State.OverriddenCheckCount = 0;
 
-        if (_state.State.FailedCheckCount > 0)
+        // Unavailable = reference data missing; blocks like Fail but is not
+        // pharmacist-overridable (OverrideCheckAsync only overrides Fail).
+        bool hasUnavailable = checks.Any(c => c.Outcome == DurOutcome.Unavailable);
+
+        if (_state.State.FailedCheckCount > 0 || hasUnavailable)
         {
-            _state.State.OverallOutcome = DurOutcome.Fail;
+            _state.State.OverallOutcome = hasUnavailable && _state.State.FailedCheckCount == 0
+                ? DurOutcome.Unavailable
+                : DurOutcome.Fail;
             _state.State.Status = DurAssessmentStatus.Failed;
         }
         else if (_state.State.WarningCheckCount > 0)
@@ -108,8 +114,10 @@ public class DurAssessmentGrain : Grain, IDurAssessmentGrain
         _state.State.FailedCheckCount = _state.State.Checks.Count(c => c.Outcome == DurOutcome.Fail);
         _state.State.OverriddenCheckCount = _state.State.Checks.Count(c => c.Outcome == DurOutcome.Override);
 
-        // If no more failed checks, update status
-        if (_state.State.FailedCheckCount == 0)
+        // If no more failed checks, update status. An Unavailable check keeps
+        // the assessment Failed — it cannot be overridden away.
+        if (_state.State.FailedCheckCount == 0
+            && !_state.State.Checks.Any(c => c.Outcome == DurOutcome.Unavailable))
         {
             _state.State.Status = DurAssessmentStatus.OverriddenByPharmacist;
             _state.State.OverallOutcome = DurOutcome.Override;

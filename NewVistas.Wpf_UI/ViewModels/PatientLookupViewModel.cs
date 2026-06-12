@@ -197,8 +197,10 @@ public partial class PatientLookupViewModel : ObservableObject
         Error = null;
         try
         {
-            var grain = Grains.GetGrain<IPatientWorkflowGrain>("SEARCH");
-            List<PatientIndexEntry> results = await grain.SearchPatientsAsync(SearchQuery.Trim());
+            // StatelessWorker search reader — scales out instead of funneling
+            // through the singleton PATIENT-INDEX via a "SEARCH" workflow grain.
+            var grain = Grains.GetGrain<IPatientSearchGrain>("PATIENT-SEARCH");
+            List<PatientIndexEntry> results = await grain.SearchAsync(SearchQuery.Trim());
             SearchResults.Clear();
             foreach (PatientIndexEntry r in results)
             {

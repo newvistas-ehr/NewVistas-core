@@ -5,6 +5,9 @@
 @using NewVistas.BlazorWeb.Services
 @inject JwtAuthenticationStateProvider AuthProvider
 @inject NavigationManager Navigation
+@* HttpClient is INTENTIONAL here: authentication goes through the WebServer
+   by design (it owns identity/JWT issuance) — do not "fix" this page to call
+   grains directly. *@
 @inject HttpClient Http
 @inject UserSecurityContext SecurityContext
 

@@ -358,10 +358,10 @@ public class EcrCaseIndexGrain : Grain, IEcrCaseIndexGrain
             .Where(c => c.Status.Equals(status, StringComparison.OrdinalIgnoreCase))
             .OrderByDescending(c => c.TriggeredDate).ToList());
 
-    public Task<List<EcrCaseSummary>> GetCasesByPatientAsync(string patientId)
+    public Task<List<EcrCaseSummary>> GetCasesByPatientAsync(string patientId, int maxResults = 50)
         => Task.FromResult(_state.State.Cases
             .Where(c => c.PatientId == patientId)
-            .OrderByDescending(c => c.TriggeredDate).ToList());
+            .OrderByDescending(c => c.TriggeredDate).Take(maxResults).ToList());
 
     public Task<List<EcrCaseSummary>> GetCasesByConditionAsync(string conditionName)
         => Task.FromResult(_state.State.Cases

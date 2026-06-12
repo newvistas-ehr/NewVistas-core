@@ -142,6 +142,14 @@ Edit the variables at the top of `scripts/azure-deploy.sh` to change:
 | `SQL_SERVER_NAME` | `newvistas-sql` | SQL server name (must be globally unique) |
 | `SQL_DATABASE_NAME` | `NewVistasDB` | Database name |
 
+## Encryption at Rest
+
+Azure SQL Database enables **Transparent Data Encryption (TDE)** by default —
+verify it is on for `NewVistasDB` (`az sql db tde show`). Grain state is stored
+as Orleans binary serialization, which is **not encryption** (string fields are
+readable in a hex dump); TDE plus encrypted backups is the actual control. See
+SYSADMIN_GUIDE.md "Encryption at Rest" for details.
+
 ## Cost Estimate
 
 Running 24/7 for one month (approximate, varies by region):

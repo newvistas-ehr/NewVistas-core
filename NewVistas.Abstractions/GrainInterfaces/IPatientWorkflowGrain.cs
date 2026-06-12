@@ -320,6 +320,11 @@ public interface IPatientWorkflowGrain : IGrainWithStringKey
 
     Task<List<GrainStates.MedicationSummary>> GetActiveMedicationsAsync();
 
+    /// <summary>
+    /// Paged full medication history (newest first); default reads return only the recent window.
+    /// </summary>
+    Task<List<GrainStates.MedicationSummary>> GetMedicationHistoryAsync(int offset, int maxResults);
+
     // ─── Allergy Workflow (CWAD "A" flag) ────────────────────────────────
 
     [RequiresSecurityKey(SecurityKeys.GMRA_ALLERGY)]
@@ -340,6 +345,11 @@ public interface IPatientWorkflowGrain : IGrainWithStringKey
         string? orderId, string? orderingProviderId,
         string? orderingProviderName, string? specimenType, string? category);
     Task<List<GrainStates.LabResultSummary>> GetLabResultsAsync();
+
+    /// <summary>
+    /// Paged full lab result history (newest first); default reads return only the recent window.
+    /// </summary>
+    Task<List<GrainStates.LabResultSummary>> GetLabResultHistoryAsync(int offset, int maxResults);
 
     /// <summary>Get the full state of a single lab test order.</summary>
     Task<GrainStates.LabTestState> GetLabTestAsync(string labTestId);
@@ -460,6 +470,11 @@ public interface IPatientWorkflowGrain : IGrainWithStringKey
     Task<GrainStates.ConsultState> GetConsultAsync(string consultId);
     Task<List<GrainStates.ConsultSummary>> GetConsultsAsync(string? statusFilter, int maxResults);
 
+    /// <summary>
+    /// Paged full consult history (newest first); default reads return only the recent window.
+    /// </summary>
+    Task<List<GrainStates.ConsultSummary>> GetConsultHistoryAsync(int offset, int maxResults);
+
     // ─── Surgery (File #130) ─────────────────────────────────────────────
 
     Task<string> ScheduleSurgeryAsync(
@@ -471,6 +486,11 @@ public interface IPatientWorkflowGrain : IGrainWithStringKey
     Task CancelSurgeryAsync(string surgeryId, string? comments);
     Task<GrainStates.SurgeryState> GetSurgeryAsync(string surgeryId);
     Task<List<GrainStates.SurgerySummary>> GetSurgeriesAsync(int maxResults);
+
+    /// <summary>
+    /// Paged full surgery history (newest first); default reads return only the recent window.
+    /// </summary>
+    Task<List<GrainStates.SurgerySummary>> GetSurgeryHistoryAsync(int offset, int maxResults);
 
     // ─── Radiology (File #75.1) ──────────────────────────────────────────
 
@@ -484,6 +504,11 @@ public interface IPatientWorkflowGrain : IGrainWithStringKey
     Task<GrainStates.RadiologyState> GetRadiologyStudyAsync(string radiologyId);
     Task<List<GrainStates.RadiologySummary>> GetRadiologyStudiesAsync(int maxResults);
 
+    /// <summary>
+    /// Paged full radiology history (newest first); default reads return only the recent window.
+    /// </summary>
+    Task<List<GrainStates.RadiologySummary>> GetRadiologyHistoryAsync(int offset, int maxResults);
+
     // ─── BCMA (File #53.79) ──────────────────────────────────────────────
 
     /// <summary>Record a standalone (non-order-linked) medication administration.</summary>
@@ -495,6 +520,11 @@ public interface IPatientWorkflowGrain : IGrainWithStringKey
 
     /// <summary>List recent administration events in reverse-chronological order.</summary>
     Task<List<GrainStates.BcmaSummary>> GetMedicationAdministrationsAsync(int maxResults);
+
+    /// <summary>
+    /// Paged full administration history (newest first); default reads return only the recent window.
+    /// </summary>
+    Task<List<GrainStates.BcmaSummary>> GetBcmaHistoryAsync(int offset, int maxResults);
 
     // ─── BCMA MAR (Medication Administration Record) ─────────────────────
 
@@ -543,6 +573,11 @@ public interface IPatientWorkflowGrain : IGrainWithStringKey
         string? locationId, string? locationName, string? comments);
     Task<List<GrainStates.ImagingSummary>> GetImagesAsync(int maxResults);
 
+    /// <summary>
+    /// Paged full imaging history (newest first); default reads return only the recent window.
+    /// </summary>
+    Task<List<GrainStates.ImagingSummary>> GetImagingHistoryAsync(int offset, int maxResults);
+
     // ─── Clinical Reminders (File #811.9) ────────────────────────────────
 
     Task<string> CreateReminderAsync(
@@ -570,6 +605,11 @@ public interface IPatientWorkflowGrain : IGrainWithStringKey
         string? enteredById, string? enteredByName, string? comments);
     Task<List<GrainStates.HealthFactorSummary>> GetHealthFactorsAsync();
 
+    /// <summary>
+    /// Paged full health factor history (newest first); default reads return only the recent window.
+    /// </summary>
+    Task<List<GrainStates.HealthFactorSummary>> GetHealthFactorHistoryAsync(int offset, int maxResults);
+
     // ─── Mental Health (File #601.71) ────────────────────────────────────
 
     [RequiresSecurityKey(SecurityKeys.YS_MH_INSTRUMENT)]
@@ -583,6 +623,13 @@ public interface IPatientWorkflowGrain : IGrainWithStringKey
     [RequiresSecurityKey(SecurityKeys.YS_MH_INSTRUMENT)]
     [AuditAction("MENTAL_HEALTH", "READ", EntityType = "MH_SCREEN")]
     Task<List<GrainStates.MentalHealthSummary>> GetMentalHealthScreensAsync();
+
+    /// <summary>
+    /// Paged full mental health history (newest first); default reads return only the recent window.
+    /// </summary>
+    [RequiresSecurityKey(SecurityKeys.YS_MH_INSTRUMENT)]
+    [AuditAction("MENTAL_HEALTH", "READ", EntityType = "MH_SCREEN")]
+    Task<List<GrainStates.MentalHealthSummary>> GetMentalHealthHistoryAsync(int offset, int maxResults);
 
     // ─── Dietetics (File #115.2) ─────────────────────────────────────────
 
@@ -684,6 +731,11 @@ public interface IPatientWorkflowGrain : IGrainWithStringKey
         string? attendingPhysicianId, string? attendingPhysicianName,
         string? comments);
     Task<List<GrainStates.AdtSummary>> GetAdtMovementsAsync();
+
+    /// <summary>
+    /// Paged full ADT movement history (newest first); default reads return only the recent window.
+    /// </summary>
+    Task<List<GrainStates.AdtSummary>> GetAdtHistoryAsync(int offset, int maxResults);
     Task<List<GrainStates.WardCensusEntry>> GetWardCensusAsync(string wardId);
     Task<List<GrainStates.WardLocationEntry>> GetWardListAsync();
 

@@ -27,6 +27,7 @@ public class AuditCallFilterTests
         public void Configure(ISiloBuilder siloBuilder)
         {
             siloBuilder.AddMemoryGrainStorage("patientStore");
+            siloBuilder.AddMemoryGrainStorage("patientHistoryIndexStore");
             siloBuilder.AddMemoryGrainStorage("accessControlStore");
             siloBuilder.AddMemoryGrainStorage("problemStore");
             siloBuilder.AddMemoryGrainStorage("orderStore");

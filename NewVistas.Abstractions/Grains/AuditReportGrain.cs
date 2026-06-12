@@ -80,10 +80,10 @@ public class AuditReportIndexGrain : Grain, IAuditReportIndexGrain
     public Task<List<AuditReportSummary>> GetAllReportsAsync()
         => Task.FromResult(_state.State.Reports.OrderByDescending(r => r.GeneratedDate).ToList());
 
-    public Task<List<AuditReportSummary>> GetReportsByPatientAsync(string patientId)
+    public Task<List<AuditReportSummary>> GetReportsByPatientAsync(string patientId, int maxResults = 50)
         => Task.FromResult(_state.State.Reports
             .Where(r => r.PatientId == patientId)
-            .OrderByDescending(r => r.GeneratedDate).ToList());
+            .OrderByDescending(r => r.GeneratedDate).Take(maxResults).ToList());
 
     public Task<List<AuditReportSummary>> GetReportsByTypeAsync(string reportType)
         => Task.FromResult(_state.State.Reports

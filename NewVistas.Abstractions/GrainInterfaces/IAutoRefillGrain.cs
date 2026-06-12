@@ -54,7 +54,7 @@ public interface IAutoRefillIndexGrain : IGrainWithStringKey
 {
     Task AddOrUpdateAsync(AutoRefillIndexEntry entry);
     Task RemoveAsync(string enrollmentId);
-    Task<List<AutoRefillIndexEntry>> GetByPatientAsync(string patientId);
+    Task<List<AutoRefillIndexEntry>> GetByPatientAsync(string patientId, int maxResults = 50);
     Task<List<AutoRefillIndexEntry>> GetByStatusAsync(string status, int maxResults = 50);
     Task<List<AutoRefillIndexEntry>> GetByPharmacyAsync(string pharmacyId, int maxResults = 50);
     Task<List<AutoRefillIndexEntry>> GetDueForRefillAsync(DateTime asOfDate, int maxResults = 50);

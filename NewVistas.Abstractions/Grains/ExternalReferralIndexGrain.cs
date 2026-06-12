@@ -27,11 +27,12 @@ public class ExternalReferralIndexGrain : Grain, IExternalReferralIndexGrain
         await _state.WriteStateAsync();
     }
 
-    public Task<List<ExternalReferralIndexEntry>> GetByPatientAsync(string patientId)
+    public Task<List<ExternalReferralIndexEntry>> GetByPatientAsync(string patientId, int maxResults = 50)
     {
         List<ExternalReferralIndexEntry> results = _state.State.Entries.Values
             .Where(e => e.PatientId == patientId)
             .OrderByDescending(e => e.ReferralDate)
+            .Take(maxResults)
             .ToList();
         return Task.FromResult(results);
     }

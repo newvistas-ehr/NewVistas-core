@@ -58,7 +58,8 @@ public interface ICancerRegistryReportIndexGrain : IGrainWithStringKey
     Task<List<CancerRegistryReportIndexEntry>> GetAllReportsAsync();
 
     /// <summary>Get reports by patient.</summary>
-    Task<List<CancerRegistryReportIndexEntry>> GetReportsByPatientAsync(string patientId);
+    /// <param name="maxResults">Maximum entries returned, newest first. Bounds the payload; full history is available by passing a larger value.</param>
+    Task<List<CancerRegistryReportIndexEntry>> GetReportsByPatientAsync(string patientId, int maxResults = 50);
 
     /// <summary>Get reports by status.</summary>
     Task<List<CancerRegistryReportIndexEntry>> GetReportsByStatusAsync(string status);

@@ -12,5 +12,5 @@ public interface ITopMatchIndexGrain : IGrainWithStringKey
     Task<List<TopMatchIndexEntry>> GetAllAsync();
     Task AddOrUpdateAsync(TopMatchIndexEntry entry);
     Task<List<TopMatchIndexEntry>> GetPendingAsync();
-    Task<List<TopMatchIndexEntry>> GetByPatientAsync(string patientId);
+    Task<List<TopMatchIndexEntry>> GetByPatientAsync(string patientId, int maxResults = 50);
 }

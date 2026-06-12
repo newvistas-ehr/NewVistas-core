@@ -84,7 +84,7 @@ public interface IEncounterFormTemplateIndexGrain : IGrainWithStringKey
 public interface IEncounterFormInstanceIndexGrain : IGrainWithStringKey
 {
     Task AddOrUpdateAsync(EncounterFormInstanceIndexEntry entry);
-    Task<List<EncounterFormInstanceIndexEntry>> GetByPatientAsync(string patientId);
+    Task<List<EncounterFormInstanceIndexEntry>> GetByPatientAsync(string patientId, int maxResults = 50);
     Task<List<EncounterFormInstanceIndexEntry>> GetByTemplateAsync(string templateId, int maxResults = 50);
     Task<List<EncounterFormInstanceIndexEntry>> GetByStatusAsync(string status, int maxResults = 50);
     Task<List<EncounterFormInstanceIndexEntry>> SearchAsync(string? patientId, string? templateId, string? status, int maxResults = 50);

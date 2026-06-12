@@ -29,6 +29,7 @@ public class TopMatchIndexGrain : Grain, ITopMatchIndexGrain
     public Task<List<TopMatchIndexEntry>> GetPendingAsync()
         => Task.FromResult(_state.State.Entries.Where(e => e.Status == TopMatchStatus.PendingMatch).ToList());
 
-    public Task<List<TopMatchIndexEntry>> GetByPatientAsync(string patientId)
-        => Task.FromResult(_state.State.Entries.Where(e => e.MatchedPatientId == patientId).ToList());
+    public Task<List<TopMatchIndexEntry>> GetByPatientAsync(string patientId, int maxResults = 50)
+        => Task.FromResult(_state.State.Entries.Where(e => e.MatchedPatientId == patientId)
+            .OrderByDescending(e => e.OffsetReceivedDate).Take(maxResults).ToList());
 }

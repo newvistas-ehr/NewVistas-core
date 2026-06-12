@@ -16,8 +16,8 @@ public class AnesthesiaRecordIndexGrain : Grain, IAnesthesiaRecordIndexGrain
     public async Task AddOrUpdateAsync(AnesthesiaRecordIndexEntry entry)
     { _state.State.Entries[entry.RecordId] = entry; await _state.WriteStateAsync(); }
 
-    public Task<List<AnesthesiaRecordIndexEntry>> GetByPatientAsync(string patientId) =>
-        Task.FromResult(_state.State.Entries.Values.Where(e => e.PatientId == patientId).OrderByDescending(e => e.CreatedDate).ToList());
+    public Task<List<AnesthesiaRecordIndexEntry>> GetByPatientAsync(string patientId, int maxResults = 50) =>
+        Task.FromResult(_state.State.Entries.Values.Where(e => e.PatientId == patientId).OrderByDescending(e => e.CreatedDate).Take(maxResults).ToList());
 
     public Task<List<AnesthesiaRecordIndexEntry>> GetByAnesthesiologistAsync(string anesthesiologistId, int maxResults = 50) =>
         Task.FromResult(_state.State.Entries.Values.Where(e => e.AnesthesiologistId == anesthesiologistId).OrderByDescending(e => e.CreatedDate).Take(maxResults).ToList());

@@ -128,7 +128,12 @@ public class iCareDashboardGrain : Grain, IiCareDashboardGrain
         };
 
         // ── 1. Clinical Reminders ───────────────────────────────────
-        List<string> reminderIds = await patientGrain.GetClinicalReminderIdsAsync();
+        // COMPLETE reminder set: ClinicalReminderIds in PatientState is a
+        // capped recent window; due reminders beyond it must still surface.
+        List<string> reminderIds = await patientGrain.IsDomainMigratedAsync(PatientHistoryDomains.Reminder)
+            ? await GrainFactory.GetGrain<IPatientHistoryIndexGrain>(
+                $"{patientId}:{PatientHistoryDomains.Reminder}").GetAllIdsAsync()
+            : await patientGrain.GetClinicalReminderIdsAsync();
         foreach (string reminderId in reminderIds)
         {
             IClinicalReminderGrain reminderGrain =

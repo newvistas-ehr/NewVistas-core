@@ -1,5 +1,6 @@
 // Copyright 2026 Merrimack Valley Software Works, LLC. All rights reserved.
 using Orleans;
+using Orleans.Concurrency;
 using NewVistas.Abstractions.GrainInterfaces;
 using NewVistas.Abstractions.GrainStates;
 
@@ -12,7 +13,11 @@ namespace NewVistas.Abstractions.Grains;
 /// §170.315(f)(5) — Electronic Case Reporting trigger detection.
 ///
 /// Grain Key: "ECR-SCREEN:{patientId}"
+///
+/// [StatelessWorker]: pure compute — reads patient data and trigger
+/// definitions, evaluates matches, holds nothing between calls.
 /// </summary>
+[StatelessWorker]
 public class EcrScreeningGrain : Grain, IEcrScreeningGrain
 {
     private readonly IGrainFactory _grainFactory;
@@ -28,23 +33,28 @@ public class EcrScreeningGrain : Grain, IEcrScreeningGrain
         int colonIdx = key.IndexOf(':');
         string patientId = colonIdx >= 0 ? key[(colonIdx + 1)..] : key;
 
-        // Get patient's clinical data
+        // Patient reads and the trigger-index read are independent; the
+        // workflow grain is [Reentrant], so issue them all together.
         IPatientWorkflowGrain w = _grainFactory.GetGrain<IPatientWorkflowGrain>(patientId);
-        List<ProblemSummary> problems = await w.GetAllProblemsAsync();
-        List<LabTestSummaryEntry> labs = await w.GetLabSummaryAsync();
-
-        // Get all active triggers
         IEcrTriggerIndexGrain index = _grainFactory.GetGrain<IEcrTriggerIndexGrain>("ECR-TRIGGER-INDEX");
-        List<EcrTriggerSummary> activeTriggers = await index.GetActiveTriggersAsync();
+
+        Task<List<ProblemSummary>> problemsTask = w.GetAllProblemsAsync();
+        Task<List<LabTestSummaryEntry>> labsTask = w.GetLabSummaryAsync();
+        Task<List<EcrTriggerSummary>> activeTriggersTask = index.GetActiveTriggersAsync();
+        await Task.WhenAll(problemsTask, labsTask, activeTriggersTask);
+
+        List<ProblemSummary> problems = problemsTask.Result;
+        List<LabTestSummaryEntry> labs = labsTask.Result;
+        List<EcrTriggerSummary> activeTriggers = activeTriggersTask.Result;
+
+        // Fan out the per-trigger detail reads instead of awaiting one by one.
+        EcrTriggerState[] triggers = await Task.WhenAll(activeTriggers.Select(t =>
+            _grainFactory.GetGrain<IEcrTriggerGrain>($"ECR-TRIGGER:{t.TriggerId}").GetTriggerAsync()));
 
         var matches = new List<EcrScreeningMatch>();
 
-        foreach (EcrTriggerSummary triggerSummary in activeTriggers)
+        foreach (EcrTriggerState trigger in triggers)
         {
-            IEcrTriggerGrain triggerGrain = _grainFactory.GetGrain<IEcrTriggerGrain>(
-                $"ECR-TRIGGER:{triggerSummary.TriggerId}");
-            EcrTriggerState trigger = await triggerGrain.GetTriggerAsync();
-
             if (!trigger.IsActive) continue;
 
             EcrScreeningMatch? match = EvaluateTrigger(trigger, problems, labs);

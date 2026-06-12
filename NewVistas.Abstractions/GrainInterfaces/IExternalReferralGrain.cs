@@ -96,7 +96,7 @@ public interface IExternalReferralGrain : IGrainWithStringKey
 public interface IExternalReferralIndexGrain : IGrainWithStringKey
 {
     Task AddOrUpdateAsync(ExternalReferralIndexEntry entry);
-    Task<List<ExternalReferralIndexEntry>> GetByPatientAsync(string patientId);
+    Task<List<ExternalReferralIndexEntry>> GetByPatientAsync(string patientId, int maxResults = 50);
     Task<List<ExternalReferralIndexEntry>> GetByStatusAsync(string status, int maxResults = 50);
     Task<List<ExternalReferralIndexEntry>> GetByFacilityAsync(string facilityName, int maxResults = 50);
     Task<List<ExternalReferralIndexEntry>> GetPendingFollowUpsAsync(int maxResults = 50);

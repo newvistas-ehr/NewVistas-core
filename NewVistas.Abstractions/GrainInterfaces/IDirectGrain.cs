@@ -72,7 +72,7 @@ public interface IDirectMessageIndexGrain : IGrainWithStringKey
     Task<List<DirectMessageSummary>> GetAllMessagesAsync();
     Task<List<DirectMessageSummary>> GetOutboundMessagesAsync();
     Task<List<DirectMessageSummary>> GetInboundMessagesAsync();
-    Task<List<DirectMessageSummary>> GetMessagesByPatientAsync(string patientId);
+    Task<List<DirectMessageSummary>> GetMessagesByPatientAsync(string patientId, int maxResults = 50);
     Task<List<DirectMessageSummary>> GetMessagesByStatusAsync(string status);
     Task<List<DirectMessageSummary>> GetPendingDeliveryAsync();
 }

@@ -19,7 +19,7 @@ public partial class PatientWorkflowGrain
         await grain.RecordAdministrationAsync(PatientId, drugName, drugId, dosage, route,
             actionStatus, scheduledDateTime, administrationDateTime,
             administeredById, administeredByName, injectionSite, prescriptionId, orderId, comments);
-        await GetPatientGrain().AddBcmaIdAsync(bcmaId);
+        await AppendCappedIdAsync(PatientHistoryDomains.Bcma, bcmaId, DateTime.UtcNow);
         return bcmaId;
     }
 
@@ -29,6 +29,23 @@ public partial class PatientWorkflowGrain
         var tasks = ids.Select(id => GrainFactory.GetGrain<IBcmaGrain>(id).GetAdministrationAsync()).ToList();
         var states = await Task.WhenAll(tasks);
         return states.OrderByDescending(s => s.AdministrationDateTime).Take(maxResults)
+            .Select(s => new BcmaSummary
+            {
+                BcmaId = s.AdministrationId, DrugName = s.DrugName, Dosage = s.Dosage,
+                ActionStatus = s.ActionStatus, AdministrationDateTime = s.AdministrationDateTime ?? DateTime.MinValue,
+                AdministeredByName = s.AdministeredByName
+            }).ToList();
+    }
+
+    /// <summary>
+    /// Paged full administration history (newest first); default reads return only the recent window.
+    /// </summary>
+    public async Task<List<BcmaSummary>> GetBcmaHistoryAsync(int offset, int maxResults)
+    {
+        var ids = await GetHistoryPageIdsAsync(PatientHistoryDomains.Bcma, offset, maxResults);
+        var tasks = ids.Select(id => GrainFactory.GetGrain<IBcmaGrain>(id).GetAdministrationAsync()).ToList();
+        var states = await Task.WhenAll(tasks);
+        return states
             .Select(s => new BcmaSummary
             {
                 BcmaId = s.AdministrationId, DrugName = s.DrugName, Dosage = s.Dosage,
@@ -117,7 +134,7 @@ public partial class PatientWorkflowGrain
             .RecordAdministrationAsync(bcmaId, administrationDateTime);
 
         // Track on the patient's flat BCMA ID list
-        await GetPatientGrain().AddBcmaIdAsync(bcmaId);
+        await AppendCappedIdAsync(PatientHistoryDomains.Bcma, bcmaId, DateTime.UtcNow);
 
         // Update the MAR entry
         await GetMARGrain().RecordAdministrationAsync(
@@ -143,7 +160,7 @@ public partial class PatientWorkflowGrain
             imageUrl, thumbnailUrl, dicomSeriesUid, dicomStudyUid, procedureDate, captureDate,
             imageCount, radiologyId, tiuDocumentId, capturedById, capturedByName,
             locationId, locationName, comments);
-        await GetPatientGrain().AddImagingIdAsync(imageId);
+        await AppendCappedIdAsync(PatientHistoryDomains.Imaging, imageId, DateTime.UtcNow);
         return imageId;
     }
 
@@ -153,6 +170,23 @@ public partial class PatientWorkflowGrain
         var tasks = ids.Select(id => GrainFactory.GetGrain<IImagingGrain>(id).GetImageAsync()).ToList();
         var states = await Task.WhenAll(tasks);
         return states.Where(s => s.Status != "DELETED").OrderByDescending(s => s.CaptureDate).Take(maxResults)
+            .Select(s => new ImagingSummary
+            {
+                ImageId = s.ImageId, ObjectType = s.ObjectType,
+                ProcedureDescription = s.ProcedureDescription, Status = s.Status,
+                CaptureDate = s.CaptureDate ?? DateTime.MinValue, ImageCount = s.ImageCount
+            }).ToList();
+    }
+
+    /// <summary>
+    /// Paged full imaging history (newest first); default reads return only the recent window.
+    /// </summary>
+    public async Task<List<ImagingSummary>> GetImagingHistoryAsync(int offset, int maxResults)
+    {
+        var ids = await GetHistoryPageIdsAsync(PatientHistoryDomains.Imaging, offset, maxResults);
+        var tasks = ids.Select(id => GrainFactory.GetGrain<IImagingGrain>(id).GetImageAsync()).ToList();
+        var states = await Task.WhenAll(tasks);
+        return states.Where(s => s.Status != "DELETED")
             .Select(s => new ImagingSummary
             {
                 ImageId = s.ImageId, ObjectType = s.ObjectType,

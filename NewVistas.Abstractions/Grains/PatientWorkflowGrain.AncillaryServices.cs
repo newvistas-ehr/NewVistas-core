@@ -16,7 +16,7 @@ public partial class PatientWorkflowGrain
         var grain = GrainFactory.GetGrain<IClinicalReminderGrain>(reminderId);
         await grain.CreateReminderAsync(PatientId, reminderName, reminderDefinitionId,
             category, priority, frequency, dueDate);
-        await GetPatientGrain().AddClinicalReminderIdAsync(reminderId);
+        await AppendCappedIdAsync(PatientHistoryDomains.Reminder, reminderId, DateTime.UtcNow);
         return reminderId;
     }
 
@@ -28,7 +28,9 @@ public partial class PatientWorkflowGrain
 
     public async Task<List<ReminderSummary>> GetRemindersAsync()
     {
-        var ids = await GetPatientGrain().GetClinicalReminderIdsAsync();
+        // COMPLETE reminder set — callers filter by status (DUE etc.), so a
+        // reminder beyond the capped recent window must still be returned.
+        var ids = await GetCompleteIdsAsync(PatientHistoryDomains.Reminder);
         var tasks = ids.Select(id => GrainFactory.GetGrain<IClinicalReminderGrain>(id).GetReminderAsync()).ToList();
         var states = await Task.WhenAll(tasks);
         return states
@@ -101,7 +103,7 @@ public partial class PatientWorkflowGrain
         await grain.RecordHealthFactorAsync(PatientId, healthFactorName, null, category,
             eventDateTime, levelSeverity, visitId, locationId, locationName,
             enteredById, enteredByName, comments);
-        await GetPatientGrain().AddHealthFactorIdAsync(hfId);
+        await AppendCappedIdAsync(PatientHistoryDomains.HealthFactor, hfId, DateTime.UtcNow);
         return hfId;
     }
 
@@ -111,6 +113,23 @@ public partial class PatientWorkflowGrain
         var tasks = ids.Select(id => GrainFactory.GetGrain<IHealthFactorGrain>(id).GetHealthFactorAsync()).ToList();
         var states = await Task.WhenAll(tasks);
         return states.OrderByDescending(s => s.EventDateTime)
+            .Select(s => new HealthFactorSummary
+            {
+                HealthFactorId = s.HealthFactorId, HealthFactorName = s.HealthFactorName,
+                Category = s.Category, EventDateTime = s.EventDateTime,
+                LevelSeverity = s.LevelSeverity
+            }).ToList();
+    }
+
+    /// <summary>
+    /// Paged full health factor history (newest first); default reads return only the recent window.
+    /// </summary>
+    public async Task<List<HealthFactorSummary>> GetHealthFactorHistoryAsync(int offset, int maxResults)
+    {
+        var ids = await GetHistoryPageIdsAsync(PatientHistoryDomains.HealthFactor, offset, maxResults);
+        var tasks = ids.Select(id => GrainFactory.GetGrain<IHealthFactorGrain>(id).GetHealthFactorAsync()).ToList();
+        var states = await Task.WhenAll(tasks);
+        return states
             .Select(s => new HealthFactorSummary
             {
                 HealthFactorId = s.HealthFactorId, HealthFactorName = s.HealthFactorName,
@@ -133,7 +152,7 @@ public partial class PatientWorkflowGrain
         await grain.RecordInstrumentAsync(PatientId, instrumentName, null, administrationDateTime,
             totalScore, scoreInterpretation, isPositiveScreen, responses,
             administeredById, administeredByName, null, null, locationId, locationName, null, comments);
-        await GetPatientGrain().AddMentalHealthIdAsync(mhId);
+        await AppendCappedIdAsync(PatientHistoryDomains.MentalHealth, mhId, DateTime.UtcNow);
         return mhId;
     }
 
@@ -143,6 +162,24 @@ public partial class PatientWorkflowGrain
         var tasks = ids.Select(id => GrainFactory.GetGrain<IMentalHealthGrain>(id).GetInstrumentAsync()).ToList();
         var states = await Task.WhenAll(tasks);
         return states.OrderByDescending(s => s.AdministrationDateTime)
+            .Select(s => new MentalHealthSummary
+            {
+                InstrumentId = s.InstrumentId, InstrumentName = s.InstrumentName,
+                AdministrationDateTime = s.AdministrationDateTime, TotalScore = s.TotalScore,
+                ScoreInterpretation = s.ScoreInterpretation, IsPositiveScreen = s.IsPositiveScreen,
+                Status = s.Status
+            }).ToList();
+    }
+
+    /// <summary>
+    /// Paged full mental health history (newest first); default reads return only the recent window.
+    /// </summary>
+    public async Task<List<MentalHealthSummary>> GetMentalHealthHistoryAsync(int offset, int maxResults)
+    {
+        var ids = await GetHistoryPageIdsAsync(PatientHistoryDomains.MentalHealth, offset, maxResults);
+        var tasks = ids.Select(id => GrainFactory.GetGrain<IMentalHealthGrain>(id).GetInstrumentAsync()).ToList();
+        var states = await Task.WhenAll(tasks);
+        return states
             .Select(s => new MentalHealthSummary
             {
                 InstrumentId = s.InstrumentId, InstrumentName = s.InstrumentName,

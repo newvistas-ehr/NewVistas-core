@@ -78,10 +78,10 @@ public class EncounterFormInstanceIndexGrain : Grain, IEncounterFormInstanceInde
         await _state.WriteStateAsync();
     }
 
-    public Task<List<EncounterFormInstanceIndexEntry>> GetByPatientAsync(string patientId) =>
+    public Task<List<EncounterFormInstanceIndexEntry>> GetByPatientAsync(string patientId, int maxResults = 50) =>
         Task.FromResult(_state.State.Entries.Values
             .Where(e => e.PatientId == patientId)
-            .OrderByDescending(e => e.CreatedDate).ToList());
+            .OrderByDescending(e => e.CreatedDate).Take(maxResults).ToList());
 
     public Task<List<EncounterFormInstanceIndexEntry>> GetByTemplateAsync(string templateId, int maxResults = 50) =>
         Task.FromResult(_state.State.Entries.Values

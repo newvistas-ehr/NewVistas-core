@@ -42,6 +42,18 @@ public class SiteParametersState
     public int NotesDisplayCount { get; set; } = 10;
 
     /// <summary>
+    /// Number of recent item IDs kept per clinical domain in PatientState
+    /// (labs, consults, surgeries, radiology, BCMA, imaging, ADT, etc.).
+    /// Older IDs live in the per-domain history indexes and are fetched only
+    /// when the user actively requests full history.
+    /// Allergies are NEVER subject to this cap — the complete allergy list
+    /// always travels with the patient.
+    /// Default 5.
+    /// </summary>
+    [Id(8)]
+    public int RecentItemsDisplayCount { get; set; } = 5;
+
+    /// <summary>
     /// Generic named parameters for extensibility.
     /// Maps to VistA PARAMETER file key/value pairs.
     /// </summary>

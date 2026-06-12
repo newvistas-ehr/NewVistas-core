@@ -29,6 +29,7 @@ public class DemoSeedSecurityTests
         {
             // Stores needed by grains under test
             siloBuilder.AddMemoryGrainStorage("patientStore");
+            siloBuilder.AddMemoryGrainStorage("patientHistoryIndexStore");
             siloBuilder.AddMemoryGrainStorage("accessControlStore");
             siloBuilder.AddMemoryGrainStorage("problemStore");
             siloBuilder.AddMemoryGrainStorage("allergyStore");

@@ -27,20 +27,22 @@ public class RefillEligibilityWorkflowTests
         => _cluster.GrainFactory.GetGrain<IPatientWorkflowGrain>(patientId);
 
     private async Task<string> CreateVerifiedFilledRx(
-        string patientId, int refills = 5, int daysSupply = 30, int daysAgoFilled = 15)
+        string patientId, int refills = 5, int daysSupply = 30, int daysAgoFilled = 15,
+        string drugName = "TEST DRUG 10MG")
     {
         string rxId = $"RX-{Guid.NewGuid()}";
         IPharmacyGrain rx = _cluster.GrainFactory.GetGrain<IPharmacyGrain>(rxId);
-        await rx.CreatePrescriptionAsync(patientId, "TEST DRUG 10MG", null,
+        await rx.CreatePrescriptionAsync(patientId, drugName, null,
             "10mg", "ORAL", "QD", null, daysSupply, 30, refills, null, null, null, null, null, null);
         await rx.VerifyAsync("RPH-001");
         await rx.FillPrescriptionAsync(DateTime.UtcNow.AddDays(-daysAgoFilled));
         return rxId;
     }
 
-    private async Task PerformPassingDur(IPatientWorkflowGrain wf, string rxId)
+    private async Task PerformPassingDur(IPatientWorkflowGrain wf, string rxId,
+        string drugName = "TEST DRUG 10MG")
     {
-        await wf.PerformDurAsync(rxId, "TEST DRUG 10MG", null, null,
+        await wf.PerformDurAsync(rxId, drugName, null, null,
             "10mg", "ORAL", "QD", 30, 30, null, null,
             false, null, "PHARM-001",
             ingredientIens: new List<string> { "IEN-TEST" });
@@ -86,7 +88,8 @@ public class RefillEligibilityWorkflowTests
         string ien1 = $"IEN-RE-{Guid.NewGuid():N}";
         string ien2 = $"IEN-RE-{Guid.NewGuid():N}";
         IDrugInteractionDatasetGrain ds = _cluster.GrainFactory.GetGrain<IDrugInteractionDatasetGrain>("DI-DATASET");
-        await ds.LoadInteractionsAsync(new List<DrugInteractionPair>
+        // Merge, not replace: parallel fixtures share this singleton.
+        await ds.AddInteractionsAsync(new List<DrugInteractionPair>
         {
             new DrugInteractionPair
             {
@@ -133,7 +136,13 @@ public class RefillEligibilityWorkflowTests
         Assert.That(result.IsTooEarly, Is.True);
         Assert.That(result.PercentConsumed, Is.LessThan(75));
         Assert.That(result.EarliestRefillDate, Is.Not.Null);
-        Assert.That(result.DurCleared, Is.True);
+
+        // DUR is NOT cleared: now that active medications come from the
+        // self-maintained PSO index, the DUR's RefillTooSoon check sees the
+        // recent fill and (correctly) holds the assessment Pending for
+        // pharmacist review. The old DurCleared=true expectation relied on
+        // the DUR being blind to the patient's prescriptions.
+        Assert.That(result.DurCleared, Is.False);
     }
 
     [Test]
@@ -232,11 +241,15 @@ public class RefillEligibilityWorkflowTests
         string patientId = $"PATIENT-{Guid.NewGuid()}";
         IPatientWorkflowGrain wf = Workflow(patientId);
 
+        // Distinct drug names: the DUR's duplicate-drug check now sees the
+        // patient's real prescription list (PSO index) — two ACTIVE rx for
+        // the same drug would correctly fail DUR as a duplicate.
         string rx1 = await CreateVerifiedFilledRx(patientId, refills: 5, daysAgoFilled: 25);
-        string rx2 = await CreateVerifiedFilledRx(patientId, refills: 0, daysAgoFilled: 25);
+        string rx2 = await CreateVerifiedFilledRx(patientId, refills: 0, daysAgoFilled: 25,
+            drugName: "OTHER DRUG 5MG");
 
         await PerformPassingDur(wf, rx1);
-        await PerformPassingDur(wf, rx2);
+        await PerformPassingDur(wf, rx2, drugName: "OTHER DRUG 5MG");
 
         RefillEligibilityResult r1 = await wf.GetRefillEligibilityAsync(rx1, DateTime.UtcNow);
         RefillEligibilityResult r2 = await wf.GetRefillEligibilityAsync(rx2, DateTime.UtcNow);

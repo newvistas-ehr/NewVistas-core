@@ -134,8 +134,18 @@ public class DrugInteractionDataController : ControllerBase
     {
         try
         {
-            List<DrugInteractionResult> results = await GetChecker().CheckInteractionsAsync(req.Ingredients);
-            return Ok(results.Select(r => new DiResultDto(r)));
+            DrugInteractionCheckResponse response = await GetChecker().CheckInteractionsAsync(req.Ingredients);
+
+            if (response.Status == DrugInteractionCheckStatus.DataUnavailable)
+            {
+                return StatusCode(503, new
+                {
+                    status = "DataUnavailable",
+                    message = "Drug interaction dataset is not loaded. Interactions cannot be verified."
+                });
+            }
+
+            return Ok(response.Results.Select(r => new DiResultDto(r)));
         }
         catch (Exception ex)
         {

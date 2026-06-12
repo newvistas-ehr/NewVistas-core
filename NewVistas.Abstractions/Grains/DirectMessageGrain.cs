@@ -171,10 +171,10 @@ public class DirectMessageIndexGrain : Grain, IDirectMessageIndexGrain
             .Where(m => m.Direction == "inbound")
             .OrderByDescending(m => m.CreatedDate).ToList());
 
-    public Task<List<DirectMessageSummary>> GetMessagesByPatientAsync(string patientId)
+    public Task<List<DirectMessageSummary>> GetMessagesByPatientAsync(string patientId, int maxResults = 50)
         => Task.FromResult(_state.State.Messages
             .Where(m => m.PatientId == patientId)
-            .OrderByDescending(m => m.CreatedDate).ToList());
+            .OrderByDescending(m => m.CreatedDate).Take(maxResults).ToList());
 
     public Task<List<DirectMessageSummary>> GetMessagesByStatusAsync(string status)
         => Task.FromResult(_state.State.Messages
