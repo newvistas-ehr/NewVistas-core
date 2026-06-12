@@ -405,6 +405,67 @@ public class DurAssessmentGrainTests
         Assert.That(state.Status, Is.EqualTo(DurAssessmentStatus.Pending));
     }
 
+    // ─── Unavailable Outcome (fail-closed reference data) ───────────────────
+
+    [Test]
+    public async Task AssessmentGrain_UnavailableCheck_StatusFailed()
+    {
+        string id = $"DUR:{Guid.NewGuid()}";
+        IDurAssessmentGrain grain = _cluster.GrainFactory.GetGrain<IDurAssessmentGrain>(id);
+
+        // A DrugInteraction check could not run because the interaction dataset
+        // is not loaded — the assessment must block (not silently pass).
+        List<DurCheckResult> checks = new()
+        {
+            new DurCheckResult { CheckType = DurCheckType.DuplicateDrug, Outcome = DurOutcome.Pass, Severity = "None", Message = "OK." },
+            new DurCheckResult { CheckType = DurCheckType.DrugInteraction, Outcome = DurOutcome.Unavailable, Severity = "Significant", Message = "Dataset not loaded." },
+        };
+
+        await grain.CreateAsync("RX-UNAVAIL", "PATIENT-UNAVAIL", "WARFARIN 5MG", null, null,
+            "5mg", "ORAL", "QD", 30, 30, "PHARM-001", checks);
+
+        DurAssessmentState state = await grain.GetAsync();
+
+        Assert.That(state.Status, Is.EqualTo(DurAssessmentStatus.Failed));
+        // With no Fail checks present, the overall outcome is Unavailable
+        // (distinct from Fail) so the UI can explain the cause.
+        Assert.That(state.OverallOutcome, Is.EqualTo(DurOutcome.Unavailable));
+        Assert.That(state.FailedCheckCount, Is.EqualTo(0));
+    }
+
+    [Test]
+    public async Task AssessmentGrain_UnavailableCheck_IsNotOverridable()
+    {
+        string id = $"DUR:{Guid.NewGuid()}";
+        IDurAssessmentGrain grain = _cluster.GrainFactory.GetGrain<IDurAssessmentGrain>(id);
+
+        List<DurCheckResult> checks = new()
+        {
+            new DurCheckResult { CheckType = DurCheckType.DrugInteraction, Outcome = DurOutcome.Unavailable, Severity = "Significant", Message = "Dataset not loaded." },
+            new DurCheckResult { CheckType = DurCheckType.DuplicateDrug, Outcome = DurOutcome.Fail, Severity = "Significant", Message = "Duplicate." },
+        };
+
+        await grain.CreateAsync("RX-UNAVAIL2", "PATIENT-UNAVAIL2", "WARFARIN 5MG", null, null,
+            "5mg", "ORAL", "QD", 30, 30, "PHARM-001", checks);
+
+        Assert.That((await grain.GetAsync()).Status, Is.EqualTo(DurAssessmentStatus.Failed));
+
+        // Overriding the (overridable) Fail must NOT clear the block while an
+        // Unavailable check remains — only an administrator loading the dataset
+        // resolves it.
+        await grain.OverrideCheckAsync(DurCheckType.DuplicateDrug, "PHARM-SENIOR", "Justified.");
+        Assert.That((await grain.GetAsync()).Status, Is.EqualTo(DurAssessmentStatus.Failed),
+            "An Unavailable check keeps the assessment Failed even after the Fail is overridden.");
+
+        // Attempting to override the Unavailable check itself is a no-op
+        // (OverrideCheckAsync only acts on Fail outcomes).
+        await grain.OverrideCheckAsync(DurCheckType.DrugInteraction, "PHARM-SENIOR", "Trying to override unavailable.");
+        DurAssessmentState state = await grain.GetAsync();
+        Assert.That(state.Status, Is.EqualTo(DurAssessmentStatus.Failed));
+        Assert.That(state.Checks.First(c => c.CheckType == DurCheckType.DrugInteraction).Outcome,
+            Is.EqualTo(DurOutcome.Unavailable));
+    }
+
     [Test]
     public async Task AssessmentGrain_ConflictingEntityFields_PersistCorrectly()
     {
