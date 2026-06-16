@@ -1,3 +1,7 @@
+// Copyright 2026 Merrimack Valley Software Works, LLC. All rights reserved.
+// This Source Code Form is subject to the terms of the Mozilla Public
+// License, v. 2.0. If a copy of the MPL was not distributed with this
+// file, You can obtain one at https://mozilla.org/MPL/2.0/.
 // USCDI — United States Core Data for Interoperability
 // Reference: 45 CFR §170.213
 // USCDI v1 (July 2020 Errata): adopted; expires January 1, 2026; maps to US Core STU 3.1.1

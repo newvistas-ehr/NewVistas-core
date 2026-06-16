@@ -1,3 +1,7 @@
+// Copyright 2026 Merrimack Valley Software Works, LLC. All rights reserved.
+// This Source Code Form is subject to the terms of the Mozilla Public
+// License, v. 2.0. If a copy of the MPL was not distributed with this
+// file, You can obtain one at https://mozilla.org/MPL/2.0/.
 // ONC Health IT Certification Program — 45 CFR §170.315
 // Reference: ONC certification criteria for Health IT (formerly "2015 Edition Health IT Certification Criteria")
 // Updated by HTI-1 Final Rule (89 FR 1429, January 9, 2024; effective March 11, 2024)
