@@ -5,7 +5,7 @@
        clear VersionSuffix entirely for the stable 1.0.0 release. -->
   <PropertyGroup>
     <VersionPrefix>1.0.0</VersionPrefix>
-    <VersionSuffix>beta.5</VersionSuffix>
+    <VersionSuffix>beta.6</VersionSuffix>
   </PropertyGroup>
 
 </Project>
