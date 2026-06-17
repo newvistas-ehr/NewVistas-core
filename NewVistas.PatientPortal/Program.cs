@@ -83,6 +83,10 @@ builder.Services.AddScoped(sp =>
 // patient-scoped grain calls through the portal controllers.
 builder.Host.UseOrleansClient((context, clientBuilder) =>
 {
+    // Enables Orleans ACID transactions for the financial (AR) grains; matches the
+    // silo's UseTransactions in CommonSiloConfig.
+    clientBuilder.UseTransactions();
+
     if (context.HostingEnvironment.IsDevelopment())
     {
         clientBuilder.UseLocalhostClustering();

@@ -24,6 +24,10 @@ builder.Host.UseOrleansClient((context, clientBuilder) =>
     clientBuilder.Configure<Orleans.Configuration.ClientMessagingOptions>(options =>
         options.ResponseTimeout = TimeSpan.FromSeconds(60));
 
+    // Required to invoke the transactional AR money-path grains (silo enables the
+    // matching UseTransactions in CommonSiloConfig).
+    clientBuilder.UseTransactions();
+
     if (context.HostingEnvironment.IsDevelopment())
     {
         // Development: connect to localhost silo (gateway port 30000)

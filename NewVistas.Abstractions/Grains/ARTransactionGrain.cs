@@ -4,25 +4,32 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 using NewVistas.Abstractions.GrainInterfaces;
 using NewVistas.Abstractions.GrainStates;
-using Orleans.Runtime;
+using Orleans.Transactions.Abstractions;
 
 namespace NewVistas.Abstractions.Grains;
 
+/// <summary>
+/// Immutable record of a single AR financial transaction (VistA File #433).
+/// Uses Orleans <see cref="ITransactionalState{T}"/> so that creating the
+/// transaction record and updating the owning <see cref="ARAccountGrain"/> balance
+/// commit (or roll back) as one ACID unit — money cannot be recorded against an
+/// account whose balance was not updated, or vice versa.
+/// </summary>
 public class ARTransactionGrain : Grain, IARTransactionGrain
 {
-    private readonly IPersistentState<ARTransactionState> _state;
+    private readonly ITransactionalState<ARTransactionState> _state;
 
     public ARTransactionGrain(
-        [PersistentState("arTransactionState", "arTransactionStore")]
-        IPersistentState<ARTransactionState> state)
+        [TransactionalState("arTransactionState", "arTransactionStore")]
+        ITransactionalState<ARTransactionState> state)
     {
         _state = state;
     }
 
     public Task<ARTransactionState> GetAsync()
-        => Task.FromResult(_state.State);
+        => _state.PerformRead(s => s);
 
-    public async Task CreateAsync(
+    public Task CreateAsync(
         string arAccountId,
         string patientId,
         ARTransactionType transactionType,
@@ -35,20 +42,23 @@ public class ARTransactionGrain : Grain, IARTransactionGrain
         string? referenceNumber,
         string? notes)
     {
-        _state.State.TransactionId     = this.GetPrimaryKeyString();
-        _state.State.ARAccountId       = arAccountId;
-        _state.State.PatientId         = patientId;
-        _state.State.TransactionType   = transactionType;
-        _state.State.Amount            = amount;
-        _state.State.TransactionDate   = DateTime.UtcNow;
-        _state.State.AppliedByUserId   = appliedByUserId;
-        _state.State.AppliedByUserName = appliedByUserName;
-        _state.State.ReceiptNumber     = receiptNumber;
-        _state.State.CheckNumber       = checkNumber;
-        _state.State.PaymentMethod     = paymentMethod;
-        _state.State.ReferenceNumber   = referenceNumber;
-        _state.State.Notes             = notes;
-        _state.State.CreatedDate       = DateTime.UtcNow;
-        await _state.WriteStateAsync();
+        string transactionId = this.GetPrimaryKeyString();
+        return _state.PerformUpdate(s =>
+        {
+            s.TransactionId     = transactionId;
+            s.ARAccountId       = arAccountId;
+            s.PatientId         = patientId;
+            s.TransactionType   = transactionType;
+            s.Amount            = amount;
+            s.TransactionDate   = DateTime.UtcNow;
+            s.AppliedByUserId   = appliedByUserId;
+            s.AppliedByUserName = appliedByUserName;
+            s.ReceiptNumber     = receiptNumber;
+            s.CheckNumber       = checkNumber;
+            s.PaymentMethod     = paymentMethod;
+            s.ReferenceNumber   = referenceNumber;
+            s.Notes             = notes;
+            s.CreatedDate       = DateTime.UtcNow;
+        });
     }
 }

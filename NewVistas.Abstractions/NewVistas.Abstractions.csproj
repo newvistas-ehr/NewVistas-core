@@ -22,6 +22,7 @@
     <PackageReference Include="Microsoft.Orleans.Sdk" Version="10.2.0" />
     <PackageReference Include="Microsoft.Orleans.Streaming" Version="10.2.0" />
     <PackageReference Include="Microsoft.Orleans.EventSourcing" Version="10.2.0" />
+    <PackageReference Include="Microsoft.Orleans.Transactions" Version="10.2.0" />
   </ItemGroup>
 
   <ItemGroup>

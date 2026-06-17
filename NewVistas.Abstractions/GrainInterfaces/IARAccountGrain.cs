@@ -11,16 +11,24 @@ namespace NewVistas.Abstractions.GrainInterfaces;
 /// (VistA File #430 ACCOUNTS RECEIVABLE).
 /// Grain key: "AR-ACCOUNT:{arAccountId}"
 /// Managed by RCDP*.m, RCSP*.m MUMPS routines.
+///
+/// Every method is transactional (Orleans <c>[Transaction]</c>): methods that post a
+/// financial transaction write the linked <see cref="IARTransactionGrain"/> record and
+/// update this account's balance as one ACID unit, so the ledger and the balance can
+/// never diverge after a crash. <see cref="TransactionOption.CreateOrJoin"/> lets each
+/// method start its own transaction or join a larger caller transaction.
 /// </summary>
 public interface IARAccountGrain : IGrainWithStringKey
 {
     /// <summary>Returns the current AR account state.</summary>
+    [Transaction(TransactionOption.CreateOrJoin)]
     Task<ARAccountState> GetAsync();
 
     /// <summary>
     /// Establishes a new AR account with the given charge details.
     /// Sets status to Active, CurrentBalance to <paramref name="originalAmount"/>.
     /// </summary>
+    [Transaction(TransactionOption.CreateOrJoin)]
     Task CreateAsync(
         string patientId,
         string? billingActionId,
@@ -31,8 +39,10 @@ public interface IARAccountGrain : IGrainWithStringKey
     /// <summary>
     /// Posts a payment to the account. Creates an ARTransactionGrain record, reduces
     /// CurrentBalance, increments AmountPaid, and auto-transitions to Paid if balance reaches 0.
+    /// The transaction record and the balance update commit atomically.
     /// Returns the new transaction ID.
     /// </summary>
+    [Transaction(TransactionOption.CreateOrJoin)]
     Task<string> PostPaymentAsync(
         decimal amount,
         string paymentMethod,
@@ -47,6 +57,7 @@ public interface IARAccountGrain : IGrainWithStringKey
     /// Creates an ARTransactionGrain record, updates CurrentBalance.
     /// Returns the new transaction ID.
     /// </summary>
+    [Transaction(TransactionOption.CreateOrJoin)]
     Task<string> PostAdjustmentAsync(
         decimal amount,
         string adjustmentType,
@@ -60,6 +71,7 @@ public interface IARAccountGrain : IGrainWithStringKey
     /// Sets status to Waived if balance reaches 0.
     /// Returns the new transaction ID.
     /// </summary>
+    [Transaction(TransactionOption.CreateOrJoin)]
     Task<string> WaiveAsync(
         decimal waivedAmount,
         string waivedByUserId,
@@ -71,6 +83,7 @@ public interface IARAccountGrain : IGrainWithStringKey
     /// Creates an ARTransactionGrain record, sets status to WrittenOff.
     /// Returns the new transaction ID.
     /// </summary>
+    [Transaction(TransactionOption.CreateOrJoin)]
     Task<string> WriteOffAsync(
         decimal writeOffAmount,
         string writtenOffByUserId,
@@ -82,6 +95,7 @@ public interface IARAccountGrain : IGrainWithStringKey
     /// Creates an ARTransactionGrain record, increments InterestAccrued and CurrentBalance.
     /// Returns the new transaction ID.
     /// </summary>
+    [Transaction(TransactionOption.CreateOrJoin)]
     Task<string> AccrueInterestAsync(decimal interestAmount, string appliedByUserId);
 
     /// <summary>
@@ -89,6 +103,7 @@ public interface IARAccountGrain : IGrainWithStringKey
     /// Creates an ARTransactionGrain record, increments PenaltyAccrued and CurrentBalance.
     /// Returns the new transaction ID.
     /// </summary>
+    [Transaction(TransactionOption.CreateOrJoin)]
     Task<string> AccruePenaltyAsync(decimal penaltyAmount, string appliedByUserId);
 
     /// <summary>
@@ -96,12 +111,14 @@ public interface IARAccountGrain : IGrainWithStringKey
     /// Creates an ARTransactionGrain record, increments AdminCostAccrued and CurrentBalance.
     /// Returns the new transaction ID.
     /// </summary>
+    [Transaction(TransactionOption.CreateOrJoin)]
     Task<string> AccrueAdminCostAsync(decimal adminCostAmount, string appliedByUserId);
 
     /// <summary>
     /// Refers this account to the Treasury Offset Program.
     /// Sets IsTreasuryOffset = true, ARStatus = TreasuryOffset.
     /// </summary>
+    [Transaction(TransactionOption.CreateOrJoin)]
     Task ReferToTopAsync(string referralId, decimal referredAmount, string referredByUserId, string referredByUserName);
 
     /// <summary>
@@ -109,14 +126,17 @@ public interface IARAccountGrain : IGrainWithStringKey
     /// Calls PostPaymentAsync internally with method "TOP".
     /// Auto-resolves status to Paid and clears IsTreasuryOffset if CurrentBalance reaches 0.
     /// </summary>
+    [Transaction(TransactionOption.CreateOrJoin)]
     Task RecordTopOffsetAsync(decimal offsetAmount, string processedByUserId, string processedByUserName);
 
     /// <summary>
     /// Withdraws the TOP referral for this account.
     /// Clears IsTreasuryOffset and resets ARStatus to Active.
     /// </summary>
+    [Transaction(TransactionOption.CreateOrJoin)]
     Task WithdrawTopReferralAsync();
 
     /// <summary>Explicitly sets the lifecycle status of the account.</summary>
+    [Transaction(TransactionOption.CreateOrJoin)]
     Task UpdateStatusAsync(ARAccountStatus status);
 }

@@ -2,9 +2,11 @@
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using NewVistas.Abstractions.Federation;
 using NewVistas.Abstractions.Services;
+using Orleans.Hosting;
 using Orleans.TestingHost;
 
 namespace NewVistas.UnitTests;
@@ -30,11 +32,20 @@ public static class SharedCluster
                 if (_cluster is not null) return _cluster;
                 var builder = new TestClusterBuilder(1);
                 builder.AddSiloBuilderConfigurator<AllStoresConfigurator>();
+                builder.AddClientBuilderConfigurator<TransactionClientConfigurator>();
                 _cluster = builder.Build();
                 _cluster.Deploy();
                 return _cluster;
             }
         }
+    }
+
+    // Enables Orleans ACID transactions on the test cluster client so tests can invoke
+    // the transactional AR money-path grains directly via _cluster.GrainFactory.
+    private class TransactionClientConfigurator : IClientBuilderConfigurator
+    {
+        public void Configure(IConfiguration configuration, IClientBuilder clientBuilder)
+            => clientBuilder.UseTransactions();
     }
 
     private class AllStoresConfigurator : ISiloConfigurator
@@ -43,6 +54,9 @@ public static class SharedCluster
         {
             siloBuilder.AddMemoryGrainStorageAsDefault();
             siloBuilder.AddMemoryStreams("LabStreams");
+
+            // ACID transactions for the AR money paths (mirrors CommonSiloConfig).
+            siloBuilder.UseTransactions();
 
             // Clinical event sourcing — JournaledGrain log-consistency provider
             // used by IPatientClinicalEventStreamGrain.

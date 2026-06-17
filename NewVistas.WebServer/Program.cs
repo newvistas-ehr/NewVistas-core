@@ -161,6 +161,11 @@ builder.Host.UseOrleansClient((context, clientBuilder) =>
     clientBuilder.Configure<ClientMessagingOptions>(options =>
         options.ResponseTimeout = TimeSpan.FromSeconds(60));
 
+    // Required because the AR controller invokes transactional AR grain methods
+    // (PostPayment/RecordTopOffset/...) directly. Silo enables UseTransactions in
+    // CommonSiloConfig.
+    clientBuilder.UseTransactions();
+
     if (context.HostingEnvironment.IsDevelopment())
     {
         // Development: connect to localhost silo (gateway port 30000)

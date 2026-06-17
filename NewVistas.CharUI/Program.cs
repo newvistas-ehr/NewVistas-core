@@ -23,6 +23,9 @@ TerminalIO.WriteLine("Connecting to NewVistas silo...");
 var host = Host.CreateDefaultBuilder(args)
     .UseOrleansClient(clientBuilder =>
     {
+        // Matches the silo's UseTransactions (CommonSiloConfig) so AR money-path
+        // grain calls can run in an Orleans ACID transaction.
+        clientBuilder.UseTransactions();
         clientBuilder.UseLocalhostClustering();
     })
     .Build();

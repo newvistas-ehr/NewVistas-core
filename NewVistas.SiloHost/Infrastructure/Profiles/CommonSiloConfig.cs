@@ -50,6 +50,13 @@ internal static class CommonSiloConfig
         siloBuilder.AddIncomingGrainCallFilter<AuditCallFilter>();
         siloBuilder.AddLogStorageBasedLogConsistencyProvider(ClinicalLogConsistencyProvider);
 
+        // ACID transactions for the financial (AR) money paths. Enabled on every
+        // profile so the AR account + transaction grains can commit a payment record
+        // and the matching balance change as one atomic unit (see ARAccountGrain).
+        // Transactional state is persisted through each participant's existing named
+        // grain store, so no additional storage provider is required.
+        siloBuilder.UseTransactions();
+
         // Idle grain collection: the default is 2 hours, which keeps a whole
         // shift's worth of patient activations (large states) in silo memory.
         // 30 minutes covers an active encounter; reactivation is cheap.

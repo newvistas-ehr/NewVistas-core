@@ -15,11 +15,15 @@ namespace NewVistas.Abstractions.GrainInterfaces;
 public interface IARTransactionGrain : IGrainWithStringKey
 {
     /// <summary>Returns the transaction record.</summary>
+    [Transaction(TransactionOption.CreateOrJoin)]
     Task<ARTransactionState> GetAsync();
 
     /// <summary>
     /// Creates the transaction record. Should be called exactly once per grain instance.
+    /// Joins the ambient AR account transaction so the record and the account balance
+    /// update commit atomically.
     /// </summary>
+    [Transaction(TransactionOption.CreateOrJoin)]
     Task CreateAsync(
         string arAccountId,
         string patientId,

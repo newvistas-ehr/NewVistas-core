@@ -31,6 +31,10 @@ public partial class App : Application
         _host = Host.CreateDefaultBuilder()
             .UseOrleansClient((context, clientBuilder) =>
             {
+                // Required: the AR view-model invokes transactional AR grains directly.
+                // Matches the silo's UseTransactions in CommonSiloConfig.
+                clientBuilder.UseTransactions();
+
                 // Development: connect to localhost silo (gateway port 30000)
                 clientBuilder.UseLocalhostClustering();
 
