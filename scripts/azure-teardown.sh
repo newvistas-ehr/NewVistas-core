@@ -7,7 +7,7 @@
 #   ./scripts/azure-teardown.sh
 #
 # WARNING: This permanently deletes all NewVistas Azure resources including:
-#   - All 4 Container Apps (silohost, webserver, blazorweb, patientportal)
+#   - All 3 Container Apps (silohost, webserver, blazorweb)
 #   - The Container Apps Environment
 #   - The Azure Container Registry and all images
 #   - The Azure SQL Server and database (all data is lost)
@@ -29,7 +29,7 @@ echo " WARNING: This will permanently delete resource group:"
 echo "   '$RESOURCE_GROUP'"
 echo ""
 echo " All resources will be destroyed:"
-echo "   - Container Apps (silohost, webserver, blazorweb, patientportal)"
+echo "   - Container Apps (silohost, webserver, blazorweb)"
 echo "   - Container Apps Environment"
 echo "   - Azure Container Registry '$ACR_NAME' and all images"
 echo "   - Azure SQL Server and database (ALL DATA WILL BE LOST)"

@@ -2,8 +2,11 @@
 FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
 WORKDIR /src
 
-# Copy csproj files first for layer caching (only this project and its dependencies)
+# Copy csproj files first for layer caching (this project and all its project dependencies)
 COPY NewVistas.Abstractions/NewVistas.Abstractions.csproj NewVistas.Abstractions/
+COPY NewVistas.ImageStorage/NewVistas.ImageStorage.csproj NewVistas.ImageStorage/
+COPY NewVistas.PT/NewVistas.PT.csproj NewVistas.PT/
+COPY NewVistas.ServiceDefaults/NewVistas.ServiceDefaults.csproj NewVistas.ServiceDefaults/
 COPY NewVistas.WebServer/NewVistas.WebServer.csproj NewVistas.WebServer/
 
 # Restore dependencies
@@ -11,6 +14,9 @@ RUN dotnet restore NewVistas.WebServer/NewVistas.WebServer.csproj
 
 # Copy full source
 COPY NewVistas.Abstractions/ NewVistas.Abstractions/
+COPY NewVistas.ImageStorage/ NewVistas.ImageStorage/
+COPY NewVistas.PT/ NewVistas.PT/
+COPY NewVistas.ServiceDefaults/ NewVistas.ServiceDefaults/
 COPY NewVistas.WebServer/ NewVistas.WebServer/
 
 # Copy exports directory for demo patient data seeding

@@ -27,15 +27,11 @@ SQL_ADMIN_PASSWORD="${SQL_ADMIN_PASSWORD:-}"  # Set via env var or prompted belo
 WEBSERVER_JWT_KEY="${WEBSERVER_JWT_KEY:-}"
 WEBSERVER_JWT_ISSUER="NewVistas"
 WEBSERVER_JWT_AUDIENCE="NewVistas"
-PATIENTPORTAL_JWT_KEY="${PATIENTPORTAL_JWT_KEY:-}"
-PATIENTPORTAL_JWT_ISSUER="NewVistas-PatientPortal"
-PATIENTPORTAL_JWT_AUDIENCE="NewVistas-PatientPortal"
 
 # Container app names
 APP_SILOHOST="silohost"
 APP_WEBSERVER="webserver"
 APP_BLAZORWEB="blazorweb"
-APP_PATIENTPORTAL="patientportal"
 
 # ── Prompt for secrets if not set ─────────────────────────────────────────────
 if [[ -z "$SQL_ADMIN_PASSWORD" ]]; then
@@ -48,11 +44,6 @@ if [[ -z "$WEBSERVER_JWT_KEY" ]]; then
     echo
 fi
 
-if [[ -z "$PATIENTPORTAL_JWT_KEY" ]]; then
-    read -rsp "Enter PatientPortal JWT signing key (min 32 chars): " PATIENTPORTAL_JWT_KEY
-    echo
-fi
-
 # ── Validate secrets ──────────────────────────────────────────────────────────
 if [[ ${#SQL_ADMIN_PASSWORD} -lt 8 ]]; then
     echo "ERROR: SQL admin password must be at least 8 characters." >&2
@@ -60,10 +51,6 @@ if [[ ${#SQL_ADMIN_PASSWORD} -lt 8 ]]; then
 fi
 if [[ ${#WEBSERVER_JWT_KEY} -lt 32 ]]; then
     echo "ERROR: WebServer JWT key must be at least 32 characters." >&2
-    exit 1
-fi
-if [[ ${#PATIENTPORTAL_JWT_KEY} -lt 32 ]]; then
-    echo "ERROR: PatientPortal JWT key must be at least 32 characters." >&2
     exit 1
 fi
 
@@ -78,14 +65,14 @@ echo "============================================================"
 echo ""
 
 # ── 1. Resource Group ─────────────────────────────────────────────────────────
-echo ">>> [1/9] Creating resource group '$RESOURCE_GROUP'..."
+echo ">>> [1/8] Creating resource group '$RESOURCE_GROUP'..."
 az group create \
     --name "$RESOURCE_GROUP" \
     --location "$LOCATION" \
     --output none
 
 # ── 2. Azure SQL Server + Database ───────────────────────────────────────────
-echo ">>> [2/9] Creating Azure SQL Server '$SQL_SERVER_NAME'..."
+echo ">>> [2/8] Creating Azure SQL Server '$SQL_SERVER_NAME'..."
 az sql server create \
     --name "$SQL_SERVER_NAME" \
     --resource-group "$RESOURCE_GROUP" \
@@ -94,7 +81,7 @@ az sql server create \
     --admin-password "$SQL_ADMIN_PASSWORD" \
     --output none
 
-echo ">>> [2/9] Creating SQL Database '$SQL_DATABASE_NAME' (Basic tier)..."
+echo ">>> [2/8] Creating SQL Database '$SQL_DATABASE_NAME' (Basic tier)..."
 az sql db create \
     --name "$SQL_DATABASE_NAME" \
     --server "$SQL_SERVER_NAME" \
@@ -103,7 +90,7 @@ az sql db create \
     --capacity 5 \
     --output none
 
-echo ">>> [2/9] Configuring SQL firewall to allow Azure services..."
+echo ">>> [2/8] Configuring SQL firewall to allow Azure services..."
 az sql server firewall-rule create \
     --name "AllowAzureServices" \
     --server "$SQL_SERVER_NAME" \
@@ -116,7 +103,7 @@ SQL_FQDN="${SQL_SERVER_NAME}.database.windows.net"
 ORLEANS_CONN_STR="Server=tcp:${SQL_FQDN},1433;Initial Catalog=${SQL_DATABASE_NAME};Persist Security Info=False;User ID=${SQL_ADMIN_USER};Password=${SQL_ADMIN_PASSWORD};MultipleActiveResultSets=False;Encrypt=True;TrustServerCertificate=False;Connection Timeout=30;"
 
 # ── 3. Azure Container Registry ───────────────────────────────────────────────
-echo ">>> [3/9] Creating Azure Container Registry '$ACR_NAME' (Basic SKU)..."
+echo ">>> [3/8] Creating Azure Container Registry '$ACR_NAME' (Basic SKU)..."
 az acr create \
     --name "$ACR_NAME" \
     --resource-group "$RESOURCE_GROUP" \
@@ -145,7 +132,7 @@ ACR_PASSWORD=$(az acr credential show \
     --output tsv)
 
 # ── 4. Build and push Docker images ──────────────────────────────────────────
-echo ">>> [4/9] Building and pushing Docker images to ACR..."
+echo ">>> [4/8] Building and pushing Docker images to ACR..."
 
 # Log in to ACR so docker can push
 echo "$ACR_PASSWORD" | docker login "$ACR_SERVER" \
@@ -181,17 +168,8 @@ docker build --no-cache \
 echo "    Pushing blazorweb..."
 docker push "${ACR_SERVER}/blazorweb:${IMAGE_TAG}"
 
-echo "    Building patientportal..."
-docker build --no-cache \
-    -f NewVistas.PatientPortal/Dockerfile \
-    -t "${ACR_SERVER}/patientportal:${IMAGE_TAG}" \
-    .
-
-echo "    Pushing patientportal..."
-docker push "${ACR_SERVER}/patientportal:${IMAGE_TAG}"
-
 # ── 5. Container Apps Environment ─────────────────────────────────────────────
-echo ">>> [5/9] Creating Container Apps Environment '$ENVIRONMENT_NAME'..."
+echo ">>> [5/8] Creating Container Apps Environment '$ENVIRONMENT_NAME'..."
 az containerapp env create \
     --name "$ENVIRONMENT_NAME" \
     --resource-group "$RESOURCE_GROUP" \
@@ -199,7 +177,7 @@ az containerapp env create \
     --output none
 
 # ── 6. Deploy SiloHost (internal only) ────────────────────────────────────────
-echo ">>> [6/9] Deploying SiloHost (internal, no external ingress)..."
+echo ">>> [6/8] Deploying SiloHost (internal, no external ingress)..."
 az containerapp create \
     --name "$APP_SILOHOST" \
     --resource-group "$RESOURCE_GROUP" \
@@ -219,7 +197,7 @@ az containerapp create \
     --output none
 
 # ── 7. Deploy WebServer (external ingress on port 8080) ───────────────────────
-echo ">>> [7/9] Deploying WebServer (external ingress)..."
+echo ">>> [7/8] Deploying WebServer (external ingress)..."
 az containerapp create \
     --name "$APP_WEBSERVER" \
     --resource-group "$RESOURCE_GROUP" \
@@ -250,7 +228,7 @@ WEBSERVER_FQDN=$(az containerapp show \
     --output tsv)
 
 # ── 8. Deploy BlazorWeb (external ingress on port 8080) ───────────────────────
-echo ">>> [8/9] Deploying BlazorWeb (external ingress)..."
+echo ">>> [8/8] Deploying BlazorWeb (external ingress)..."
 az containerapp create \
     --name "$APP_BLAZORWEB" \
     --resource-group "$RESOURCE_GROUP" \
@@ -277,36 +255,6 @@ BLAZORWEB_FQDN=$(az containerapp show \
     --query "properties.configuration.ingress.fqdn" \
     --output tsv)
 
-# ── 9. Deploy PatientPortal (external ingress on port 8080) ───────────────────
-echo ">>> [9/9] Deploying PatientPortal (external ingress)..."
-az containerapp create \
-    --name "$APP_PATIENTPORTAL" \
-    --resource-group "$RESOURCE_GROUP" \
-    --environment "$ENVIRONMENT_NAME" \
-    --image "${ACR_SERVER}/patientportal:${IMAGE_TAG}" \
-    --registry-server "$ACR_SERVER" \
-    --registry-identity system \
-    --ingress external \
-    --target-port 8080 \
-    --transport http \
-    --cpu 0.5 \
-    --memory 1.0Gi \
-    --min-replicas 1 \
-    --max-replicas 2 \
-    --env-vars \
-        "ASPNETCORE_ENVIRONMENT=Production" \
-        "ConnectionStrings__OrleansDatabase=${ORLEANS_CONN_STR}" \
-        "Jwt__Key=${PATIENTPORTAL_JWT_KEY}" \
-        "Jwt__Issuer=${PATIENTPORTAL_JWT_ISSUER}" \
-        "Jwt__Audience=${PATIENTPORTAL_JWT_AUDIENCE}" \
-    --output none
-
-PATIENTPORTAL_FQDN=$(az containerapp show \
-    --name "$APP_PATIENTPORTAL" \
-    --resource-group "$RESOURCE_GROUP" \
-    --query "properties.configuration.ingress.fqdn" \
-    --output tsv)
-
 # ── Done ──────────────────────────────────────────────────────────────────────
 echo ""
 echo "============================================================"
@@ -315,9 +263,6 @@ echo "============================================================"
 echo ""
 echo " Clinician UI (BlazorWeb):"
 echo "   https://${BLAZORWEB_FQDN}"
-echo ""
-echo " Patient Portal:"
-echo "   https://${PATIENTPORTAL_FQDN}"
 echo ""
 echo " WebServer API:"
 echo "   https://${WEBSERVER_FQDN}"
@@ -330,8 +275,8 @@ echo "   Administrator : admin1  / smythVista1"
 echo "   See AZURE_DEPLOY.md for full credentials list."
 echo ""
 echo " NOTE: The SiloHost needs ~60 seconds to start and register"
-echo " with the clustering table before WebServer, BlazorWeb, and"
-echo " PatientPortal can connect. If you see connection errors,"
+echo " with the clustering table before WebServer and BlazorWeb"
+echo " can connect. If you see connection errors,"
 echo " wait a minute and refresh."
 echo ""
 echo " To tear down all resources, run: ./scripts/azure-teardown.sh"

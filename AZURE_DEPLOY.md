@@ -5,35 +5,35 @@ Deploy NewVistas to Azure so friends can test it, then tear down the environment
 ## Architecture
 
 ```
-                        Internet
-                           │
-           ┌───────────────┼───────────────┐
-           ▼               ▼               ▼
-    ┌─────────────┐  ┌──────────┐  ┌──────────────┐
-    │  BlazorWeb  │  │  WebSvr  │  │PatientPortal │
-    │  (HTTPS)    │  │  (HTTPS) │  │  (HTTPS)     │
-    │  Port 8080  │  │  Port    │  │  Port 8080   │
-    └──────┬──────┘  │  8080    │  └──────┬───────┘
-           │         └────┬─────┘         │
-           │ Orleans       │ Orleans       │ Orleans
-           │ Client        │ Client        │ Client
-           │               │               │
-           └───────────────┼───────────────┘
-                           │ Gateway :30000
-                  ┌────────▼────────┐
-                  │    SiloHost     │
-                  │  (internal)     │
-                  │  Silo  :11111   │
-                  │  GW    :30000   │
-                  └────────┬────────┘
-                           │ SQL ADO.NET
-                  ┌────────▼────────┐
-                  │  Azure SQL DB   │
-                  │  NewVistasDB    │
-                  │  (Basic tier)   │
-                  └─────────────────┘
+                    Internet
+                       │
+           ┌───────────┴───────────┐
+           ▼                       ▼
+    ┌─────────────┐          ┌──────────┐
+    │  BlazorWeb  │          │  WebSvr  │
+    │  (HTTPS)    │          │  (HTTPS) │
+    │  Port 8080  │          │  Port    │
+    └──────┬──────┘          │  8080    │
+           │                 └────┬─────┘
+           │ Orleans              │ Orleans
+           │ Client               │ Client
+           │                      │
+           └───────────┬──────────┘
+                       │ Gateway :30000
+              ┌────────▼────────┐
+              │    SiloHost     │
+              │  (internal)     │
+              │  Silo  :11111   │
+              │  GW    :30000   │
+              └────────┬────────┘
+                       │ SQL ADO.NET
+              ┌────────▼────────┐
+              │  Azure SQL DB   │
+              │  NewVistasDB    │
+              │  (Basic tier)   │
+              └─────────────────┘
 
-All 4 containers run in the same Azure Container Apps Environment
+All 3 containers run in the same Azure Container Apps Environment
 (shared virtual network), so internal TCP ports are reachable
 without any public exposure.
 ```
@@ -43,7 +43,6 @@ without any public exposure.
 | **silohost** | `NewVistas.SiloHost` | Internal only (TCP 11111, 30000) |
 | **webserver** | `NewVistas.WebServer` | HTTPS (port 8080) |
 | **blazorweb** | `NewVistas.BlazorWeb` | HTTPS (port 8080) |
-| **patientportal** | `NewVistas.PatientPortal` | HTTPS (port 8080) |
 
 ## Prerequisites
 
@@ -51,6 +50,10 @@ without any public exposure.
 - [Docker Desktop](https://www.docker.com/products/docker-desktop/) installed and running
 - An active Azure subscription
 - Run commands from the **repository root directory**
+
+Two variants of each script are provided — Bash (`.sh`) and PowerShell (`.ps1`).
+They are functionally identical; pick whichever matches your shell. **On Windows,
+use the `.ps1` versions** — they need no WSL or Git Bash.
 
 Log in to Azure before running the scripts:
 
@@ -63,31 +66,43 @@ az login
 ### 1. Deploy
 
 ```bash
+# Linux/macOS (or Git Bash on Windows)
 chmod +x scripts/azure-deploy.sh
 ./scripts/azure-deploy.sh
 ```
 
+```powershell
+# Windows PowerShell
+powershell -ExecutionPolicy Bypass -File .\scripts\azure-deploy.ps1
+```
+
 You will be prompted for:
-- **SQL admin password** — must be at least 8 characters with uppercase, lowercase, and a digit
+- **SQL admin password** — Azure SQL requires at least 8 characters with three of: uppercase, lowercase, digit, symbol. **Avoid `;` and `"`** — the password is embedded in the database connection string, and those characters would break it.
 - **WebServer JWT signing key** — must be at least 32 characters (used to sign clinician tokens)
-- **PatientPortal JWT signing key** — must be at least 32 characters (used to sign patient tokens)
 
 Or set them as environment variables to skip the prompts:
 
 ```bash
-export SQL_ADMIN_PASSWORD="YourPassword123"
+# Bash
+export SQL_ADMIN_PASSWORD="YourPassword123!"
 export WEBSERVER_JWT_KEY="your-webserver-jwt-signing-key-32chars-min"
-export PATIENTPORTAL_JWT_KEY="your-patientportal-jwt-key-32chars-min"
 ./scripts/azure-deploy.sh
+```
+
+```powershell
+# PowerShell
+$env:SQL_ADMIN_PASSWORD = "YourPassword123!"
+$env:WEBSERVER_JWT_KEY  = "your-webserver-jwt-signing-key-32chars-min"
+powershell -ExecutionPolicy Bypass -File .\scripts\azure-deploy.ps1
 ```
 
 The script will:
 1. Create a resource group
 2. Create an Azure SQL Server + Basic database (~$5/month)
 3. Create an Azure Container Registry (Basic SKU)
-4. Build all 4 Docker images and push to ACR
+4. Build all 3 Docker images and push to ACR
 5. Create a Container Apps Environment
-6. Deploy all 4 container apps with the correct configuration
+6. Deploy all 3 container apps with the correct configuration
 7. Print the URLs when complete
 
 ### 2. Access the Application
@@ -97,9 +112,6 @@ After deployment, the script prints the URLs:
 ```
  Clinician UI (BlazorWeb):
    https://blazorweb.<unique-id>.eastus.azurecontainerapps.io
-
- Patient Portal:
-   https://patientportal.<unique-id>.eastus.azurecontainerapps.io
 ```
 
 > **Note:** Wait ~60 seconds after deployment for the SiloHost to start and register with the clustering table before the other apps can connect. If you see connection errors on first load, wait a minute and refresh.
@@ -122,8 +134,14 @@ These users are seeded automatically by the WebServer on startup.
 When you're done testing, tear down the entire environment to stop costs:
 
 ```bash
+# Linux/macOS (or Git Bash on Windows)
 chmod +x scripts/azure-teardown.sh
 ./scripts/azure-teardown.sh
+```
+
+```powershell
+# Windows PowerShell
+powershell -ExecutionPolicy Bypass -File .\scripts\azure-teardown.ps1
 ```
 
 You will be asked to confirm by typing the resource group name. All resources — SQL database, container registry, container apps, and networking — are deleted.
@@ -132,7 +150,8 @@ You will be asked to confirm by typing the resource group name. All resources �
 
 ## Customization
 
-Edit the variables at the top of `scripts/azure-deploy.sh` to change:
+Edit the variables at the top of `scripts/azure-deploy.sh` (or the matching
+`$PascalCase` variables in `scripts/azure-deploy.ps1`) to change:
 
 | Variable | Default | Description |
 |---|---|---|
@@ -157,7 +176,7 @@ Running 24/7 for one month (approximate, varies by region):
 | Resource | Tier | Est. Monthly Cost |
 |---|---|---|
 | Azure SQL Database | Basic (5 DTU) | ~$5 |
-| Container Apps (4 apps) | Consumption plan | ~$10–20 (active) / ~$0 (idle) |
+| Container Apps (3 apps) | Consumption plan | ~$10–20 (active) / ~$0 (idle) |
 | Azure Container Registry | Basic SKU | ~$5 |
 | **Total** | | **~$20–30/month** |
 
@@ -195,7 +214,7 @@ Common issues:
 
 ```bash
 az containerapp logs show \
-  --name <silohost|webserver|blazorweb|patientportal> \
+  --name <silohost|webserver|blazorweb> \
   --resource-group newvistas-rg \
   --follow
 ```

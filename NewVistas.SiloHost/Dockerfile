@@ -2,8 +2,10 @@
 FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
 WORKDIR /src
 
-# Copy csproj files first for layer caching (only this project and its dependencies)
+# Copy csproj files first for layer caching (this project and all its project dependencies)
 COPY NewVistas.Abstractions/NewVistas.Abstractions.csproj NewVistas.Abstractions/
+COPY NewVistas.PT/NewVistas.PT.csproj NewVistas.PT/
+COPY NewVistas.ServiceDefaults/NewVistas.ServiceDefaults.csproj NewVistas.ServiceDefaults/
 COPY NewVistas.SiloHost/NewVistas.SiloHost.csproj NewVistas.SiloHost/
 
 # Restore dependencies
@@ -11,6 +13,8 @@ RUN dotnet restore NewVistas.SiloHost/NewVistas.SiloHost.csproj
 
 # Copy full source
 COPY NewVistas.Abstractions/ NewVistas.Abstractions/
+COPY NewVistas.PT/ NewVistas.PT/
+COPY NewVistas.ServiceDefaults/ NewVistas.ServiceDefaults/
 COPY NewVistas.SiloHost/ NewVistas.SiloHost/
 
 # Build and publish in Release mode
