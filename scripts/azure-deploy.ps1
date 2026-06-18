@@ -4,7 +4,8 @@
 # Native Windows version of azure-deploy.sh - no bash or WSL required.
 #
 # Usage (from the repository root):
-#   powershell -ExecutionPolicy Bypass -File .\scripts\azure-deploy.ps1
+#   powershell -ExecutionPolicy Bypass -File .\scripts\azure-deploy.ps1                       # clinician stack
+#   powershell -ExecutionPolicy Bypass -File .\scripts\azure-deploy.ps1 -IncludePatientPortal # + Patient Portal
 #
 # Prerequisites:
 #   - Azure CLI (az) installed and logged in (az login)
@@ -15,6 +16,10 @@
 #   $env:SQL_ADMIN_PASSWORD = '...'
 #   $env:WEBSERVER_JWT_KEY  = '...'
 # =============================================================================
+param(
+    # Deploy the Patient Portal alongside the clinician stack.
+    [switch]$IncludePatientPortal
+)
 
 # az/docker are native commands: PowerShell does not stop on their non-zero exit
 # codes, so we check $LASTEXITCODE explicitly after each step (the set -e analog).
@@ -57,12 +62,51 @@ $SqlAdminUser        = 'newvistasadmin'
 $WebserverJwtIssuer   = 'NewVistas'
 $WebserverJwtAudience = 'NewVistas'
 
+# Patient Portal JWT (only used when -IncludePatientPortal is set)
+$PatientPortalJwtIssuer   = 'NewVistas-PatientPortal'
+$PatientPortalJwtAudience = 'NewVistas-PatientPortal'
+
 # Container app names
-$AppSilohost  = 'silohost'
-$AppWebserver = 'webserver'
-$AppBlazorweb = 'blazorweb'
+$AppSilohost      = 'silohost'
+$AppWebserver     = 'webserver'
+$AppBlazorweb     = 'blazorweb'
+$AppPatientPortal = 'patientportal'
 
 $ImageTag = 'latest'
+
+# --- Pre-flight summary ------------------------------------------------------
+Write-Host ''
+Write-Host '============================================================'
+Write-Host ' NewVistas - Azure deployment'
+Write-Host '============================================================'
+Write-Host ''
+Write-Host " This will create, in resource group '$ResourceGroup' (region $Location):"
+Write-Host '   - An Azure SQL Database (Basic tier)'
+Write-Host '   - An Azure Container Registry'
+Write-Host '   - A Container Apps environment and the application containers'
+Write-Host ''
+Write-Host ' It builds and pushes Docker images, so the first run takes'
+Write-Host ' roughly 10-15 minutes. Running it continuously costs about'
+Write-Host ' 20-30 USD/month until you remove it with scripts\azure-teardown.ps1.'
+Write-Host ''
+Write-Host ' Before continuing, make sure:'
+Write-Host '   - You are logged in to Azure   (az login)'
+Write-Host '   - Docker Desktop is running'
+Write-Host '   - You are in the repository root'
+Write-Host ''
+Write-Host ' You will be asked for:'
+Write-Host '   - A SQL admin password (>= 8 chars, include a symbol; avoid ; and ")'
+Write-Host '   - A WebServer JWT signing key (>= 32 chars)'
+if ($IncludePatientPortal) {
+    Write-Host '   - A Patient Portal JWT signing key (>= 32 chars)'
+}
+Write-Host '============================================================'
+Write-Host ''
+# Pause for confirmation when interactive. Set NEWVISTAS_ASSUME_YES=1 to skip.
+if (-not $env:NEWVISTAS_ASSUME_YES) {
+    Read-Host ' Press Enter to begin (Ctrl+C to cancel)' | Out-Null
+    Write-Host ''
+}
 
 # --- Gather secrets (env var, else prompt) -----------------------------------
 $SqlAdminPassword = $env:SQL_ADMIN_PASSWORD
@@ -77,6 +121,12 @@ if ([string]::IsNullOrEmpty($WebserverJwtKey)) {
     $WebserverJwtKey = ConvertFrom-SecureStringPlain $secure
 }
 
+$PatientPortalJwtKey = $env:PATIENTPORTAL_JWT_KEY
+if ($IncludePatientPortal -and [string]::IsNullOrEmpty($PatientPortalJwtKey)) {
+    $secure = Read-Host 'Enter PatientPortal JWT signing key (min 32 chars)' -AsSecureString
+    $PatientPortalJwtKey = ConvertFrom-SecureStringPlain $secure
+}
+
 # --- Validate secrets --------------------------------------------------------
 if ($SqlAdminPassword.Length -lt 8) {
     Write-Host 'ERROR: SQL admin password must be at least 8 characters.' -ForegroundColor Red
@@ -84,6 +134,10 @@ if ($SqlAdminPassword.Length -lt 8) {
 }
 if ($WebserverJwtKey.Length -lt 32) {
     Write-Host 'ERROR: WebServer JWT key must be at least 32 characters.' -ForegroundColor Red
+    exit 1
+}
+if ($IncludePatientPortal -and $PatientPortalJwtKey.Length -lt 32) {
+    Write-Host 'ERROR: PatientPortal JWT key must be at least 32 characters.' -ForegroundColor Red
     exit 1
 }
 
@@ -94,6 +148,7 @@ Write-Host " Resource Group : $ResourceGroup"
 Write-Host " Location       : $Location"
 Write-Host " ACR            : $AcrName"
 Write-Host " SQL Server     : $SqlServerName"
+Write-Host " Patient Portal : $IncludePatientPortal"
 Write-Host '============================================================'
 Write-Host ''
 
@@ -188,6 +243,15 @@ Write-Host '    Pushing blazorweb...'
 docker push "$AcrServer/blazorweb:$ImageTag"
 Stop-OnError 'docker push blazorweb'
 
+if ($IncludePatientPortal) {
+    Write-Host '    Building patientportal...'
+    docker build --no-cache -f NewVistas.PatientPortal/Dockerfile -t "$AcrServer/patientportal:$ImageTag" .
+    Stop-OnError 'docker build patientportal'
+    Write-Host '    Pushing patientportal...'
+    docker push "$AcrServer/patientportal:$ImageTag"
+    Stop-OnError 'docker push patientportal'
+}
+
 # --- 5. Container Apps Environment -------------------------------------------
 Write-Host ">>> [5/8] Creating Container Apps Environment '$EnvironmentName'..."
 az containerapp env create `
@@ -205,7 +269,8 @@ az containerapp create `
     --environment $EnvironmentName `
     --image "$AcrServer/silohost:$ImageTag" `
     --registry-server $AcrServer `
-    --registry-identity system `
+    --registry-username $AcrUsername `
+    --registry-password $AcrPassword `
     --cpu 1.0 `
     --memory 2.0Gi `
     --min-replicas 1 `
@@ -226,7 +291,8 @@ az containerapp create `
     --environment $EnvironmentName `
     --image "$AcrServer/webserver:$ImageTag" `
     --registry-server $AcrServer `
-    --registry-identity system `
+    --registry-username $AcrUsername `
+    --registry-password $AcrPassword `
     --ingress external `
     --target-port 8080 `
     --transport http `
@@ -260,7 +326,8 @@ az containerapp create `
     --environment $EnvironmentName `
     --image "$AcrServer/blazorweb:$ImageTag" `
     --registry-server $AcrServer `
-    --registry-identity system `
+    --registry-username $AcrUsername `
+    --registry-password $AcrPassword `
     --ingress external `
     --target-port 8080 `
     --transport http `
@@ -283,6 +350,43 @@ $BlazorwebFqdn = (az containerapp show `
 Stop-OnError 'Fetch BlazorWeb FQDN'
 $BlazorwebFqdn = $BlazorwebFqdn.Trim()
 
+# --- 9. Deploy PatientPortal (optional, external ingress on port 8080) -------
+$PatientPortalFqdn = ''
+if ($IncludePatientPortal) {
+    Write-Host '>>> [+] Deploying PatientPortal (optional, external ingress)...'
+    az containerapp create `
+        --name $AppPatientPortal `
+        --resource-group $ResourceGroup `
+        --environment $EnvironmentName `
+        --image "$AcrServer/patientportal:$ImageTag" `
+        --registry-server $AcrServer `
+        --registry-username $AcrUsername `
+        --registry-password $AcrPassword `
+        --ingress external `
+        --target-port 8080 `
+        --transport http `
+        --cpu 0.5 `
+        --memory 1.0Gi `
+        --min-replicas 1 `
+        --max-replicas 2 `
+        --env-vars `
+            'ASPNETCORE_ENVIRONMENT=Production' `
+            "ConnectionStrings__OrleansDatabase=$OrleansConnStr" `
+            "Jwt__Key=$PatientPortalJwtKey" `
+            "Jwt__Issuer=$PatientPortalJwtIssuer" `
+            "Jwt__Audience=$PatientPortalJwtAudience" `
+        --output none
+    Stop-OnError 'Deploy PatientPortal'
+
+    $PatientPortalFqdn = (az containerapp show `
+        --name $AppPatientPortal `
+        --resource-group $ResourceGroup `
+        --query 'properties.configuration.ingress.fqdn' `
+        --output tsv)
+    Stop-OnError 'Fetch PatientPortal FQDN'
+    $PatientPortalFqdn = $PatientPortalFqdn.Trim()
+}
+
 # --- Done --------------------------------------------------------------------
 Write-Host ''
 Write-Host '============================================================'
@@ -292,6 +396,11 @@ Write-Host ''
 Write-Host ' Clinician UI (BlazorWeb):'
 Write-Host "   https://$BlazorwebFqdn"
 Write-Host ''
+if ($IncludePatientPortal) {
+    Write-Host ' Patient Portal:'
+    Write-Host "   https://$PatientPortalFqdn"
+    Write-Host ''
+}
 Write-Host ' WebServer API:'
 Write-Host "   https://$WebserverFqdn"
 Write-Host ''

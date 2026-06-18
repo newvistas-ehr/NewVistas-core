@@ -4,7 +4,8 @@
 #
 # Usage:
 #   chmod +x scripts/azure-deploy.sh
-#   ./scripts/azure-deploy.sh
+#   ./scripts/azure-deploy.sh                 # clinician stack (SiloHost, WebServer, BlazorWeb)
+#   ./scripts/azure-deploy.sh --with-portal   # also deploy the Patient Portal
 #
 # Prerequisites:
 #   - Azure CLI (az) installed and logged in (az login)
@@ -12,6 +13,16 @@
 #   - Run from the repository root directory
 # =============================================================================
 set -euo pipefail
+
+# ── Optional components ───────────────────────────────────────────────────────
+# Deploy the Patient Portal alongside the clinician stack. Enable with the
+# --with-portal flag, or by setting INCLUDE_PATIENT_PORTAL=true.
+INCLUDE_PATIENT_PORTAL="${INCLUDE_PATIENT_PORTAL:-false}"
+for arg in "$@"; do
+    case "$arg" in
+        --with-portal) INCLUDE_PATIENT_PORTAL="true" ;;
+    esac
+done
 
 # ── Configurable variables ────────────────────────────────────────────────────
 RESOURCE_GROUP="newvistas-rg"
@@ -28,10 +39,50 @@ WEBSERVER_JWT_KEY="${WEBSERVER_JWT_KEY:-}"
 WEBSERVER_JWT_ISSUER="NewVistas"
 WEBSERVER_JWT_AUDIENCE="NewVistas"
 
+# Patient Portal JWT (only used when --with-portal is set)
+PATIENTPORTAL_JWT_KEY="${PATIENTPORTAL_JWT_KEY:-}"
+PATIENTPORTAL_JWT_ISSUER="NewVistas-PatientPortal"
+PATIENTPORTAL_JWT_AUDIENCE="NewVistas-PatientPortal"
+
 # Container app names
 APP_SILOHOST="silohost"
 APP_WEBSERVER="webserver"
 APP_BLAZORWEB="blazorweb"
+APP_PATIENTPORTAL="patientportal"
+
+# ── Pre-flight summary ────────────────────────────────────────────────────────
+echo ""
+echo "============================================================"
+echo " NewVistas — Azure deployment"
+echo "============================================================"
+echo ""
+echo " This will create, in resource group '$RESOURCE_GROUP' (region $LOCATION):"
+echo "   - An Azure SQL Database (Basic tier)"
+echo "   - An Azure Container Registry"
+echo "   - A Container Apps environment and the application containers"
+echo ""
+echo " It builds and pushes Docker images, so the first run takes"
+echo " roughly 10-15 minutes. Running it continuously costs about"
+echo " 20-30 USD/month until you remove it with scripts/azure-teardown.sh."
+echo ""
+echo " Before continuing, make sure:"
+echo "   - You are logged in to Azure   (az login)"
+echo "   - Docker Desktop is running"
+echo "   - You are in the repository root"
+echo ""
+echo " You will be asked for:"
+echo "   - A SQL admin password (>= 8 chars, include a symbol; avoid ; and \")"
+echo "   - A WebServer JWT signing key (>= 32 chars)"
+if [[ "$INCLUDE_PATIENT_PORTAL" == "true" ]]; then
+echo "   - A Patient Portal JWT signing key (>= 32 chars)"
+fi
+echo "============================================================"
+echo ""
+# Pause for confirmation when interactive. Set NEWVISTAS_ASSUME_YES=1 to skip.
+if [[ -z "${NEWVISTAS_ASSUME_YES:-}" ]] && [ -t 0 ]; then
+    read -rp " Press Enter to begin, or Ctrl+C to cancel... " _
+    echo ""
+fi
 
 # ── Prompt for secrets if not set ─────────────────────────────────────────────
 if [[ -z "$SQL_ADMIN_PASSWORD" ]]; then
@@ -44,6 +95,11 @@ if [[ -z "$WEBSERVER_JWT_KEY" ]]; then
     echo
 fi
 
+if [[ "$INCLUDE_PATIENT_PORTAL" == "true" && -z "$PATIENTPORTAL_JWT_KEY" ]]; then
+    read -rsp "Enter PatientPortal JWT signing key (min 32 chars): " PATIENTPORTAL_JWT_KEY
+    echo
+fi
+
 # ── Validate secrets ──────────────────────────────────────────────────────────
 if [[ ${#SQL_ADMIN_PASSWORD} -lt 8 ]]; then
     echo "ERROR: SQL admin password must be at least 8 characters." >&2
@@ -51,6 +107,10 @@ if [[ ${#SQL_ADMIN_PASSWORD} -lt 8 ]]; then
 fi
 if [[ ${#WEBSERVER_JWT_KEY} -lt 32 ]]; then
     echo "ERROR: WebServer JWT key must be at least 32 characters." >&2
+    exit 1
+fi
+if [[ "$INCLUDE_PATIENT_PORTAL" == "true" && ${#PATIENTPORTAL_JWT_KEY} -lt 32 ]]; then
+    echo "ERROR: PatientPortal JWT key must be at least 32 characters." >&2
     exit 1
 fi
 
@@ -61,6 +121,7 @@ echo " Resource Group : $RESOURCE_GROUP"
 echo " Location       : $LOCATION"
 echo " ACR            : $ACR_NAME"
 echo " SQL Server     : $SQL_SERVER_NAME"
+echo " Patient Portal : $INCLUDE_PATIENT_PORTAL"
 echo "============================================================"
 echo ""
 
@@ -168,6 +229,17 @@ docker build --no-cache \
 echo "    Pushing blazorweb..."
 docker push "${ACR_SERVER}/blazorweb:${IMAGE_TAG}"
 
+if [[ "$INCLUDE_PATIENT_PORTAL" == "true" ]]; then
+    echo "    Building patientportal..."
+    docker build --no-cache \
+        -f NewVistas.PatientPortal/Dockerfile \
+        -t "${ACR_SERVER}/patientportal:${IMAGE_TAG}" \
+        .
+
+    echo "    Pushing patientportal..."
+    docker push "${ACR_SERVER}/patientportal:${IMAGE_TAG}"
+fi
+
 # ── 5. Container Apps Environment ─────────────────────────────────────────────
 echo ">>> [5/8] Creating Container Apps Environment '$ENVIRONMENT_NAME'..."
 az containerapp env create \
@@ -184,7 +256,8 @@ az containerapp create \
     --environment "$ENVIRONMENT_NAME" \
     --image "${ACR_SERVER}/silohost:${IMAGE_TAG}" \
     --registry-server "$ACR_SERVER" \
-    --registry-identity system \
+    --registry-username "$ACR_USERNAME" \
+    --registry-password "$ACR_PASSWORD" \
     --cpu 1.0 \
     --memory 2.0Gi \
     --min-replicas 1 \
@@ -204,7 +277,8 @@ az containerapp create \
     --environment "$ENVIRONMENT_NAME" \
     --image "${ACR_SERVER}/webserver:${IMAGE_TAG}" \
     --registry-server "$ACR_SERVER" \
-    --registry-identity system \
+    --registry-username "$ACR_USERNAME" \
+    --registry-password "$ACR_PASSWORD" \
     --ingress external \
     --target-port 8080 \
     --transport http \
@@ -235,7 +309,8 @@ az containerapp create \
     --environment "$ENVIRONMENT_NAME" \
     --image "${ACR_SERVER}/blazorweb:${IMAGE_TAG}" \
     --registry-server "$ACR_SERVER" \
-    --registry-identity system \
+    --registry-username "$ACR_USERNAME" \
+    --registry-password "$ACR_PASSWORD" \
     --ingress external \
     --target-port 8080 \
     --transport http \
@@ -255,6 +330,40 @@ BLAZORWEB_FQDN=$(az containerapp show \
     --query "properties.configuration.ingress.fqdn" \
     --output tsv)
 
+# ── 9. Deploy PatientPortal (optional, external ingress on port 8080) ─────────
+PATIENTPORTAL_FQDN=""
+if [[ "$INCLUDE_PATIENT_PORTAL" == "true" ]]; then
+    echo ">>> [+] Deploying PatientPortal (optional, external ingress)..."
+    az containerapp create \
+        --name "$APP_PATIENTPORTAL" \
+        --resource-group "$RESOURCE_GROUP" \
+        --environment "$ENVIRONMENT_NAME" \
+        --image "${ACR_SERVER}/patientportal:${IMAGE_TAG}" \
+        --registry-server "$ACR_SERVER" \
+        --registry-username "$ACR_USERNAME" \
+        --registry-password "$ACR_PASSWORD" \
+        --ingress external \
+        --target-port 8080 \
+        --transport http \
+        --cpu 0.5 \
+        --memory 1.0Gi \
+        --min-replicas 1 \
+        --max-replicas 2 \
+        --env-vars \
+            "ASPNETCORE_ENVIRONMENT=Production" \
+            "ConnectionStrings__OrleansDatabase=${ORLEANS_CONN_STR}" \
+            "Jwt__Key=${PATIENTPORTAL_JWT_KEY}" \
+            "Jwt__Issuer=${PATIENTPORTAL_JWT_ISSUER}" \
+            "Jwt__Audience=${PATIENTPORTAL_JWT_AUDIENCE}" \
+        --output none
+
+    PATIENTPORTAL_FQDN=$(az containerapp show \
+        --name "$APP_PATIENTPORTAL" \
+        --resource-group "$RESOURCE_GROUP" \
+        --query "properties.configuration.ingress.fqdn" \
+        --output tsv)
+fi
+
 # ── Done ──────────────────────────────────────────────────────────────────────
 echo ""
 echo "============================================================"
@@ -264,6 +373,11 @@ echo ""
 echo " Clinician UI (BlazorWeb):"
 echo "   https://${BLAZORWEB_FQDN}"
 echo ""
+if [[ "$INCLUDE_PATIENT_PORTAL" == "true" ]]; then
+echo " Patient Portal:"
+echo "   https://${PATIENTPORTAL_FQDN}"
+echo ""
+fi
 echo " WebServer API:"
 echo "   https://${WEBSERVER_FQDN}"
 echo ""
