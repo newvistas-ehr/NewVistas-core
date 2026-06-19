@@ -6,6 +6,7 @@
 #   chmod +x scripts/azure-deploy.sh
 #   ./scripts/azure-deploy.sh                 # clinician stack (SiloHost, WebServer, BlazorWeb)
 #   ./scripts/azure-deploy.sh --with-portal   # also deploy the Patient Portal
+#   ./scripts/azure-deploy.sh --silo-replicas=3              # run 3 Orleans silos (HA / scale)
 #
 # Prerequisites:
 #   - Azure CLI (az) installed and logged in (az login)
@@ -18,15 +19,18 @@ set -euo pipefail
 # Deploy the Patient Portal alongside the clinician stack. Enable with the
 # --with-portal flag, or by setting INCLUDE_PATIENT_PORTAL=true.
 INCLUDE_PATIENT_PORTAL="${INCLUDE_PATIENT_PORTAL:-false}"
+# SiloHost replica count (Orleans silos). 1 = demo; 3+ = HA / higher throughput.
+SILO_REPLICAS="${SILO_REPLICAS:-1}"
 for arg in "$@"; do
     case "$arg" in
-        --with-portal) INCLUDE_PATIENT_PORTAL="true" ;;
+        --with-portal)     INCLUDE_PATIENT_PORTAL="true" ;;
+        --silo-replicas=*) SILO_REPLICAS="${arg#*=}" ;;
     esac
 done
 
 # ── Configurable variables ────────────────────────────────────────────────────
 RESOURCE_GROUP="newvistas-rg"
-LOCATION="eastus"
+LOCATION="${LOCATION:-eastus2}"       # Azure region; override with: export LOCATION=centralus (etc.) if a region is at capacity
 ACR_NAME="newvistasacr"               # Must be globally unique, lowercase, alphanumeric only
 ENVIRONMENT_NAME="newvistas-env"
 SQL_SERVER_NAME="newvistas-sql"       # Must be globally unique
@@ -121,6 +125,7 @@ echo " Resource Group : $RESOURCE_GROUP"
 echo " Location       : $LOCATION"
 echo " ACR            : $ACR_NAME"
 echo " SQL Server     : $SQL_SERVER_NAME"
+echo " Silo replicas  : $SILO_REPLICAS"
 echo " Patient Portal : $INCLUDE_PATIENT_PORTAL"
 echo "============================================================"
 echo ""
@@ -260,8 +265,8 @@ az containerapp create \
     --registry-password "$ACR_PASSWORD" \
     --cpu 1.0 \
     --memory 2.0Gi \
-    --min-replicas 1 \
-    --max-replicas 1 \
+    --min-replicas "$SILO_REPLICAS" \
+    --max-replicas "$SILO_REPLICAS" \
     --env-vars \
         "ASPNETCORE_ENVIRONMENT=Production" \
         "ConnectionStrings__OrleansDatabase=${ORLEANS_CONN_STR}" \

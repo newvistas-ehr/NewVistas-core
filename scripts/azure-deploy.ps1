@@ -6,6 +6,7 @@
 # Usage (from the repository root):
 #   powershell -ExecutionPolicy Bypass -File .\scripts\azure-deploy.ps1                       # clinician stack
 #   powershell -ExecutionPolicy Bypass -File .\scripts\azure-deploy.ps1 -IncludePatientPortal # + Patient Portal
+#   ...azure-deploy.ps1 -SiloReplicas 3                     # run 3 Orleans silos (HA / scale)
 #
 # Prerequisites:
 #   - Azure CLI (az) installed and logged in (az login)
@@ -18,7 +19,9 @@
 # =============================================================================
 param(
     # Deploy the Patient Portal alongside the clinician stack.
-    [switch]$IncludePatientPortal
+    [switch]$IncludePatientPortal,
+    # SiloHost replica count (Orleans silos). 1 = demo; 3+ = HA / higher throughput.
+    [int]$SiloReplicas = 1
 )
 
 # az/docker are native commands: PowerShell does not stop on their non-zero exit
@@ -51,7 +54,8 @@ foreach ($tool in 'az', 'docker') {
 
 # --- Configurable variables --------------------------------------------------
 $ResourceGroup       = 'newvistas-rg'
-$Location            = 'eastus'
+# Azure region; override with: $env:LOCATION = 'centralus' (etc.) if a region is at capacity.
+$Location            = if ([string]::IsNullOrEmpty($env:LOCATION)) { 'eastus2' } else { $env:LOCATION }
 $AcrName             = 'newvistasacr'        # Must be globally unique, lowercase, alphanumeric only
 $EnvironmentName     = 'newvistas-env'
 $SqlServerName       = 'newvistas-sql'       # Must be globally unique
@@ -148,6 +152,7 @@ Write-Host " Resource Group : $ResourceGroup"
 Write-Host " Location       : $Location"
 Write-Host " ACR            : $AcrName"
 Write-Host " SQL Server     : $SqlServerName"
+Write-Host " Silo replicas  : $SiloReplicas"
 Write-Host " Patient Portal : $IncludePatientPortal"
 Write-Host '============================================================'
 Write-Host ''
@@ -218,9 +223,14 @@ $AcrPassword = $AcrPassword.Trim()
 # --- 4. Build and push Docker images -----------------------------------------
 Write-Host '>>> [4/8] Building and pushing Docker images to ACR...'
 
-# Log in to ACR so docker can push
-$AcrPassword | docker login $AcrServer --username $AcrUsername --password-stdin
-Stop-OnError 'docker login to ACR'
+# Log in to ACR so docker can push. Use 'az acr login' (token-based, via the current
+# az session) instead of piping the admin password to 'docker login --password-stdin':
+# Windows PowerShell re-encodes piped stdin (UTF-16/BOM), corrupting the password and
+# yielding a spurious UNAUTHORIZED. az acr login is the Microsoft-recommended method and
+# sidesteps that pitfall. (Admin creds are still fetched above for the Container Apps
+# registry config passed to 'az containerapp create'.)
+az acr login --name $AcrName
+Stop-OnError 'az acr login to ACR'
 
 Write-Host '    Building silohost...'
 docker build --no-cache -f NewVistas.SiloHost/Dockerfile -t "$AcrServer/silohost:$ImageTag" .
@@ -273,8 +283,8 @@ az containerapp create `
     --registry-password $AcrPassword `
     --cpu 1.0 `
     --memory 2.0Gi `
-    --min-replicas 1 `
-    --max-replicas 1 `
+    --min-replicas $SiloReplicas `
+    --max-replicas $SiloReplicas `
     --env-vars `
         'ASPNETCORE_ENVIRONMENT=Production' `
         "ConnectionStrings__OrleansDatabase=$OrleansConnStr" `
