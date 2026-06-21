@@ -344,6 +344,9 @@ using (var scope = app.Services.CreateScope())
     // Auto-seed clinical demo data (scheduling, vitals, problems, allergies).
     // Idempotent — skips patients that already have clinical data.
     await SeedDemoClinicalDataAsync(grainFactory, seedLogger);
+
+    // Seed the rich narrative demo patient (SICK,EXTREME LEE / P9001). Idempotent.
+    await ExtremeLeeSickSeed.SeedAsync(grainFactory, seedLogger);
 }
 
 await app.WaitForShutdownAsync();
