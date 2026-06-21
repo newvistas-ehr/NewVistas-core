@@ -47,7 +47,7 @@
         <button @onclick="LoadDemoData" disabled="@loadingDemo" class="btn btn-secondary">
             @if (loadingDemo) { <span>Loading...</span> } else { <span>Load Demo Data</span> }
         </button>
-        <button @onclick="CheckStatus" class="btn btn-outline">Status</button>
+        <button @onclick="CheckStatus" class="btn btn-secondary">Status</button>
     </div>
 </div>
 
@@ -316,8 +316,6 @@
     .btn-primary:hover { background: #0055aa; }
     .btn-secondary { background: #6c757d; color: #fff; border-color: #5a6268; }
     .btn-secondary:hover:not(:disabled) { background: #5a6268; }
-    .btn-outline { background: transparent; border-color: #0066cc; color: #0066cc; }
-    .btn-outline:hover { background: #e8f0fe; }
     .btn-tab { background: #f8f9fa; }
     .btn-tab-active { background: #0066cc; color: #fff; border-color: #0055aa; }
     .btn-load { background: #28a745; color: #fff; border-color: #218838; padding: 8px 18px; }

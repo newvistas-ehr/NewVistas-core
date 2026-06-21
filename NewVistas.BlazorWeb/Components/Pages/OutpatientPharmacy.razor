@@ -14,7 +14,7 @@
 
 <div class="search-bar">
     <input @bind="patientId" placeholder="Patient ID (e.g. P-DEMO-001)" class="input-field" />
-    <button @onclick="LoadPrescriptions" disabled="@isLoading" class="btn-primary">
+    <button @onclick="LoadPrescriptions" disabled="@isLoading" class="btn btn-primary">
         @(isLoading ? "Loading…" : "Load Prescriptions")
     </button>
     <button @onclick="LoadDemo" disabled="@isLoading" class="btn-secondary">Load Demo</button>

@@ -13,18 +13,18 @@
 <h2>Controlled Substances</h2>
 <p class="subtitle">VistA Files #58.80, #58.82 — PSNCS.m, PSNLOG.m, PSNINSP.m</p>
 
-<div class="location-bar">
+<div class="lookup-bar">
     <label>Location ID:</label>
-    <input @bind="locationId" @bind:event="oninput" placeholder="e.g., VAULT-1A" class="input-field" />
-    <button @onclick="LoadAll" class="btn-primary">Load</button>
+    <input @bind="locationId" @bind:event="oninput" placeholder="e.g., VAULT-1A" class="lookup-input" />
+    <button @onclick="LoadAll" class="btn btn-primary">Load</button>
 </div>
 
 @if (error != null)
 {
-    <div class="error-banner">@error</div>
+    <div class="alert alert-error">@error</div>
 }
 
-<div class="tabs">
+<div class="tab-bar">
     <button class="@TabClass(0)" @onclick="() => activeTab = 0">Dispense Log</button>
     <button class="@TabClass(1)" @onclick="() => activeTab = 1">Inspections</button>
     <button class="@TabClass(2)" @onclick="() => activeTab = 2">Record</button>
@@ -36,14 +36,14 @@
     <div class="tab-content">
         <div class="filter-row">
             <label>Filter by DEA Schedule:</label>
-            <select @bind="scheduleFilter" class="input-field">
+            <select @bind="scheduleFilter" class="form-input">
                 <option value="">All Schedules</option>
                 <option value="2">Schedule II</option>
                 <option value="3">Schedule III</option>
                 <option value="4">Schedule IV</option>
                 <option value="5">Schedule V</option>
             </select>
-            <button @onclick="LoadDispenses" class="btn-secondary">Filter</button>
+            <button @onclick="LoadDispenses" class="btn btn-secondary">Filter</button>
         </div>
 
         @if (loadingDispenses)
@@ -52,11 +52,11 @@
         }
         else if (dispenses.Count == 0)
         {
-            <p class="empty-msg">No controlled substance dispenses found for this location.</p>
+            <p class="empty-state">No controlled substance dispenses found for this location.</p>
         }
         else
         {
-            <table class="cs-table">
+            <table class="data-table">
                 <thead>
                     <tr>
                         <th>Date/Time</th>
@@ -76,7 +76,7 @@
                             <td>@d.DispenseDateTime.ToString("MM/dd/yyyy HH:mm")</td>
                             <td>@d.PatientName</td>
                             <td>@d.DrugName</td>
-                            <td class="schedule-badge schedule-@d.DrugSchedule">CII@(d.DrugSchedule > 2 ? "I" : "")@(d.DrugSchedule > 3 ? "I" : "")@(d.DrugSchedule > 4 ? "V" : "")</td>
+                            <td><span class="badge @ScheduleBadgeClass(d.DrugSchedule)">@ScheduleLabel(d.DrugSchedule)</span></td>
                             <td class="qty-cell">@d.QuantityDispensed</td>
                             <td>@d.UnitOfMeasure</td>
                             <td class="balance-cell @(d.RunningBalance < 0 ? "balance-negative" : "")">@d.RunningBalance</td>
@@ -95,11 +95,11 @@
     <div class="tab-content">
         <div class="filter-row">
             <label>Filter:</label>
-            <select @bind="inspectionFilter" class="input-field">
+            <select @bind="inspectionFilter" class="form-input">
                 <option value="all">All Inspections</option>
                 <option value="failed">Failed / Discrepancy Only</option>
             </select>
-            <button @onclick="LoadInspections" class="btn-secondary">Filter</button>
+            <button @onclick="LoadInspections" class="btn btn-secondary">Filter</button>
         </div>
 
         @if (loadingInspections)
@@ -108,11 +108,11 @@
         }
         else if (inspections.Count == 0)
         {
-            <p class="empty-msg">No inspections found for this location.</p>
+            <p class="empty-state">No inspections found for this location.</p>
         }
         else
         {
-            <table class="cs-table">
+            <table class="data-table">
                 <thead>
                     <tr>
                         <th>Date/Time</th>
@@ -126,14 +126,14 @@
                 <tbody>
                     @foreach (InspectionSummary insp in inspections)
                     {
-                        <tr class="@(insp.OverallResult == "Failed" || insp.OverallResult == "DiscrepancyIdentified" ? "row-alert" : "")">
+                        <tr class="@(insp.OverallResult == "Failed" || insp.OverallResult == "DiscrepancyIdentified" ? "row-danger" : "")">
                             <td>@insp.InspectionDateTime.ToString("MM/dd/yyyy HH:mm")</td>
                             <td>@insp.InspectionType</td>
                             <td>@insp.InspectorName</td>
-                            <td class="result-badge result-@insp.OverallResult">@insp.OverallResult</td>
+                            <td><span class="badge @ResultBadgeClass(insp.OverallResult)">@insp.OverallResult</span></td>
                             <td class="@(insp.TotalDiscrepancies > 0 ? "discrepancy-count" : "")">@insp.TotalDiscrepancies</td>
                             <td>
-                                <button @onclick="() => ViewInspection(insp.InspectionId)" class="btn-small">View Counts</button>
+                                <button @onclick="() => ViewInspection(insp.InspectionId)" class="btn btn-primary">View Counts</button>
                             </td>
                         </tr>
                     }
@@ -150,18 +150,18 @@
                    <strong>Result:</strong> @selectedInspection.OverallResult</p>
                 @if (selectedInspection.DrugCounts.Count == 0)
                 {
-                    <p class="empty-msg">No drug counts recorded.</p>
+                    <p class="empty-state">No drug counts recorded.</p>
                 }
                 else
                 {
-                    <table class="cs-table">
+                    <table class="data-table">
                         <thead>
                             <tr><th>Drug</th><th>Schedule</th><th>System</th><th>Physical</th><th>Discrepancy</th><th>Unit</th><th>Notes</th></tr>
                         </thead>
                         <tbody>
                             @foreach (DrugCount dc in selectedInspection.DrugCounts)
                             {
-                                <tr class="@(dc.Discrepancy != 0 ? "row-alert" : "")">
+                                <tr class="@(dc.Discrepancy != 0 ? "row-danger" : "")">
                                     <td>@dc.DrugName</td>
                                     <td>@dc.DrugSchedule</td>
                                     <td>@dc.SystemCount</td>
@@ -176,7 +176,7 @@
                         </tbody>
                     </table>
                 }
-                <button @onclick="() => selectedInspection = null" class="btn-secondary">Close</button>
+                <button @onclick="() => selectedInspection = null" class="btn btn-secondary">Close</button>
             </div>
         }
     </div>
@@ -198,7 +198,7 @@
                 <h4>New Vault Inspection</h4>
                 <div class="form-grid">
                     <label>Inspection Type:</label>
-                    <select @bind="newInspType" class="input-field">
+                    <select @bind="newInspType" class="form-input">
                         <option value="0">Scheduled</option>
                         <option value="1">Unscheduled</option>
                         <option value="2">Discrepancy Follow-Up</option>
@@ -206,32 +206,32 @@
                     </select>
 
                     <label>Date/Time:</label>
-                    <input type="datetime-local" @bind="newInspDateTime" class="input-field" />
+                    <input type="datetime-local" @bind="newInspDateTime" class="form-input" />
 
                     <label>Inspector ID:</label>
-                    <input @bind="newInspectorId" class="input-field" placeholder="User ID" />
+                    <input @bind="newInspectorId" class="form-input" placeholder="User ID" />
 
                     <label>Inspector Name:</label>
-                    <input @bind="newInspectorName" class="input-field" placeholder="Full name" />
+                    <input @bind="newInspectorName" class="form-input" placeholder="Full name" />
 
                     <label>Witness ID:</label>
-                    <input @bind="newWitnessId" class="input-field" placeholder="User ID" />
+                    <input @bind="newWitnessId" class="form-input" placeholder="User ID" />
 
                     <label>Witness Name:</label>
-                    <input @bind="newWitnessName" class="input-field" placeholder="Full name" />
+                    <input @bind="newWitnessName" class="form-input" placeholder="Full name" />
 
                     <label>Notes:</label>
-                    <textarea @bind="newInspNotes" class="input-field" rows="2"></textarea>
+                    <textarea @bind="newInspNotes" class="form-input" rows="2"></textarea>
                 </div>
 
                 <div class="drug-count-section">
                     <h5>Add Drug Counts</h5>
                     <div class="form-grid">
                         <label>Drug Name:</label>
-                        <input @bind="countDrugName" class="input-field" />
+                        <input @bind="countDrugName" class="form-input" />
 
                         <label>DEA Schedule:</label>
-                        <select @bind="countSchedule" class="input-field">
+                        <select @bind="countSchedule" class="form-input">
                             <option value="2">Schedule II</option>
                             <option value="3">Schedule III</option>
                             <option value="4">Schedule IV</option>
@@ -239,24 +239,24 @@
                         </select>
 
                         <label>System Count:</label>
-                        <input type="number" @bind="countSystem" class="input-field" />
+                        <input type="number" @bind="countSystem" class="form-input" />
 
                         <label>Physical Count:</label>
-                        <input type="number" @bind="countPhysical" class="input-field" />
+                        <input type="number" @bind="countPhysical" class="form-input" />
 
                         <label>Unit:</label>
-                        <input @bind="countUnit" class="input-field" placeholder="tablets, mL, etc." />
+                        <input @bind="countUnit" class="form-input" placeholder="tablets, mL, etc." />
                     </div>
-                    <button @onclick="AddDrugCount" class="btn-secondary">+ Add Count</button>
+                    <button @onclick="AddDrugCount" class="btn btn-secondary">+ Add Count</button>
 
                     @if (pendingCounts.Count > 0)
                     {
-                        <table class="cs-table">
+                        <table class="data-table">
                             <thead><tr><th>Drug</th><th>Schedule</th><th>System</th><th>Physical</th><th>Unit</th></tr></thead>
                             <tbody>
                                 @foreach (DrugCount dc in pendingCounts)
                                 {
-                                    <tr class="@(dc.PhysicalCount != dc.SystemCount ? "row-alert" : "")">
+                                    <tr class="@(dc.PhysicalCount != dc.SystemCount ? "row-danger" : "")">
                                         <td>@dc.DrugName</td><td>@dc.DrugSchedule</td>
                                         <td>@dc.SystemCount</td><td>@dc.PhysicalCount</td><td>@dc.CountUnit</td>
                                     </tr>
@@ -266,7 +266,7 @@
                     }
                 </div>
 
-                <button @onclick="CreateInspection" class="btn-primary" disabled="@savingInspection">
+                <button @onclick="CreateInspection" class="btn btn-primary" disabled="@savingInspection">
                     @(savingInspection ? "Saving..." : "Create Inspection")
                 </button>
                 @if (inspectionSuccess != null)
@@ -283,19 +283,19 @@
                 <h4>Record CS Dispense</h4>
                 <div class="form-grid">
                     <label>Patient ID:</label>
-                    <input @bind="dispPatientId" class="input-field" />
+                    <input @bind="dispPatientId" class="form-input" />
 
                     <label>Patient Name:</label>
-                    <input @bind="dispPatientName" class="input-field" />
+                    <input @bind="dispPatientName" class="form-input" />
 
                     <label>Drug ID:</label>
-                    <input @bind="dispDrugId" class="input-field" />
+                    <input @bind="dispDrugId" class="form-input" />
 
                     <label>Drug Name:</label>
-                    <input @bind="dispDrugName" class="input-field" />
+                    <input @bind="dispDrugName" class="form-input" />
 
                     <label>DEA Schedule:</label>
-                    <select @bind="dispSchedule" class="input-field">
+                    <select @bind="dispSchedule" class="form-input">
                         <option value="2">Schedule II</option>
                         <option value="3">Schedule III</option>
                         <option value="4">Schedule IV</option>
@@ -303,16 +303,16 @@
                     </select>
 
                     <label>Qty Dispensed:</label>
-                    <input type="number" step="0.01" @bind="dispQty" class="input-field" />
+                    <input type="number" step="0.01" @bind="dispQty" class="form-input" />
 
                     <label>Unit:</label>
-                    <input @bind="dispUnit" class="input-field" placeholder="tablets, mL, mg" />
+                    <input @bind="dispUnit" class="form-input" placeholder="tablets, mL, mg" />
 
                     <label>Running Balance:</label>
-                    <input type="number" step="0.01" @bind="dispBalance" class="input-field" />
+                    <input type="number" step="0.01" @bind="dispBalance" class="form-input" />
 
                     <label>Dispense Type:</label>
-                    <select @bind="dispType" class="input-field">
+                    <select @bind="dispType" class="form-input">
                         <option value="0">Routine</option>
                         <option value="1">STAT</option>
                         <option value="2">Emergency</option>
@@ -320,34 +320,34 @@
                     </select>
 
                     <label>Prescriber ID:</label>
-                    <input @bind="dispPrescriberId" class="input-field" />
+                    <input @bind="dispPrescriberId" class="form-input" />
 
                     <label>Prescriber Name:</label>
-                    <input @bind="dispPrescriberName" class="input-field" />
+                    <input @bind="dispPrescriberName" class="form-input" />
 
                     <label>Prescriber DEA #:</label>
-                    <input @bind="dispPrescriberDEA" class="input-field" placeholder="Optional" />
+                    <input @bind="dispPrescriberDEA" class="form-input" placeholder="Optional" />
 
                     <label>Dispensed By ID:</label>
-                    <input @bind="dispById" class="input-field" />
+                    <input @bind="dispById" class="form-input" />
 
                     <label>Dispensed By Name:</label>
-                    <input @bind="dispByName" class="input-field" />
+                    <input @bind="dispByName" class="form-input" />
 
                     <label>Witness Name:</label>
-                    <input @bind="dispWitnessName" class="input-field" placeholder="Required for CII" />
+                    <input @bind="dispWitnessName" class="form-input" placeholder="Required for CII" />
 
                     <label>Date/Time:</label>
-                    <input type="datetime-local" @bind="dispDateTime" class="input-field" />
+                    <input type="datetime-local" @bind="dispDateTime" class="form-input" />
 
                     <label>Rx/Order Number:</label>
-                    <input @bind="dispRxNumber" class="input-field" placeholder="Optional" />
+                    <input @bind="dispRxNumber" class="form-input" placeholder="Optional" />
 
                     <label>Notes:</label>
-                    <textarea @bind="dispNotes" class="input-field" rows="2"></textarea>
+                    <textarea @bind="dispNotes" class="form-input" rows="2"></textarea>
                 </div>
 
-                <button @onclick="RecordDispense" class="btn-primary" disabled="@savingDispense">
+                <button @onclick="RecordDispense" class="btn btn-primary" disabled="@savingDispense">
                     @(savingDispense ? "Saving..." : "Record Dispense")
                 </button>
                 @if (dispenseSuccess != null)
@@ -360,47 +360,26 @@
 }
 
 <style>
-    .subtitle { color: #666; font-size: 0.9rem; margin-bottom: 1rem; }
-    .location-bar { display: flex; align-items: center; gap: 0.5rem; margin-bottom: 1rem; }
-    .error-banner { background: #fde; border: 1px solid #f88; padding: 0.5rem 1rem; border-radius: 4px; margin-bottom: 1rem; color: #c00; }
-    .tabs { display: flex; gap: 0.25rem; border-bottom: 2px solid #dee2e6; margin-bottom: 1rem; }
-    .tab-btn { padding: 0.5rem 1.25rem; border: none; background: none; cursor: pointer; color: #555; border-bottom: 2px solid transparent; margin-bottom: -2px; }
-    .tab-btn.active { color: #0056b3; border-bottom-color: #0056b3; font-weight: 600; }
+    /* Canonical interaction classes (lookup-bar, lookup-input, tab-bar, tab, btn,
+       btn-primary, btn-secondary, alert, alert-error, data-table, form-input, badge,
+       badge-*, row-danger, empty-state) are defined once in app.css per UI-CONVENTIONS.md.
+       Only page-specific styles (layout, sub-tabs, panels, domain colors) live here. */
+    .subtitle { color: #555; font-size: 0.9rem; margin-bottom: 1rem; }
     .tab-content { padding: 0.5rem 0; }
     .record-tabs { display: flex; gap: 0.25rem; margin-bottom: 1rem; }
-    .sub-tab-btn { padding: 0.35rem 1rem; border: 1px solid #dee2e6; background: #f8f9fa; cursor: pointer; border-radius: 4px; }
-    .sub-tab-btn.active { background: #e7f0fd; border-color: #0056b3; color: #0056b3; font-weight: 600; }
+    .sub-tab-btn { padding: 0.35rem 1rem; border: 1px solid #d4d9e0; background: #f4f6f9; cursor: pointer; border-radius: 4px; color: #333; }
+    .sub-tab-btn.active { background: #eaf2fb; border-color: #003f72; color: #003f72; font-weight: 600; }
     .filter-row { display: flex; align-items: center; gap: 0.5rem; margin-bottom: 1rem; }
-    .input-field { padding: 0.35rem 0.6rem; border: 1px solid #ced4da; border-radius: 4px; }
-    .btn-primary { background: #0056b3; color: white; border: none; padding: 0.4rem 1rem; border-radius: 4px; cursor: pointer; }
-    .btn-primary:hover { background: #004094; }
-    .btn-primary:disabled { background: #6c757d; cursor: not-allowed; }
-    .btn-secondary { background: #6c757d; color: white; border: none; padding: 0.35rem 0.8rem; border-radius: 4px; cursor: pointer; }
-    .btn-secondary:hover { background: #5a6268; }
-    .btn-small { font-size: 0.8rem; padding: 0.2rem 0.5rem; background: #17a2b8; color: white; border: none; border-radius: 3px; cursor: pointer; }
-    .cs-table { width: 100%; border-collapse: collapse; font-size: 0.88rem; margin-top: 0.5rem; }
-    .cs-table th { background: #343a40; color: white; padding: 0.4rem 0.6rem; text-align: left; }
-    .cs-table td { padding: 0.35rem 0.6rem; border-bottom: 1px solid #dee2e6; }
-    .cs-table tr:hover td { background: #f8f9fa; }
-    .row-alert td { background: #fff3cd !important; }
-    .result-badge { font-weight: 600; }
-    .result-Passed { color: #28a745; }
-    .result-PassedWithNotes { color: #17a2b8; }
-    .result-Failed { color: #dc3545; }
-    .result-DiscrepancyIdentified { color: #fd7e14; }
-    .schedule-badge { font-weight: 600; font-size: 0.8rem; }
-    .discrepancy-count { color: #dc3545; font-weight: bold; }
-    .discrepancy-neg { color: #dc3545; font-weight: bold; }
-    .discrepancy-pos { color: #fd7e14; font-weight: bold; }
+    .discrepancy-count { color: #b91c1c; font-weight: bold; }
+    .discrepancy-neg { color: #b91c1c; font-weight: bold; }
+    .discrepancy-pos { color: #92400e; font-weight: bold; }
     .qty-cell { text-align: right; }
     .balance-cell { text-align: right; font-weight: 600; }
-    .balance-negative { color: #dc3545; }
-    .empty-msg { color: #6c757d; font-style: italic; }
-    .form-section { max-width: 680px; }
+    .balance-negative { color: #b91c1c; }
     .form-grid { display: grid; grid-template-columns: 180px 1fr; gap: 0.5rem; align-items: center; margin-bottom: 1rem; }
-    .drug-count-section { background: #f8f9fa; border: 1px solid #dee2e6; border-radius: 4px; padding: 1rem; margin: 1rem 0; }
-    .detail-panel { background: #f0f4ff; border: 1px solid #c0d0f0; border-radius: 6px; padding: 1rem; margin-top: 1.5rem; }
-    .success-msg { color: #28a745; font-weight: 600; margin-left: 1rem; }
+    .drug-count-section { background: #f4f6f9; border: 1px solid #d4d9e0; border-radius: 4px; padding: 1rem; margin: 1rem 0; }
+    .detail-panel { background: #f9fafb; border: 1px solid #d4d9e0; border-radius: 4px; padding: 1rem; margin-top: 1.5rem; }
+    .success-msg { color: #166534; font-weight: 600; margin-left: 1rem; }
 </style>
 
 @code {
@@ -464,8 +443,37 @@
     private string? dispenseSuccess;
 
     // ── Helpers ────────────────────────────────────────────────────────────────
-    private string TabClass(int tab) => tab == activeTab ? "tab-btn active" : "tab-btn";
+    private string TabClass(int tab) => tab == activeTab ? "tab active" : "tab";
     private string SubTabClass(int tab) => tab == activeSubTab ? "sub-tab-btn active" : "sub-tab-btn";
+
+    // DEA schedule is a clinical at-a-glance cue: CII (most restricted) → danger, descending severity.
+    private static string ScheduleLabel(int schedule) => schedule switch
+    {
+        2 => "CII",
+        3 => "CIII",
+        4 => "CIV",
+        5 => "CV",
+        _ => "C?",
+    };
+
+    private static string ScheduleBadgeClass(int schedule) => schedule switch
+    {
+        2 => "badge-danger",
+        3 => "badge-warning",
+        4 => "badge-info",
+        5 => "badge-neutral",
+        _ => "badge-neutral",
+    };
+
+    // Inspection result — a perpetual-inventory discrepancy/failure is clinically meaningful.
+    private static string ResultBadgeClass(string result) => result switch
+    {
+        "Passed" => "badge-success",
+        "PassedWithNotes" => "badge-info",
+        "Failed" => "badge-danger",
+        "DiscrepancyIdentified" => "badge-warning",
+        _ => "badge-neutral",
+    };
 
     private async Task LoadAll()
     {

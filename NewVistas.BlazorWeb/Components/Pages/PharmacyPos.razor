@@ -14,24 +14,24 @@
 
 @if (!string.IsNullOrEmpty(error))
 {
-    <div class="alert alert-danger">@error</div>
+    <div class="alert alert-error">@error</div>
 }
 
 @* ── Tab Bar ─────────────────────────────────────────────────────────── *@
-<ul class="nav nav-tabs mt-3">
-    <li class="nav-item"><a class="nav-link @(activeTab == 0 ? "active" : "")" @onclick="() => activeTab = 0">POS Claims</a></li>
-    <li class="nav-item"><a class="nav-link @(activeTab == 1 ? "active" : "")" @onclick="() => activeTab = 1">Claim Detail</a></li>
-    <li class="nav-item"><a class="nav-link @(activeTab == 2 ? "active" : "")" @onclick="async () => { activeTab = 2; await LoadInsurers(); }">Insurers</a></li>
-</ul>
+<div class="tab-bar">
+    <button class="tab @(activeTab == 0 ? "active" : "")" @onclick="() => activeTab = 0">POS Claims</button>
+    <button class="tab @(activeTab == 1 ? "active" : "")" @onclick="() => activeTab = 1">Claim Detail</button>
+    <button class="tab @(activeTab == 2 ? "active" : "")" @onclick="async () => { activeTab = 2; await LoadInsurers(); }">Insurers</button>
+</div>
 
 @* ── Tab 0: POS Claims ──────────────────────────────────────────────── *@
 @if (activeTab == 0)
 {
-    <div class="patient-bar">
-        <input type="text" @bind="patientId" placeholder="Patient ID" class="form-control d-inline-block" style="width:260px" />
-        <button class="btn btn-primary ms-2" @onclick="LoadClaims" disabled="@loading">Load</button>
-        <button class="btn btn-success ms-2" @onclick="() => showClaimForm = !showClaimForm">New Claim</button>
-        <select class="form-select ms-2 d-inline-block" style="width:160px" @bind="statusFilter" @bind:after="LoadClaims">
+    <div class="lookup-bar">
+        <input type="text" @bind="patientId" placeholder="Patient ID" class="lookup-input" />
+        <button class="btn btn-primary" @onclick="LoadClaims" disabled="@loading">Load</button>
+        <button class="btn btn-primary" @onclick="() => showClaimForm = !showClaimForm">New Claim</button>
+        <select class="form-input" style="width:160px" @bind="statusFilter" @bind:after="LoadClaims">
             <option value="">All Statuses</option>
             <option value="0">Pending</option>
             <option value="1">Transmitted</option>
@@ -51,7 +51,7 @@
             <div class="row g-2">
                 <div class="col-md-3">
                     <label>Transaction Type *</label>
-                    <select class="form-select" @bind="newClaim.TransactionType">
+                    <select class="form-input" @bind="newClaim.TransactionType">
                         <option value="0">B1 — Billing</option>
                         <option value="1">B2 — Reversal</option>
                         <option value="2">B3 — Rebill</option>
@@ -60,40 +60,40 @@
                         <option value="5">P1 — Prior Auth</option>
                     </select>
                 </div>
-                <div class="col-md-3"><label>BIN *</label><input type="text" class="form-control" @bind="newClaim.Bin" /></div>
-                <div class="col-md-3"><label>PCN *</label><input type="text" class="form-control" @bind="newClaim.Pcn" /></div>
-                <div class="col-md-3"><label>NCPDP Version *</label><input type="text" class="form-control" @bind="newClaim.NcpdpVersion" /></div>
+                <div class="col-md-3"><label>BIN *</label><input type="text" class="form-input" @bind="newClaim.Bin" /></div>
+                <div class="col-md-3"><label>PCN *</label><input type="text" class="form-input" @bind="newClaim.Pcn" /></div>
+                <div class="col-md-3"><label>NCPDP Version *</label><input type="text" class="form-input" @bind="newClaim.NcpdpVersion" /></div>
             </div>
             <div class="row g-2 mt-2">
-                <div class="col-md-3"><label>Prescription ID</label><input type="text" class="form-control" @bind="newClaim.PrescriptionId" /></div>
-                <div class="col-md-3"><label>Group Number</label><input type="text" class="form-control" @bind="newClaim.GroupNumber" /></div>
-                <div class="col-md-3"><label>Cardholder ID</label><input type="text" class="form-control" @bind="newClaim.CardholderId" /></div>
-                <div class="col-md-3"><label>Relationship Code</label><input type="text" class="form-control" @bind="newClaim.RelationshipCode" /></div>
+                <div class="col-md-3"><label>Prescription ID</label><input type="text" class="form-input" @bind="newClaim.PrescriptionId" /></div>
+                <div class="col-md-3"><label>Group Number</label><input type="text" class="form-input" @bind="newClaim.GroupNumber" /></div>
+                <div class="col-md-3"><label>Cardholder ID</label><input type="text" class="form-input" @bind="newClaim.CardholderId" /></div>
+                <div class="col-md-3"><label>Relationship Code</label><input type="text" class="form-input" @bind="newClaim.RelationshipCode" /></div>
             </div>
             <div class="row g-2 mt-2">
-                <div class="col-md-3"><label>Insurer ID</label><input type="text" class="form-control" @bind="newClaim.InsurerId" /></div>
-                <div class="col-md-3"><label>Insurer Name</label><input type="text" class="form-control" @bind="newClaim.InsurerName" /></div>
-                <div class="col-md-3"><label>NDC</label><input type="text" class="form-control" @bind="newClaim.Ndc" /></div>
-                <div class="col-md-3"><label>Drug Name</label><input type="text" class="form-control" @bind="newClaim.DrugName" /></div>
+                <div class="col-md-3"><label>Insurer ID</label><input type="text" class="form-input" @bind="newClaim.InsurerId" /></div>
+                <div class="col-md-3"><label>Insurer Name</label><input type="text" class="form-input" @bind="newClaim.InsurerName" /></div>
+                <div class="col-md-3"><label>NDC</label><input type="text" class="form-input" @bind="newClaim.Ndc" /></div>
+                <div class="col-md-3"><label>Drug Name</label><input type="text" class="form-input" @bind="newClaim.DrugName" /></div>
             </div>
             <div class="row g-2 mt-2">
-                <div class="col-md-2"><label>Qty Dispensed</label><input type="number" step="0.001" class="form-control" @bind="newClaim.QuantityDispensed" /></div>
-                <div class="col-md-2"><label>Days Supply</label><input type="number" class="form-control" @bind="newClaim.DaysSupply" /></div>
-                <div class="col-md-2"><label>Date of Service</label><input type="date" class="form-control" @bind="newClaim.DateOfService" /></div>
-                <div class="col-md-2"><label>Ingredient Cost</label><input type="number" step="0.01" class="form-control" @bind="newClaim.IngredientCostSubmitted" /></div>
-                <div class="col-md-2"><label>Dispensing Fee</label><input type="number" step="0.01" class="form-control" @bind="newClaim.DispensingFeeSubmitted" /></div>
-                <div class="col-md-2"><label>U&amp;C</label><input type="number" step="0.01" class="form-control" @bind="newClaim.UsualAndCustomary" /></div>
+                <div class="col-md-2"><label>Qty Dispensed</label><input type="number" step="0.001" class="form-input" @bind="newClaim.QuantityDispensed" /></div>
+                <div class="col-md-2"><label>Days Supply</label><input type="number" class="form-input" @bind="newClaim.DaysSupply" /></div>
+                <div class="col-md-2"><label>Date of Service</label><input type="date" class="form-input" @bind="newClaim.DateOfService" /></div>
+                <div class="col-md-2"><label>Ingredient Cost</label><input type="number" step="0.01" class="form-input" @bind="newClaim.IngredientCostSubmitted" /></div>
+                <div class="col-md-2"><label>Dispensing Fee</label><input type="number" step="0.01" class="form-input" @bind="newClaim.DispensingFeeSubmitted" /></div>
+                <div class="col-md-2"><label>U&amp;C</label><input type="number" step="0.01" class="form-input" @bind="newClaim.UsualAndCustomary" /></div>
             </div>
             <div class="row g-2 mt-2">
-                <div class="col-md-3"><label>Pharmacy NCPDP ID</label><input type="text" class="form-control" @bind="newClaim.PharmacyNcpdpId" /></div>
-                <div class="col-md-3"><label>Pharmacist Name</label><input type="text" class="form-control" @bind="newClaim.PharmacistName" /></div>
-                <div class="col-md-3"><label>Prescriber NPI</label><input type="text" class="form-control" @bind="newClaim.PrescriberNpi" /></div>
-                <div class="col-md-3"><label>Prescriber Name</label><input type="text" class="form-control" @bind="newClaim.PrescriberName" /></div>
+                <div class="col-md-3"><label>Pharmacy NCPDP ID</label><input type="text" class="form-input" @bind="newClaim.PharmacyNcpdpId" /></div>
+                <div class="col-md-3"><label>Pharmacist Name</label><input type="text" class="form-input" @bind="newClaim.PharmacistName" /></div>
+                <div class="col-md-3"><label>Prescriber NPI</label><input type="text" class="form-input" @bind="newClaim.PrescriberNpi" /></div>
+                <div class="col-md-3"><label>Prescriber Name</label><input type="text" class="form-input" @bind="newClaim.PrescriberName" /></div>
             </div>
             <div class="row g-2 mt-2">
-                <div class="col-md-4"><label>Original Claim ID (for B2 reversal)</label><input type="text" class="form-control" @bind="newClaim.OriginalClaimId" /></div>
+                <div class="col-md-4"><label>Original Claim ID (for B2 reversal)</label><input type="text" class="form-input" @bind="newClaim.OriginalClaimId" /></div>
             </div>
-            <button class="btn btn-primary mt-3" @onclick="SubmitClaim">Submit Claim</button>
+            <button class="btn btn-primary" @onclick="SubmitClaim">Submit Claim</button>
         </div>
     }
 
@@ -103,7 +103,7 @@
     }
     else if (claims != null)
     {
-        <table class="table table-striped mt-3">
+        <table class="data-table">
             <thead>
                 <tr>
                     <th>Date of Service</th>
@@ -122,16 +122,16 @@
                     <tr>
                         <td>@c.DateOfService?.ToString("MM/dd/yyyy")</td>
                         <td>@c.DrugName</td>
-                        <td><span class="badge bg-info">@TxTypeName(c.TransactionType)</span></td>
+                        <td><span class="badge badge-info">@TxTypeName(c.TransactionType)</span></td>
                         <td><span class="badge @StatusBadge(c.Status)">@StatusName(c.Status)</span></td>
                         <td>@c.InsurerName</td>
                         <td>@FormatCurrency(c.InsurancePaidAmount)</td>
                         <td>@FormatCurrency(c.PatientResponsibility)</td>
                         <td>
-                            <button class="btn btn-sm btn-outline-primary" @onclick="() => SelectClaim(c.ClaimId)">View</button>
+                            <button class="btn btn-primary" @onclick="() => SelectClaim(c.ClaimId)">View</button>
                             @if (c.Status == 0)
                             {
-                                <button class="btn btn-sm btn-outline-warning ms-1" @onclick="() => ShowAdjudicateForm(c.ClaimId)">Adjudicate</button>
+                                <button class="btn btn-primary" @onclick="() => ShowAdjudicateForm(c.ClaimId)">Adjudicate</button>
                             }
                         </td>
                     </tr>
@@ -147,24 +147,24 @@
             <div class="row g-2">
                 <div class="col-md-3">
                     <label>Status *</label>
-                    <select class="form-select" @bind="adjReq.Status">
+                    <select class="form-input" @bind="adjReq.Status">
                         <option value="2">Paid</option>
                         <option value="3">Rejected</option>
                         <option value="5">DuplicatePaid</option>
                         <option value="6">PartialPay</option>
                     </select>
                 </div>
-                <div class="col-md-3"><label>Insurance Paid</label><input type="number" step="0.01" class="form-control" @bind="adjReq.InsurancePaidAmount" /></div>
-                <div class="col-md-3"><label>Patient Responsibility</label><input type="number" step="0.01" class="form-control" @bind="adjReq.PatientResponsibility" /></div>
-                <div class="col-md-3"><label>Authorization #</label><input type="text" class="form-control" @bind="adjReq.AuthorizationNumber" /></div>
+                <div class="col-md-3"><label>Insurance Paid</label><input type="number" step="0.01" class="form-input" @bind="adjReq.InsurancePaidAmount" /></div>
+                <div class="col-md-3"><label>Patient Responsibility</label><input type="number" step="0.01" class="form-input" @bind="adjReq.PatientResponsibility" /></div>
+                <div class="col-md-3"><label>Authorization #</label><input type="text" class="form-input" @bind="adjReq.AuthorizationNumber" /></div>
             </div>
             <div class="row g-2 mt-2">
-                <div class="col-md-3"><label>Copay</label><input type="number" step="0.01" class="form-control" @bind="adjReq.CopayAmount" /></div>
-                <div class="col-md-3"><label>Coinsurance</label><input type="number" step="0.01" class="form-control" @bind="adjReq.CoinsuranceAmount" /></div>
-                <div class="col-md-3"><label>Deductible</label><input type="number" step="0.01" class="form-control" @bind="adjReq.DeductibleAmount" /></div>
+                <div class="col-md-3"><label>Copay</label><input type="number" step="0.01" class="form-input" @bind="adjReq.CopayAmount" /></div>
+                <div class="col-md-3"><label>Coinsurance</label><input type="number" step="0.01" class="form-input" @bind="adjReq.CoinsuranceAmount" /></div>
+                <div class="col-md-3"><label>Deductible</label><input type="number" step="0.01" class="form-input" @bind="adjReq.DeductibleAmount" /></div>
             </div>
-            <button class="btn btn-primary mt-3" @onclick="AdjudicateClaim">Submit Adjudication</button>
-            <button class="btn btn-secondary mt-3 ms-2" @onclick="() => showAdjudicateForm = false">Cancel</button>
+            <button class="btn btn-primary" @onclick="AdjudicateClaim">Submit Adjudication</button>
+            <button class="btn btn-secondary" @onclick="() => showAdjudicateForm = false">Cancel</button>
         </div>
     }
 }
@@ -261,8 +261,8 @@
             {
                 <div class="card p-3 mb-3">
                     <h6>Rejections</h6>
-                    <table class="table table-sm table-bordered">
-                        <thead class="table-light">
+                    <table class="data-table">
+                        <thead>
                             <tr><th>Code</th><th>Description</th><th>Category</th></tr>
                         </thead>
                         <tbody>
@@ -284,8 +284,8 @@
             {
                 <div class="card p-3 mb-3">
                     <h6>DUR Messages</h6>
-                    <table class="table table-sm table-bordered">
-                        <thead class="table-light">
+                    <table class="data-table">
+                        <thead>
                             <tr><th>Reason Code</th><th>Level</th><th>Significance</th><th>Conflicting NDC</th><th>Message</th></tr>
                         </thead>
                         <tbody>
@@ -315,35 +315,35 @@
 @if (activeTab == 2)
 {
     <div class="mt-3">
-        <button class="btn btn-success btn-sm mb-2" @onclick="() => showInsurerForm = !showInsurerForm">Add / Edit Insurer</button>
+        <button class="btn btn-primary" @onclick="() => showInsurerForm = !showInsurerForm">Add / Edit Insurer</button>
 
         @if (showInsurerForm)
         {
             <div class="card p-3 mb-3">
                 <h6>@(string.IsNullOrEmpty(newInsurer.InsurerId) ? "New Insurer" : "Edit Insurer")</h6>
                 <div class="row g-2">
-                    <div class="col-md-3"><label>Insurer ID *</label><input type="text" class="form-control" @bind="newInsurer.InsurerId" /></div>
-                    <div class="col-md-3"><label>Insurer Name *</label><input type="text" class="form-control" @bind="newInsurer.InsurerName" /></div>
-                    <div class="col-md-3"><label>BIN *</label><input type="text" class="form-control" @bind="newInsurer.Bin" /></div>
-                    <div class="col-md-3"><label>PCN *</label><input type="text" class="form-control" @bind="newInsurer.Pcn" /></div>
+                    <div class="col-md-3"><label>Insurer ID *</label><input type="text" class="form-input" @bind="newInsurer.InsurerId" /></div>
+                    <div class="col-md-3"><label>Insurer Name *</label><input type="text" class="form-input" @bind="newInsurer.InsurerName" /></div>
+                    <div class="col-md-3"><label>BIN *</label><input type="text" class="form-input" @bind="newInsurer.Bin" /></div>
+                    <div class="col-md-3"><label>PCN *</label><input type="text" class="form-input" @bind="newInsurer.Pcn" /></div>
                 </div>
                 <div class="row g-2 mt-2">
-                    <div class="col-md-3"><label>NCPDP Version</label><input type="text" class="form-control" @bind="newInsurer.NcpdpVersion" /></div>
-                    <div class="col-md-3"><label>Pharmacy NCPDP ID</label><input type="text" class="form-control" @bind="newInsurer.PharmacyNcpdpId" /></div>
-                    <div class="col-md-3"><label>Svc Provider ID Qualifier</label><input type="text" class="form-control" @bind="newInsurer.ServiceProviderIdQualifier" /></div>
-                    <div class="col-md-3"><label>Plan Name</label><input type="text" class="form-control" @bind="newInsurer.PlanName" /></div>
+                    <div class="col-md-3"><label>NCPDP Version</label><input type="text" class="form-input" @bind="newInsurer.NcpdpVersion" /></div>
+                    <div class="col-md-3"><label>Pharmacy NCPDP ID</label><input type="text" class="form-input" @bind="newInsurer.PharmacyNcpdpId" /></div>
+                    <div class="col-md-3"><label>Svc Provider ID Qualifier</label><input type="text" class="form-input" @bind="newInsurer.ServiceProviderIdQualifier" /></div>
+                    <div class="col-md-3"><label>Plan Name</label><input type="text" class="form-input" @bind="newInsurer.PlanName" /></div>
                 </div>
                 <div class="row g-2 mt-2">
-                    <div class="col-md-3"><label>Help Desk Phone</label><input type="text" class="form-control" @bind="newInsurer.HelpDeskPhone" /></div>
+                    <div class="col-md-3"><label>Help Desk Phone</label><input type="text" class="form-input" @bind="newInsurer.HelpDeskPhone" /></div>
                     <div class="col-md-3">
                         <label>Active</label>
-                        <select class="form-select" @bind="newInsurer.IsActive">
+                        <select class="form-input" @bind="newInsurer.IsActive">
                             <option value="true">Yes</option>
                             <option value="false">No</option>
                         </select>
                     </div>
                 </div>
-                <button class="btn btn-primary mt-3" @onclick="SaveInsurer">Save Insurer</button>
+                <button class="btn btn-primary" @onclick="SaveInsurer">Save Insurer</button>
             </div>
         }
 
@@ -353,7 +353,7 @@
         }
         else if (insurers != null)
         {
-            <table class="table table-striped mt-3">
+            <table class="data-table">
                 <thead>
                     <tr>
                         <th>Insurer ID</th>
@@ -375,18 +375,18 @@
                             <td>
                                 @if (ins.IsActive)
                                 {
-                                    <span class="badge bg-success">Active</span>
+                                    <span class="badge badge-success">Active</span>
                                 }
                                 else
                                 {
-                                    <span class="badge bg-secondary">Inactive</span>
+                                    <span class="badge badge-neutral">Inactive</span>
                                 }
                             </td>
                             <td>
-                                <button class="btn btn-sm btn-outline-primary" @onclick="() => EditInsurer(ins)">Edit</button>
+                                <button class="btn btn-primary" @onclick="() => EditInsurer(ins)">Edit</button>
                                 @if (ins.IsActive)
                                 {
-                                    <button class="btn btn-sm btn-outline-danger ms-1" @onclick="() => DeactivateInsurer(ins.InsurerId)">Deactivate</button>
+                                    <button class="btn btn-primary" @onclick="() => DeactivateInsurer(ins.InsurerId)">Deactivate</button>
                                 }
                             </td>
                         </tr>
@@ -398,8 +398,10 @@
 }
 
 <style>
-    .patient-bar { display: flex; align-items: center; margin-top: 16px; flex-wrap: wrap; }
-    .badge { font-size: 0.8em; }
+    /* Canonical interaction classes (lookup-bar, lookup-input, tab-bar, tab, btn,
+       btn-primary, btn-secondary, alert, alert-error, data-table, form-input, badge,
+       badge-*, empty-state) are defined once in app.css per UI-CONVENTIONS.md.
+       No page-specific styles are needed here. */
 </style>
 
 @code {
@@ -463,23 +465,23 @@
 
     private static string StatusBadge(int status) => status switch
     {
-        0 => "bg-warning text-dark",
-        1 => "bg-info",
-        2 => "bg-success",
-        3 => "bg-danger",
-        4 => "bg-secondary",
-        5 => "bg-success",
-        6 => "bg-warning text-dark",
-        7 => "bg-secondary",
-        _ => "bg-secondary"
+        0 => "badge-warning",
+        1 => "badge-info",
+        2 => "badge-success",
+        3 => "badge-danger",
+        4 => "badge-neutral",
+        5 => "badge-success",
+        6 => "badge-warning",
+        7 => "badge-neutral",
+        _ => "badge-neutral"
     };
 
     private static string DurBadge(int level) => level switch
     {
-        0 => "bg-info",
-        1 => "bg-warning text-dark",
-        2 => "bg-danger",
-        _ => "bg-secondary"
+        0 => "badge-info",
+        1 => "badge-warning",
+        2 => "badge-danger",
+        _ => "badge-neutral"
     };
 
     private static string DurLevelName(int level) => level switch

@@ -15,7 +15,7 @@
 <h2>Pharmacy Benefits Management</h2>
 <p class="subtitle">VistA File #59.9 — formulary, coverage, and prior authorizations</p>
 
-<div class="tabs">
+<div class="tab-bar">
     <button class="@TabClass("patient")" @onclick='() => activeTab = "patient"'>Patient Benefits</button>
     <button class="@TabClass("formulary")" @onclick='() => activeTab = "formulary"'>Plan Formulary</button>
 </div>
@@ -240,7 +240,7 @@
         .Where(e => (formularyTierFilter == 0 || e.Tier == formularyTierFilter) &&
                     (!formularyPaFilter || e.RequiresPriorAuth));
 
-    string TabClass(string tab) => tab == activeTab ? "tab-btn active-tab" : "tab-btn";
+    string TabClass(string tab) => tab == activeTab ? "tab active" : "tab";
 
     private IPatientBenefitPlanGrain GetPlanGrain() =>
         Grains.GetGrain<IPatientBenefitPlanGrain>($"PBM-PATIENT:{patientId.Trim()}");
@@ -398,8 +398,6 @@
 <style>
     .subtitle { color: #888; margin-top: -8px; font-size: 0.9em; }
     .tabs { display: flex; gap: 4px; margin-bottom: 16px; }
-    .tab-btn { padding: 8px 20px; border: 1px solid #ccc; border-radius: 4px 4px 0 0; cursor: pointer; background: #f0f0f0; }
-    .active-tab { background: #fff; border-bottom-color: #fff; font-weight: bold; }
     .toolbar { display: flex; gap: 8px; margin: 12px 0; align-items: center; }
     .input-id { padding: 6px; border: 1px solid #ccc; border-radius: 4px; width: 260px; }
     button { padding: 6px 14px; border: 1px solid #555; border-radius: 4px; cursor: pointer; background: #eee; }

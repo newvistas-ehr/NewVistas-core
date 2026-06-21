@@ -14,24 +14,24 @@
 
 @if (!string.IsNullOrEmpty(error))
 {
-    <div class="alert alert-danger">@error</div>
+    <div class="alert alert-error">@error</div>
 }
 
 @* ── Tab Bar ─────────────────────────────────────────────────────────── *@
-<ul class="nav nav-tabs mt-3">
-    <li class="nav-item"><a class="nav-link @(activeTab == 0 ? "active" : "")" @onclick="() => activeTab = 0">E-Prescriptions</a></li>
-    <li class="nav-item"><a class="nav-link @(activeTab == 1 ? "active" : "")" @onclick="() => activeTab = 1">Prescription Detail</a></li>
-    <li class="nav-item"><a class="nav-link @(activeTab == 2 ? "active" : "")" @onclick="async () => { activeTab = 2; await LoadProviders(); }">Provider Credentials</a></li>
-</ul>
+<div class="tab-bar">
+    <button class="tab @(activeTab == 0 ? "active" : "")" @onclick="() => activeTab = 0">E-Prescriptions</button>
+    <button class="tab @(activeTab == 1 ? "active" : "")" @onclick="() => activeTab = 1">Prescription Detail</button>
+    <button class="tab @(activeTab == 2 ? "active" : "")" @onclick="async () => { activeTab = 2; await LoadProviders(); }">Provider Credentials</button>
+</div>
 
 @* ── Tab 0: E-Prescriptions ──────────────────────────────────────────── *@
 @if (activeTab == 0)
 {
-    <div class="patient-bar">
-        <input type="text" @bind="patientId" placeholder="Patient ID" class="form-control d-inline-block" style="width:260px" />
-        <button class="btn btn-primary ms-2" @onclick="LoadPrescriptions" disabled="@loading">Load</button>
-        <button class="btn btn-success ms-2" @onclick="() => showCreateForm = !showCreateForm">New e-Rx</button>
-        <select class="form-select ms-2 d-inline-block" style="width:160px" @bind="statusFilter" @bind:after="LoadPrescriptions">
+    <div class="lookup-bar">
+        <input type="text" @bind="patientId" placeholder="Patient ID" class="lookup-input" />
+        <button class="btn btn-primary" @onclick="LoadPrescriptions" disabled="@loading">Load</button>
+        <button class="btn btn-primary" @onclick="() => showCreateForm = !showCreateForm">New e-Rx</button>
+        <select class="form-input" style="width:160px" @bind="statusFilter" @bind:after="LoadPrescriptions">
             <option value="">All Statuses</option>
             <option value="0">Draft</option>
             <option value="1">Signed</option>
@@ -49,7 +49,7 @@
             <div class="row g-2">
                 <div class="col-md-3">
                     <label>Transaction Type *</label>
-                    <select class="form-select" @bind="newRx.TransactionType">
+                    <select class="form-input" @bind="newRx.TransactionType">
                         <option value="0">NewRx</option>
                         <option value="1">RefillRequest</option>
                         <option value="2">RefillResponse</option>
@@ -61,30 +61,30 @@
                         <option value="8">RxRenewalResponse</option>
                     </select>
                 </div>
-                <div class="col-md-3"><label>Drug Name *</label><input type="text" class="form-control" @bind="newRx.DrugName" /></div>
-                <div class="col-md-3"><label>DEA Schedule *</label><input type="text" class="form-control" @bind="newRx.DeaSchedule" placeholder="II, III, IV, V" /></div>
-                <div class="col-md-3"><label>NDC</label><input type="text" class="form-control" @bind="newRx.Ndc" /></div>
+                <div class="col-md-3"><label>Drug Name *</label><input type="text" class="form-input" @bind="newRx.DrugName" /></div>
+                <div class="col-md-3"><label>DEA Schedule *</label><input type="text" class="form-input" @bind="newRx.DeaSchedule" placeholder="II, III, IV, V" /></div>
+                <div class="col-md-3"><label>NDC</label><input type="text" class="form-input" @bind="newRx.Ndc" /></div>
             </div>
             <div class="row g-2 mt-2">
-                <div class="col-md-2"><label>Quantity *</label><input type="number" step="0.001" class="form-control" @bind="newRx.Quantity" /></div>
-                <div class="col-md-2"><label>Days Supply *</label><input type="number" class="form-control" @bind="newRx.DaysSupply" /></div>
-                <div class="col-md-2"><label>Refills Authorized</label><input type="number" class="form-control" @bind="newRx.RefillsAuthorized" /></div>
-                <div class="col-md-3"><label>Sig / Directions</label><input type="text" class="form-control" @bind="newRx.Sig" /></div>
-                <div class="col-md-3"><label>Diagnosis Code</label><input type="text" class="form-control" @bind="newRx.DiagnosisCode" /></div>
+                <div class="col-md-2"><label>Quantity *</label><input type="number" step="0.001" class="form-input" @bind="newRx.Quantity" /></div>
+                <div class="col-md-2"><label>Days Supply *</label><input type="number" class="form-input" @bind="newRx.DaysSupply" /></div>
+                <div class="col-md-2"><label>Refills Authorized</label><input type="number" class="form-input" @bind="newRx.RefillsAuthorized" /></div>
+                <div class="col-md-3"><label>Sig / Directions</label><input type="text" class="form-input" @bind="newRx.Sig" /></div>
+                <div class="col-md-3"><label>Diagnosis Code</label><input type="text" class="form-input" @bind="newRx.DiagnosisCode" /></div>
             </div>
             <div class="row g-2 mt-2">
-                <div class="col-md-3"><label>Prescriber NPI</label><input type="text" class="form-control" @bind="newRx.PrescriberNpi" /></div>
-                <div class="col-md-3"><label>Prescriber DEA</label><input type="text" class="form-control" @bind="newRx.PrescriberDea" /></div>
-                <div class="col-md-3"><label>Prescriber Name</label><input type="text" class="form-control" @bind="newRx.PrescriberName" /></div>
-                <div class="col-md-3"><label>Credential ID</label><input type="text" class="form-control" @bind="newRx.PrescriberCredentialId" /></div>
+                <div class="col-md-3"><label>Prescriber NPI</label><input type="text" class="form-input" @bind="newRx.PrescriberNpi" /></div>
+                <div class="col-md-3"><label>Prescriber DEA</label><input type="text" class="form-input" @bind="newRx.PrescriberDea" /></div>
+                <div class="col-md-3"><label>Prescriber Name</label><input type="text" class="form-input" @bind="newRx.PrescriberName" /></div>
+                <div class="col-md-3"><label>Credential ID</label><input type="text" class="form-input" @bind="newRx.PrescriberCredentialId" /></div>
             </div>
             <div class="row g-2 mt-2">
-                <div class="col-md-3"><label>Prescription ID</label><input type="text" class="form-control" @bind="newRx.PrescriptionId" /></div>
-                <div class="col-md-3"><label>Pharmacy NCPDP ID</label><input type="text" class="form-control" @bind="newRx.PharmacyNcpdpId" /></div>
-                <div class="col-md-3"><label>Pharmacy Name</label><input type="text" class="form-control" @bind="newRx.PharmacyName" /></div>
-                <div class="col-md-3"><label>Pharmacy Address</label><input type="text" class="form-control" @bind="newRx.PharmacyAddress" /></div>
+                <div class="col-md-3"><label>Prescription ID</label><input type="text" class="form-input" @bind="newRx.PrescriptionId" /></div>
+                <div class="col-md-3"><label>Pharmacy NCPDP ID</label><input type="text" class="form-input" @bind="newRx.PharmacyNcpdpId" /></div>
+                <div class="col-md-3"><label>Pharmacy Name</label><input type="text" class="form-input" @bind="newRx.PharmacyName" /></div>
+                <div class="col-md-3"><label>Pharmacy Address</label><input type="text" class="form-input" @bind="newRx.PharmacyAddress" /></div>
             </div>
-            <button class="btn btn-primary mt-3" @onclick="CreatePrescription">Create e-Prescription</button>
+            <button class="btn btn-primary" @onclick="CreatePrescription">Create e-Prescription</button>
         </div>
     }
 
@@ -94,7 +94,7 @@
     }
     else if (prescriptions != null)
     {
-        <table class="table table-striped mt-3">
+        <table class="data-table">
             <thead>
                 <tr>
                     <th>Drug</th>
@@ -113,25 +113,25 @@
                     <tr>
                         <td>@rx.DrugName</td>
                         <td>@rx.DeaSchedule</td>
-                        <td><span class="badge bg-info">@TxTypeName(rx.TransactionType)</span></td>
+                        <td>@TxTypeName(rx.TransactionType)</td>
                         <td><span class="badge @StatusBadge(rx.Status)">@StatusName(rx.Status)</span></td>
                         <td>@rx.PrescriberName</td>
                         <td>
                             @if (rx.IsSigned)
                             {
-                                <span class="badge bg-success">Signed</span>
+                                <span class="badge badge-success">Signed</span>
                             }
                             else
                             {
-                                <span class="badge bg-warning text-dark">Unsigned</span>
+                                <span class="badge badge-warning">Unsigned</span>
                             }
                         </td>
                         <td>@rx.CreatedDate.ToString("MM/dd/yyyy")</td>
                         <td>
-                            <button class="btn btn-sm btn-outline-primary" @onclick="() => SelectPrescription(rx.EpcsId)">View</button>
+                            <button class="btn btn-primary" @onclick="() => SelectPrescription(rx.EpcsId)">View</button>
                             @if (rx.Status == 0 && !rx.IsSigned)
                             {
-                                <button class="btn btn-sm btn-outline-success ms-1" @onclick="() => ShowSignForm(rx.EpcsId)">Sign</button>
+                                <button class="btn btn-primary" @onclick="() => ShowSignForm(rx.EpcsId)">Sign</button>
                             }
                         </td>
                     </tr>
@@ -147,7 +147,7 @@
             <div class="row g-2">
                 <div class="col-md-3">
                     <label>2FA Method *</label>
-                    <select class="form-select" @bind="signReq.TwoFactorMethod">
+                    <select class="form-input" @bind="signReq.TwoFactorMethod">
                         <option value="0">None</option>
                         <option value="1">Hardware Token</option>
                         <option value="2">Biometric</option>
@@ -156,18 +156,18 @@
                         <option value="5">Mobile Authenticator</option>
                     </select>
                 </div>
-                <div class="col-md-3"><label>Certificate Thumbprint *</label><input type="text" class="form-control" @bind="signReq.CertificateThumbprint" /></div>
-                <div class="col-md-3"><label>Prescription Hash *</label><input type="text" class="form-control" @bind="signReq.PrescriptionHash" /></div>
+                <div class="col-md-3"><label>Certificate Thumbprint *</label><input type="text" class="form-input" @bind="signReq.CertificateThumbprint" /></div>
+                <div class="col-md-3"><label>Prescription Hash *</label><input type="text" class="form-input" @bind="signReq.PrescriptionHash" /></div>
                 <div class="col-md-3">
                     <label>Valid</label>
-                    <select class="form-select" @bind="signReq.IsValid">
+                    <select class="form-input" @bind="signReq.IsValid">
                         <option value="true">Yes</option>
                         <option value="false">No</option>
                     </select>
                 </div>
             </div>
-            <button class="btn btn-success mt-3" @onclick="SignPrescription">Sign with 2FA</button>
-            <button class="btn btn-secondary mt-3 ms-2" @onclick="() => showSignForm = false">Cancel</button>
+            <button class="btn btn-primary" @onclick="SignPrescription">Sign with 2FA</button>
+            <button class="btn btn-secondary" @onclick="() => showSignForm = false">Cancel</button>
         </div>
     }
 }
@@ -239,11 +239,11 @@
                         <div class="col-md-3"><strong>Valid:</strong>
                             @if (selectedRx.Signature.IsValid)
                             {
-                                <span class="badge bg-success">Valid</span>
+                                <span class="badge badge-success">Valid</span>
                             }
                             else
                             {
-                                <span class="badge bg-danger">Invalid</span>
+                                <span class="badge badge-danger">Invalid</span>
                             }
                         </div>
                     </div>
@@ -274,8 +274,8 @@
             {
                 <div class="card p-3 mb-3">
                     <h6>DEA Audit Trail (21 CFR Part 1311.150)</h6>
-                    <table class="table table-sm table-bordered">
-                        <thead class="table-light">
+                    <table class="data-table">
+                        <thead>
                             <tr><th>Timestamp</th><th>Action</th><th>User</th><th>Details</th></tr>
                         </thead>
                         <tbody>
@@ -296,15 +296,15 @@
             <div class="mt-2">
                 @if (selectedRx.Status == 1)
                 {
-                    <button class="btn btn-primary btn-sm" @onclick="() => TransmitPrescription(selectedRx.EpcsId)">Transmit</button>
+                    <button class="btn btn-primary" @onclick="() => TransmitPrescription(selectedRx.EpcsId)">Transmit</button>
                 }
                 @if (selectedRx.Status == 2)
                 {
-                    <button class="btn btn-success btn-sm ms-1" @onclick="() => AcknowledgePrescription(selectedRx.EpcsId)">Acknowledge</button>
+                    <button class="btn btn-primary" @onclick="() => AcknowledgePrescription(selectedRx.EpcsId)">Acknowledge</button>
                 }
                 @if ((int)selectedRx.Status < 3)
                 {
-                    <button class="btn btn-danger btn-sm ms-1" @onclick="() => ShowCancelForm(selectedRx.EpcsId)">Cancel</button>
+                    <button class="btn btn-primary" @onclick="() => ShowCancelForm(selectedRx.EpcsId)">Cancel</button>
                 }
             </div>
 
@@ -313,11 +313,11 @@
                 <div class="card mt-3 p-3">
                     <h5>Cancel e-Prescription: @cancelEpcsId</h5>
                     <div class="row g-2">
-                        <div class="col-md-4"><label>User ID *</label><input type="text" class="form-control" @bind="cancelUserId" /></div>
-                        <div class="col-md-8"><label>Reason</label><input type="text" class="form-control" @bind="cancelReason" /></div>
+                        <div class="col-md-4"><label>User ID *</label><input type="text" class="form-input" @bind="cancelUserId" /></div>
+                        <div class="col-md-8"><label>Reason</label><input type="text" class="form-input" @bind="cancelReason" /></div>
                     </div>
-                    <button class="btn btn-danger mt-3" @onclick="CancelPrescription">Confirm Cancel</button>
-                    <button class="btn btn-secondary mt-3 ms-2" @onclick="() => showCancelForm = false">Back</button>
+                    <button class="btn btn-primary" @onclick="CancelPrescription">Confirm Cancel</button>
+                    <button class="btn btn-secondary" @onclick="() => showCancelForm = false">Back</button>
                 </div>
             }
 
@@ -332,33 +332,33 @@
 @if (activeTab == 2)
 {
     <div class="mt-3">
-        <button class="btn btn-success btn-sm mb-2" @onclick="() => showProviderForm = !showProviderForm">Add / Edit Provider</button>
+        <button class="btn btn-primary" @onclick="() => showProviderForm = !showProviderForm">Add / Edit Provider</button>
 
         @if (showProviderForm)
         {
             <div class="card p-3 mb-3">
                 <h6>@(string.IsNullOrEmpty(newProvider.CredentialId) ? "New Provider Credential" : "Edit Provider Credential")</h6>
                 <div class="row g-2">
-                    <div class="col-md-3"><label>Credential ID *</label><input type="text" class="form-control" @bind="newProvider.CredentialId" /></div>
-                    <div class="col-md-3"><label>Provider ID *</label><input type="text" class="form-control" @bind="newProvider.ProviderId" /></div>
-                    <div class="col-md-3"><label>Provider Name *</label><input type="text" class="form-control" @bind="newProvider.ProviderName" /></div>
-                    <div class="col-md-3"><label>DEA Number</label><input type="text" class="form-control" @bind="newProvider.DeaNumber" /></div>
+                    <div class="col-md-3"><label>Credential ID *</label><input type="text" class="form-input" @bind="newProvider.CredentialId" /></div>
+                    <div class="col-md-3"><label>Provider ID *</label><input type="text" class="form-input" @bind="newProvider.ProviderId" /></div>
+                    <div class="col-md-3"><label>Provider Name *</label><input type="text" class="form-input" @bind="newProvider.ProviderName" /></div>
+                    <div class="col-md-3"><label>DEA Number</label><input type="text" class="form-input" @bind="newProvider.DeaNumber" /></div>
                 </div>
                 <div class="row g-2 mt-2">
-                    <div class="col-md-3"><label>NPI</label><input type="text" class="form-control" @bind="newProvider.Npi" /></div>
+                    <div class="col-md-3"><label>NPI</label><input type="text" class="form-input" @bind="newProvider.Npi" /></div>
                     <div class="col-md-3">
                         <label>Identity Proofing Level *</label>
-                        <select class="form-select" @bind="newProvider.IdentityProofingLevel">
+                        <select class="form-input" @bind="newProvider.IdentityProofingLevel">
                             <option value="0">Not Proofed</option>
                             <option value="1">NIST Level 1</option>
                             <option value="2">NIST Level 2</option>
                         </select>
                     </div>
-                    <div class="col-md-3"><label>Identity Proofing Date</label><input type="date" class="form-control" @bind="newProvider.IdentityProofingDate" /></div>
-                    <div class="col-md-3"><label>Certificate Thumbprint</label><input type="text" class="form-control" @bind="newProvider.CertificateThumbprint" /></div>
+                    <div class="col-md-3"><label>Identity Proofing Date</label><input type="date" class="form-input" @bind="newProvider.IdentityProofingDate" /></div>
+                    <div class="col-md-3"><label>Certificate Thumbprint</label><input type="text" class="form-input" @bind="newProvider.CertificateThumbprint" /></div>
                 </div>
                 <div class="row g-2 mt-2">
-                    <div class="col-md-3"><label>Certificate Expiration</label><input type="date" class="form-control" @bind="newProvider.CertificateExpiration" /></div>
+                    <div class="col-md-3"><label>Certificate Expiration</label><input type="date" class="form-input" @bind="newProvider.CertificateExpiration" /></div>
                     <div class="col-md-9">
                         <label>2FA Methods</label>
                         <div class="d-flex flex-wrap gap-2 mt-1">
@@ -370,7 +370,7 @@
                         </div>
                     </div>
                 </div>
-                <button class="btn btn-primary mt-3" @onclick="SaveProvider">Save Credential</button>
+                <button class="btn btn-primary" @onclick="SaveProvider">Save Credential</button>
             </div>
         }
 
@@ -380,7 +380,7 @@
         }
         else if (providers != null)
         {
-            <table class="table table-striped mt-3">
+            <table class="data-table">
                 <thead>
                     <tr>
                         <th>Name</th>
@@ -401,18 +401,18 @@
                             <td><span class="badge @CredStatusBadge(p.CredentialStatus)">@CredStatusName(p.CredentialStatus)</span></td>
                             <td>@IdProofingName(p.IdentityProofingLevel)</td>
                             <td>
-                                <button class="btn btn-sm btn-outline-primary" @onclick="() => EditProvider(p)">Edit</button>
+                                <button class="btn btn-primary" @onclick="() => EditProvider(p)">Edit</button>
                                 @if (p.CredentialStatus == 0)
                                 {
-                                    <button class="btn btn-sm btn-outline-success ms-1" @onclick="() => ActivateProvider(p.CredentialId)">Activate</button>
+                                    <button class="btn btn-primary" @onclick="() => ActivateProvider(p.CredentialId)">Activate</button>
                                 }
                                 @if (p.CredentialStatus == 1)
                                 {
-                                    <button class="btn btn-sm btn-outline-warning ms-1" @onclick="() => SuspendProvider(p.CredentialId)">Suspend</button>
+                                    <button class="btn btn-primary" @onclick="() => SuspendProvider(p.CredentialId)">Suspend</button>
                                 }
                                 @if (p.CredentialStatus != 3)
                                 {
-                                    <button class="btn btn-sm btn-outline-danger ms-1" @onclick="() => RevokeProvider(p.CredentialId)">Revoke</button>
+                                    <button class="btn btn-primary" @onclick="() => RevokeProvider(p.CredentialId)">Revoke</button>
                                 }
                             </td>
                         </tr>
@@ -424,8 +424,8 @@
 }
 
 <style>
-    .patient-bar { display: flex; align-items: center; margin-top: 16px; flex-wrap: wrap; }
-    .badge { font-size: 0.8em; }
+    /* Canonical classes (lookup-bar, tab-bar/tab, btn/btn-*, alert-*, data-table,
+       form-input, badge/badge-*) live in wwwroot/app.css. */
 </style>
 
 @code {
@@ -491,13 +491,13 @@
 
     private static string StatusBadge(int status) => status switch
     {
-        0 => "bg-warning text-dark",
-        1 => "bg-info",
-        2 => "bg-primary",
-        3 => "bg-success",
-        4 => "bg-danger",
-        5 => "bg-secondary",
-        _ => "bg-secondary"
+        0 => "badge-warning",
+        1 => "badge-info",
+        2 => "badge-info",
+        3 => "badge-success",
+        4 => "badge-danger",
+        5 => "badge-neutral",
+        _ => "badge-neutral"
     };
 
     private static string TwoFactorName(int method) => method switch
@@ -523,12 +523,12 @@
 
     private static string CredStatusBadge(int status) => status switch
     {
-        0 => "bg-warning text-dark",
-        1 => "bg-success",
-        2 => "bg-warning text-dark",
-        3 => "bg-danger",
-        4 => "bg-secondary",
-        _ => "bg-secondary"
+        0 => "badge-warning",
+        1 => "badge-success",
+        2 => "badge-warning",
+        3 => "badge-danger",
+        4 => "badge-neutral",
+        _ => "badge-neutral"
     };
 
     private static string IdProofingName(int level) => level switch

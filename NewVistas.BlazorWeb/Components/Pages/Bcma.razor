@@ -152,7 +152,7 @@
                         <button class="btn btn-primary" @onclick="SubmitAdminister" disabled="@saving">
                             @(saving ? "Saving..." : "Confirm")
                         </button>
-                        <button class="btn btn-outline" @onclick="CancelAdminister">Cancel</button>
+                        <button class="btn btn-secondary" @onclick="CancelAdminister">Cancel</button>
                     </div>
                 </div>
             </div>
@@ -421,7 +421,6 @@
     .btn:disabled { opacity: .6; cursor: default; }
     .btn-primary { background: #003f72; color: white; }
     .btn-secondary { background: #16a34a; color: white; }
-    .btn-outline { background: white; border: 1px solid #ccc; color: #333; }
     .btn-sm { padding: .3rem .75rem; font-size: .8rem; }
     .alert { padding: .75rem 1rem; border-radius: 4px; margin-bottom: 1rem; font-size: .85rem; }
     .alert-error { background: #fde8e8; color: #b91c1c; border: 1px solid #f5c6c6; }

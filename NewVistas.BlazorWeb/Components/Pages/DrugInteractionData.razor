@@ -15,7 +15,7 @@
 <h2>Drug Interaction Dataset Management</h2>
 <p class="subtitle">VistA Files #56-1 through #56-6 — drug-drug interaction checking</p>
 
-<div class="tabs">
+<div class="tab-bar">
     <button class="@TabClass("status")" @onclick='() => SetTab("status")'>Dataset Status</button>
     <button class="@TabClass("browse")" @onclick='() => SetTab("browse")'>Browse Interactions</button>
     <button class="@TabClass("check")" @onclick='() => SetTab("check")'>Check Interactions</button>
@@ -221,7 +221,7 @@
     };
     List<DrugInteractionResult>? checkResults;
 
-    string TabClass(string tab) => activeTab == tab ? "tab-btn active" : "tab-btn";
+    string TabClass(string tab) => activeTab == tab ? "tab active" : "tab";
 
     void SetTab(string tab) { activeTab = tab; error = null; successMsg = null; }
 
@@ -399,8 +399,6 @@
 <style>
     .subtitle { color: #888; margin-top: -8px; font-size: 0.9em; }
     .tabs { display: flex; gap: 4px; margin: 16px 0 12px; }
-    .tab-btn { padding: 8px 18px; border: 1px solid #555; border-bottom: none; border-radius: 6px 6px 0 0; cursor: pointer; background: #333; color: #ccc; }
-    .tab-btn.active { background: #1a1a2e; color: #fff; font-weight: bold; border-color: #667; }
     .toolbar { display: flex; gap: 8px; margin: 12px 0; align-items: center; }
     .input-id { padding: 6px; border: 1px solid #555; border-radius: 4px; width: 200px; background: #1a1a2e; color: #eee; }
     button { padding: 6px 14px; border: 1px solid #555; border-radius: 4px; cursor: pointer; background: #2a2a3e; color: #eee; }
