@@ -1,0 +1,602 @@
+[
+  {
+    "role": "Admin",
+    "script": "01-Federation-Dashboard-Smoke",
+    "user": "ADMIN1",
+    "route": "/admin/federation",
+    "note": "",
+    "shot": "C:\\Users\\James\\source\\repos\\dnasmyth\\NewVistas\\docs\\screenshots\\test-runs\\Admin\\01-Federation-Dashboard-Smoke.png",
+    "verdict": "PASS",
+    "detail": "\ud83d\udd10 Federation security"
+  },
+  {
+    "role": "Admin",
+    "script": "04-Certificate-Revocation",
+    "user": "ADMIN1",
+    "route": "/admin/federation",
+    "note": "revoked-certs panel; revocation needs Hub-CA",
+    "shot": "C:\\Users\\James\\source\\repos\\dnasmyth\\NewVistas\\docs\\screenshots\\test-runs\\Admin\\04-Certificate-Revocation.png",
+    "verdict": "PASS",
+    "detail": "\ud83d\udd10 Federation security"
+  },
+  {
+    "role": "Admin",
+    "script": "06-Federation-Outbox-Drainer",
+    "user": "ADMIN1",
+    "route": "/admin/federation",
+    "note": "outbox panel; drainer needs SQL outbox",
+    "shot": "C:\\Users\\James\\source\\repos\\dnasmyth\\NewVistas\\docs\\screenshots\\test-runs\\Admin\\06-Federation-Outbox-Drainer.png",
+    "verdict": "PASS",
+    "detail": "\ud83d\udd10 Federation security"
+  },
+  {
+    "role": "Admin",
+    "script": "10-Patient-Merge",
+    "user": "ADMIN1",
+    "route": "/patient-merge",
+    "note": "",
+    "shot": "C:\\Users\\James\\source\\repos\\dnasmyth\\NewVistas\\docs\\screenshots\\test-runs\\Admin\\10-Patient-Merge.png",
+    "verdict": "PASS",
+    "detail": "Patient Merge"
+  },
+  {
+    "role": "Admin",
+    "script": "12-GPRA-Submission",
+    "user": "ADMIN1",
+    "route": "/gpra-reporting",
+    "note": "",
+    "shot": "C:\\Users\\James\\source\\repos\\dnasmyth\\NewVistas\\docs\\screenshots\\test-runs\\Admin\\12-GPRA-Submission.png",
+    "verdict": "WARN",
+    "detail": "no <h1> heading detected"
+  },
+  {
+    "role": "Admin",
+    "script": "15-Federation-MPI-Propagation",
+    "user": "ADMIN1",
+    "route": "/mpi",
+    "note": "render only; cross-cluster propagation needs spoke",
+    "shot": "C:\\Users\\James\\source\\repos\\dnasmyth\\NewVistas\\docs\\screenshots\\test-runs\\Admin\\15-Federation-MPI-Propagation.png",
+    "verdict": "WARN",
+    "detail": "no <h1> heading detected"
+  },
+  {
+    "role": "Doctors",
+    "script": "01-Cover-Sheet-Review",
+    "user": "DOCTOR1",
+    "route": "/cover-sheet",
+    "note": "",
+    "shot": "C:\\Users\\James\\source\\repos\\dnasmyth\\NewVistas\\docs\\screenshots\\test-runs\\Doctors\\01-Cover-Sheet-Review.png",
+    "verdict": "PASS",
+    "detail": "\ud83d\udccb Cover Sheet"
+  },
+  {
+    "role": "Doctors",
+    "script": "02-Order-Entry",
+    "user": "DOCTOR1",
+    "route": "/orders",
+    "note": "",
+    "shot": "C:\\Users\\James\\source\\repos\\dnasmyth\\NewVistas\\docs\\screenshots\\test-runs\\Doctors\\02-Order-Entry.png",
+    "verdict": "PASS",
+    "detail": "Order Entry / Results Reporting"
+  },
+  {
+    "role": "Doctors",
+    "script": "03-Progress-Notes",
+    "user": "DOCTOR1",
+    "route": "/notes",
+    "note": "",
+    "shot": "C:\\Users\\James\\source\\repos\\dnasmyth\\NewVistas\\docs\\screenshots\\test-runs\\Doctors\\03-Progress-Notes.png",
+    "verdict": "PASS",
+    "detail": "Progress Notes"
+  },
+  {
+    "role": "Doctors",
+    "script": "04-Consult-Management",
+    "user": "DOCTOR1",
+    "route": "/consults",
+    "note": "",
+    "shot": "C:\\Users\\James\\source\\repos\\dnasmyth\\NewVistas\\docs\\screenshots\\test-runs\\Doctors\\04-Consult-Management.png",
+    "verdict": "PASS",
+    "detail": "Consults"
+  },
+  {
+    "role": "Doctors",
+    "script": "06-Laboratory-Orders",
+    "user": "DOCTOR1",
+    "route": "/labs",
+    "note": "",
+    "shot": "C:\\Users\\James\\source\\repos\\dnasmyth\\NewVistas\\docs\\screenshots\\test-runs\\Doctors\\06-Laboratory-Orders.png",
+    "verdict": "WARN",
+    "detail": "no <h1> heading detected"
+  },
+  {
+    "role": "Doctors",
+    "script": "11-Diet-Orders",
+    "user": "DOCTOR1",
+    "route": "/dietetics",
+    "note": "",
+    "shot": "C:\\Users\\James\\source\\repos\\dnasmyth\\NewVistas\\docs\\screenshots\\test-runs\\Doctors\\11-Diet-Orders.png",
+    "verdict": "PASS",
+    "detail": "Dietetics"
+  },
+  {
+    "role": "Doctors",
+    "script": "13-Patient-Demographics",
+    "user": "DOCTOR1",
+    "route": "/patient-edit",
+    "note": "",
+    "shot": "C:\\Users\\James\\source\\repos\\dnasmyth\\NewVistas\\docs\\screenshots\\test-runs\\Doctors\\13-Patient-Demographics.png",
+    "verdict": "PASS",
+    "detail": "Edit Patient"
+  },
+  {
+    "role": "Doctors",
+    "script": "14-Allergy-Documentation",
+    "user": "DOCTOR1",
+    "route": "/allergies",
+    "note": "",
+    "shot": "C:\\Users\\James\\source\\repos\\dnasmyth\\NewVistas\\docs\\screenshots\\test-runs\\Doctors\\14-Allergy-Documentation.png",
+    "verdict": "PASS",
+    "detail": "Allergies"
+  },
+  {
+    "role": "Doctors",
+    "script": "15-Scheduling-Enhancements",
+    "user": "DOCTOR1",
+    "route": "/scheduling",
+    "note": "",
+    "shot": "C:\\Users\\James\\source\\repos\\dnasmyth\\NewVistas\\docs\\screenshots\\test-runs\\Doctors\\15-Scheduling-Enhancements.png",
+    "verdict": "WARN",
+    "detail": "no <h1> heading detected"
+  },
+  {
+    "role": "Doctors",
+    "script": "16-Diabetes-Registry",
+    "user": "DOCTOR1",
+    "route": "/clinical-registries",
+    "note": "route /diabetesregistry not a page; using /clinical-registries",
+    "shot": "C:\\Users\\James\\source\\repos\\dnasmyth\\NewVistas\\docs\\screenshots\\test-runs\\Doctors\\16-Diabetes-Registry.png",
+    "verdict": "WARN",
+    "detail": "no <h1> heading detected"
+  },
+  {
+    "role": "Doctors",
+    "script": "17-Inpatient-Stay-End-to-End",
+    "user": "DOCTOR1",
+    "route": "/adt",
+    "note": "",
+    "shot": "C:\\Users\\James\\source\\repos\\dnasmyth\\NewVistas\\docs\\screenshots\\test-runs\\Doctors\\17-Inpatient-Stay-End-to-End.png",
+    "verdict": "PASS",
+    "detail": "ADT \u2014 Admit / Discharge / Transfer"
+  },
+  {
+    "role": "Doctors",
+    "script": "05-Problem-List",
+    "user": "DOCTOR2",
+    "route": "/problems",
+    "note": "",
+    "shot": "C:\\Users\\James\\source\\repos\\dnasmyth\\NewVistas\\docs\\screenshots\\test-runs\\Doctors\\05-Problem-List.png",
+    "verdict": "PASS",
+    "detail": "Problem List"
+  },
+  {
+    "role": "Doctors",
+    "script": "07-Prescribing",
+    "user": "DOCTOR2",
+    "route": "/outpatientpharmacy",
+    "note": "",
+    "shot": "C:\\Users\\James\\source\\repos\\dnasmyth\\NewVistas\\docs\\screenshots\\test-runs\\Doctors\\07-Prescribing.png",
+    "verdict": "WARN",
+    "detail": "no <h1> heading detected"
+  },
+  {
+    "role": "Doctors",
+    "script": "12-Clinical-Reminders",
+    "user": "DOCTOR2",
+    "route": "/reminders",
+    "note": "",
+    "shot": "C:\\Users\\James\\source\\repos\\dnasmyth\\NewVistas\\docs\\screenshots\\test-runs\\Doctors\\12-Clinical-Reminders.png",
+    "verdict": "PASS",
+    "detail": "\u23f0 Clinical Reminders"
+  },
+  {
+    "role": "Doctors",
+    "script": "09-Radiology-Orders",
+    "user": "DOCTOR3",
+    "route": "/radiology",
+    "note": "",
+    "shot": "C:\\Users\\James\\source\\repos\\dnasmyth\\NewVistas\\docs\\screenshots\\test-runs\\Doctors\\09-Radiology-Orders.png",
+    "verdict": "PASS",
+    "detail": "Radiology"
+  },
+  {
+    "role": "Doctors",
+    "script": "10-Mental-Health-Screening",
+    "user": "DOCTOR5",
+    "route": "/mental-health",
+    "note": "",
+    "shot": "C:\\Users\\James\\source\\repos\\dnasmyth\\NewVistas\\docs\\screenshots\\test-runs\\Doctors\\10-Mental-Health-Screening.png",
+    "verdict": "PASS",
+    "detail": "Mental Health Screening"
+  },
+  {
+    "role": "Nurses",
+    "script": "02-Vital-Signs-Recording",
+    "user": "NURSE1",
+    "route": "/vitals",
+    "note": "",
+    "shot": "C:\\Users\\James\\source\\repos\\dnasmyth\\NewVistas\\docs\\screenshots\\test-runs\\Nurses\\02-Vital-Signs-Recording.png",
+    "verdict": "PASS",
+    "detail": "Vitals"
+  },
+  {
+    "role": "Nurses",
+    "script": "03-Nursing-Assessment",
+    "user": "NURSE1",
+    "route": "/nursing",
+    "note": "",
+    "shot": "C:\\Users\\James\\source\\repos\\dnasmyth\\NewVistas\\docs\\screenshots\\test-runs\\Nurses\\03-Nursing-Assessment.png",
+    "verdict": "WARN",
+    "detail": "no <h1> heading detected"
+  },
+  {
+    "role": "Nurses",
+    "script": "04-Nursing-Care-Plan",
+    "user": "NURSE1",
+    "route": "/nursing-careplan",
+    "note": "",
+    "shot": "C:\\Users\\James\\source\\repos\\dnasmyth\\NewVistas\\docs\\screenshots\\test-runs\\Nurses\\04-Nursing-Care-Plan.png",
+    "verdict": "WARN",
+    "detail": "no <h1> heading detected"
+  },
+  {
+    "role": "Nurses",
+    "script": "10-Clinical-Notes",
+    "user": "NURSE1",
+    "route": "/notes",
+    "note": "",
+    "shot": "C:\\Users\\James\\source\\repos\\dnasmyth\\NewVistas\\docs\\screenshots\\test-runs\\Nurses\\10-Clinical-Notes.png",
+    "verdict": "PASS",
+    "detail": "Progress Notes"
+  },
+  {
+    "role": "Nurses",
+    "script": "01-BCMA-Medication-Administration",
+    "user": "NURSE2",
+    "route": "/bcma",
+    "note": "",
+    "shot": "C:\\Users\\James\\source\\repos\\dnasmyth\\NewVistas\\docs\\screenshots\\test-runs\\Nurses\\01-BCMA-Medication-Administration.png",
+    "verdict": "PASS",
+    "detail": "BCMA \u2014 Bar Code Medication Administration"
+  },
+  {
+    "role": "Nurses",
+    "script": "06-Nursing-Task-Worklist",
+    "user": "NURSE2",
+    "route": "/nursing-tasks",
+    "note": "",
+    "shot": "C:\\Users\\James\\source\\repos\\dnasmyth\\NewVistas\\docs\\screenshots\\test-runs\\Nurses\\06-Nursing-Task-Worklist.png",
+    "verdict": "WARN",
+    "detail": "no <h1> heading detected"
+  },
+  {
+    "role": "Nurses",
+    "script": "05-Nursing-Triage",
+    "user": "NURSE3",
+    "route": "/nursing-triage",
+    "note": "",
+    "shot": "C:\\Users\\James\\source\\repos\\dnasmyth\\NewVistas\\docs\\screenshots\\test-runs\\Nurses\\05-Nursing-Triage.png",
+    "verdict": "WARN",
+    "detail": "no <h1> heading detected"
+  },
+  {
+    "role": "Nurses",
+    "script": "07-Pain-Assessment",
+    "user": "NURSE4",
+    "route": "/pain-assessment",
+    "note": "",
+    "shot": "C:\\Users\\James\\source\\repos\\dnasmyth\\NewVistas\\docs\\screenshots\\test-runs\\Nurses\\07-Pain-Assessment.png",
+    "verdict": "WARN",
+    "detail": "no <h1> heading detected"
+  },
+  {
+    "role": "Nurses",
+    "script": "09-Allergy-Documentation",
+    "user": "NURSE4",
+    "route": "/allergies",
+    "note": "",
+    "shot": "C:\\Users\\James\\source\\repos\\dnasmyth\\NewVistas\\docs\\screenshots\\test-runs\\Nurses\\09-Allergy-Documentation.png",
+    "verdict": "PASS",
+    "detail": "Allergies"
+  },
+  {
+    "role": "Nurses",
+    "script": "08-Shift-Handoff",
+    "user": "NURSE5",
+    "route": "/shift-handoff",
+    "note": "",
+    "shot": "C:\\Users\\James\\source\\repos\\dnasmyth\\NewVistas\\docs\\screenshots\\test-runs\\Nurses\\08-Shift-Handoff.png",
+    "verdict": "WARN",
+    "detail": "no <h1> heading detected"
+  },
+  {
+    "role": "Pharmacist",
+    "script": "01-Prescription-Verification-Fill",
+    "user": "PHARM1",
+    "route": "/outpatientpharmacy",
+    "note": "",
+    "shot": "C:\\Users\\James\\source\\repos\\dnasmyth\\NewVistas\\docs\\screenshots\\test-runs\\Pharmacist\\01-Prescription-Verification-Fill.png",
+    "verdict": "WARN",
+    "detail": "no <h1> heading detected"
+  },
+  {
+    "role": "Pharmacist",
+    "script": "02-Drug-Utilization-Review",
+    "user": "PHARM1",
+    "route": "/drug-utilization-review",
+    "note": "",
+    "shot": "C:\\Users\\James\\source\\repos\\dnasmyth\\NewVistas\\docs\\screenshots\\test-runs\\Pharmacist\\02-Drug-Utilization-Review.png",
+    "verdict": "PASS",
+    "detail": "Drug Utilization Review"
+  },
+  {
+    "role": "Pharmacist",
+    "script": "03-Interaction-Screening",
+    "user": "PHARM1",
+    "route": "/interaction-blocking",
+    "note": "",
+    "shot": "C:\\Users\\James\\source\\repos\\dnasmyth\\NewVistas\\docs\\screenshots\\test-runs\\Pharmacist\\03-Interaction-Screening.png",
+    "verdict": "PASS",
+    "detail": "Drug Interaction Blocking"
+  },
+  {
+    "role": "Pharmacist",
+    "script": "04-Inpatient-Orders",
+    "user": "PHARM1",
+    "route": "/inpatientpharmacy",
+    "note": "",
+    "shot": "C:\\Users\\James\\source\\repos\\dnasmyth\\NewVistas\\docs\\screenshots\\test-runs\\Pharmacist\\04-Inpatient-Orders.png",
+    "verdict": "WARN",
+    "detail": "no <h1> heading detected"
+  },
+  {
+    "role": "Pharmacist",
+    "script": "05-IV-Admixture",
+    "user": "PHARM1",
+    "route": "/iv-pharmacy",
+    "note": "",
+    "shot": "C:\\Users\\James\\source\\repos\\dnasmyth\\NewVistas\\docs\\screenshots\\test-runs\\Pharmacist\\05-IV-Admixture.png",
+    "verdict": "WARN",
+    "detail": "no <h1> heading detected"
+  },
+  {
+    "role": "Pharmacist",
+    "script": "06-Controlled-Substances",
+    "user": "PHARM1",
+    "route": "/controlled-substances",
+    "note": "",
+    "shot": "C:\\Users\\James\\source\\repos\\dnasmyth\\NewVistas\\docs\\screenshots\\test-runs\\Pharmacist\\06-Controlled-Substances.png",
+    "verdict": "WARN",
+    "detail": "no <h1> heading detected"
+  },
+  {
+    "role": "Pharmacist",
+    "script": "07-Drug-Accountability",
+    "user": "PHARM1",
+    "route": "/drugaccountability",
+    "note": "",
+    "shot": "C:\\Users\\James\\source\\repos\\dnasmyth\\NewVistas\\docs\\screenshots\\test-runs\\Pharmacist\\07-Drug-Accountability.png",
+    "verdict": "WARN",
+    "detail": "no <h1> heading detected"
+  },
+  {
+    "role": "Pharmacist",
+    "script": "08-Pharmacy-Benefits-PA",
+    "user": "PHARM1",
+    "route": "/pharmacybenefits",
+    "note": "",
+    "shot": "C:\\Users\\James\\source\\repos\\dnasmyth\\NewVistas\\docs\\screenshots\\test-runs\\Pharmacist\\08-Pharmacy-Benefits-PA.png",
+    "verdict": "WARN",
+    "detail": "no <h1> heading detected"
+  },
+  {
+    "role": "Pharmacist",
+    "script": "09-Dispensing-Counseling-Labels",
+    "user": "PHARM1",
+    "route": "/outpatientpharmacy",
+    "note": "",
+    "shot": "C:\\Users\\James\\source\\repos\\dnasmyth\\NewVistas\\docs\\screenshots\\test-runs\\Pharmacist\\09-Dispensing-Counseling-Labels.png",
+    "verdict": "WARN",
+    "detail": "no <h1> heading detected"
+  },
+  {
+    "role": "Pharmacist",
+    "script": "10-CMOP",
+    "user": "PHARM1",
+    "route": "/cmop",
+    "note": "",
+    "shot": "C:\\Users\\James\\source\\repos\\dnasmyth\\NewVistas\\docs\\screenshots\\test-runs\\Pharmacist\\10-CMOP.png",
+    "verdict": "PASS",
+    "detail": "Consolidated Mail Outpatient Pharmacy"
+  },
+  {
+    "role": "Pharmacist",
+    "script": "11-Auto-Refill",
+    "user": "PHARM1",
+    "route": "/auto-refill",
+    "note": "",
+    "shot": "C:\\Users\\James\\source\\repos\\dnasmyth\\NewVistas\\docs\\screenshots\\test-runs\\Pharmacist\\11-Auto-Refill.png",
+    "verdict": "PASS",
+    "detail": "Automated Prescription Refill"
+  },
+  {
+    "role": "Pharmacist",
+    "script": "12-POS-Claims",
+    "user": "PHARM1",
+    "route": "/pharmacy-pos",
+    "note": "",
+    "shot": "C:\\Users\\James\\source\\repos\\dnasmyth\\NewVistas\\docs\\screenshots\\test-runs\\Pharmacist\\12-POS-Claims.png",
+    "verdict": "WARN",
+    "detail": "no <h1> heading detected"
+  },
+  {
+    "role": "Pharmacist",
+    "script": "13-EPCS",
+    "user": "PHARM1",
+    "route": "/epcs",
+    "note": "",
+    "shot": "C:\\Users\\James\\source\\repos\\dnasmyth\\NewVistas\\docs\\screenshots\\test-runs\\Pharmacist\\13-EPCS.png",
+    "verdict": "WARN",
+    "detail": "no <h1> heading detected"
+  },
+  {
+    "role": "Pharmacist",
+    "script": "14-Drug-Formulary-Reference",
+    "user": "PHARM1",
+    "route": "/drugformulary",
+    "note": "",
+    "shot": "C:\\Users\\James\\source\\repos\\dnasmyth\\NewVistas\\docs\\screenshots\\test-runs\\Pharmacist\\14-Drug-Formulary-Reference.png",
+    "verdict": "PASS",
+    "detail": "\ud83d\udc8a Drug Formulary \u2014 National Drug File (NDF)"
+  },
+  {
+    "role": "Pharmacist",
+    "script": "15-Drug-File",
+    "user": "PHARM1",
+    "route": "/drugfile",
+    "note": "",
+    "shot": "C:\\Users\\James\\source\\repos\\dnasmyth\\NewVistas\\docs\\screenshots\\test-runs\\Pharmacist\\15-Drug-File.png",
+    "verdict": "PASS",
+    "detail": "Pharmacy Data Management \u2014 Drug File"
+  },
+  {
+    "role": "Pharmacist",
+    "script": "16-Ward-Stock",
+    "user": "PHARM1",
+    "route": "/ward-stock",
+    "note": "",
+    "shot": "C:\\Users\\James\\source\\repos\\dnasmyth\\NewVistas\\docs\\screenshots\\test-runs\\Pharmacist\\16-Ward-Stock.png",
+    "verdict": "PASS",
+    "detail": "Ward Stock / Auto Replenishment"
+  },
+  {
+    "role": "Pharmacist",
+    "script": "17-Drug-Interaction-Dataset",
+    "user": "PHARM1",
+    "route": "/drug-interactions",
+    "note": "",
+    "shot": "C:\\Users\\James\\source\\repos\\dnasmyth\\NewVistas\\docs\\screenshots\\test-runs\\Pharmacist\\17-Drug-Interaction-Dataset.png",
+    "verdict": "WARN",
+    "detail": "no <h1> heading detected"
+  },
+  {
+    "role": "Pharmacist",
+    "script": "18-Lab-Shipping",
+    "user": "PHARM1",
+    "route": "/lab-shipping",
+    "note": "",
+    "shot": "C:\\Users\\James\\source\\repos\\dnasmyth\\NewVistas\\docs\\screenshots\\test-runs\\Pharmacist\\18-Lab-Shipping.png",
+    "verdict": "WARN",
+    "detail": "no <h1> heading detected"
+  },
+  {
+    "role": "Doctors",
+    "script": "08-Surgery-Scheduling",
+    "user": "SURGEON1",
+    "route": "/surgery",
+    "note": "",
+    "shot": "C:\\Users\\James\\source\\repos\\dnasmyth\\NewVistas\\docs\\screenshots\\test-runs\\Doctors\\08-Surgery-Scheduling.png",
+    "verdict": "PASS",
+    "detail": "Surgery"
+  },
+  {
+    "role": "Admin",
+    "script": "00-Federation-Test-Environment",
+    "user": "-",
+    "route": "-",
+    "verdict": "BLOCKED",
+    "detail": "environment setup doc, not a UI test",
+    "note": "",
+    "shot": ""
+  },
+  {
+    "role": "Admin",
+    "script": "02-Hub-CA-Spoke-Onboarding",
+    "user": "-",
+    "route": "-",
+    "verdict": "BLOCKED",
+    "detail": "needs a Spoke cluster + CSR signing",
+    "note": "",
+    "shot": ""
+  },
+  {
+    "role": "Admin",
+    "script": "03-Certificate-Renewal",
+    "user": "-",
+    "route": "-",
+    "verdict": "BLOCKED",
+    "detail": "needs Hub-CA + issued cert",
+    "note": "",
+    "shot": ""
+  },
+  {
+    "role": "Admin",
+    "script": "05-Sneakernet-Bundle-Transfer",
+    "user": "-",
+    "route": "-",
+    "verdict": "BLOCKED",
+    "detail": "CLI bundle transfer between clusters",
+    "note": "",
+    "shot": ""
+  },
+  {
+    "role": "Admin",
+    "script": "07-Cluster-Identity-Multi-Cluster",
+    "user": "-",
+    "route": "-",
+    "verdict": "BLOCKED",
+    "detail": "needs >1 cluster",
+    "note": "",
+    "shot": ""
+  },
+  {
+    "role": "Admin",
+    "script": "08-Clinical-Event-Sourcing",
+    "user": "-",
+    "route": "-",
+    "verdict": "BLOCKED",
+    "detail": "API/replay script, no dedicated Blazor page",
+    "note": "",
+    "shot": ""
+  },
+  {
+    "role": "Admin",
+    "script": "11-CHS-Authorization",
+    "user": "-",
+    "route": "-",
+    "verdict": "BLOCKED",
+    "detail": "no dedicated Blazor page in this build",
+    "note": "",
+    "shot": ""
+  },
+  {
+    "role": "Admin",
+    "script": "13-Tribal-Demo-Data",
+    "user": "-",
+    "route": "-",
+    "verdict": "BLOCKED",
+    "detail": "data-seeding script (operator CLI)",
+    "note": "",
+    "shot": ""
+  },
+  {
+    "role": "Admin",
+    "script": "14-NDW-Export",
+    "user": "-",
+    "route": "-",
+    "verdict": "BLOCKED",
+    "detail": "batch export job, no dedicated Blazor page",
+    "note": "",
+    "shot": ""
+  }
+]
