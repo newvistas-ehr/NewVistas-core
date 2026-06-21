@@ -15,7 +15,7 @@
 
 @if (error != null)
 {
-    <div class="alert alert-danger">@error</div>
+    <div class="alert alert-error">@error</div>
 }
 
 @if (overdueCount > 0)
@@ -81,7 +81,7 @@
                     {
                         bool isOverdue = r.DueDate < DateTime.UtcNow &&
                             r.Status is "Received" or "Acknowledged" or "InProcess" or "PendingAuthorization";
-                        <tr class="@(isOverdue ? "row-critical" : r.Priority == "Urgent" ? "row-warn" : "")">
+                        <tr class="@(isOverdue ? "row-danger" : r.Priority == "Urgent" ? "row-warning" : "")">
                             <td>@r.PatientName</td>
                             <td>@r.RequestType</td>
                             <td>@r.RequesterName</td>
@@ -97,11 +97,11 @@
                             <td>
                                 @if (r.Status is "Received" or "Acknowledged" or "InProcess")
                                 {
-                                    <button class="btn btn-sm btn-success" @onclick="() => ShowFulfillForm(r.RequestId)">Fulfill</button>
+                                    <button class="btn btn-primary" @onclick="() => ShowFulfillForm(r.RequestId)">Fulfill</button>
                                 }
                                 @if (r.Status is "Received" or "Acknowledged" or "InProcess" or "PendingAuthorization")
                                 {
-                                    <button class="btn btn-sm btn-danger" @onclick="() => ShowDenyForm(r.RequestId)">Deny</button>
+                                    <button class="btn btn-primary" @onclick="() => ShowDenyForm(r.RequestId)">Deny</button>
                                 }
                             </td>
                         </tr>
@@ -151,9 +151,9 @@
                 </label>
                 <div class="form-actions">
                     <button class="btn btn-primary" @onclick="SubmitRequest">Submit</button>
-                    <button class="btn" @onclick="() => showSubmitForm = false">Cancel</button>
+                    <button class="btn btn-secondary" @onclick="() => showSubmitForm = false">Cancel</button>
                 </div>
-                @if (formError != null) { <div class="alert alert-danger">@formError</div> }
+                @if (formError != null) { <div class="alert alert-error">@formError</div> }
             </div>
         }
 
@@ -176,8 +176,8 @@
                 </div>
                 <label>Notes: <textarea rows="2" style="width:100%" @bind="fulfillNotes"></textarea></label>
                 <div class="form-actions">
-                    <button class="btn btn-success" @onclick="FulfillRequest">Fulfill &amp; Record Disclosure</button>
-                    <button class="btn" @onclick="() => showFulfillForm = false">Cancel</button>
+                    <button class="btn btn-primary" @onclick="FulfillRequest">Fulfill &amp; Record Disclosure</button>
+                    <button class="btn btn-secondary" @onclick="() => showFulfillForm = false">Cancel</button>
                 </div>
             </div>
         }
@@ -188,8 +188,8 @@
                 <h4>Deny Request</h4>
                 <label>Reason for Denial:<br /><textarea rows="3" style="width:100%" @bind="denyReason"></textarea></label>
                 <div class="form-actions">
-                    <button class="btn btn-danger" @onclick="DenyRequest">Deny Request</button>
-                    <button class="btn" @onclick="() => showDenyForm = false">Cancel</button>
+                    <button class="btn btn-primary" @onclick="DenyRequest">Deny Request</button>
+                    <button class="btn btn-secondary" @onclick="() => showDenyForm = false">Cancel</button>
                 </div>
             </div>
         }
@@ -230,9 +230,9 @@
                 <label>Information Disclosed:<br /><textarea rows="2" style="width:100%" @bind="newDisclosure.InformationDisclosed"></textarea></label>
                 <div class="form-actions">
                     <button class="btn btn-primary" @onclick="RecordDisclosure">Record Disclosure</button>
-                    <button class="btn" @onclick="() => showDisclosureForm = false">Cancel</button>
+                    <button class="btn btn-secondary" @onclick="() => showDisclosureForm = false">Cancel</button>
                 </div>
-                @if (formError != null) { <div class="alert alert-danger">@formError</div> }
+                @if (formError != null) { <div class="alert alert-error">@formError</div> }
             </div>
         }
         else
@@ -560,8 +560,8 @@
 
     static string GetPriorityBadge(string priority) => priority switch
     {
-        "Urgent"    => "badge-critical",
-        "Expedited" => "badge-warn",
+        "Urgent"    => "badge-danger",
+        "Expedited" => "badge-warning",
         _           => "badge-info"
     };
 
@@ -625,40 +625,24 @@
 }
 
 <style>
-    .tab-bar { display: flex; gap: 4px; margin-bottom: 16px; border-bottom: 2px solid #dee2e6; }
-    .tab { padding: 8px 16px; border: none; background: #f8f9fa; cursor: pointer; border-radius: 4px 4px 0 0; }
-    .tab.active { background: #0d6efd; color: white; }
-    .section { background: white; border: 1px solid #dee2e6; border-radius: 4px; padding: 16px; margin-bottom: 16px; }
+    /* Canonical interaction classes (lookup-bar, lookup-input, tab-bar, tab, btn,
+       btn-primary, btn-secondary, alert, alert-error, alert-success, data-table, form-input,
+       badge, badge-*, row-danger, row-warning, empty-state) are defined once in app.css per
+       UI-CONVENTIONS.md. Only page-specific styles (layout, ROI cards/panels) live here. */
+    .section { background: #fff; border: 1px solid #d4d9e0; border-radius: 4px; padding: 16px; margin-bottom: 16px; }
     .filter-bar { display: flex; gap: 12px; align-items: center; margin-bottom: 12px; flex-wrap: wrap; }
-    .data-table { width: 100%; border-collapse: collapse; font-size: 0.9em; }
-    .data-table th { background: #f8f9fa; padding: 8px; text-align: left; border-bottom: 2px solid #dee2e6; }
-    .data-table td { padding: 6px 8px; border-bottom: 1px solid #f0f0f0; }
-    .data-table tr:hover td { background: #f8f9fa; }
-    .row-critical td { background: #fff5f5 !important; }
-    .row-warn td { background: #fffbf0 !important; }
-    .text-critical { color: #dc3545; font-weight: bold; }
-    .alert { padding: 10px 14px; border-radius: 4px; margin-bottom: 12px; }
-    .alert-danger { background: #f8d7da; border: 1px solid #f5c2c7; color: #842029; }
-    .alert-warn { background: #fff3cd; border: 1px solid #ffc107; color: #664d03; }
-    .btn { padding: 6px 14px; border: 1px solid #dee2e6; border-radius: 4px; cursor: pointer; background: #f8f9fa; }
-    .btn-primary { background: #0d6efd; color: white; border-color: #0d6efd; }
-    .btn-success { background: #198754; color: white; border-color: #198754; }
-    .btn-danger { background: #dc3545; color: white; border-color: #dc3545; }
-    .btn-sm { padding: 3px 8px; font-size: 0.85em; margin-right: 4px; }
-    .badge { padding: 2px 8px; border-radius: 12px; font-size: 0.8em; }
-    .badge-critical { background: #dc3545; color: white; }
-    .badge-warn { background: #ffc107; color: #212529; }
-    .badge-info { background: #e2e8f0; color: #374151; }
-    .form-panel { background: #f8f9fa; border: 1px solid #dee2e6; border-radius: 4px; padding: 16px; margin-top: 16px; }
+    .text-critical { color: #b91c1c; font-weight: bold; }
+    .alert-warn { background: #fff8e6; border: 1px solid #f5d98a; color: #7a5b00; }
+    .form-panel { background: #f4f6f9; border: 1px solid #d4d9e0; border-radius: 4px; padding: 16px; margin-top: 16px; }
     .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 12px; }
-    .form-grid label { display: flex; flex-direction: column; gap: 4px; font-size: 0.9em; }
-    .form-grid input, .form-grid select { padding: 4px 8px; border: 1px solid #ced4da; border-radius: 4px; }
+    .form-grid label { display: flex; flex-direction: column; gap: 4px; font-size: 0.9em; color: #333; }
+    .form-grid input, .form-grid select { padding: 4px 8px; border: 1px solid #d4d9e0; border-radius: 4px; }
     .form-actions { display: flex; gap: 8px; margin-top: 12px; }
     .stat-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 12px; }
-    .stat-box { background: #f8f9fa; border: 1px solid #dee2e6; border-radius: 6px; padding: 16px; text-align: center; }
-    .stat-box.warn { border-color: #ffc107; background: #fffbf0; }
-    .stat-box.critical { border-color: #dc3545; background: #fff5f5; }
-    .stat-value { font-size: 2em; font-weight: bold; color: #1a1a2e; }
-    .stat-label { font-size: 0.8em; color: #6c757d; margin-top: 4px; }
-    .text-muted { color: #6c757d; font-size: 0.9em; }
+    .stat-box { background: #f4f6f9; border: 1px solid #d4d9e0; border-radius: 6px; padding: 16px; text-align: center; }
+    .stat-box.warn { border-color: #f5d98a; background: #fff8e6; }
+    .stat-box.critical { border-color: #f5c6c6; background: #fef2f2; }
+    .stat-value { font-size: 2em; font-weight: bold; color: #003f72; }
+    .stat-label { font-size: 0.8em; color: #555; margin-top: 4px; }
+    .text-muted { color: #555; font-size: 0.9em; }
 </style>

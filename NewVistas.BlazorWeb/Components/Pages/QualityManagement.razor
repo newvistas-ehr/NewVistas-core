@@ -19,10 +19,10 @@
 }
 
 <!-- Tab bar -->
-<div style="display:flex;gap:.5rem;margin-bottom:1rem;border-bottom:2px solid #ccc;">
-    <button class="tab-btn @(activeTab=="incidents"?"active":"")" @onclick='()=>SwitchTab("incidents")'>Incident Reporting</button>
-    <button class="tab-btn @(activeTab=="reviews"?"active":"")" @onclick='()=>SwitchTab("reviews")'>Peer Reviews</button>
-    <button class="tab-btn @(activeTab=="dashboard"?"active":"")" @onclick='()=>SwitchTab("dashboard")'>RCA Dashboard</button>
+<div class="tab-bar">
+    <button class="tab @(activeTab=="incidents"?"active":"")" @onclick='()=>SwitchTab("incidents")'>Incident Reporting</button>
+    <button class="tab @(activeTab=="reviews"?"active":"")" @onclick='()=>SwitchTab("reviews")'>Peer Reviews</button>
+    <button class="tab @(activeTab=="dashboard"?"active":"")" @onclick='()=>SwitchTab("dashboard")'>RCA Dashboard</button>
 </div>
 
 <!-- ── Incident Reporting Tab ──────────────────────────────────────────── -->
@@ -35,8 +35,8 @@
                 <option value="">All Severities</option>
                 @foreach (string s in severities) { <option>@s</option> }
             </select>
-            <button @onclick="ApplySeverityFilter" style="padding:.3rem .7rem;">Filter</button>
-            <button @onclick="()=>showReportForm=!showReportForm" style="padding:.3rem .7rem;">
+            <button class="btn btn-secondary" @onclick="ApplySeverityFilter">Filter</button>
+            <button class="btn btn-primary" @onclick="()=>showReportForm=!showReportForm">
                 @(showReportForm ? "Cancel" : "+ Report Incident")
             </button>
         </div>
@@ -71,7 +71,7 @@
                 <label>Immediate Action</label>
                 <textarea @bind="newInc.ImmediateAction" rows="2" style="flex:1;padding:.25rem .5rem;"></textarea>
             </div>
-            <button @onclick="ReportIncident" style="margin-top:.5rem;padding:.3rem .8rem;">Submit Report</button>
+            <button class="btn btn-primary" style="margin-top:.5rem;" @onclick="ReportIncident">Submit Report</button>
             @if (incMsg != null) { <span style="margin-left:.5rem;color:green;">@incMsg</span> }
         </div>
     }
@@ -80,7 +80,7 @@
     else if (incidents.Count == 0) { <p style="color:#666;">No incidents on record.</p> }
     else
     {
-        <table class="qm-table">
+        <table class="data-table">
             <thead>
                 <tr>
                     <th>Date</th>
@@ -107,7 +107,7 @@
                         <td>
                             @if (i.Status is "Reported" or "UnderReview" or "PeerReviewAssigned" or "RCAInProgress")
                             {
-                                <button @onclick="()=>SelectIncidentForClose(i.IncidentId)" style="padding:.2rem .5rem;font-size:.8rem;">Close</button>
+                                <button class="btn btn-secondary" @onclick="()=>SelectIncidentForClose(i.IncidentId)">Close</button>
                             }
                         </td>
                     </tr>
@@ -120,8 +120,8 @@
             <div class="form-card" style="margin-top:.5rem;">
                 <h5 style="margin-top:0;">Close Incident</h5>
                 <p style="color:#555;font-size:.9rem;">Confirm closure of incident @closeIncidentId.Split(':').Last()[..8]…</p>
-                <button @onclick="CloseIncident" style="padding:.3rem .7rem;">Confirm Close</button>
-                <button @onclick="()=>closeIncidentId=null" style="margin-left:.5rem;padding:.3rem .7rem;">Cancel</button>
+                <button class="btn btn-primary" @onclick="CloseIncident">Confirm Close</button>
+                <button class="btn btn-secondary" style="margin-left:.5rem;" @onclick="()=>closeIncidentId=null">Cancel</button>
             </div>
         }
     }
@@ -132,7 +132,7 @@
 {
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.5rem;">
         <h4 style="margin:0;">Peer Reviews &amp; RCAs</h4>
-        <button @onclick="()=>showAssignForm=!showAssignForm" style="padding:.3rem .7rem;">
+        <button class="btn btn-primary" @onclick="()=>showAssignForm=!showAssignForm">
             @(showAssignForm ? "Cancel" : "+ Assign Review")
         </button>
     </div>
@@ -156,7 +156,7 @@
                     <span style="font-size:.85rem;color:#555;">Peer review protected</span>
                 </div>
             </div>
-            <button @onclick="AssignReview" style="margin-top:.5rem;padding:.3rem .8rem;">Assign Review</button>
+            <button class="btn btn-primary" style="margin-top:.5rem;" @onclick="AssignReview">Assign Review</button>
             @if (revMsg != null) { <span style="margin-left:.5rem;color:green;">@revMsg</span> }
         </div>
     }
@@ -165,7 +165,7 @@
     else if (reviews.Count == 0) { <p style="color:#666;">No reviews on record.</p> }
     else
     {
-        <table class="qm-table">
+        <table class="data-table">
             <thead>
                 <tr>
                     <th>Type</th>
@@ -192,7 +192,7 @@
                         <td>
                             @if (r.Status is "Pending" or "InProgress")
                             {
-                                <button @onclick="()=>SelectReviewForComplete(r.ReviewId)" style="padding:.2rem .5rem;font-size:.8rem;">Complete</button>
+                                <button class="btn btn-primary" @onclick="()=>SelectReviewForComplete(r.ReviewId)">Complete</button>
                             }
                         </td>
                     </tr>
@@ -210,8 +210,8 @@
                 <div class="form-row"><label>Lessons Learned</label>
                     <textarea @bind="completeLessonsLearned" rows="2" style="flex:1;padding:.25rem .5rem;"></textarea>
                 </div>
-                <button @onclick="CompleteReview" style="padding:.3rem .7rem;margin-top:.5rem;">Complete Review</button>
-                <button @onclick="()=>completeReviewId=null" style="margin-left:.5rem;padding:.3rem .7rem;">Cancel</button>
+                <button class="btn btn-primary" style="margin-top:.5rem;" @onclick="CompleteReview">Complete Review</button>
+                <button class="btn btn-secondary" style="margin-left:.5rem;" @onclick="()=>completeReviewId=null">Cancel</button>
             </div>
         }
     }
@@ -274,8 +274,7 @@
 }
 
 <style>
-    .tab-btn { padding:.4rem 1rem;border:1px solid #ccc;border-bottom:none;background:#f5f5f5;cursor:pointer;border-radius:4px 4px 0 0; }
-    .tab-btn.active { background:white;font-weight:bold;border-bottom:2px solid white;margin-bottom:-2px; }
+    /* canonical tabs (.tab / .tab-bar) live in app.css */
     .form-card { background:#f9f9f9;border:1px solid #ddd;border-radius:6px;padding:1rem;margin-bottom:1rem; }
     .form-grid { display:grid;grid-template-columns:1fr 1fr;gap:.25rem; }
     .form-row { display:flex;align-items:center;gap:.5rem;margin-bottom:.4rem; }
@@ -563,33 +562,33 @@
 
     string SeverityBadge(string s) => s.ToLower() switch
     {
-        "nearmiss"    => "badge-nearmiss",
-        "noharm"      => "badge-noharm",
-        "minorrharm"  => "badge-minor",
-        "moderateharm"=> "badge-moderate",
-        "severeharm"  => "badge-severe",
-        "death"       => "badge-death",
-        _             => "badge-noharm"
+        "nearmiss"    => "badge-success",
+        "noharm"      => "badge-info",
+        "minorrharm"  => "badge-warning",
+        "moderateharm"=> "badge-warning",
+        "severeharm"  => "badge-danger",
+        "death"       => "badge-danger",
+        _             => "badge-info"
     };
 
     string StatusBadge(string s) => s.ToLower() switch
     {
-        "reported"         => "badge-reported",
-        "underreview"      => "badge-review",
-        "peerreviewassigned" => "badge-review",
-        "rcainprogress"    => "badge-rca",
-        "closed"           => "badge-closed",
-        "voided"           => "badge-voided",
-        _                  => "badge-reported"
+        "reported"         => "badge-info",
+        "underreview"      => "badge-warning",
+        "peerreviewassigned" => "badge-warning",
+        "rcainprogress"    => "badge-warning",
+        "closed"           => "badge-success",
+        "voided"           => "badge-neutral",
+        _                  => "badge-info"
     };
 
     string ReviewBadge(string s) => s.ToLower() switch
     {
-        "pending"   => "badge-pending",
-        "inprogress"=> "badge-progress",
-        "completed" => "badge-completed",
-        "approved"  => "badge-approved",
-        _           => "badge-pending"
+        "pending"   => "badge-warning",
+        "inprogress"=> "badge-info",
+        "completed" => "badge-success",
+        "approved"  => "badge-success",
+        _           => "badge-warning"
     };
 
     // ── Local enums (mirror server-side values) ─────────────────────────────

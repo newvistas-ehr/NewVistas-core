@@ -15,9 +15,9 @@
 <div class="med-container">
     <div class="med-header">
         <h2>Medicine — Procedures</h2>
-        <div class="patient-bar">
-            <input @bind="patientId" placeholder="Patient ID" class="patient-input" />
-            <button @onclick="LoadAll" class="btn-load">Load</button>
+        <div class="lookup-bar">
+            <input @bind="patientId" placeholder="Patient ID" class="lookup-input" />
+            <button @onclick="LoadAll" class="btn btn-primary">Load</button>
         </div>
     </div>
 
@@ -31,9 +31,9 @@
     }
 
     <div class="tab-bar">
-        <button class="tab-btn @TabClass("procedures")" @onclick='() => SetTab("procedures")'>Procedures</button>
-        <button class="tab-btn @TabClass("ecg")"        @onclick='() => SetTab("ecg")'>ECG Review</button>
-        <button class="tab-btn @TabClass("order")"      @onclick='() => SetTab("order")'>Order Procedure</button>
+        <button class="tab @TabClass("procedures")" @onclick='() => SetTab("procedures")'>Procedures</button>
+        <button class="tab @TabClass("ecg")"        @onclick='() => SetTab("ecg")'>ECG Review</button>
+        <button class="tab @TabClass("order")"      @onclick='() => SetTab("order")'>Order Procedure</button>
     </div>
 
     <!-- ── Procedures Tab ─────────────────────────────────────────────────── -->
@@ -72,7 +72,7 @@
                 </div>
             </div>
 
-            <table class="med-table">
+            <table class="data-table">
                 <thead>
                     <tr>
                         <th>Date Ordered</th>
@@ -93,7 +93,7 @@
                             <td><span class="cat-badge @CategoryClass(p.Category)">@CategoryLabel(p.Category)</span></td>
                             <td>@p.ProcedureDescription</td>
                             <td class="code-cell">@p.ProcedureCode</td>
-                            <td><span class="status-chip @StatusClass(p.Status)">@p.Status</span></td>
+                            <td><span class="badge @StatusClass(p.Status)">@p.Status</span></td>
                             <td>@(p.ProviderName ?? "—")</td>
                             <td class="impression-cell">@(p.Impression ?? "—")</td>
                         </tr>
@@ -253,8 +253,8 @@
                                 <textarea @bind="completionFindings" placeholder="Findings (narrative)…" rows="3" class="narrative-input"></textarea>
                                 <textarea @bind="completionImpression" placeholder="Impression / Conclusion…" rows="2" class="narrative-input"></textarea>
                                 <div class="action-row">
-                                    <button @onclick="CompleteProcedure" class="btn-complete">Complete Procedure</button>
-                                    <button @onclick="CancelProcedure" class="btn-cancel-proc">Cancel Procedure</button>
+                                    <button @onclick="CompleteProcedure" class="btn btn-primary">Complete Procedure</button>
+                                    <button @onclick="CancelProcedure" class="btn btn-secondary">Cancel Procedure</button>
                                 </div>
                             </div>
                         </div>
@@ -277,7 +277,7 @@
         }
         else
         {
-            <table class="med-table">
+            <table class="data-table">
                 <thead>
                     <tr>
                         <th>Date</th>
@@ -345,7 +345,7 @@
                 <input type="date" @bind="orderDate" class="input-sm" />
             </div>
 
-            <button @onclick="SubmitOrder" class="btn-submit" disabled="@orderSubmitting">
+            <button @onclick="SubmitOrder" class="btn btn-primary" disabled="@orderSubmitting">
                 @(orderSubmitting ? "Ordering…" : "Place Order")
             </button>
         </div>
@@ -353,33 +353,25 @@
 </div>
 
 <style>
+    /* Canonical interaction classes (lookup-bar, lookup-input, tab-bar, tab, btn,
+       btn-primary, btn-secondary, alert, alert-error, alert-success, data-table, badge,
+       badge-*, loading, empty-state) are defined once in app.css per UI-CONVENTIONS.md.
+       Only page-specific styles (layout, stat cards, detail grids, clinical color cues) live here. */
     .med-container { font-family: 'Segoe UI', sans-serif; max-width: 1200px; margin: 0 auto; padding: 1rem; }
     .med-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; }
-    .med-header h2 { margin: 0; font-size: 1.4rem; color: #1a3a5c; }
-    .patient-bar { display: flex; gap: .5rem; align-items: center; }
-    .patient-input { border: 1px solid #bcd; border-radius: 4px; padding: .35rem .6rem; font-size: .9rem; width: 200px; }
-    .btn-load { background: #1a6fb5; color: white; border: none; border-radius: 4px; padding: .35rem .9rem; cursor: pointer; }
-    .alert-error   { background: #fde; border: 1px solid #e99; border-radius: 4px; padding: .6rem; margin-bottom: .8rem; color: #900; }
-    .alert-success { background: #dfd; border: 1px solid #9c9; border-radius: 4px; padding: .6rem; margin-bottom: .8rem; color: #060; }
-    .tab-bar { display: flex; gap: .4rem; border-bottom: 2px solid #ddd; margin-bottom: 1rem; }
-    .tab-btn { background: none; border: none; padding: .5rem 1.2rem; cursor: pointer; color: #555; font-size: .9rem; border-bottom: 3px solid transparent; margin-bottom: -2px; }
-    .tab-btn.active { color: #1a6fb5; border-bottom-color: #1a6fb5; font-weight: 600; }
+    .med-header h2 { margin: 0; font-size: 1.4rem; color: #003f72; }
     .filter-bar { display: flex; align-items: center; gap: .6rem; margin-bottom: .7rem; font-size: .85rem; }
-    .select-sm { border: 1px solid #bcd; border-radius: 4px; padding: .3rem .5rem; font-size: .85rem; }
+    .select-sm { border: 1px solid #d4d9e0; border-radius: 4px; padding: .3rem .5rem; font-size: .85rem; }
     .stat-cards { display: flex; gap: .8rem; margin-bottom: 1rem; }
     .stat-card { background: #f5f9ff; border: 1px solid #d0e4f7; border-radius: 6px; padding: .7rem 1.2rem; text-align: center; min-width: 90px; }
     .stat-card.total { border-color: #a0c4e8; }
     .stat-card.completed { border-color: #7ec77e; background: #f0faf0; }
     .stat-card.pending { border-color: #f0c070; background: #fffbf0; }
-    .stat-num { display: block; font-size: 1.6rem; font-weight: 700; color: #1a3a5c; }
-    .stat-lbl { font-size: .75rem; color: #888; }
-    .med-table { width: 100%; border-collapse: collapse; font-size: .85rem; }
-    .med-table th { background: #e8f0f8; padding: .5rem .7rem; text-align: left; border-bottom: 2px solid #bcd; font-weight: 600; }
-    .med-table td { padding: .45rem .7rem; border-bottom: 1px solid #eee; cursor: pointer; }
-    .med-table tr:hover td { background: #f0f6ff; }
+    .stat-num { display: block; font-size: 1.6rem; font-weight: 700; color: #003f72; }
+    .stat-lbl { font-size: .75rem; color: #555; }
     .row-selected td { background: #ddefff !important; }
     .row-abnormal td { background: #fff8f0; }
-    .code-cell { font-family: monospace; color: #555; }
+    .code-cell { color: #555; }
     .impression-cell { max-width: 200px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-style: italic; color: #444; }
     .cat-badge { padding: .15rem .5rem; border-radius: 10px; font-size: .75rem; font-weight: 600; }
     .cat-ecg { background: #e3f0ff; color: #1a5cb5; }
@@ -387,23 +379,17 @@
     .cat-pft { background: #e3ffe3; color: #1a8f1a; }
     .cat-gi { background: #fff3e3; color: #b55a1a; }
     .cat-other { background: #f0f0f0; color: #555; }
-    .status-chip { padding: .15rem .5rem; border-radius: 10px; font-size: .75rem; font-weight: 600; }
-    .status-ordered   { background: #e8f0ff; color: #1a3a8c; }
-    .status-scheduled { background: #fff0e8; color: #8c5a1a; }
-    .status-inprogress { background: #fff8e0; color: #8c7a00; }
-    .status-completed { background: #e8ffe8; color: #1a7a1a; }
-    .status-cancelled { background: #f8e8e8; color: #8c1a1a; }
-    .detail-panel { border: 1px solid #cde; border-radius: 6px; padding: 1rem; margin-top: 1rem; background: #f8fbff; }
-    .detail-header h3 { margin: 0 0 .5rem; font-size: 1.1rem; color: #1a3a5c; }
-    .detail-code { font-family: monospace; font-size: .85rem; color: #666; margin-left: .5rem; }
-    .detail-meta { display: flex; gap: 1rem; font-size: .8rem; color: #666; margin-bottom: .8rem; }
+    .detail-panel { border: 1px solid #d4d9e0; border-radius: 6px; padding: 1rem; margin-top: 1rem; background: #f9fafb; }
+    .detail-header h3 { margin: 0 0 .5rem; font-size: 1.1rem; color: #003f72; }
+    .detail-code { font-size: .85rem; color: #555; margin-left: .5rem; }
+    .detail-meta { display: flex; gap: 1rem; font-size: .8rem; color: #555; margin-bottom: .8rem; }
     .detail-section { margin-bottom: .9rem; }
     .narrative { background: white; border: 1px solid #ddd; border-radius: 4px; padding: .5rem; margin-top: .3rem; white-space: pre-wrap; font-size: .85rem; line-height: 1.5; }
-    .impression-section .narrative { border-color: #90c; color: #60a; }
-    .ecg-grid, .pft-grid, .echo-grid, .endo-grid { background: white; border: 1px solid #dde; border-radius: 4px; padding: .7rem; }
+    .impression-section .narrative { border-color: #d4d9e0; color: #333; }
+    .ecg-grid, .pft-grid, .echo-grid, .endo-grid { background: white; border: 1px solid #d4d9e0; border-radius: 4px; padding: .7rem; }
     .ecg-row, .pft-row, .echo-row, .endo-row { display: grid; grid-template-columns: repeat(6, auto); gap: .4rem .8rem; margin-top: .4rem; font-size: .85rem; }
-    .ecg-lbl, .pft-lbl, .echo-lbl, .endo-lbl { color: #888; font-size: .75rem; }
-    .ecg-val, .pft-val, .echo-val, .endo-val { font-weight: 600; color: #222; }
+    .ecg-lbl, .pft-lbl, .echo-lbl, .endo-lbl { color: #555; font-size: .75rem; }
+    .ecg-val, .pft-val, .echo-val, .endo-val { font-weight: 600; color: #333; }
     .ecg-interp { margin-top: .5rem; padding: .4rem .7rem; border-radius: 4px; font-size: .85rem; font-weight: 500; }
     .interp-normal   { background: #e8ffe8; color: #1a7a1a; border-left: 3px solid #5c5; }
     .interp-abnormal { background: #fff0e8; color: #8c3a00; border-left: 3px solid #f80; }
@@ -417,20 +403,14 @@
     .ef-mild   { color: #8c7a00; }
     .ef-reduced { color: #8c1a1a; }
     .endo-grid .endo-row { grid-template-columns: repeat(4, auto); }
-    .detail-actions { border-top: 1px solid #ddd; margin-top: 1rem; padding-top: .8rem; }
+    .detail-actions { border-top: 1px solid #d4d9e0; margin-top: 1rem; padding-top: .8rem; }
     .complete-form { display: flex; flex-direction: column; gap: .5rem; }
-    .narrative-input { border: 1px solid #bcd; border-radius: 4px; padding: .4rem .6rem; font-size: .85rem; resize: vertical; }
+    .narrative-input { border: 1px solid #d4d9e0; border-radius: 4px; padding: .4rem .6rem; font-size: .85rem; resize: vertical; }
     .action-row { display: flex; gap: .6rem; }
-    .btn-complete { background: #1a7a1a; color: white; border: none; border-radius: 4px; padding: .4rem .9rem; cursor: pointer; }
-    .btn-cancel-proc { background: #c04040; color: white; border: none; border-radius: 4px; padding: .4rem .9rem; cursor: pointer; }
-    .loading { color: #888; padding: 1rem; text-align: center; }
-    .empty-state { color: #aaa; padding: 2rem; text-align: center; font-style: italic; }
     .order-form { max-width: 600px; }
-    .order-form h3 { color: #1a3a5c; margin-bottom: 1rem; }
+    .order-form h3 { color: #003f72; margin-bottom: 1rem; }
     .form-grid { display: grid; grid-template-columns: 150px 1fr; gap: .6rem .8rem; align-items: center; margin-bottom: 1rem; font-size: .9rem; }
-    .input-sm { border: 1px solid #bcd; border-radius: 4px; padding: .35rem .6rem; font-size: .85rem; }
-    .btn-submit { background: #1a6fb5; color: white; border: none; border-radius: 4px; padding: .5rem 1.4rem; cursor: pointer; font-size: .95rem; }
-    .btn-submit:disabled { background: #aaa; cursor: not-allowed; }
+    .input-sm { border: 1px solid #d4d9e0; border-radius: 4px; padding: .35rem .6rem; font-size: .85rem; }
 </style>
 
 @code {
@@ -606,12 +586,12 @@
 
     string StatusClass(object status) => status.ToString() switch
     {
-        "Ordered"    => "status-ordered",
-        "Scheduled"  => "status-scheduled",
-        "InProgress" => "status-inprogress",
-        "Completed"  => "status-completed",
-        "Cancelled"  => "status-cancelled",
-        _            => "status-ordered"
+        "Ordered"    => "badge-info",
+        "Scheduled"  => "badge-warning",
+        "InProgress" => "badge-warning",
+        "Completed"  => "badge-success",
+        "Cancelled"  => "badge-neutral",
+        _            => "badge-info"
     };
 
     string StatusRowClass(object status) => status.ToString() switch

@@ -17,9 +17,9 @@
 @if (success != null) { <div class="alert alert-success">@success</div> }
 
 <div class="tab-bar">
-    <button class="tab-btn @(activeTab == 0 ? "active" : "")" @onclick="() => activeTab = 0">Addresses</button>
-    <button class="tab-btn @(activeTab == 1 ? "active" : "")" @onclick="() => activeTab = 1">Messages</button>
-    <button class="tab-btn @(activeTab == 2 ? "active" : "")" @onclick="() => activeTab = 2">Compose</button>
+    <button class="tab @(activeTab == 0 ? "active" : "")" @onclick="() => activeTab = 0">Addresses</button>
+    <button class="tab @(activeTab == 1 ? "active" : "")" @onclick="() => activeTab = 1">Messages</button>
+    <button class="tab @(activeTab == 2 ? "active" : "")" @onclick="() => activeTab = 2">Compose</button>
 </div>
 
 @* ── Addresses Tab ── *@
@@ -108,12 +108,12 @@
                 @foreach (var m in messages)
                 {
                     <tr>
-                        <td><span class="dir-badge dir-@m.Direction">@m.Direction</span></td>
+                        <td><span class="badge @DirBadgeClass(m.Direction)">@m.Direction</span></td>
                         <td class="code addr-cell">@m.FromAddress</td>
                         <td class="code addr-cell">@m.ToAddress</td>
                         <td>@m.Subject</td>
                         <td>@m.DocumentType</td>
-                        <td><span class="status-badge status-@m.Status">@m.Status</span></td>
+                        <td><span class="badge @StatusBadgeClass(m.Status)">@m.Status</span></td>
                         <td>@m.MdnStatus</td>
                         <td>@m.CreatedDate.ToString("MM/dd HH:mm")</td>
                     </tr>
@@ -179,6 +179,22 @@
     private string sendFrom = string.Empty, sendTo = string.Empty, sendSubject = string.Empty;
     private string sendPatientId = string.Empty, sendDocType = "CCD";
     private bool sending;
+
+    private static string DirBadgeClass(string direction) => direction switch
+    {
+        "outbound" => "badge-info",
+        "inbound"  => "badge-success",
+        _          => "badge-neutral",
+    };
+
+    private static string StatusBadgeClass(string status) => status switch
+    {
+        "sent"     => "badge-success",
+        "received" => "badge-info",
+        "failed"   => "badge-danger",
+        "draft"    => "badge-neutral",
+        _          => "badge-neutral",
+    };
 
     private IDirectAddressIndexGrain GetAddrIndex() => Grains.GetGrain<IDirectAddressIndexGrain>("DIRECT-ADDR-INDEX");
     private IDirectMessageIndexGrain GetMsgIndex() => Grains.GetGrain<IDirectMessageIndexGrain>("DIRECT-MSG-INDEX");
@@ -315,30 +331,14 @@
 }
 
 <style>
-    h1 { color: #ddd; }
-    .btn { padding: 0.5rem 1.25rem; border: none; border-radius: 4px; cursor: pointer; font-size: 0.85rem; }
-    .btn-primary { background: #003f72; color: white; } .btn-primary:disabled { background: #555; cursor: not-allowed; }
-    .btn-secondary { background: #374151; color: #ddd; border: 1px solid #555; }
-    .alert { padding: 0.75rem 1rem; border-radius: 4px; margin-bottom: 1rem; }
-    .alert-error { background: #451a1a; color: #fca5a5; border: 1px solid #7f1d1d; }
-    .alert-success { background: #14332a; color: #6ee7b7; border: 1px solid #065f46; }
-    .empty-state { color: #888; font-style: italic; padding: 2rem 0; }
-    .tab-bar { display: flex; gap: 0; border-bottom: 2px solid #444; margin-bottom: 1.5rem; }
-    .tab-btn { padding: 0.6rem 1.25rem; border: none; background: transparent; cursor: pointer; font-size: 0.85rem; font-weight: 500; color: #999; border-bottom: 2px solid transparent; margin-bottom: -2px; }
-    .tab-btn.active { color: #60a5fa; border-bottom-color: #60a5fa; font-weight: 600; }
-    .form-section { max-width: 700px; } .form-section h3 { color: #ddd; }
+    /* Canonical interaction classes (tab-bar, tab, btn, btn-primary, btn-secondary,
+       alert, alert-error, alert-success, data-table, form-input, badge, badge-*,
+       empty-state) are defined once in app.css per UI-CONVENTIONS.md.
+       Only page-specific styles (layout, code/address text) live here. */
+    .form-section { max-width: 700px; }
     .form-row { display: flex; align-items: center; gap: 1rem; margin-bottom: 0.75rem; }
-    .form-row label:first-child { width: 160px; font-size: 0.85rem; font-weight: 500; color: #ccc; flex-shrink: 0; }
-    .form-input { flex: 1; padding: 0.4rem 0.6rem; border: 1px solid #555; border-radius: 4px; font-size: 0.85rem; max-width: 350px; background: #2d2d2d; color: #ddd; }
-    select.form-input { appearance: auto; }
+    .form-row label:first-child { width: 160px; font-size: 0.85rem; font-weight: 500; color: #333; flex-shrink: 0; }
+    .form-input { max-width: 350px; }
     .form-actions { display: flex; gap: 0.75rem; margin-top: 1rem; margin-bottom: 1.5rem; }
-    .data-table { width: 100%; border-collapse: collapse; font-size: 0.85rem; color: #ddd; }
-    .data-table th { text-align: left; padding: 0.5rem; font-weight: 600; color: #60a5fa; border-bottom: 2px solid #444; font-size: 0.75rem; text-transform: uppercase; background: #252525; }
-    .data-table td { padding: 0.4rem 0.5rem; border-bottom: 1px solid #333; } .data-table tr:hover { background: #2a2a2a; }
-    .code { font-family: monospace; color: #60a5fa; } .addr-cell { font-size: 0.8rem; }
-    .dir-badge { display: inline-block; padding: 0.15rem 0.5rem; border-radius: 3px; font-size: 0.75rem; font-weight: 600; text-transform: uppercase; }
-    .dir-badge.dir-outbound { background: #1e3a5f; color: #93c5fd; } .dir-badge.dir-inbound { background: #14332a; color: #6ee7b7; }
-    .status-badge { display: inline-block; padding: 0.15rem 0.5rem; border-radius: 3px; font-size: 0.75rem; font-weight: 600; }
-    .status-badge.status-sent { background: #14332a; color: #6ee7b7; } .status-badge.status-received { background: #1e3a5f; color: #93c5fd; }
-    .status-badge.status-failed { background: #451a1a; color: #fca5a5; } .status-badge.status-draft { background: #374151; color: #ccc; }
+    .code { font-family: inherit; color: #003f72; } .addr-cell { font-size: 0.8rem; }
 </style>

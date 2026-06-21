@@ -15,7 +15,7 @@
 <h2>Lab Specimen Shipping</h2>
 <p class="subtitle">VistA File #62.8 / #62.9 — shipping manifests and reference lab configuration</p>
 
-<div class="tabs">
+<div class="tab-bar">
     <button class="@TabClass("manifests")" @onclick='() => SetTab("manifests")'>Manifest Lookup</button>
     <button class="@TabClass("create")" @onclick='() => SetTab("create")'>Create Manifest</button>
     <button class="@TabClass("configs")" @onclick='() => SetTab("configs")'>Shipping Configs</button>
@@ -23,21 +23,21 @@
 
 @if (!string.IsNullOrEmpty(error))
 {
-    <div class="error">@error</div>
+    <div class="alert alert-error">@error</div>
 }
 
 @if (!string.IsNullOrEmpty(successMsg))
 {
-    <div class="success">@successMsg</div>
+    <div class="alert alert-success">@successMsg</div>
 }
 
 @* ── Tab 1: Manifest Lookup ──────────────────────────────────── *@
 @if (activeTab == "manifests")
 {
-    <div class="toolbar">
-        <input @bind="manifestIdInput" placeholder="Manifest ID (e.g. DEMO-MAN-001)" class="input-id" />
-        <button @onclick="LoadManifest" disabled="@loading">Load Manifest</button>
-        <button @onclick="LoadDemo" disabled="@loading" class="btn-demo">Load Demo Data</button>
+    <div class="lookup-bar">
+        <input @bind="manifestIdInput" placeholder="Manifest ID (e.g. DEMO-MAN-001)" class="lookup-input" />
+        <button @onclick="LoadManifest" disabled="@loading" class="btn btn-primary">Load Manifest</button>
+        <button @onclick="LoadDemo" disabled="@loading" class="btn btn-secondary">Load Demo Data</button>
     </div>
 
     @if (loading) { <p class="loading-msg">Loading...</p> }
@@ -101,17 +101,17 @@
                                 <td>
                                     @if (spec.IsRemoved)
                                     {
-                                        <span class="badge badge-removed">REMOVED</span>
+                                        <span class="badge badge-neutral">REMOVED</span>
                                     }
                                     else
                                     {
-                                        <span class="badge badge-active">ACTIVE</span>
+                                        <span class="badge badge-success">ACTIVE</span>
                                     }
                                 </td>
                                 <td>
                                     @if (!spec.IsRemoved && manifest.Status == ShippingManifestStatus.OPEN)
                                     {
-                                        <button class="btn-sm btn-remove" @onclick="() => RemoveSpecimen(spec.SpecimenId)">Remove</button>
+                                        <button class="btn btn-primary" @onclick="() => RemoveSpecimen(spec.SpecimenId)">Remove</button>
                                     }
                                 </td>
                             </tr>
@@ -134,24 +134,24 @@
                     <label>Test Name: <input @bind="addSpecTest" /></label>
                     <label>LOINC Code: <input @bind="addSpecLoinc" placeholder="(optional)" /></label>
                     <label>Specimen Type: <input @bind="addSpecType" placeholder="(optional)" /></label>
-                    <button @onclick="SubmitAddSpecimen">Add Specimen</button>
+                    <button class="btn btn-primary" @onclick="SubmitAddSpecimen">Add Specimen</button>
                 </div>
 
                 <div class="action-panel">
                     <h4>Ship Manifest</h4>
                     <label>Tracking Number: <input @bind="shipTrackingNumber" placeholder="(optional)" /></label>
-                    <button @onclick="SubmitShip">Ship</button>
+                    <button class="btn btn-primary" @onclick="SubmitShip">Ship</button>
                 </div>
 
                 <div class="action-panel">
-                    <button class="btn-cancel" @onclick="SubmitCancel">Cancel Manifest</button>
+                    <button class="btn btn-secondary" @onclick="SubmitCancel">Cancel Manifest</button>
                 </div>
             }
 
             @if (manifest.Status == ShippingManifestStatus.SHIPPED)
             {
                 <div class="action-panel">
-                    <button @onclick="SubmitReceived">Mark as Received</button>
+                    <button class="btn btn-primary" @onclick="SubmitReceived">Mark as Received</button>
                 </div>
             }
         </div>
@@ -169,16 +169,16 @@
         <label>Conditions: <input @bind="newConditions" placeholder="e.g. Ambient, Refrigerated" /></label>
         <label>Container Type: <input @bind="newContainer" placeholder="(optional)" /></label>
         <label>Created By: <input @bind="newCreatedBy" /></label>
-        <button @onclick="SubmitCreateManifest" disabled="@(string.IsNullOrWhiteSpace(newConfigId) || string.IsNullOrWhiteSpace(newDestLab))">Create</button>
+        <button class="btn btn-primary" @onclick="SubmitCreateManifest" disabled="@(string.IsNullOrWhiteSpace(newConfigId) || string.IsNullOrWhiteSpace(newDestLab))">Create</button>
     </div>
 }
 
 @* ── Tab 3: Shipping Configs ──────────────────────────────────── *@
 @if (activeTab == "configs")
 {
-    <div class="toolbar">
-        <input @bind="configIdInput" placeholder="Config ID (e.g. QUEST-001)" class="input-id" />
-        <button @onclick="LoadConfig" disabled="@loading">Load Config</button>
+    <div class="lookup-bar">
+        <input @bind="configIdInput" placeholder="Config ID (e.g. QUEST-001)" class="lookup-input" />
+        <button @onclick="LoadConfig" disabled="@loading" class="btn btn-primary">Load Config</button>
     </div>
 
     @if (config is not null)
@@ -196,11 +196,11 @@
                     <span class="label">Status:</span>
                     @if (config.IsActive)
                     {
-                        <span class="badge badge-active">ACTIVE</span>
+                        <span class="badge badge-success">ACTIVE</span>
                     }
                     else
                     {
-                        <span class="badge badge-inactive">INACTIVE</span>
+                        <span class="badge badge-neutral">INACTIVE</span>
                     }
                 </div>
             </div>
@@ -210,7 +210,7 @@
                 <div class="test-list">
                     @foreach (string test in config.AcceptedTests)
                     {
-                        <span class="badge badge-test">@test</span>
+                        <span class="test-code">@test</span>
                     }
                 </div>
             }
@@ -230,7 +230,7 @@
         <label>
             <input type="checkbox" @bind="updIsActive" /> Active
         </label>
-        <button @onclick="SubmitUpdateConfig" disabled="@(string.IsNullOrWhiteSpace(updConfigId) || string.IsNullOrWhiteSpace(updLabName))">Update</button>
+        <button class="btn btn-primary" @onclick="SubmitUpdateConfig" disabled="@(string.IsNullOrWhiteSpace(updConfigId) || string.IsNullOrWhiteSpace(updLabName))">Update</button>
     </div>
 }
 
@@ -277,7 +277,7 @@
     string updAcceptedTests = string.Empty;
     bool updIsActive = true;
 
-    string TabClass(string tab) => activeTab == tab ? "tab-btn active" : "tab-btn";
+    string TabClass(string tab) => activeTab == tab ? "tab active" : "tab";
 
     void SetTab(string tab) { activeTab = tab; error = null; successMsg = null; }
 
@@ -289,11 +289,11 @@
 
     string StatusBadge(string status) => status switch
     {
-        "OPEN" => "badge-open",
-        "SHIPPED" => "badge-shipped",
-        "RECEIVED" => "badge-received",
-        "CANCELLED" => "badge-cancelled",
-        _ => "badge-inactive"
+        "OPEN" => "badge-warning",
+        "SHIPPED" => "badge-info",
+        "RECEIVED" => "badge-success",
+        "CANCELLED" => "badge-neutral",
+        _ => "badge-neutral"
     };
 
     async Task LoadManifest()
@@ -479,45 +479,23 @@
 }
 
 <style>
-    .subtitle { color: #888; margin-top: -8px; font-size: 0.9em; }
-    .tabs { display: flex; gap: 4px; margin: 16px 0 12px; }
-    .tab-btn { padding: 8px 18px; border: 1px solid #555; border-bottom: none; border-radius: 6px 6px 0 0; cursor: pointer; background: #333; color: #ccc; }
-    .tab-btn.active { background: #1a1a2e; color: #fff; font-weight: bold; border-color: #667; }
-    .toolbar { display: flex; gap: 8px; margin: 12px 0; align-items: center; }
-    .input-id { padding: 6px; border: 1px solid #555; border-radius: 4px; width: 300px; background: #1a1a2e; color: #eee; }
-    button { padding: 6px 14px; border: 1px solid #555; border-radius: 4px; cursor: pointer; background: #2a2a3e; color: #eee; }
-    button:hover:not(:disabled) { background: #3a3a5e; }
-    button:disabled { opacity: .5; cursor: not-allowed; }
-    .btn-demo { background: #1a3a5a; }
-    .btn-sm { padding: 2px 7px; font-size: 0.78em; }
-    .btn-remove { background: #4a1a1a; color: #faa; }
-    .btn-cancel { background: #5a2a2a; color: #fcc; }
-    .loading-msg { color: #aaa; }
-    .error { color: #f66; margin: 8px 0; padding: 8px; background: #3a1a1a; border-radius: 4px; }
-    .success { color: #6f6; margin: 8px 0; padding: 8px; background: #1a3a1a; border-radius: 4px; }
-    .detail-panel { margin-top: 16px; padding: 16px; background: #1a1a2e; border: 1px solid #444; border-radius: 6px; }
+    /* Canonical interaction classes (lookup-bar, lookup-input, tab-bar, tab, btn,
+       btn-primary, btn-secondary, alert, alert-error, alert-success, data-table,
+       badge, badge-*) are defined once in app.css per UI-CONVENTIONS.md.
+       Only page-specific styles (light canonical palette) live here. */
+    .subtitle { color: #555; margin-top: -8px; font-size: 0.9em; }
+    .loading-msg { color: #555; }
+    .detail-panel { margin-top: 16px; padding: 16px; background: #f9fafb; border: 1px solid #d4d9e0; border-radius: 6px; }
     .info-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 8px; margin-bottom: 16px; }
-    .info-item { padding: 4px 0; color: #ccc; }
-    .info-item .label { color: #888; font-weight: bold; }
-    .data-table { width: 100%; border-collapse: collapse; font-size: 0.88em; margin-top: 10px; }
-    .data-table th { background: #2a2a4e; color: #ddd; padding: 6px 10px; text-align: left; }
-    .data-table td { padding: 5px 10px; border-bottom: 1px solid #333; color: #ccc; }
-    .data-table tr:hover { background: #252540; }
+    .info-item { padding: 4px 0; color: #333; }
+    .info-item .label { color: #555; font-weight: bold; }
     .row-removed td { opacity: 0.5; text-decoration: line-through; }
-    .badge { padding: 2px 8px; border-radius: 10px; font-size: 0.78em; font-weight: bold; }
-    .badge-open { background: #d80; color: #fff; }
-    .badge-shipped { background: #46b; color: #fff; }
-    .badge-received { background: #4a4; color: #fff; }
-    .badge-cancelled { background: #666; color: #fff; }
-    .badge-active { background: #4a4; color: #fff; }
-    .badge-inactive { background: #666; color: #fff; }
-    .badge-removed { background: #844; color: #fff; }
-    .badge-test { background: #2a4a6a; color: #cde; margin: 2px 4px; display: inline-block; }
+    .test-code { display: inline-block; background: #e5e7eb; color: #374151; padding: 2px 8px; border-radius: 10px; font-size: 0.78em; margin: 2px 4px; }
     .test-list { margin: 8px 0; }
-    .action-panel { margin-top: 16px; padding: 16px; background: #1e1e30; border: 1px solid #555; border-radius: 6px; display: flex; flex-direction: column; gap: 8px; max-width: 480px; }
-    .action-panel label { display: flex; gap: 10px; align-items: center; color: #ccc; }
-    .action-panel input { flex: 1; padding: 4px; border: 1px solid #555; border-radius: 3px; background: #1a1a2e; color: #eee; }
-    .form-panel { padding: 16px; background: #1a1a2e; border: 1px solid #444; border-radius: 6px; display: flex; flex-direction: column; gap: 10px; max-width: 520px; }
-    .form-panel label { display: flex; gap: 10px; align-items: center; color: #ccc; }
-    .form-panel input[type="text"], .form-panel input:not([type]) { flex: 1; padding: 4px; border: 1px solid #555; border-radius: 3px; background: #12122a; color: #eee; }
+    .action-panel { margin-top: 16px; padding: 16px; background: #f4f6f9; border: 1px solid #d4d9e0; border-radius: 6px; display: flex; flex-direction: column; gap: 8px; max-width: 480px; }
+    .action-panel label { display: flex; gap: 10px; align-items: center; color: #333; }
+    .action-panel input { flex: 1; padding: 4px; border: 1px solid #ccc; border-radius: 3px; }
+    .form-panel { padding: 16px; background: #f4f6f9; border: 1px solid #d4d9e0; border-radius: 6px; display: flex; flex-direction: column; gap: 10px; max-width: 520px; }
+    .form-panel label { display: flex; gap: 10px; align-items: center; color: #333; }
+    .form-panel input[type="text"], .form-panel input:not([type]) { flex: 1; padding: 4px; border: 1px solid #ccc; border-radius: 3px; }
 </style>

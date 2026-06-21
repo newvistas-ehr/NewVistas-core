@@ -13,24 +13,23 @@
 <h2>Compensation &amp; Pension</h2>
 <p>Disability exam scheduling, Disability Benefits Questionnaires (DBQs), and rating preparation.</p>
 
-<div style="margin-bottom:1rem;">
-    <label><strong>Patient ID:</strong></label>
-    <input @bind="patientId" placeholder="Enter patient ID" style="margin-left:.5rem;padding:.3rem .6rem;width:220px;" />
-    <button @onclick="LoadPatient" style="margin-left:.5rem;padding:.3rem .8rem;">Load</button>
+<div class="lookup-bar">
+    <input class="lookup-input" @bind="patientId" placeholder="Patient ID" />
+    <button class="btn btn-primary" @onclick="LoadPatient">Load</button>
 </div>
 
 @if (error != null)
 {
-    <div style="color:red;margin-bottom:1rem;">@error</div>
+    <div class="alert alert-error">@error</div>
 }
 
 @if (patientLoaded)
 {
     <!-- Tab bar -->
-    <div style="display:flex;gap:.5rem;margin-bottom:1rem;border-bottom:2px solid #ccc;">
-        <button class="tab-btn @(activeTab=="exams"?"active":"")" @onclick='()=>activeTab="exams"'>Exam Scheduling</button>
-        <button class="tab-btn @(activeTab=="dbqs"?"active":"")" @onclick='()=>activeTab="dbqs"'>DBQs</button>
-        <button class="tab-btn @(activeTab=="rating"?"active":"")" @onclick='()=>activeTab="rating"'>Rating Prep</button>
+    <div class="tab-bar">
+        <button class="tab @(activeTab=="exams"?"active":"")" @onclick='()=>activeTab="exams"'>Exam Scheduling</button>
+        <button class="tab @(activeTab=="dbqs"?"active":"")" @onclick='()=>activeTab="dbqs"'>DBQs</button>
+        <button class="tab @(activeTab=="rating"?"active":"")" @onclick='()=>activeTab="rating"'>Rating Prep</button>
     </div>
 
     <!-- ── Exam Scheduling Tab ─────────────────────────────────────────── -->
@@ -41,7 +40,7 @@
             <div style="flex:2;min-width:340px;">
                 <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.5rem;">
                     <h4 style="margin:0;">C&amp;P Examinations</h4>
-                    <button @onclick="()=>showScheduleForm=!showScheduleForm" style="padding:.3rem .7rem;">
+                    <button class="btn btn-primary" @onclick="()=>showScheduleForm=!showScheduleForm">
                         @(showScheduleForm ? "Cancel" : "+ Schedule Exam")
                     </button>
                 </div>
@@ -105,7 +104,7 @@
                             <label>Requested By</label>
                             <input @bind="newExam.CreatedBy" placeholder="User / provider" />
                         </div>
-                        <button @onclick="ScheduleExam" style="margin-top:.5rem;padding:.3rem .8rem;">Schedule</button>
+                        <button class="btn btn-primary" @onclick="ScheduleExam" style="margin-top:.5rem;">Schedule</button>
                         @if (scheduleMsg != null) { <span style="margin-left:.5rem;color:green;">@scheduleMsg</span> }
                     </div>
                 }
@@ -120,7 +119,7 @@
                 }
                 else
                 {
-                    <table class="cp-table">
+                    <table class="data-table">
                         <thead>
                             <tr>
                                 <th>Type</th>
@@ -145,7 +144,7 @@
                                     <td>
                                         @if (e.Status == CPExamStatus.Scheduled || e.Status == CPExamStatus.Rescheduled)
                                         {
-                                            <button @onclick="()=>SelectExamForCancel(e.ExamId)" style="padding:.2rem .5rem;font-size:.8rem;">Cancel</button>
+                                            <button class="btn btn-secondary" @onclick="()=>SelectExamForCancel(e.ExamId)">Cancel</button>
                                         }
                                     </td>
                                 </tr>
@@ -159,8 +158,8 @@
                     <div class="form-card" style="margin-top:.5rem;">
                         <h5 style="margin-top:0;">Cancel Exam</h5>
                         <input @bind="cancelReason" placeholder="Reason for cancellation" style="width:100%;margin-bottom:.5rem;" />
-                        <button @onclick="CancelExam" style="padding:.3rem .7rem;">Confirm Cancel</button>
-                        <button @onclick="()=>cancelExamId=null" style="margin-left:.5rem;padding:.3rem .7rem;">Back</button>
+                        <button class="btn btn-primary" @onclick="CancelExam">Confirm Cancel</button>
+                        <button class="btn btn-secondary" @onclick="()=>cancelExamId=null" style="margin-left:.5rem;">Back</button>
                     </div>
                 }
             </div>
@@ -174,7 +173,7 @@
             <div style="flex:2;min-width:340px;">
                 <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.5rem;">
                     <h4 style="margin:0;">Disability Benefits Questionnaires</h4>
-                    <button @onclick="()=>showDbqForm=!showDbqForm" style="padding:.3rem .7rem;">
+                    <button class="btn btn-primary" @onclick="()=>showDbqForm=!showDbqForm">
                         @(showDbqForm ? "Cancel" : "+ Create DBQ")
                     </button>
                 </div>
@@ -221,7 +220,7 @@
                             <label>Diagnosis</label>
                             <input @bind="newDbq.DiagnosisDescription" placeholder="Full diagnosis text" />
                         </div>
-                        <button @onclick="CreateDbq" style="margin-top:.5rem;padding:.3rem .8rem;">Create DBQ</button>
+                        <button class="btn btn-primary" @onclick="CreateDbq" style="margin-top:.5rem;">Create DBQ</button>
                         @if (dbqMsg != null) { <span style="margin-left:.5rem;color:green;">@dbqMsg</span> }
                     </div>
                 }
@@ -236,7 +235,7 @@
                 }
                 else
                 {
-                    <table class="cp-table">
+                    <table class="data-table">
                         <thead>
                             <tr>
                                 <th>Type</th>
@@ -261,7 +260,7 @@
                                     <td>
                                         @if (d.Status == DBQStatus.Draft || d.Status == DBQStatus.Completed)
                                         {
-                                            <button @onclick="()=>SelectDbqForSign(d.DbqId)" style="padding:.2rem .5rem;font-size:.8rem;">Sign</button>
+                                            <button class="btn btn-primary" @onclick="()=>SelectDbqForSign(d.DbqId)">Sign</button>
                                         }
                                     </td>
                                 </tr>
@@ -275,8 +274,8 @@
                     <div class="form-card" style="margin-top:.5rem;">
                         <h5 style="margin-top:0;">Sign DBQ</h5>
                         <input @bind="signedBy" placeholder="Examiner name / credentials" style="width:100%;margin-bottom:.5rem;" />
-                        <button @onclick="SignDbq" style="padding:.3rem .7rem;">Sign &amp; Complete</button>
-                        <button @onclick="()=>signDbqId=null" style="margin-left:.5rem;padding:.3rem .7rem;">Back</button>
+                        <button class="btn btn-primary" @onclick="SignDbq">Sign &amp; Complete</button>
+                        <button class="btn btn-secondary" @onclick="()=>signDbqId=null" style="margin-left:.5rem;">Back</button>
                     </div>
                 }
             </div>
@@ -318,7 +317,7 @@
                         </div>
                     </div>
 
-                    <table class="cp-table">
+                    <table class="data-table">
                         <thead>
                             <tr>
                                 <th>DBQ Type</th>
@@ -348,23 +347,13 @@
 }
 
 <style>
-    .tab-btn {
-        padding: .4rem 1rem;
-        border: 1px solid #ccc;
-        border-bottom: none;
-        background: #f5f5f5;
-        cursor: pointer;
-        border-radius: 4px 4px 0 0;
-    }
-    .tab-btn.active {
-        background: white;
-        font-weight: bold;
-        border-bottom: 2px solid white;
-        margin-bottom: -2px;
-    }
+    /* Canonical interaction classes (lookup-bar, lookup-input, tab-bar, tab, btn,
+       btn-primary, btn-secondary, alert, alert-error, data-table, badge, badge-*)
+       are defined once in app.css per UI-CONVENTIONS.md.
+       Only page-specific styles (form cards, stat boxes) live here. */
     .form-card {
-        background: #f9f9f9;
-        border: 1px solid #ddd;
+        background: #f9fafb;
+        border: 1px solid #d4d9e0;
         border-radius: 6px;
         padding: 1rem;
         margin-bottom: 1rem;
@@ -378,42 +367,13 @@
     .form-row label {
         width: 140px;
         font-size: .85rem;
-        color: #444;
+        color: #333;
         flex-shrink: 0;
     }
     .form-row input, .form-row select {
         flex: 1;
         padding: .25rem .5rem;
     }
-    .cp-table {
-        width: 100%;
-        border-collapse: collapse;
-        font-size: .9rem;
-    }
-    .cp-table th, .cp-table td {
-        border: 1px solid #ddd;
-        padding: .4rem .6rem;
-        text-align: left;
-    }
-    .cp-table th {
-        background: #f0f0f0;
-        font-weight: 600;
-    }
-    .cp-table tr:hover { background: #fafafa; }
-    .badge {
-        display: inline-block;
-        padding: .15rem .5rem;
-        border-radius: 10px;
-        font-size: .78rem;
-        font-weight: 600;
-    }
-    .badge-scheduled { background: #dbeafe; color: #1e40af; }
-    .badge-rescheduled { background: #fef9c3; color: #854d0e; }
-    .badge-completed { background: #dcfce7; color: #166534; }
-    .badge-cancelled { background: #fee2e2; color: #991b1b; }
-    .badge-noshow { background: #f3f4f6; color: #374151; }
-    .badge-draft { background: #f3f4f6; color: #374151; }
-    .badge-signed { background: #dcfce7; color: #166534; }
     .stat-box {
         background: #f0f4ff;
         border: 1px solid #c7d7ff;
@@ -422,7 +382,7 @@
         text-align: center;
         min-width: 110px;
     }
-    .stat-num { font-size: 1.6rem; font-weight: bold; color: #1e40af; }
+    .stat-num { font-size: 1.6rem; font-weight: bold; color: #003f72; }
     .stat-lbl { font-size: .78rem; color: #555; }
 </style>
 
@@ -581,20 +541,20 @@
 
     string StatusBadge(object status) => status.ToString()!.ToLower() switch
     {
-        "scheduled"   => "badge-scheduled",
-        "rescheduled" => "badge-rescheduled",
-        "completed"   => "badge-completed",
-        "cancelled"   => "badge-cancelled",
-        "noshow"      => "badge-noshow",
-        _             => "badge-draft"
+        "scheduled"   => "badge-info",
+        "rescheduled" => "badge-warning",
+        "completed"   => "badge-success",
+        "cancelled"   => "badge-danger",
+        "noshow"      => "badge-neutral",
+        _             => "badge-neutral"
     };
 
     string DbqBadge(object status) => status.ToString()!.ToLower() switch
     {
-        "signed"    => "badge-signed",
-        "completed" => "badge-completed",
-        "amended"   => "badge-rescheduled",
-        _           => "badge-draft"
+        "signed"    => "badge-success",
+        "completed" => "badge-success",
+        "amended"   => "badge-warning",
+        _           => "badge-neutral"
     };
 
     class NewExamModel

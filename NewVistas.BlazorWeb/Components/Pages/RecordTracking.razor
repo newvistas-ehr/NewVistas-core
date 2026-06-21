@@ -17,7 +17,7 @@
 
 @if (error != null)
 {
-    <div class="alert-error">@error</div>
+    <div class="alert alert-error">@error</div>
 }
 
 <div class="tab-bar">
@@ -48,7 +48,7 @@
         }
         else
         {
-            <table>
+            <table class="data-table">
                 <thead>
                     <tr>
                         <th>Patient</th>
@@ -68,10 +68,10 @@
                             <td>@c.ChartNumber</td>
                             <td><span class="badge @LocationBadgeClass(c.CurrentLocationType)">@c.CurrentLocationType</span></td>
                             <td>
-                                @if (c.IsLost) { <span class="badge danger">LOST</span> }
-                                else if (c.IsCheckedOut) { <span class="badge warning">Checked Out</span> }
-                                else { <span class="badge success">In File Room</span> }
-                                @if (c.IsOnRequest) { <span class="badge info">On Request</span> }
+                                @if (c.IsLost) { <span class="badge badge-danger">LOST</span> }
+                                else if (c.IsCheckedOut) { <span class="badge badge-warning">Checked Out</span> }
+                                else { <span class="badge badge-success">In File Room</span> }
+                                @if (c.IsOnRequest) { <span class="badge badge-info">On Request</span> }
                             </td>
                             <td>@c.CurrentBorrowerName</td>
                             <td class="@(IsOverdue(c) ? "overdue-text" : "")">
@@ -106,7 +106,7 @@
         }
         else
         {
-            <table>
+            <table class="data-table">
                 <thead>
                     <tr>
                         <th>Patient</th>
@@ -200,7 +200,7 @@
         await LoadDashboard();
     }
 
-    private string TabClass(int tab) => tab == activeTab ? "tab-btn active" : "tab-btn";
+    private string TabClass(int tab) => tab == activeTab ? "tab active" : "tab";
     private string FilterClass(string f) => f == chartFilter ? "filter-btn active" : "filter-btn";
     private string ReqFilterClass(string f) => f == requestFilter ? "filter-btn active" : "filter-btn";
 
@@ -319,27 +319,27 @@
 
     private string LocationBadgeClass(ChartLocationType t) => t switch
     {
-        ChartLocationType.FileRoom => "success",
-        ChartLocationType.Lost => "danger",
-        ChartLocationType.Destroyed => "danger",
-        _ => "info"
+        ChartLocationType.FileRoom => "badge-success",
+        ChartLocationType.Lost => "badge-danger",
+        ChartLocationType.Destroyed => "badge-danger",
+        _ => "badge-info"
     };
 
     private string PriorityBadgeClass(ChartRequestPriority p) => p switch
     {
-        ChartRequestPriority.STAT => "danger",
-        ChartRequestPriority.Urgent => "warning",
-        _ => "info"
+        ChartRequestPriority.STAT => "badge-danger",
+        ChartRequestPriority.Urgent => "badge-warning",
+        _ => "badge-info"
     };
 
     private string RequestStatusBadgeClass(ChartRequestStatus s) => s switch
     {
-        ChartRequestStatus.Delivered => "success",
-        ChartRequestStatus.Cancelled => "secondary",
-        ChartRequestStatus.NotFound => "danger",
-        ChartRequestStatus.InTransit => "warning",
-        ChartRequestStatus.Pulled => "info",
-        _ => "secondary"
+        ChartRequestStatus.Delivered => "badge-success",
+        ChartRequestStatus.Cancelled => "badge-neutral",
+        ChartRequestStatus.NotFound => "badge-danger",
+        ChartRequestStatus.InTransit => "badge-warning",
+        ChartRequestStatus.Pulled => "badge-info",
+        _ => "badge-neutral"
     };
 
     // ── Response DTOs ──────────────────────────────────────────────────────────
@@ -402,28 +402,18 @@
 }
 
 <style>
+    /* Canonical interaction classes (tab-bar, tab, data-table, badge, badge-*,
+       alert, alert-error, empty-state) are defined once in app.css per
+       UI-CONVENTIONS.md. Only page-specific styles (layout, filter toolbar, row
+       tints, dashboard stat cards) live here. */
     .subtitle { color: #666; margin-top: -0.5rem; margin-bottom: 1rem; }
-    .tab-bar { display: flex; gap: 0.5rem; margin-bottom: 1rem; flex-wrap: wrap; }
-    .tab-btn { padding: 0.5rem 1rem; border: 1px solid #ccc; background: #f5f5f5; cursor: pointer; border-radius: 4px; }
-    .tab-btn.active { background: #1976d2; color: white; border-color: #1976d2; }
     .filter-bar { display: flex; gap: 0.5rem; margin-bottom: 1rem; flex-wrap: wrap; }
     .filter-btn { padding: 0.4rem 0.8rem; border: 1px solid #ccc; background: #f9f9f9; cursor: pointer; border-radius: 4px; font-size: 0.875rem; }
     .filter-btn.active { background: #e3f2fd; border-color: #1976d2; color: #1976d2; font-weight: bold; }
     .panel { background: white; border: 1px solid #e0e0e0; border-radius: 6px; padding: 1.5rem; }
-    table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
-    th { background: #f5f5f5; padding: 0.6rem 0.8rem; text-align: left; border-bottom: 2px solid #ddd; }
-    td { padding: 0.5rem 0.8rem; border-bottom: 1px solid #eee; }
     .row-danger td { background-color: #fff3f3; }
     .row-warning td { background-color: #fffde7; }
-    .badge { padding: 2px 8px; border-radius: 12px; font-size: 0.75rem; font-weight: bold; margin-right: 3px; }
-    .badge.success { background: #e8f5e9; color: #2e7d32; }
-    .badge.warning { background: #fff8e1; color: #f57f17; }
-    .badge.danger { background: #ffebee; color: #c62828; }
-    .badge.info { background: #e3f2fd; color: #1565c0; }
-    .badge.secondary { background: #f5f5f5; color: #616161; }
     .overdue-text { color: #c62828; font-weight: bold; }
-    .empty-state { color: #888; font-style: italic; padding: 2rem 0; text-align: center; }
-    .alert-error { background: #ffebee; border: 1px solid #ef9a9a; color: #c62828; padding: 0.75rem 1rem; border-radius: 4px; margin-bottom: 1rem; }
     .dashboard-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 1rem; }
     .stat-card { background: #f9f9f9; border: 1px solid #e0e0e0; border-radius: 8px; padding: 1.5rem 1rem; text-align: center; }
     .stat-card.warning { border-color: #f9a825; background: #fff8e1; }

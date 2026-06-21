@@ -20,10 +20,10 @@
     <button @onclick="LoadNotes" disabled="@(string.IsNullOrWhiteSpace(patientId) || loading)" class="btn btn-primary">
         @if (loading) { <span>Loading...</span> } else { <span>Load Notes</span> }
     </button>
-    <button @onclick="ShowNewNoteForm" disabled="@(string.IsNullOrWhiteSpace(patientId))" class="btn btn-secondary">
+    <button @onclick="ShowNewNoteForm" disabled="@(string.IsNullOrWhiteSpace(patientId))" class="btn btn-primary">
         + New Note
     </button>
-    <button @onclick="ToggleHistory" disabled="@(string.IsNullOrWhiteSpace(patientId))" class="btn btn-outline">
+    <button @onclick="ToggleHistory" disabled="@(string.IsNullOrWhiteSpace(patientId))" class="btn btn-secondary">
         Note History
     </button>
 </div>
@@ -82,7 +82,7 @@
                             <td class="doc-type">@note.DocumentType</td>
                             <td>@(note.Subject ?? "---") @(note.HasAddenda ? "[+]" : "")</td>
                             <td>@(note.AuthorName ?? "---")</td>
-                            <td><span class="badge badge-status @StatusClass(note.Status)">@note.Status</span></td>
+                            <td><span class="badge @StatusClass(note.Status)">@note.Status</span></td>
                             <td>@(note.LocationName ?? "---")</td>
                         </tr>
                     }
@@ -112,10 +112,10 @@
                 <input type="password" @bind="esigCode" placeholder="Enter signature code" @onkeydown="HandleEsigKeyDown" />
             </div>
             <div class="form-actions">
-                <button @onclick="SubmitEsig" disabled="@esigSubmitting" class="btn btn-sign">
+                <button @onclick="SubmitEsig" disabled="@esigSubmitting" class="btn btn-primary">
                     @if (esigSubmitting) { <span>Verifying...</span> } else { <span>@esigAction</span> }
                 </button>
-                <button @onclick="CancelEsig" class="btn btn-outline">Cancel</button>
+                <button @onclick="CancelEsig" class="btn btn-secondary">Cancel</button>
             </div>
         </div>
     </div>
@@ -157,7 +157,7 @@
             <button @onclick="SaveNote" disabled="@saving" class="btn btn-primary">
                 @if (saving) { <span>Saving...</span> } else { <span>Save Note</span> }
             </button>
-            <button @onclick="() => showNewNote = false" class="btn btn-outline">Cancel</button>
+            <button @onclick="() => showNewNote = false" class="btn btn-secondary">Cancel</button>
         </div>
     </div>
 }
@@ -168,8 +168,8 @@
     <div class="note-detail">
         <div class="detail-header">
             <div class="detail-title">
-                <span class="badge badge-type">@selectedNote.DocumentType</span>
-                <span class="badge badge-status @StatusClass(selectedNote.Status)">@selectedNote.Status</span>
+                <span class="badge badge-info">@selectedNote.DocumentType</span>
+                <span class="badge @StatusClass(selectedNote.Status)">@selectedNote.Status</span>
                 @if (!string.IsNullOrEmpty(selectedNote.Subject))
                 {
                     <strong>@selectedNote.Subject</strong>
@@ -183,13 +183,13 @@
             <div class="detail-actions">
                 @if (selectedNote.Status == "UNSIGNED")
                 {
-                    <button @onclick="() => PromptSign(selectedNote.DocumentId)" class="btn btn-sign">Sign</button>
+                    <button @onclick="() => PromptSign(selectedNote.DocumentId)" class="btn btn-primary">Sign</button>
                 }
                 @if (selectedNote.Status == "UNCOSIGNED")
                 {
-                    <button @onclick="() => PromptCosign(selectedNote.DocumentId)" class="btn btn-sign">Cosign</button>
+                    <button @onclick="() => PromptCosign(selectedNote.DocumentId)" class="btn btn-primary">Cosign</button>
                 }
-                <button @onclick="() => selectedNote = null" class="btn btn-outline">Close</button>
+                <button @onclick="() => selectedNote = null" class="btn btn-secondary">Close</button>
             </div>
         </div>
         <div class="note-body">
@@ -231,7 +231,7 @@
                         <td class="doc-type">@note.DocumentType</td>
                         <td>@(note.Subject ?? "---") @(note.HasAddenda ? "[+]" : "")</td>
                         <td>@(note.AuthorName ?? "---")</td>
-                        <td><span class="badge badge-status @StatusClass(note.Status)">@note.Status</span></td>
+                        <td><span class="badge @StatusClass(note.Status)">@note.Status</span></td>
                         <td>@(note.LocationName ?? "---")</td>
                     </tr>
                 }
@@ -418,54 +418,27 @@
 
     private static string StatusClass(string status) => status switch
     {
-        "UNSIGNED" => "status-unsigned",
-        "UNCOSIGNED" => "status-uncosigned",
-        "COMPLETED" => "status-completed",
-        "AMENDED" => "status-amended",
-        "RETRACTED" => "status-retracted",
-        _ => ""
+        "UNSIGNED" => "badge-warning",
+        "UNCOSIGNED" => "badge-warning",
+        "COMPLETED" => "badge-success",
+        "AMENDED" => "badge-info",
+        "RETRACTED" => "badge-danger",
+        _ => "badge-neutral"
     };
 }
 
 <style>
-    .lookup-bar { display: flex; gap: 0.5rem; margin-bottom: 1.5rem; align-items: center; }
-    .lookup-input { width: 280px; padding: 0.5rem 0.75rem; border: 1px solid #ccc; border-radius: 4px; font-size: 0.9rem; }
-    .btn { padding: 0.5rem 1.25rem; border: none; border-radius: 4px; cursor: pointer; font-size: 0.85rem; }
-    .btn-primary { background: #003f72; color: white; }
-    .btn-primary:hover { background: #002a4e; }
-    .btn-primary:disabled { background: #999; cursor: not-allowed; }
-    .btn-secondary { background: #16a34a; color: white; }
-    .btn-secondary:hover { background: #15803d; }
-    .btn-secondary:disabled { background: #999; cursor: not-allowed; }
-    .btn-outline { background: white; border: 1px solid #ccc; color: #333; }
-    .btn-outline:hover { background: #f4f6f9; }
-    .btn-sign { background: #2563eb; color: white; }
-    .btn-sign:hover { background: #1d4ed8; }
-
-    .alert { padding: 0.75rem 1rem; border-radius: 4px; margin-bottom: 1rem; font-size: 0.85rem; }
-    .alert-error { background: #fde8e8; color: #b91c1c; border: 1px solid #f5c6c6; }
-    .alert-success { background: #dcfce7; color: #166534; border: 1px solid #bbf7d0; }
-
-    .empty-state { color: #999; font-style: italic; padding: 2rem 0; }
+    /* Canonical interaction classes (lookup-bar, lookup-input, tab-bar, tab, btn,
+       btn-primary, btn-secondary, alert, alert-error, alert-success, data-table,
+       form-input, badge, badge-*, empty-state) are defined once in app.css per
+       UI-CONVENTIONS.md. Only page-specific styles (note form/detail, e-sig modal,
+       history filters) live here. */
     .results-header { font-size: 0.8rem; color: #666; margin-bottom: 0.5rem; }
 
-    .data-table { width: 100%; border-collapse: collapse; font-size: 0.85rem; border: 1px solid #d4d9e0; }
-    .data-table thead { background: #f4f6f9; }
-    .data-table th { text-align: left; padding: 0.5rem; font-weight: 600; color: #003f72; border-bottom: 2px solid #d4d9e0; font-size: 0.75rem; text-transform: uppercase; }
-    .data-table td { padding: 0.4rem 0.5rem; border-bottom: 1px solid #f0f0f0; }
     .data-table tr.clickable { cursor: pointer; }
     .data-table tr.clickable:hover { background: #eef3f9; }
     .date-cell { color: #888; font-size: 0.8rem; white-space: nowrap; }
     .doc-type { color: #003f72; font-weight: 500; font-size: 0.8rem; }
-
-    .badge { padding: 2px 8px; border-radius: 3px; font-size: 0.7rem; font-weight: 600; }
-    .badge-type { background: #dbeafe; color: #1e40af; }
-    .badge-status { display: inline-block; }
-    .status-unsigned { background: #fef3c7; color: #92400e; }
-    .status-uncosigned { background: #fed7aa; color: #9a3412; }
-    .status-completed { background: #dcfce7; color: #166534; }
-    .status-amended { background: #dbeafe; color: #1e40af; }
-    .status-retracted { background: #fde8e8; color: #b91c1c; }
 
     .note-form { border: 1px solid #d4d9e0; border-radius: 6px; padding: 1.25rem; margin-bottom: 1.5rem; background: #f9fafb; }
     .note-form h3 { margin-bottom: 1rem; color: #003f72; }

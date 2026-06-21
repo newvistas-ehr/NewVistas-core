@@ -15,25 +15,25 @@
 <div class="onc-container">
     <div class="onc-header">
         <h2>Oncology / Tumor Registry</h2>
-        <div class="patient-bar">
-            <input @bind="patientId" placeholder="Patient ID" class="patient-input" />
-            <button @onclick="LoadAll" class="btn-load">Load</button>
+        <div class="lookup-bar">
+            <input @bind="patientId" placeholder="Patient ID" class="lookup-input" />
+            <button class="btn btn-primary" @onclick="LoadAll">Load</button>
         </div>
     </div>
 
     @if (error != null)
     {
-        <div class="alert-error">@error</div>
+        <div class="alert alert-error">@error</div>
     }
     @if (successMsg != null)
     {
-        <div class="alert-success">@successMsg</div>
+        <div class="alert alert-success">@successMsg</div>
     }
 
     <div class="tab-bar">
-        <button class="tab-btn @TabClass("registry")" @onclick='() => SetTab("registry")'>Tumor Registry</button>
-        <button class="tab-btn @TabClass("treatments")" @onclick='() => SetTab("treatments")'>Treatments</button>
-        <button class="tab-btn @TabClass("register")" @onclick='() => SetTab("register")'>Register Tumor</button>
+        <button class="tab @TabClass("registry")" @onclick='() => SetTab("registry")'>Tumor Registry</button>
+        <button class="tab @TabClass("treatments")" @onclick='() => SetTab("treatments")'>Treatments</button>
+        <button class="tab @TabClass("register")" @onclick='() => SetTab("register")'>Register Tumor</button>
     </div>
 
     <!-- ── Tumor Registry Tab ───────────────────────────────────────────── -->
@@ -64,7 +64,7 @@
                 </div>
             </div>
 
-            <table class="onc-table">
+            <table class="data-table">
                 <thead>
                     <tr>
                         <th>#</th>
@@ -86,7 +86,7 @@
                             <td>@t.HistologyText</td>
                             <td>@t.DateOfDiagnosis.ToString("yyyy-MM-dd")</td>
                             <td>@(t.StageGroup ?? "—")</td>
-                            <td><span class="badge badge-@t.Status.ToLower()">@t.Status</span></td>
+                            <td><span class="badge @TumorStatusBadge(t.Status)">@t.Status</span></td>
                             <td>@(t.OncologistName ?? "—")</td>
                         </tr>
                     }
@@ -122,9 +122,9 @@
                     </div>
 
                     <div class="detail-actions">
-                        <button class="btn-action" @onclick="() => showStagingPanel = !showStagingPanel">Record Staging</button>
-                        <button class="btn-action" @onclick="() => showStatusPanel = !showStatusPanel">Update Status</button>
-                        <button class="btn-warn" @onclick="() => showRecurrencePanel = !showRecurrencePanel">Record Recurrence</button>
+                        <button class="btn btn-primary" @onclick="() => showStagingPanel = !showStagingPanel">Record Staging</button>
+                        <button class="btn btn-primary" @onclick="() => showStatusPanel = !showStatusPanel">Update Status</button>
+                        <button class="btn btn-primary" @onclick="() => showRecurrencePanel = !showRecurrencePanel">Record Recurrence</button>
                     </div>
 
                     @if (showStagingPanel)
@@ -146,8 +146,8 @@
                                 <label>SEER Stage</label><input @bind="stagingSeer" placeholder="0-9" />
                             </div>
                             <div class="panel-btns">
-                                <button class="btn-save" @onclick="SubmitStaging">Save Staging</button>
-                                <button class="btn-cancel" @onclick="CloseAllPanels">Cancel</button>
+                                <button class="btn btn-primary" @onclick="SubmitStaging">Save Staging</button>
+                                <button class="btn btn-secondary" @onclick="CloseAllPanels">Cancel</button>
                             </div>
                         </div>
                     }
@@ -174,8 +174,8 @@
                                 <textarea @bind="statusNotes" rows="2"></textarea>
                             </div>
                             <div class="panel-btns">
-                                <button class="btn-save" @onclick="SubmitStatus">Save Status</button>
-                                <button class="btn-cancel" @onclick="CloseAllPanels">Cancel</button>
+                                <button class="btn btn-primary" @onclick="SubmitStatus">Save Status</button>
+                                <button class="btn btn-secondary" @onclick="CloseAllPanels">Cancel</button>
                             </div>
                         </div>
                     }
@@ -192,8 +192,8 @@
                                 <label>Notes</label><textarea @bind="recurrenceNotes" rows="2"></textarea>
                             </div>
                             <div class="panel-btns">
-                                <button class="btn-warn" @onclick="SubmitRecurrence">Record Recurrence</button>
-                                <button class="btn-cancel" @onclick="CloseAllPanels">Cancel</button>
+                                <button class="btn btn-primary" @onclick="SubmitRecurrence">Record Recurrence</button>
+                                <button class="btn btn-secondary" @onclick="CloseAllPanels">Cancel</button>
                             </div>
                         </div>
                     }
@@ -212,10 +212,10 @@
         else if (treatments != null)
         {
             <div class="tab-controls">
-                <button class="btn-action" @onclick="() => showCreateTxPanel = !showCreateTxPanel">+ Add Treatment</button>
+                <button class="btn btn-primary" @onclick="() => showCreateTxPanel = !showCreateTxPanel">+ Add Treatment</button>
             </div>
 
-            <table class="onc-table">
+            <table class="data-table">
                 <thead>
                     <tr>
                         <th>Type</th>
@@ -236,7 +236,7 @@
                             <td>@tx.AgentName</td>
                             <td>@(tx.StartDate.HasValue ? tx.StartDate.Value.ToString("yyyy-MM-dd") : "—")</td>
                             <td>@(tx.EndDate.HasValue ? tx.EndDate.Value.ToString("yyyy-MM-dd") : "—")</td>
-                            <td><span class="badge badge-tx-@tx.Status.ToLower()">@tx.Status</span></td>
+                            <td><span class="badge @TreatmentStatusBadge(tx.Status)">@tx.Status</span></td>
                             <td>@tx.ResponseAssessment</td>
                             <td>@(tx.ProviderName ?? "—")</td>
                         </tr>
@@ -270,16 +270,16 @@
                     @if (selectedTreatment.Status == "Planned")
                     {
                         <div class="detail-actions">
-                            <button class="btn-action" @onclick="() => showStartTxPanel = !showStartTxPanel">Start Treatment</button>
+                            <button class="btn btn-primary" @onclick="() => showStartTxPanel = !showStartTxPanel">Start Treatment</button>
                         </div>
                     }
                     @if (selectedTreatment.Status == "Active")
                     {
                         <div class="detail-actions">
-                            <button class="btn-action" @onclick="() => showResponsePanel = !showResponsePanel">Record Response</button>
-                            <button class="btn-action" @onclick="() => showCyclesPanel = !showCyclesPanel">Update Cycles</button>
-                            <button class="btn-save" @onclick="() => showCompleteTxPanel = !showCompleteTxPanel">Complete</button>
-                            <button class="btn-warn" @onclick="() => showDiscontinueTxPanel = !showDiscontinueTxPanel">Discontinue</button>
+                            <button class="btn btn-primary" @onclick="() => showResponsePanel = !showResponsePanel">Record Response</button>
+                            <button class="btn btn-primary" @onclick="() => showCyclesPanel = !showCyclesPanel">Update Cycles</button>
+                            <button class="btn btn-primary" @onclick="() => showCompleteTxPanel = !showCompleteTxPanel">Complete</button>
+                            <button class="btn btn-primary" @onclick="() => showDiscontinueTxPanel = !showDiscontinueTxPanel">Discontinue</button>
                         </div>
                     }
 
@@ -292,8 +292,8 @@
                                 <input type="date" @bind="txStartDate" />
                             </div>
                             <div class="panel-btns">
-                                <button class="btn-save" @onclick="SubmitStartTreatment">Start</button>
-                                <button class="btn-cancel" @onclick="CloseAllPanels">Cancel</button>
+                                <button class="btn btn-primary" @onclick="SubmitStartTreatment">Start</button>
+                                <button class="btn btn-secondary" @onclick="CloseAllPanels">Cancel</button>
                             </div>
                         </div>
                     }
@@ -318,8 +318,8 @@
                                 <label>Notes</label><textarea @bind="txResponseNotes" rows="2"></textarea>
                             </div>
                             <div class="panel-btns">
-                                <button class="btn-save" @onclick="SubmitResponse">Save</button>
-                                <button class="btn-cancel" @onclick="CloseAllPanels">Cancel</button>
+                                <button class="btn btn-primary" @onclick="SubmitResponse">Save</button>
+                                <button class="btn btn-secondary" @onclick="CloseAllPanels">Cancel</button>
                             </div>
                         </div>
                     }
@@ -333,8 +333,8 @@
                                 <input type="number" min="0" @bind="txCycles" />
                             </div>
                             <div class="panel-btns">
-                                <button class="btn-save" @onclick="SubmitCycles">Save</button>
-                                <button class="btn-cancel" @onclick="CloseAllPanels">Cancel</button>
+                                <button class="btn btn-primary" @onclick="SubmitCycles">Save</button>
+                                <button class="btn btn-secondary" @onclick="CloseAllPanels">Cancel</button>
                             </div>
                         </div>
                     }
@@ -359,8 +359,8 @@
                                 <label>Notes</label><textarea @bind="txResponseNotes" rows="2"></textarea>
                             </div>
                             <div class="panel-btns">
-                                <button class="btn-save" @onclick="SubmitCompleteTreatment">Complete</button>
-                                <button class="btn-cancel" @onclick="CloseAllPanels">Cancel</button>
+                                <button class="btn btn-primary" @onclick="SubmitCompleteTreatment">Complete</button>
+                                <button class="btn btn-secondary" @onclick="CloseAllPanels">Cancel</button>
                             </div>
                         </div>
                     }
@@ -377,8 +377,8 @@
                                 <label>Notes</label><textarea @bind="txResponseNotes" rows="2"></textarea>
                             </div>
                             <div class="panel-btns">
-                                <button class="btn-warn" @onclick="SubmitDiscontinueTreatment">Discontinue</button>
-                                <button class="btn-cancel" @onclick="CloseAllPanels">Cancel</button>
+                                <button class="btn btn-primary" @onclick="SubmitDiscontinueTreatment">Discontinue</button>
+                                <button class="btn btn-secondary" @onclick="CloseAllPanels">Cancel</button>
                             </div>
                         </div>
                     }
@@ -426,8 +426,8 @@
                         <label>Notes</label><input @bind="newTxNotes" />
                     </div>
                     <div class="panel-btns">
-                        <button class="btn-save" @onclick="SubmitCreateTreatment">Add Treatment</button>
-                        <button class="btn-cancel" @onclick="CloseAllPanels">Cancel</button>
+                        <button class="btn btn-primary" @onclick="SubmitCreateTreatment">Add Treatment</button>
+                        <button class="btn btn-secondary" @onclick="CloseAllPanels">Cancel</button>
                     </div>
                 </div>
             }
@@ -483,7 +483,7 @@
                 <input @bind="regOncologistName" placeholder="Oncologist name" />
             </div>
             <div class="panel-btns">
-                <button class="btn-save" @onclick="SubmitRegisterTumor" disabled="@registerLoading">
+                <button class="btn btn-primary" @onclick="SubmitRegisterTumor" disabled="@registerLoading">
                     @(registerLoading ? "Registering…" : "Register Tumor")
                 </button>
             </div>
@@ -492,65 +492,42 @@
 </div>
 
 <style>
+    /* Canonical interaction classes (lookup-bar, lookup-input, tab-bar, tab, btn,
+       btn-primary, btn-secondary, alert, alert-error, alert-success, data-table,
+       badge, badge-*) are defined once in app.css per UI-CONVENTIONS.md.
+       Only page-specific styles (layout, stat cards, panels, domain colors) live here. */
     .onc-container { max-width: 1200px; margin: 0 auto; padding: 1rem; font-family: sans-serif; }
     .onc-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 1rem; }
-    .onc-header h2 { margin: 0; color: #1a3a5c; }
-    .patient-bar { display: flex; gap: 0.5rem; }
-    .patient-input { padding: 0.4rem 0.6rem; border: 1px solid #ccc; border-radius: 4px; font-size: 0.95rem; width: 220px; }
-    .btn-load { background: #1a3a5c; color: #fff; border: none; padding: 0.4rem 0.9rem; border-radius: 4px; cursor: pointer; }
-    .alert-error { background: #fde8e8; border: 1px solid #e74c3c; color: #c0392b; padding: 0.6rem 1rem; border-radius: 4px; margin-bottom: 0.75rem; }
-    .alert-success { background: #e8f8e8; border: 1px solid #27ae60; color: #196f3d; padding: 0.6rem 1rem; border-radius: 4px; margin-bottom: 0.75rem; }
-    .tab-bar { display: flex; gap: 0.25rem; border-bottom: 2px solid #1a3a5c; margin-bottom: 1rem; }
-    .tab-btn { background: none; border: none; padding: 0.5rem 1.2rem; cursor: pointer; font-size: 0.95rem; color: #555; border-radius: 4px 4px 0 0; }
-    .tab-btn.active { background: #1a3a5c; color: #fff; font-weight: 600; }
-    .loading { padding: 2rem; text-align: center; color: #888; }
+    .onc-header h2 { margin: 0; color: #003f72; }
+    .loading { padding: 2rem; text-align: center; color: #555; }
     .stat-cards { display: flex; gap: 1rem; margin-bottom: 1rem; flex-wrap: wrap; }
-    .stat-card { background: #fff; border: 1px solid #ddd; border-radius: 8px; padding: 0.75rem 1.5rem; text-align: center; min-width: 100px; }
-    .stat-card.active { border-color: #27ae60; }
-    .stat-card.remission { border-color: #2980b9; }
-    .stat-card.recurrence { border-color: #e67e22; }
-    .stat-card.total { border-color: #8e44ad; }
-    .stat-num { display: block; font-size: 2rem; font-weight: 700; color: #1a3a5c; }
-    .stat-lbl { font-size: 0.8rem; color: #777; }
-    .onc-table { width: 100%; border-collapse: collapse; font-size: 0.9rem; margin-bottom: 1rem; }
-    .onc-table th { background: #1a3a5c; color: #fff; padding: 0.5rem 0.75rem; text-align: left; }
-    .onc-table td { padding: 0.45rem 0.75rem; border-bottom: 1px solid #eee; }
-    .onc-table tr:hover { background: #f0f4f8; cursor: pointer; }
-    .row-selected { background: #dbeafe !important; }
-    .code { font-size: 0.75rem; color: #888; margin-left: 4px; }
-    .badge { display: inline-block; padding: 0.2rem 0.6rem; border-radius: 12px; font-size: 0.8rem; font-weight: 600; }
-    .badge-active { background: #d5f5e3; color: #1e8449; }
-    .badge-inremission { background: #d6eaf8; color: #1a5276; }
-    .badge-recurrence { background: #fde8d8; color: #ba4a00; }
-    .badge-deceased { background: #e8e8e8; color: #555; }
-    .badge-losttofollowup { background: #fef9e7; color: #7d6608; }
-    .badge-unknown { background: #f4f4f4; color: #888; }
-    .badge-tx-planned { background: #eaf2ff; color: #1a5276; }
-    .badge-tx-active { background: #d5f5e3; color: #1e8449; }
-    .badge-tx-completed { background: #e8e8e8; color: #555; }
-    .badge-tx-discontinued { background: #fde8d8; color: #ba4a00; }
-    .detail-panel { background: #f8fafc; border: 1px solid #ddd; border-radius: 8px; padding: 1rem; margin-top: 0.75rem; }
-    .detail-panel h4 { margin: 0 0 0.75rem; color: #1a3a5c; }
+    .stat-card { background: #fff; border: 1px solid #d4d9e0; border-radius: 8px; padding: 0.75rem 1.5rem; text-align: center; min-width: 100px; }
+    .stat-card.active { border-color: #166534; }
+    .stat-card.remission { border-color: #003f72; }
+    .stat-card.recurrence { border-color: #b45309; }
+    .stat-card.total { border-color: #6b21a8; }
+    .stat-num { display: block; font-size: 2rem; font-weight: 700; color: #003f72; }
+    .stat-lbl { font-size: 0.8rem; color: #555; }
+    .row-selected { background: #eaf2fb !important; }
+    .code { font-size: 0.75rem; color: #555; margin-left: 4px; }
+    .detail-panel { background: #f9fafb; border: 1px solid #d4d9e0; border-radius: 8px; padding: 1rem; margin-top: 0.75rem; }
+    .detail-panel h4 { margin: 0 0 0.75rem; color: #003f72; }
     .detail-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 0.5rem; margin-bottom: 0.75rem; }
-    .detail-grid div { background: #fff; border: 1px solid #e5e7eb; border-radius: 4px; padding: 0.4rem 0.6rem; }
-    .detail-grid label { display: block; font-size: 0.75rem; color: #888; margin-bottom: 2px; }
-    .detail-grid span { font-size: 0.9rem; }
+    .detail-grid div { background: #fff; border: 1px solid #d4d9e0; border-radius: 4px; padding: 0.4rem 0.6rem; }
+    .detail-grid label { display: block; font-size: 0.75rem; color: #555; margin-bottom: 2px; }
+    .detail-grid span { font-size: 0.9rem; color: #333; }
     .full-width { grid-column: 1 / -1; }
     .detail-actions { display: flex; gap: 0.5rem; flex-wrap: wrap; margin-bottom: 0.75rem; }
     .tab-controls { margin-bottom: 0.75rem; }
-    .action-panel { background: #fff; border: 1px solid #b8cfe8; border-radius: 6px; padding: 1rem; margin-top: 0.75rem; }
-    .action-panel h5 { margin: 0 0 0.75rem; color: #1a3a5c; }
+    .action-panel { background: #f4f6f9; border: 1px solid #d4d9e0; border-radius: 6px; padding: 1rem; margin-top: 0.75rem; }
+    .action-panel h5 { margin: 0 0 0.75rem; color: #003f72; }
     .create-panel { margin-top: 1rem; }
-    .register-form { background: #f8fafc; border: 1px solid #ddd; border-radius: 8px; padding: 1.25rem; }
-    .register-form h4 { margin: 0 0 1rem; color: #1a3a5c; }
+    .register-form { background: #f9fafb; border: 1px solid #d4d9e0; border-radius: 8px; padding: 1.25rem; }
+    .register-form h4 { margin: 0 0 1rem; color: #003f72; }
     .form-row { display: flex; align-items: center; gap: 0.6rem; margin-bottom: 0.6rem; flex-wrap: wrap; }
-    .form-row label { font-size: 0.85rem; color: #555; min-width: 130px; }
-    .form-row input, .form-row select, .form-row textarea { flex: 1; padding: 0.35rem 0.5rem; border: 1px solid #ccc; border-radius: 4px; font-size: 0.9rem; min-width: 120px; }
+    .form-row label { font-size: 0.85rem; color: #333; min-width: 130px; }
+    .form-row input, .form-row select, .form-row textarea { flex: 1; padding: 0.35rem 0.5rem; border: 1px solid #d4d9e0; border-radius: 4px; font-size: 0.9rem; min-width: 120px; }
     .panel-btns { display: flex; gap: 0.5rem; margin-top: 0.75rem; }
-    .btn-action { background: #2980b9; color: #fff; border: none; padding: 0.4rem 0.9rem; border-radius: 4px; cursor: pointer; font-size: 0.85rem; }
-    .btn-save { background: #27ae60; color: #fff; border: none; padding: 0.4rem 0.9rem; border-radius: 4px; cursor: pointer; font-size: 0.85rem; }
-    .btn-warn { background: #e67e22; color: #fff; border: none; padding: 0.4rem 0.9rem; border-radius: 4px; cursor: pointer; font-size: 0.85rem; }
-    .btn-cancel { background: #ccc; color: #333; border: none; padding: 0.4rem 0.9rem; border-radius: 4px; cursor: pointer; font-size: 0.85rem; }
     button:disabled { opacity: 0.5; cursor: not-allowed; }
 </style>
 
@@ -606,6 +583,25 @@
     string regOncologistName = string.Empty;
 
     string TabClass(string tab) => activeTab == tab ? "active" : string.Empty;
+
+    static string TumorStatusBadge(string status) => status switch
+    {
+        "Active"          => "badge-danger",
+        "InRemission"     => "badge-success",
+        "Recurrence"      => "badge-warning",
+        "Deceased"        => "badge-neutral",
+        "LostToFollowUp"  => "badge-warning",
+        _                 => "badge-neutral",
+    };
+
+    static string TreatmentStatusBadge(string status) => status switch
+    {
+        "Planned"      => "badge-info",
+        "Active"       => "badge-success",
+        "Completed"    => "badge-neutral",
+        "Discontinued" => "badge-warning",
+        _              => "badge-neutral",
+    };
 
     void SetTab(string tab)
     {

@@ -175,7 +175,7 @@
         </div>
         <div class="form-actions">
             <button @onclick="Submit" disabled="@saving" class="btn btn-primary">@(saving ? "Saving..." : "Save")</button>
-            <button @onclick="() => showForm = false" class="btn btn-outline">Cancel</button>
+            <button @onclick="() => showForm = false" class="btn btn-secondary">Cancel</button>
         </div>
     </div>
 }
@@ -183,10 +183,10 @@
 @if (allNotifications != null)
 {
     <div class="tab-bar">
-        <button class="tab @(activeTab == "all" ? "tab-active" : "")"     @onclick='() => activeTab = "all"'>
+        <button class="tab @(activeTab == "all" ? "active" : "")"     @onclick='() => activeTab = "all"'>
             All (@allNotifications.Count)
         </button>
-        <button class="tab @(activeTab == "followup" ? "tab-active" : "")" @onclick='() => activeTab = "followup"'>
+        <button class="tab @(activeTab == "followup" ? "active" : "")" @onclick='() => activeTab = "followup"'>
             Follow-Up Required (@followUpItems.Count)
         </button>
     </div>
@@ -215,7 +215,7 @@
                     {
                         <tr class="@(n.FollowUpRequired ? "row-alert" : "")">
                             <td class="date">@n.ProcedureDate.ToString("MM/dd/yyyy")</td>
-                            <td><span class="type-badge type-@((int)n.NotificationType)">@FormatType((int)n.NotificationType)</span></td>
+                            <td>@FormatType((int)n.NotificationType)</td>
                             <td>@(n.ProviderName ?? "—")</td>
                             <td><span class="badge @StatusClass((int)n.Status)">@FormatStatus((int)n.Status)</span></td>
                             <td>@(n.FollowUpRequired ? "Yes" : "No")</td>
@@ -250,10 +250,10 @@
                     {
                         <tr class="row-alert">
                             <td class="date">@n.ProcedureDate.ToString("MM/dd/yyyy")</td>
-                            <td><span class="type-badge type-@((int)n.NotificationType)">@FormatType((int)n.NotificationType)</span></td>
+                            <td>@FormatType((int)n.NotificationType)</td>
                             <td>@(n.ProviderName ?? "—")</td>
                             <td>@(n.NextDueDate.HasValue ? n.NextDueDate.Value.ToString("MM/dd/yyyy") : "—")</td>
-                            <td><span class="badge badge-yellow">@FormatStatus((int)n.Status)</span></td>
+                            <td><span class="badge badge-warning">@FormatStatus((int)n.Status)</span></td>
                         </tr>
                     }
                 </tbody>
@@ -423,31 +423,21 @@
 
     private static string StatusClass(int s) => s switch
     {
-        1 => "badge-green",
-        2 => "badge-grey",
-        3 => "badge-yellow",
-        _ => "badge-blue"
+        1 => "badge-success",
+        2 => "badge-neutral",
+        3 => "badge-warning",
+        _ => "badge-info"
     };
 
 }
 
 <style>
+    /* Canonical interaction classes (lookup-bar, lookup-input, btn, btn-primary,
+       btn-secondary, alert, alert-error, alert-success, tab-bar, tab, data-table,
+       badge, badge-*, empty-state) are defined once in app.css per UI-CONVENTIONS.md.
+       Only page-specific styles live here. */
     h1 { color: #003f72; margin-bottom: .1rem; }
     .subtitle { color: #666; font-size: .85rem; margin-bottom: 1.25rem; }
-
-    .lookup-bar { display: flex; gap: .5rem; margin-bottom: 1.5rem; align-items: center; flex-wrap: wrap; }
-    .lookup-input { width: 280px; padding: .5rem .75rem; border: 1px solid #ccc; border-radius: 4px; font-size: .9rem; }
-
-    .btn { padding: .5rem 1.25rem; border: none; border-radius: 4px; cursor: pointer; font-size: .85rem; font-weight: 500; }
-    .btn-primary  { background: #003f72; color: white; }
-    .btn-primary:disabled { background: #999; cursor: default; }
-    .btn-secondary { background: #16a34a; color: white; }
-    .btn-secondary:disabled { background: #999; cursor: default; }
-    .btn-outline  { background: white; border: 1px solid #ccc; color: #333; }
-
-    .alert { padding: .75rem 1rem; border-radius: 4px; margin-bottom: 1rem; font-size: .85rem; }
-    .alert-error   { background: #fde8e8; color: #b91c1c; border: 1px solid #f5c6c6; }
-    .alert-success { background: #dcfce7; color: #166534; border: 1px solid #bbf7d0; }
 
     .entry-form { border: 1px solid #d4d9e0; border-radius: 6px; padding: 1.25rem; margin-bottom: 1.5rem; background: #f9fafb; }
     .entry-form h3 { margin-bottom: 1rem; color: #003f72; font-size: 1rem; }
@@ -458,32 +448,6 @@
     .form-row input, .form-row select, .form-row textarea { padding: .4rem .6rem; border: 1px solid #ccc; border-radius: 4px; font-size: .85rem; }
     .form-actions { display: flex; gap: .5rem; margin-top: .75rem; }
 
-    .tab-bar { display: flex; gap: 0; margin-bottom: 1rem; border-bottom: 2px solid #d4d9e0; }
-    .tab { background: none; border: none; border-bottom: 2px solid transparent; margin-bottom: -2px; padding: .5rem 1rem; cursor: pointer; font-size: .85rem; color: #666; }
-    .tab-active { border-bottom-color: #003f72; color: #003f72; font-weight: 600; }
-
-    .empty-state { color: #999; font-style: italic; padding: 2rem 0; }
-
-    .data-table { width: 100%; border-collapse: collapse; font-size: .85rem; border: 1px solid #d4d9e0; }
-    .data-table thead { background: #f4f6f9; }
-    .data-table th { text-align: left; padding: .5rem; font-weight: 600; color: #003f72; border-bottom: 2px solid #d4d9e0; font-size: .75rem; text-transform: uppercase; }
-    .data-table td { padding: .4rem .5rem; border-bottom: 1px solid #f0f0f0; }
     .row-alert { background: #fffbeb; }
     .date { color: #888; font-size: .8rem; white-space: nowrap; }
-
-    .badge { padding: 2px 8px; border-radius: 3px; font-size: .7rem; font-weight: 600; }
-    .badge-green  { background: #dcfce7; color: #166534; }
-    .badge-yellow { background: #fef9c3; color: #713f12; }
-    .badge-blue   { background: #dbeafe; color: #1e40af; }
-    .badge-grey   { background: #f3f4f6; color: #6b7280; }
-
-    .type-badge { padding: 2px 7px; border-radius: 3px; font-size: .72rem; font-weight: 600; }
-    .type-badge.type-0 { background: #fce7f3; color: #9d174d; }
-    .type-badge.type-1 { background: #fce7f3; color: #9d174d; }
-    .type-badge.type-2 { background: #e0e7ff; color: #3730a3; }
-    .type-badge.type-3 { background: #d1fae5; color: #065f46; }
-    .type-badge.type-4 { background: #fce7f3; color: #9d174d; }
-    .type-badge.type-5 { background: #f3e8ff; color: #6b21a8; }
-    .type-badge.type-6 { background: #fef3c7; color: #92400e; }
-    .type-badge.type-7 { background: #f3f4f6; color: #374151; }
 </style>

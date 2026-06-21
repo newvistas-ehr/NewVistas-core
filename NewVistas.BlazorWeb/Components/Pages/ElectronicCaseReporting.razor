@@ -17,9 +17,9 @@
 @if (success != null) { <div class="alert alert-success">@success</div> }
 
 <div class="tab-bar">
-    <button class="tab-btn @(activeTab == 0 ? "active" : "")" @onclick="() => activeTab = 0">Cases</button>
-    <button class="tab-btn @(activeTab == 1 ? "active" : "")" @onclick="() => activeTab = 1">Triggers</button>
-    <button class="tab-btn @(activeTab == 2 ? "active" : "")" @onclick="() => activeTab = 2">Screen Patient</button>
+    <button class="tab @(activeTab == 0 ? "active" : "")" @onclick="() => activeTab = 0">Cases</button>
+    <button class="tab @(activeTab == 1 ? "active" : "")" @onclick="() => activeTab = 1">Triggers</button>
+    <button class="tab @(activeTab == 2 ? "active" : "")" @onclick="() => activeTab = 2">Screen Patient</button>
 </div>
 
 @* ── Cases Tab ── *@
@@ -61,13 +61,13 @@
                         <td class="code case-id">@c.CaseId</td>
                         <td>@c.PatientName<br /><span class="id-small">@c.PatientId</span></td>
                         <td>@c.ConditionName</td>
-                        <td><span class="status-badge status-@c.Status.ToLower().Replace("_","")">@c.Status</span></td>
+                        <td><span class="badge @StatusBadgeClass(c.Status)">@c.Status</span></td>
                         <td>@(c.ReportabilityDetermination ?? "---")</td>
                         <td>@c.TriggeredDate.ToString("MM/dd/yyyy HH:mm")</td>
                         <td>
                             @if (c.Status == "generated")
                             {
-                                <button class="btn btn-link" @onclick="() => SubmitCase(c.CaseId)">Submit</button>
+                                <button class="btn btn-primary" @onclick="() => SubmitCase(c.CaseId)">Submit</button>
                             }
                         </td>
                     </tr>
@@ -182,7 +182,7 @@
         }
         else
         {
-            <h3 style="color:#ddd;">Screening Matches (@screeningResults.Count)</h3>
+            <h3>Screening Matches (@screeningResults.Count)</h3>
             @foreach (var m in screeningResults)
             {
                 <div class="match-card">
@@ -224,6 +224,15 @@
     private string screenPatientId = string.Empty;
     private bool screening;
     private List<EcrScreeningMatch>? screeningResults;
+
+    private static string StatusBadgeClass(string status) => status?.ToLower() switch
+    {
+        "generated"      => "badge-info",
+        "submitted"      => "badge-warning",
+        "reportable"     => "badge-danger",
+        "not_reportable" => "badge-success",
+        _                => "badge-neutral",
+    };
 
     private IEcrCaseIndexGrain GetCaseIndex() => Grains.GetGrain<IEcrCaseIndexGrain>("ECR-CASE-INDEX");
     private IEcrTriggerIndexGrain GetTriggerIndex() => Grains.GetGrain<IEcrTriggerIndexGrain>("ECR-TRIGGER-INDEX");
@@ -352,40 +361,25 @@
 }
 
 <style>
-    h1 { color: #ddd; }
-    .btn { padding: 0.5rem 1.25rem; border: none; border-radius: 4px; cursor: pointer; font-size: 0.85rem; }
-    .btn-primary { background: #003f72; color: white; } .btn-primary:disabled { background: #555; cursor: not-allowed; }
-    .btn-secondary { background: #374151; color: #ddd; border: 1px solid #555; }
-    .btn-link { background: none; color: #60a5fa; text-decoration: underline; padding: 0; border: none; cursor: pointer; font-size: 0.85rem; }
-    .alert { padding: 0.75rem 1rem; border-radius: 4px; margin-bottom: 1rem; }
-    .alert-error { background: #451a1a; color: #fca5a5; border: 1px solid #7f1d1d; }
-    .alert-success { background: #14332a; color: #6ee7b7; border: 1px solid #065f46; }
-    .empty-state { color: #888; font-style: italic; padding: 2rem 0; }
-    .help-text { color: #999; font-size: 0.85rem; margin-bottom: 1rem; }
-    .tab-bar { display: flex; gap: 0; border-bottom: 2px solid #444; margin-bottom: 1.5rem; }
-    .tab-btn { padding: 0.6rem 1.25rem; border: none; background: transparent; cursor: pointer; font-size: 0.85rem; font-weight: 500; color: #999; border-bottom: 2px solid transparent; margin-bottom: -2px; }
-    .tab-btn.active { color: #60a5fa; border-bottom-color: #60a5fa; font-weight: 600; }
-    .form-section { max-width: 700px; } .form-section h3 { color: #ddd; }
+    /* Canonical interaction classes (tab-bar, tab, btn, btn-primary, btn-secondary,
+       alert, alert-error, alert-success, data-table, form-input, badge, badge-*,
+       empty-state) are defined once in app.css per UI-CONVENTIONS.md.
+       Only page-specific styles (layout, eCR cards, code/id text) live here. */
+    .help-text { color: #555; font-size: 0.85rem; margin-bottom: 1rem; }
+    .form-section { max-width: 700px; }
     .form-row { display: flex; align-items: center; gap: 1rem; margin-bottom: 0.75rem; }
-    .form-row label:first-child { width: 160px; font-size: 0.85rem; font-weight: 500; color: #ccc; flex-shrink: 0; }
-    .form-input { flex: 1; padding: 0.4rem 0.6rem; border: 1px solid #555; border-radius: 4px; font-size: 0.85rem; max-width: 350px; background: #2d2d2d; color: #ddd; }
-    select.form-input { appearance: auto; }
+    .form-row label:first-child { width: 160px; font-size: 0.85rem; font-weight: 500; color: #333; flex-shrink: 0; }
+    .form-input { max-width: 350px; }
     .form-actions { display: flex; gap: 0.75rem; margin-top: 1rem; margin-bottom: 1.5rem; }
-    .data-table { width: 100%; border-collapse: collapse; font-size: 0.85rem; color: #ddd; }
-    .data-table th { text-align: left; padding: 0.5rem; font-weight: 600; color: #60a5fa; border-bottom: 2px solid #444; font-size: 0.75rem; text-transform: uppercase; background: #252525; }
-    .data-table td { padding: 0.4rem 0.5rem; border-bottom: 1px solid #333; } .data-table tr:hover { background: #2a2a2a; }
-    .code { font-family: monospace; color: #60a5fa; }
-    .id-small { font-size: 0.75rem; color: #888; }
+    .code { font-family: inherit; color: #003f72; }
+    .id-small { font-size: 0.75rem; color: #555; }
     .case-id { font-size: 0.75rem; max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    .status-badge { display: inline-block; padding: 0.2rem 0.6rem; border-radius: 3px; font-size: 0.75rem; font-weight: 600; text-transform: uppercase; }
-    .status-badge.status-generated { background: #1e3a5f; color: #93c5fd; } .status-badge.status-submitted { background: #422006; color: #fcd34d; }
-    .status-badge.status-reportable { background: #451a1a; color: #fca5a5; } .status-badge.status-notreportable { background: #14332a; color: #6ee7b7; }
-    .detail-card { background: #252525; border: 1px solid #444; border-radius: 6px; padding: 1.5rem; margin-bottom: 1rem; }
-    .detail-card h3 { color: #ddd; margin-top: 0; } .detail-card h4 { color: #ccc; margin-bottom: 0.5rem; }
-    .detail-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem 2rem; font-size: 0.85rem; color: #ccc; margin-bottom: 1rem; }
-    .detail-grid strong { color: #ddd; }
-    .match-card { background: #252525; border: 1px solid #444; border-radius: 6px; padding: 1rem; margin-bottom: 0.75rem; }
-    .match-header { color: #ddd; font-size: 1rem; margin-bottom: 0.5rem; }
-    .match-body { font-size: 0.85rem; color: #ccc; } .match-body div { margin-bottom: 0.25rem; }
-    .match-body strong { color: #ddd; }
+    .detail-card { background: #f9fafb; border: 1px solid #d4d9e0; border-radius: 6px; padding: 1.5rem; margin-bottom: 1rem; }
+    .detail-card h3 { color: #003f72; margin-top: 0; } .detail-card h4 { color: #003f72; margin-bottom: 0.5rem; }
+    .detail-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem 2rem; font-size: 0.85rem; color: #333; margin-bottom: 1rem; }
+    .detail-grid strong { color: #003f72; }
+    .match-card { background: #f9fafb; border: 1px solid #d4d9e0; border-radius: 6px; padding: 1rem; margin-bottom: 0.75rem; }
+    .match-header { color: #003f72; font-size: 1rem; margin-bottom: 0.5rem; }
+    .match-body { font-size: 0.85rem; color: #333; } .match-body div { margin-bottom: 0.25rem; }
+    .match-body strong { color: #003f72; }
 </style>

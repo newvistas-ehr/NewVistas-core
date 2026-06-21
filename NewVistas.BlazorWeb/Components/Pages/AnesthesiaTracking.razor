@@ -21,20 +21,17 @@ else if (featureChecked && !featureEnabled)
 @if (!loading)
 {
     <div class="tab-bar">
-        <button class="tab-btn @(activeTab == 0 ? "active" : "")" @onclick="() => activeTab = 0">Patient Records</button>
-        <button class="tab-btn @(activeTab == 1 ? "active" : "")" @onclick="() => activeTab = 1">Dashboard</button>
+        <button class="tab @(activeTab == 0 ? "active" : "")" @onclick="() => activeTab = 0">Patient Records</button>
+        <button class="tab @(activeTab == 1 ? "active" : "")" @onclick="() => activeTab = 1">Dashboard</button>
     </div>
 
     @if (activeTab == 0)
     {
-        <div class="form-section">
-            <div class="form-row">
-                <label>Patient ID</label>
-                <input type="text" class="form-input" @bind="patientId" @bind:event="oninput" placeholder="Enter patient ID" />
-                <button @onclick="LoadRecords" disabled="@(string.IsNullOrWhiteSpace(patientId) || loadingRecords)" class="btn btn-primary">
-                    @if (loadingRecords) { <span>Loading...</span> } else { <span>Load</span> }
-                </button>
-            </div>
+        <div class="lookup-bar">
+            <input type="text" class="lookup-input" @bind="patientId" @bind:event="oninput" placeholder="Patient ID" />
+            <button @onclick="LoadRecords" disabled="@(string.IsNullOrWhiteSpace(patientId) || loadingRecords)" class="btn btn-primary">
+                @if (loadingRecords) { <span>Loading...</span> } else { <span>Load</span> }
+            </button>
         </div>
         @if (records != null && records.Count > 0)
         {
@@ -128,8 +125,7 @@ else if (featureChecked && !featureEnabled)
     .alert-warning { background: #fef3c7; color: #92400e; border: 1px solid #fde68a; } .alert-warning a { color: #003f72; font-weight: 600; }
     .empty-state { color: #999; font-style: italic; padding: 2rem 0; }
     .tab-bar { display: flex; gap: 0; border-bottom: 2px solid #d4d9e0; margin-bottom: 1.5rem; }
-    .tab-btn { padding: 0.6rem 1.25rem; border: none; background: transparent; cursor: pointer; font-size: 0.85rem; font-weight: 500; color: #666; border-bottom: 2px solid transparent; margin-bottom: -2px; }
-    .tab-btn.active { color: #003f72; border-bottom-color: #003f72; font-weight: 600; }
+    /* canonical tabs (.tab / .tab-bar) live in app.css */
     .form-section { max-width: 700px; } .form-row { display: flex; align-items: center; gap: 1rem; margin-bottom: 0.75rem; }
     .form-row label:first-child { width: 160px; font-size: 0.85rem; font-weight: 500; color: #333; flex-shrink: 0; }
     .form-input { flex: 1; padding: 0.4rem 0.6rem; border: 1px solid #ccc; border-radius: 4px; font-size: 0.85rem; max-width: 350px; }

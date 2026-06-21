@@ -68,7 +68,7 @@
             <button @onclick="SubmitConsult" disabled="@saving" class="btn btn-primary">
                 @if (saving) { <span>Submitting...</span> } else { <span>Submit Request</span> }
             </button>
-            <button @onclick="() => showNewConsult = false" class="btn btn-outline">Cancel</button>
+            <button @onclick="() => showNewConsult = false" class="btn btn-secondary">Cancel</button>
         </div>
     </div>
 }
@@ -79,11 +79,11 @@
     <div class="consult-detail">
         <div class="detail-header">
             <div class="detail-title">
-                <span class="badge badge-urgency urgency-@selectedConsult.Urgency.ToLowerInvariant()">@selectedConsult.Urgency</span>
-                <span class="badge badge-status @StatusClass(selectedConsult.Status)">@selectedConsult.Status</span>
+                <span class="badge @UrgencyClass(selectedConsult.Urgency)">@selectedConsult.Urgency</span>
+                <span class="badge @StatusClass(selectedConsult.Status)">@selectedConsult.Status</span>
                 @if (!string.IsNullOrEmpty(selectedConsult.ConsultType))
                 {
-                    <span class="badge badge-type">@selectedConsult.ConsultType</span>
+                    <span class="badge badge-info">@selectedConsult.ConsultType</span>
                 }
                 <strong>@selectedConsult.ToService</strong>
             </div>
@@ -116,7 +116,7 @@
             @if (selectedConsult.IsInterfacility)
             {
                 <div class="detail-meta">
-                    <span class="badge badge-orange">INTERFACILITY</span>
+                    <span class="badge badge-warning">INTERFACILITY</span>
                     <span>External: @(selectedConsult.ExternalFacilityName ?? "--")</span>
                 </div>
             }
@@ -143,18 +143,18 @@
             <div class="detail-actions">
                 @if (selectedConsult.Status == "PENDING")
                 {
-                    <button @onclick="() => showAcceptForm = true" class="btn btn-accept">Accept</button>
-                    <button @onclick="() => CancelConsult(selectedConsult.ConsultId)" class="btn btn-cancel-action">Cancel</button>
+                    <button @onclick="() => showAcceptForm = true" class="btn btn-primary">Accept</button>
+                    <button @onclick="() => CancelConsult(selectedConsult.ConsultId)" class="btn btn-primary">Cancel</button>
                 }
                 @if (selectedConsult.Status == "ACTIVE")
                 {
-                    <button @onclick="() => showScheduleForm = true" class="btn btn-schedule">Schedule</button>
+                    <button @onclick="() => showScheduleForm = true" class="btn btn-primary">Schedule</button>
                 }
                 @if (selectedConsult.Status is "ACTIVE" or "SCHEDULED")
                 {
-                    <button @onclick="() => ShowCompleteForm(selectedConsult.ConsultId)" class="btn btn-complete">Complete</button>
+                    <button @onclick="() => ShowCompleteForm(selectedConsult.ConsultId)" class="btn btn-primary">Complete</button>
                 }
-                <button @onclick="() => { selectedConsult = null; showAcceptForm = false; showScheduleForm = false; }" class="btn btn-outline">Close</button>
+                <button @onclick="() => { selectedConsult = null; showAcceptForm = false; showScheduleForm = false; }" class="btn btn-secondary">Close</button>
             </div>
         </div>
         @if (selectedConsult.CompletedDateTime.HasValue)
@@ -238,7 +238,7 @@
                             <strong>@tc.AuthorName</strong>
                             @if (!string.IsNullOrEmpty(tc.ActionTaken))
                             {
-                                <span class="badge badge-blue">@tc.ActionTaken</span>
+                                <span class="badge badge-info">@tc.ActionTaken</span>
                             }
                             <div class="tracking-text">@tc.CommentText</div>
                         </div>
@@ -270,7 +270,7 @@
             <div class="form-row"><label>Accepted By Name *</label><input type="text" @bind="ac_name" /></div>
             <div class="form-actions">
                 <button @onclick="AcceptWithDetails" disabled="@saving" class="btn btn-primary">Accept</button>
-                <button @onclick="() => showAcceptForm = false" class="btn btn-outline">Cancel</button>
+                <button @onclick="() => showAcceptForm = false" class="btn btn-secondary">Cancel</button>
             </div>
         </div>
     }
@@ -285,7 +285,7 @@
             <div class="form-row"><label>Clinic Name</label><input type="text" @bind="sc_clinicName" /></div>
             <div class="form-actions">
                 <button @onclick="ScheduleWithDetails" disabled="@saving" class="btn btn-primary">Schedule</button>
-                <button @onclick="() => showScheduleForm = false" class="btn btn-outline">Cancel</button>
+                <button @onclick="() => showScheduleForm = false" class="btn btn-secondary">Cancel</button>
             </div>
         </div>
     }
@@ -308,7 +308,7 @@
             <button @onclick="CompleteConsult" disabled="@saving" class="btn btn-primary">
                 @if (saving) { <span>Completing...</span> } else { <span>Complete Consult</span> }
             </button>
-            <button @onclick="() => showCompleteForm = false" class="btn btn-outline">Cancel</button>
+            <button @onclick="() => showCompleteForm = false" class="btn btn-secondary">Cancel</button>
         </div>
     </div>
 }
@@ -344,8 +344,8 @@
                         <td class="service-name">@c.ToService</td>
                         <td>@(c.FromService ?? "--")</td>
                         <td>--</td>
-                        <td><span class="badge badge-urgency urgency-@c.Urgency.ToLowerInvariant()">@c.Urgency</span></td>
-                        <td><span class="badge badge-status @StatusClass(c.Status)">@c.Status</span></td>
+                        <td><span class="badge @UrgencyClass(c.Urgency)">@c.Urgency</span></td>
+                        <td><span class="badge @StatusClass(c.Status)">@c.Status</span></td>
                         <td>@(c.RequestingProviderName ?? "--")</td>
                         <td>@(c.ProvisionalDiagnosis ?? "--") @(c.HasResultDocument ? " [Note]" : "")</td>
                     </tr>
@@ -606,67 +606,43 @@
 
     private static string StatusClass(string status) => status switch
     {
-        "PENDING" => "status-pending",
-        "ACTIVE" => "status-active",
-        "SCHEDULED" => "status-scheduled",
-        "COMPLETE" => "status-complete",
-        "CANCELLED" => "status-cancelled",
-        "DISCONTINUED" => "status-cancelled",
-        _ => ""
+        "PENDING" => "badge-warning",
+        "ACTIVE" => "badge-info",
+        "SCHEDULED" => "badge-info",
+        "COMPLETE" => "badge-success",
+        "CANCELLED" => "badge-neutral",
+        "DISCONTINUED" => "badge-neutral",
+        _ => "badge-neutral"
+    };
+
+    private static string UrgencyClass(string urgency) => urgency.ToUpperInvariant() switch
+    {
+        "STAT" => "badge-danger",
+        "URGENT" => "badge-warning",
+        _ => "badge-info"
     };
 }
 
 <style>
+    /* Canonical interaction classes (lookup-bar, lookup-input, tab-bar, tab, btn,
+       btn-primary, btn-secondary, alert, alert-error, alert-success, data-table, form-input,
+       badge, badge-*, empty-state) are defined once in app.css per UI-CONVENTIONS.md.
+       Only page-specific styles (consult form/detail panels, phase4 sections) live here. */
     h1 { color: #003f72; margin-bottom: 1.25rem; font-size: 1.4rem; }
-    .lookup-bar { display: flex; gap: 0.5rem; margin-bottom: 1.5rem; align-items: center; }
-    .lookup-input { width: 280px; padding: 0.5rem 0.75rem; border: 1px solid #ccc; border-radius: 4px; font-size: 0.9rem; }
-    .btn { padding: 0.5rem 1.25rem; border: none; border-radius: 4px; cursor: pointer; font-size: 0.85rem; }
-    .btn-primary { background: #003f72; color: white; }
-    .btn-primary:hover { background: #002a4e; }
-    .btn-primary:disabled { background: #999; cursor: not-allowed; }
-    .btn-secondary { background: #16a34a; color: white; }
-    .btn-secondary:disabled { background: #999; cursor: not-allowed; }
-    .btn-outline { background: white; border: 1px solid #ccc; color: #333; }
-    .btn-accept { background: #16a34a; color: white; }
-    .btn-schedule { background: #2563eb; color: white; }
-    .btn-complete { background: #7c3aed; color: white; }
-    .btn-cancel-action { background: #dc2626; color: white; }
-
-    .alert { padding: 0.75rem 1rem; border-radius: 4px; margin-bottom: 1rem; font-size: 0.85rem; }
-    .alert-error { background: #fde8e8; color: #b91c1c; border: 1px solid #f5c6c6; }
-    .alert-success { background: #dcfce7; color: #166534; border: 1px solid #bbf7d0; }
-    .empty-state { color: #999; font-style: italic; padding: 2rem 0; }
     .results-header { font-size: 0.8rem; color: #666; margin-bottom: 0.5rem; }
 
-    .data-table { width: 100%; border-collapse: collapse; font-size: 0.85rem; border: 1px solid #d4d9e0; }
-    .data-table thead { background: #f4f6f9; }
-    .data-table th { text-align: left; padding: 0.5rem; font-weight: 600; color: #003f72; border-bottom: 2px solid #d4d9e0; font-size: 0.75rem; text-transform: uppercase; }
-    .data-table td { padding: 0.4rem 0.5rem; border-bottom: 1px solid #f0f0f0; }
     .data-table tr.clickable { cursor: pointer; }
     .data-table tr.clickable:hover { background: #eef3f9; }
     .date-cell { color: #888; font-size: 0.8rem; white-space: nowrap; }
     .service-name { color: #003f72; font-weight: 500; }
-
-    .badge { padding: 2px 8px; border-radius: 3px; font-size: 0.7rem; font-weight: 600; display: inline-block; }
-    .urgency-routine { background: #dbeafe; color: #1e40af; }
-    .urgency-urgent { background: #fef3c7; color: #92400e; }
-    .urgency-stat { background: #fde8e8; color: #b91c1c; }
-    .status-pending { background: #fef3c7; color: #92400e; }
-    .status-active { background: #dbeafe; color: #1e40af; }
-    .status-scheduled { background: #e0e7ff; color: #3730a3; }
-    .status-complete { background: #dcfce7; color: #166534; }
-    .status-cancelled { background: #fde8e8; color: #b91c1c; }
-    .badge-blue { background: #dbeafe; color: #1e40af; }
-    .badge-orange { background: #fef3c7; color: #92400e; }
-    .badge-type { background: #e0e7ff; color: #3730a3; }
 
     .consult-form { border: 1px solid #d4d9e0; border-radius: 6px; padding: 1.25rem; margin-bottom: 1.5rem; background: #f9fafb; }
     .consult-form h3 { margin-bottom: 1rem; color: #003f72; }
     .form-row { display: flex; flex-direction: column; gap: 0.25rem; margin-bottom: 0.75rem; max-width: 400px; }
     .form-row.full { max-width: 100%; }
     .form-row label { font-size: 0.8rem; font-weight: 600; color: #555; }
-    .form-row input, .form-row select { padding: 0.4rem 0.6rem; border: 1px solid #ccc; border-radius: 4px; font-size: 0.85rem; }
-    .form-row textarea { padding: 0.5rem 0.6rem; border: 1px solid #ccc; border-radius: 4px; font-size: 0.85rem; font-family: monospace; resize: vertical; }
+    .form-row input, .form-row select { padding: 0.4rem 0.6rem; border: 1px solid #d4d9e0; border-radius: 4px; font-size: 0.85rem; }
+    .form-row textarea { padding: 0.5rem 0.6rem; border: 1px solid #d4d9e0; border-radius: 4px; font-size: 0.85rem; resize: vertical; }
     .form-actions { display: flex; gap: 0.5rem; margin-top: 0.5rem; }
 
     .consult-detail { border: 1px solid #d4d9e0; border-radius: 6px; overflow: hidden; margin-bottom: 1.5rem; }
@@ -682,7 +658,7 @@
     .phase4-section { padding: 0.75rem 1rem; border-top: 1px solid #e5e7eb; }
     .phase4-section h4 { color: #003f72; margin-bottom: 0.5rem; font-size: 0.9rem; }
     .inline-form { display: flex; gap: 0.5rem; align-items: flex-end; flex-wrap: wrap; }
-    .inline-form input, .inline-form select { padding: 0.4rem 0.6rem; border: 1px solid #ccc; border-radius: 4px; font-size: 0.85rem; }
+    .inline-form input, .inline-form select { padding: 0.4rem 0.6rem; border: 1px solid #d4d9e0; border-radius: 4px; font-size: 0.85rem; }
     .entry-form.compact { margin-top: 0.5rem; padding: 0.75rem; }
     .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; }
 

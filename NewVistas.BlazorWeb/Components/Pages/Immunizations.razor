@@ -25,10 +25,10 @@
 @if (items != null || detail != null)
 {
     <div class="tab-bar">
-        <button class="tab @(activeTab == "list" ? "tab-active" : "")" @onclick='() => SetTab("list")'>Immunizations</button>
+        <button class="tab @(activeTab == "list" ? "active" : "")" @onclick='() => SetTab("list")'>Immunizations</button>
         @if (detail != null)
         {
-            <button class="tab @(activeTab == "detail" ? "tab-active" : "")" @onclick='() => SetTab("detail")'>Detail</button>
+            <button class="tab @(activeTab == "detail" ? "active" : "")" @onclick='() => SetTab("detail")'>Detail</button>
         }
     </div>
 }
@@ -57,7 +57,7 @@
         </div>
         <div class="form-actions">
             <button @onclick="Submit" disabled="@saving" class="btn btn-primary">@(saving ? "Saving..." : "Record")</button>
-            <button @onclick="() => showNew = false" class="btn btn-outline">Cancel</button>
+            <button @onclick="() => showNew = false" class="btn btn-secondary">Cancel</button>
         </div>
     </div>
 }
@@ -88,7 +88,7 @@
     <div class="detail-panel">
         <div class="detail-header">
             <h3>@detail.ImmunizationName</h3>
-            <button @onclick="CloseDetail" class="btn btn-outline btn-sm-action">Close</button>
+            <button @onclick="CloseDetail" class="btn btn-secondary">Close</button>
         </div>
         <div class="detail-grid">
             <div><strong>ID:</strong> @detail.ImmunizationId</div>
@@ -546,21 +546,11 @@
 }
 
 <style>
+    /* Canonical interaction classes (lookup-bar, lookup-input, btn, btn-primary,
+       btn-secondary, alert, alert-error, alert-success, empty-state, tab-bar, tab,
+       tab.active, data-table) are defined once in app.css per UI-CONVENTIONS.md.
+       Only page-specific styles live here. */
     h1 { color: #003f72; margin-bottom: 1.25rem; font-size: 1.4rem; }
-    .lookup-bar { display: flex; gap: .5rem; margin-bottom: 1.5rem; align-items: center; }
-    .lookup-input { width: 280px; padding: .5rem .75rem; border: 1px solid #ccc; border-radius: 4px; font-size: .9rem; }
-    .btn { padding: .5rem 1.25rem; border: none; border-radius: 4px; cursor: pointer; font-size: .85rem; }
-    .btn-primary { background: #003f72; color: white; } .btn-primary:hover { background: #002a4e; } .btn-primary:disabled { background: #999; cursor: not-allowed; }
-    .btn-secondary { background: #16a34a; color: white; } .btn-secondary:disabled { background: #999; }
-    .btn-outline { background: white; border: 1px solid #ccc; color: #333; }
-    .btn-sm-action { padding: 4px 12px; font-size: .8rem; }
-    .alert { padding: .75rem 1rem; border-radius: 4px; margin-bottom: 1rem; font-size: .85rem; }
-    .alert-error { background: #fde8e8; color: #b91c1c; border: 1px solid #f5c6c6; }
-    .alert-success { background: #dcfce7; color: #166534; border: 1px solid #bbf7d0; }
-    .empty-state { color: #999; font-style: italic; padding: 2rem 0; }
-    .tab-bar { display: flex; gap: 0; border-bottom: 2px solid #d4d9e0; margin-bottom: 1.25rem; }
-    .tab { background: none; border: none; padding: .6rem 1.25rem; cursor: pointer; font-size: .85rem; color: #555; border-bottom: 2px solid transparent; margin-bottom: -2px; }
-    .tab-active { color: #003f72; font-weight: 600; border-bottom-color: #003f72; }
     .entry-form { border: 1px solid #d4d9e0; border-radius: 6px; padding: 1.25rem; margin-bottom: 1.5rem; background: #f9fafb; }
     .entry-form.compact { margin-top: .75rem; padding: 1rem; }
     .entry-form h3 { margin-bottom: 1rem; color: #003f72; }
@@ -571,10 +561,6 @@
     .form-row input, .form-row select, .form-row textarea { padding: .4rem .6rem; border: 1px solid #ccc; border-radius: 4px; font-size: .85rem; }
     .form-row textarea { resize: vertical; }
     .form-actions { display: flex; gap: .5rem; margin-top: .75rem; }
-    .data-table { width: 100%; border-collapse: collapse; font-size: .85rem; border: 1px solid #d4d9e0; }
-    .data-table thead { background: #f4f6f9; }
-    .data-table th { text-align: left; padding: .5rem; font-weight: 600; color: #003f72; border-bottom: 2px solid #d4d9e0; font-size: .75rem; text-transform: uppercase; }
-    .data-table td { padding: .4rem .5rem; border-bottom: 1px solid #f0f0f0; }
     .data-table tr.clickable { cursor: pointer; }
     .data-table tr.clickable:hover { background: #eef3f9; }
     .date { color: #888; font-size: .8rem; white-space: nowrap; }

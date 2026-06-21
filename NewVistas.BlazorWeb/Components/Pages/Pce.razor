@@ -15,7 +15,7 @@
 <h2>Patient Care Encounter (PCE)</h2>
 <p class="subtitle">VistA File #9000010 — encounter visits, diagnoses (V POV), and procedures (V CPT)</p>
 
-<div class="tabs">
+<div class="tab-bar">
     <button class="@TabClass("visits")" @onclick='() => SetTab("visits")'>Encounter List</button>
     <button class="@TabClass("detail")" @onclick='() => SetTab("detail")' disabled="@(selectedVisitId == null)">Encounter Detail</button>
     <button class="@TabClass("new")" @onclick='() => SetTab("new")'>New Encounter</button>
@@ -23,16 +23,16 @@
 
 @if (!string.IsNullOrEmpty(error))
 {
-    <div class="error">@error</div>
+    <div class="alert alert-error">@error</div>
 }
 
 @* ── Encounter List Tab ─────────────────────────────────────────────────────── *@
 @if (activeTab == "visits")
 {
-    <div class="toolbar">
-        <input @bind="patientId" placeholder="Patient ID" class="input-id" />
-        <button @onclick="LoadVisits" disabled="@loading">Load Encounters</button>
-        <button @onclick="LoadDemo" disabled="@loading" class="btn-demo">Load Demo</button>
+    <div class="lookup-bar">
+        <input @bind="patientId" placeholder="Patient ID" class="lookup-input" />
+        <button class="btn btn-primary" @onclick="LoadVisits" disabled="@loading">Load</button>
+        <button class="btn btn-secondary" @onclick="LoadDemo" disabled="@loading">Load Demo</button>
     </div>
 
     @if (loading) { <p>Loading…</p> }
@@ -72,11 +72,11 @@
                             <td>@v.ProcedureCount</td>
                             <td><span class="badge @StatusBadge(v.Status)">@v.Status</span></td>
                             <td>
-                                <button class="btn-sm" @onclick="() => SelectVisit(v.VisitId)">View</button>
+                                <button class="btn btn-primary" @onclick="() => SelectVisit(v.VisitId)">View</button>
                                 @if (v.Status == "OPEN")
                                 {
-                                    <button class="btn-sm btn-checkout" @onclick="() => CheckOut(v.VisitId)" disabled="@loading">Check Out</button>
-                                    <button class="btn-sm btn-cancel" @onclick="() => CancelVisit(v.VisitId)" disabled="@loading">Cancel</button>
+                                    <button class="btn btn-primary" @onclick="() => CheckOut(v.VisitId)" disabled="@loading">Check Out</button>
+                                    <button class="btn btn-secondary" @onclick="() => CancelVisit(v.VisitId)" disabled="@loading">Cancel</button>
                                 }
                             </td>
                         </tr>
@@ -121,7 +121,7 @@
                 @foreach (DiagnosisRow dx in detail.Diagnoses)
                 {
                     <tr>
-                        <td><code>@dx.Icd10Code</code></td>
+                        <td>@dx.Icd10Code</td>
                         <td>@dx.Description</td>
                         <td>@(dx.IsPrimary ? "PRIMARY" : "Secondary")</td>
                         <td>@(dx.ProviderName ?? "—")</td>
@@ -140,7 +140,7 @@
                 <input @bind="newDxCode" placeholder="ICD-10 code (e.g. I10)" class="input-sm" />
                 <input @bind="newDxDesc" placeholder="Description" class="input-wide" />
                 <label><input type="checkbox" @bind="newDxIsPrimary" /> Primary</label>
-                <button @onclick="AddDiagnosis" disabled="@loading">Add</button>
+                <button class="btn btn-primary" @onclick="AddDiagnosis" disabled="@loading">Add</button>
             </div>
         </div>
     }
@@ -158,7 +158,7 @@
                 @foreach (ProcedureRow proc in detail.Procedures)
                 {
                     <tr>
-                        <td><code>@proc.CptCode</code></td>
+                        <td>@proc.CptCode</td>
                         <td>@proc.Description</td>
                         <td>@proc.Quantity</td>
                         <td>@(proc.Modifiers ?? "—")</td>
@@ -178,7 +178,7 @@
                 <input @bind="newCptDesc" placeholder="Description" class="input-wide" />
                 <input @bind="newCptQty" type="number" min="1" class="input-qty" />
                 <input @bind="newCptMods" placeholder="Modifiers" class="input-sm" />
-                <button @onclick="AddProcedure" disabled="@loading">Add</button>
+                <button class="btn btn-primary" @onclick="AddProcedure" disabled="@loading">Add</button>
             </div>
         </div>
     }
@@ -233,11 +233,11 @@
             <input @bind="newComments" placeholder="Free-text comments" />
         </div>
         <div class="form-actions">
-            <button @onclick="CreateVisit" disabled="@loading" class="btn-primary">Create Encounter</button>
+            <button @onclick="CreateVisit" disabled="@loading" class="btn btn-primary">Create Encounter</button>
         </div>
         @if (!string.IsNullOrEmpty(createSuccess))
         {
-            <div class="success">Encounter created. Visit ID: <code>@createSuccess</code></div>
+            <div class="alert alert-success">Encounter created. Visit ID: @createSuccess</div>
         }
     </div>
 }
@@ -322,24 +322,24 @@
     int newCptQty = 1;
     string? newCptMods;
 
-    string TabClass(string tab) => activeTab == tab ? "active" : string.Empty;
+    string TabClass(string tab) => activeTab == tab ? "tab active" : "tab";
 
     void SetTab(string tab) { activeTab = tab; error = null; }
 
     string StatusBadge(string status) => status switch
     {
-        "OPEN" => "badge-open",
-        "CHECKED OUT" => "badge-out",
-        "CANCELLED" => "badge-cancelled",
-        _ => "badge-other"
+        "OPEN" => "badge-success",
+        "CHECKED OUT" => "badge-info",
+        "CANCELLED" => "badge-danger",
+        _ => "badge-neutral"
     };
 
     string CategoryBadge(string cat) => cat switch
     {
-        "A" => "badge-amb",
-        "T" => "badge-tele",
-        "H" => "badge-inp",
-        _ => "badge-other"
+        "A" => "badge-success",
+        "T" => "badge-info",
+        "H" => "badge-warning",
+        _ => "badge-neutral"
     };
 
     string ServiceCategoryLabel(string cat) => cat switch

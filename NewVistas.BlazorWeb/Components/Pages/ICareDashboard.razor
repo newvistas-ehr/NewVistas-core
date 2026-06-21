@@ -32,9 +32,9 @@ else if (featureChecked && !featureEnabled)
 @if (!loading)
 {
     <div class="tab-bar">
-        <button class="tab-btn @(activeTab == 0 ? "active" : "")" @onclick="() => activeTab = 0">Dashboard</button>
-        <button class="tab-btn @(activeTab == 1 ? "active" : "")" @onclick="() => activeTab = 1">Panel Management</button>
-        <button class="tab-btn @(activeTab == 2 ? "active" : "")" @onclick="() => activeTab = 2">Patient Detail</button>
+        <button class="tab @(activeTab == 0 ? "active" : "")" @onclick="() => activeTab = 0">Dashboard</button>
+        <button class="tab @(activeTab == 1 ? "active" : "")" @onclick="() => activeTab = 1">Panel Management</button>
+        <button class="tab @(activeTab == 2 ? "active" : "")" @onclick="() => activeTab = 2">Patient Detail</button>
     </div>
 
     @* ───── Tab 0: Dashboard ───── *@
@@ -98,9 +98,9 @@ else if (featureChecked && !featureEnabled)
                             <tr>
                                 <td class="patient-name">@pt.PatientName</td>
                                 <td><span class="status-dot" style="background: @GetStatusColor(pt.Status);" title="@pt.Status"></span></td>
-                                <td class="code">@pt.DueReminderCount</td>
-                                <td class="code">@pt.QualityGapCount</td>
-                                <td class="code">@pt.RegistryCount</td>
+                                <td>@pt.DueReminderCount</td>
+                                <td>@pt.QualityGapCount</td>
+                                <td>@pt.RegistryCount</td>
                                 <td>@(pt.LastVisitDate?.ToString("MM/dd/yyyy") ?? "---")</td>
                             </tr>
                         }
@@ -170,10 +170,10 @@ else if (featureChecked && !featureEnabled)
                         @foreach (var pp in panelPatients)
                         {
                             <tr>
-                                <td class="code">@pp.PatientId</td>
+                                <td>@pp.PatientId</td>
                                 <td>@pp.PatientName</td>
                                 <td>
-                                    <button class="btn btn-danger btn-sm" @onclick="() => RemovePatientFromPanel(pp.PatientId)">Remove</button>
+                                    <button class="btn btn-primary" @onclick="() => RemovePatientFromPanel(pp.PatientId)">Remove</button>
                                 </td>
                             </tr>
                         }
@@ -535,27 +535,15 @@ else if (featureChecked && !featureEnabled)
 }
 
 <style>
-    .btn { padding: 0.5rem 1.25rem; border: none; border-radius: 4px; cursor: pointer; font-size: 0.85rem; }
-    .btn-primary { background: #003f72; color: white; }
-    .btn-primary:disabled { background: #999; cursor: not-allowed; }
-    .btn-danger { background: #dc2626; color: white; }
-    .btn-sm { padding: 0.25rem 0.75rem; font-size: 0.78rem; }
-    .alert { padding: 0.75rem 1rem; border-radius: 4px; margin-bottom: 1rem; }
-    .alert-error { background: #fde8e8; color: #b91c1c; border: 1px solid #f5c6c6; }
-    .alert-success { background: #dcfce7; color: #166534; border: 1px solid #bbf7d0; }
-    .alert-warning { background: #fef3c7; color: #92400e; border: 1px solid #fde68a; }
+    /* Canonical interaction classes (lookup-bar, lookup-input, tab-bar, tab, btn,
+       btn-primary, alert, alert-error, alert-success, data-table, form-input, badge,
+       badge-*, empty-state) are defined once in app.css per UI-CONVENTIONS.md.
+       Only page-specific styles (layout, summary banner, status indicators) live here. */
     .alert-warning a { color: #003f72; font-weight: 600; }
-    .empty-state { color: #999; font-style: italic; padding: 2rem 0; }
-
-    .tab-bar { display: flex; gap: 0; border-bottom: 2px solid #d4d9e0; margin-bottom: 1.5rem; }
-    .tab-btn { padding: 0.6rem 1.25rem; border: none; background: transparent; cursor: pointer; font-size: 0.85rem; font-weight: 500; color: #666; border-bottom: 2px solid transparent; margin-bottom: -2px; }
-    .tab-btn.active { color: #003f72; border-bottom-color: #003f72; font-weight: 600; }
-    .tab-btn:hover { color: #003f72; }
 
     .form-section { max-width: 700px; }
     .form-row { display: flex; align-items: center; gap: 1rem; margin-bottom: 0.75rem; }
     .form-row label:first-child { width: 140px; font-size: 0.85rem; font-weight: 500; color: #333; flex-shrink: 0; }
-    .form-input { flex: 1; padding: 0.4rem 0.6rem; border: 1px solid #ccc; border-radius: 4px; font-size: 0.85rem; max-width: 350px; }
     .form-actions { display: flex; gap: 0.75rem; margin-top: 1rem; margin-bottom: 1.5rem; }
 
     .summary-banner { display: flex; align-items: center; gap: 1.5rem; padding: 1rem 1.25rem; background: #f4f6f9; border: 1px solid #d4d9e0; border-radius: 4px; margin-bottom: 1.5rem; flex-wrap: wrap; }
@@ -576,11 +564,6 @@ else if (featureChecked && !featureEnabled)
     .summary-quality .summary-label { color: #be185d; }
     .summary-date { margin-left: auto; font-size: 0.8rem; color: #666; }
 
-    .data-table { width: 100%; border-collapse: collapse; font-size: 0.85rem; margin-bottom: 1.5rem; }
-    .data-table th { text-align: left; padding: 0.5rem; font-weight: 600; color: #003f72; border-bottom: 2px solid #d4d9e0; font-size: 0.75rem; text-transform: uppercase; background: #f4f6f9; }
-    .data-table td { padding: 0.4rem 0.5rem; border-bottom: 1px solid #f0f0f0; }
-    .data-table tr:hover { background: #f9fafb; }
-    .code { font-family: monospace; color: #003f72; }
     .patient-name { font-weight: 500; }
 
     .status-dot { display: inline-block; width: 12px; height: 12px; border-radius: 50%; }

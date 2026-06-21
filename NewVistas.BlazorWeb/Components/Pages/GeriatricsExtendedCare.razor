@@ -17,7 +17,7 @@
 
 @if (error != null)
 {
-    <div class="alert-error">@error</div>
+    <div class="alert alert-error">@error</div>
 }
 
 <div class="tab-bar">
@@ -49,7 +49,7 @@
         }
         else
         {
-            <table>
+            <table class="data-table">
                 <thead>
                     <tr>
                         <th>Patient</th>
@@ -86,9 +86,9 @@
 @if (activeTab == 2)
 {
     <div class="panel">
-        <div class="search-bar">
-            <input type="text" @bind="assessmentPatientId" placeholder="Patient ID" class="input-field" />
-            <button class="btn-primary" @onclick="LoadAssessments">Search Assessments</button>
+        <div class="lookup-bar">
+            <input type="text" @bind="assessmentPatientId" placeholder="Patient ID" class="lookup-input" />
+            <button class="btn btn-primary" @onclick="LoadAssessments">Search Assessments</button>
         </div>
 
         @if (loadingAssessments)
@@ -101,7 +101,7 @@
         }
         else if (assessments.Count > 0)
         {
-            <table>
+            <table class="data-table">
                 <thead>
                     <tr>
                         <th>Patient</th>
@@ -206,7 +206,7 @@
         if (tab == 3) await LoadDashboard();
     }
 
-    private string TabClass(int tab) => tab == activeTab ? "tab-btn active" : "tab-btn";
+    private string TabClass(int tab) => tab == activeTab ? "tab active" : "tab";
     private string CensusFilterClass(string f) => f == censusFilter ? "filter-btn active" : "filter-btn";
 
     private async Task SetCensusFilter(string filter)
@@ -317,26 +317,26 @@
 
     private string LOCBadgeClass(GECLevelOfCare loc) => loc switch
     {
-        GECLevelOfCare.Hospice => "danger",
-        GECLevelOfCare.SkilledNursing => "warning",
-        GECLevelOfCare.SubAcuteRehabilitation => "info",
-        _ => "secondary"
+        GECLevelOfCare.Hospice => "badge-danger",
+        GECLevelOfCare.SkilledNursing => "badge-warning",
+        GECLevelOfCare.SubAcuteRehabilitation => "badge-info",
+        _ => "badge-neutral"
     };
 
     private string AdmitStatusBadgeClass(CLCAdmissionStatus s) => s switch
     {
-        CLCAdmissionStatus.Active => "success",
-        CLCAdmissionStatus.OnLeave => "warning",
-        CLCAdmissionStatus.Discharged => "secondary",
-        CLCAdmissionStatus.Deceased => "danger",
-        _ => "secondary"
+        CLCAdmissionStatus.Active => "badge-success",
+        CLCAdmissionStatus.OnLeave => "badge-warning",
+        CLCAdmissionStatus.Discharged => "badge-neutral",
+        CLCAdmissionStatus.Deceased => "badge-danger",
+        _ => "badge-neutral"
     };
 
     private string AssessStatusBadge(GECAssessmentStatus s) => s switch
     {
-        GECAssessmentStatus.Submitted => "success",
-        GECAssessmentStatus.Completed => "info",
-        _ => "secondary"
+        GECAssessmentStatus.Submitted => "badge-success",
+        GECAssessmentStatus.Completed => "badge-info",
+        _ => "badge-neutral"
     };
 
     private string ADLScoreClass(int score) => score >= 20 ? "overdue-text" : score >= 12 ? "warning-text" : "";
@@ -388,8 +388,7 @@
 <style>
     .subtitle { color: #666; margin-top: -0.5rem; margin-bottom: 1rem; }
     .tab-bar { display: flex; gap: 0.5rem; margin-bottom: 1rem; flex-wrap: wrap; }
-    .tab-btn { padding: 0.5rem 1rem; border: 1px solid #ccc; background: #f5f5f5; cursor: pointer; border-radius: 4px; }
-    .tab-btn.active { background: #1976d2; color: white; border-color: #1976d2; }
+    /* canonical tabs (.tab / .tab-bar) live in app.css */
     .filter-bar { display: flex; gap: 0.5rem; margin-bottom: 1rem; flex-wrap: wrap; }
     .filter-btn { padding: 0.4rem 0.8rem; border: 1px solid #ccc; background: #f9f9f9; cursor: pointer; border-radius: 4px; font-size: 0.875rem; }
     .filter-btn.active { background: #e3f2fd; border-color: #1976d2; color: #1976d2; font-weight: bold; }

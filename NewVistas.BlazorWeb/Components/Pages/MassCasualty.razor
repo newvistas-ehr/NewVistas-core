@@ -21,9 +21,9 @@ else if (featureChecked && !featureEnabled)
 @if (!loading)
 {
     <div class="tab-bar">
-        <button class="tab-btn @(activeTab == 0 ? "active" : "")" @onclick="() => activeTab = 0">Active Incidents</button>
-        <button class="tab-btn @(activeTab == 1 ? "active" : "")" @onclick="() => activeTab = 1">Casualty Board</button>
-        <button class="tab-btn @(activeTab == 2 ? "active" : "")" @onclick="() => activeTab = 2">All Incidents</button>
+        <button class="tab @(activeTab == 0 ? "active" : "")" @onclick="() => activeTab = 0">Active Incidents</button>
+        <button class="tab @(activeTab == 1 ? "active" : "")" @onclick="() => activeTab = 1">Casualty Board</button>
+        <button class="tab @(activeTab == 2 ? "active" : "")" @onclick="() => activeTab = 2">All Incidents</button>
     </div>
 
     @if (activeTab == 0)
@@ -41,7 +41,7 @@ else if (featureChecked && !featureEnabled)
                     <div class="mci-header">
                         <strong>@inc.IncidentName</strong>
                         <span class="severity-badge severity-@inc.Severity.ToLower().Replace("_","")">@inc.Severity</span>
-                        <span class="status-badge" style="background:#fde8e8;color:#b91c1c;border:1px solid #f5c6c6;">ACTIVE</span>
+                        <span class="badge badge-danger">ACTIVE</span>
                     </div>
                     <div class="mci-details">
                         Type: <span class="code">@inc.IncidentType</span> |
@@ -57,14 +57,11 @@ else if (featureChecked && !featureEnabled)
 
     @if (activeTab == 1)
     {
-        <div class="form-section">
-            <div class="form-row">
-                <label>Incident ID</label>
-                <input type="text" class="form-input" @bind="casualtyIncidentId" @bind:event="oninput" placeholder="MCI:{id}" />
-                <button @onclick="LoadCasualties" disabled="@(string.IsNullOrWhiteSpace(casualtyIncidentId) || loadingCasualties)" class="btn btn-primary">
-                    @if (loadingCasualties) { <span>Loading...</span> } else { <span>Load Board</span> }
-                </button>
-            </div>
+        <div class="lookup-bar">
+            <input class="lookup-input" @bind="casualtyIncidentId" @bind:event="oninput" placeholder="Incident ID (MCI:{id})" />
+            <button @onclick="LoadCasualties" disabled="@(string.IsNullOrWhiteSpace(casualtyIncidentId) || loadingCasualties)" class="btn btn-primary">
+                @if (loadingCasualties) { <span>Loading...</span> } else { <span>Load Board</span> }
+            </button>
         </div>
         @if (casualties != null && casualties.Count > 0)
         {
@@ -113,7 +110,7 @@ else if (featureChecked && !featureEnabled)
                             <td><strong>@inc.IncidentName</strong></td>
                             <td class="code">@inc.IncidentType</td>
                             <td><span class="severity-badge severity-@inc.Severity.ToLower().Replace("_","")">@inc.Severity</span></td>
-                            <td><span class="status-badge" style="@(inc.Status == "ACTIVE" ? "background:#fde8e8;color:#b91c1c;border:1px solid #f5c6c6;" : "background:#dcfce7;color:#166534;border:1px solid #bbf7d0;")">@inc.Status</span></td>
+                            <td><span class="badge @(inc.Status == "ACTIVE" ? "badge-danger" : "badge-success")">@inc.Status</span></td>
                             <td>@inc.EstimatedCasualties</td>
                             <td>@inc.RegisteredCasualtyCount</td>
                             <td>@inc.ActivatedDate.ToString("MM/dd/yyyy HH:mm")</td>
@@ -144,24 +141,12 @@ else if (featureChecked && !featureEnabled)
 }
 
 <style>
-    .btn { padding: 0.5rem 1.25rem; border: none; border-radius: 4px; cursor: pointer; font-size: 0.85rem; }
-    .btn-primary { background: #003f72; color: white; } .btn-primary:disabled { background: #999; cursor: not-allowed; }
-    .alert { padding: 0.75rem 1rem; border-radius: 4px; margin-bottom: 1rem; }
-    .alert-error { background: #fde8e8; color: #b91c1c; border: 1px solid #f5c6c6; }
-    .alert-warning { background: #fef3c7; color: #92400e; border: 1px solid #fde68a; } .alert-warning a { color: #003f72; font-weight: 600; }
-    .empty-state { color: #999; font-style: italic; padding: 2rem 0; }
-    .tab-bar { display: flex; gap: 0; border-bottom: 2px solid #d4d9e0; margin-bottom: 1.5rem; }
-    .tab-btn { padding: 0.6rem 1.25rem; border: none; background: transparent; cursor: pointer; font-size: 0.85rem; font-weight: 500; color: #666; border-bottom: 2px solid transparent; margin-bottom: -2px; }
-    .tab-btn.active { color: #003f72; border-bottom-color: #003f72; font-weight: 600; }
-    .form-section { max-width: 700px; } .form-row { display: flex; align-items: center; gap: 1rem; margin-bottom: 0.75rem; }
-    .form-row label:first-child { width: 160px; font-size: 0.85rem; font-weight: 500; color: #333; flex-shrink: 0; }
-    .form-input { flex: 1; padding: 0.4rem 0.6rem; border: 1px solid #ccc; border-radius: 4px; font-size: 0.85rem; max-width: 350px; }
+    /* Canonical classes (btn, btn-primary, alert, alert-error, alert-warning, empty-state,
+       lookup-bar, lookup-input, tab-bar, tab, form-input, data-table, badge, badge-*) live in
+       app.css per UI-CONVENTIONS.md. Only page-specific styles (MCI cards, severity/triage
+       acuity badges) remain here. */
     .form-actions { display: flex; gap: 0.75rem; margin-top: 1rem; margin-bottom: 1.5rem; }
-    .data-table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
-    .data-table th { text-align: left; padding: 0.5rem; font-weight: 600; color: #003f72; border-bottom: 2px solid #d4d9e0; font-size: 0.75rem; text-transform: uppercase; background: #f4f6f9; }
-    .data-table td { padding: 0.4rem 0.5rem; border-bottom: 1px solid #f0f0f0; } .data-table tr:hover { background: #f9fafb; }
-    .code { font-family: monospace; color: #003f72; }
-    .status-badge { display: inline-block; padding: 0.2rem 0.6rem; border-radius: 3px; font-size: 0.75rem; font-weight: 600; text-transform: uppercase; }
+    .code { color: #003f72; }
     .mci-card { border: 2px solid #d1d5db; border-radius: 6px; padding: 1rem; margin-bottom: 1rem; }
     .mci-active { border-color: #dc2626; background: #fef2f2; }
     .mci-header { display: flex; align-items: center; gap: 0.75rem; margin-bottom: 0.5rem; font-size: 1rem; }
@@ -175,5 +160,4 @@ else if (featureChecked && !featureEnabled)
     .triage-badge { display: inline-block; padding: 0.2rem 0.6rem; border-radius: 3px; font-size: 0.75rem; font-weight: 700; color: white; }
     .triage-badge.triage-immediate { background: #dc2626; } .triage-badge.triage-delayed { background: #eab308; color: #422006; }
     .triage-badge.triage-minor { background: #16a34a; } .triage-badge.triage-expectant { background: #1f2937; }
-    .patient-id-small { font-size: 0.75rem; color: #999; }
 </style>

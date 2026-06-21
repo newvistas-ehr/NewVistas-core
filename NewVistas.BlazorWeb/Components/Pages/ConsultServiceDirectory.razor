@@ -15,7 +15,7 @@
 <h2>Consult Service Directory</h2>
 <p class="subtitle">VistA File #49 — available consult services and specialties</p>
 
-<div class="tabs">
+<div class="tab-bar">
     <button class="@TabClass("list")" @onclick='() => SetTab("list")'>Service List</button>
     <button class="@TabClass("search")" @onclick='() => SetTab("search")'>Search</button>
     <button class="@TabClass("add")" @onclick='() => SetTab("add")'>Add Service</button>
@@ -23,20 +23,20 @@
 
 @if (!string.IsNullOrEmpty(error))
 {
-    <div class="error">@error</div>
+    <div class="alert alert-error">@error</div>
 }
 
 @if (!string.IsNullOrEmpty(successMsg))
 {
-    <div class="success">@successMsg</div>
+    <div class="alert alert-success">@successMsg</div>
 }
 
 @* ── Tab 1: Service List ──────────────────────────────────── *@
 @if (activeTab == "list")
 {
     <div class="toolbar">
-        <button @onclick="LoadServices" disabled="@loading">Refresh</button>
-        <button @onclick="SeedDemo" disabled="@loading" class="btn-demo">Seed Demo Data</button>
+        <button @onclick="LoadServices" disabled="@loading" class="btn btn-secondary">Refresh</button>
+        <button @onclick="SeedDemo" disabled="@loading" class="btn btn-secondary">Seed Demo Data</button>
     </div>
 
     @if (loading) { <p class="loading-msg">Loading...</p> }
@@ -68,17 +68,17 @@
                         <td>
                             @if (svc.IsActive)
                             {
-                                <span class="badge badge-active">ACTIVE</span>
+                                <span class="badge badge-success">ACTIVE</span>
                             }
                             else
                             {
-                                <span class="badge badge-inactive">INACTIVE</span>
+                                <span class="badge badge-neutral">INACTIVE</span>
                             }
                         </td>
                         <td>
                             @if (svc.AcceptsInterfacility)
                             {
-                                <span class="badge badge-if">YES</span>
+                                <span class="badge badge-info">YES</span>
                             }
                             else
                             {
@@ -86,7 +86,7 @@
                             }
                         </td>
                         <td>
-                            <button class="btn-sm btn-remove" @onclick="() => RemoveService(svc.ServiceId)">Remove</button>
+                            <button class="btn btn-primary" @onclick="() => RemoveService(svc.ServiceId)">Remove</button>
                         </td>
                     </tr>
                 }
@@ -101,7 +101,7 @@
 {
     <div class="toolbar">
         <input @bind="searchQuery" @bind:event="oninput" placeholder="Search by name or specialty..." class="input-search" />
-        <button @onclick="SearchServices" disabled="@loading">Search</button>
+        <button @onclick="SearchServices" disabled="@loading" class="btn btn-primary">Search</button>
     </div>
 
     @if (loading) { <p class="loading-msg">Searching...</p> }
@@ -151,7 +151,7 @@
         <label>
             <input type="checkbox" @bind="newAcceptsInterfacility" /> Accepts Interfacility Consults
         </label>
-        <button @onclick="SubmitAddService" disabled="@(string.IsNullOrWhiteSpace(newServiceId) || string.IsNullOrWhiteSpace(newServiceName))">Add Service</button>
+        <button @onclick="SubmitAddService" disabled="@(string.IsNullOrWhiteSpace(newServiceId) || string.IsNullOrWhiteSpace(newServiceName))" class="btn btn-primary">Add Service</button>
     </div>
 }
 
@@ -179,7 +179,7 @@
     bool newIsActive = true;
     bool newAcceptsInterfacility;
 
-    string TabClass(string tab) => activeTab == tab ? "tab-btn active" : "tab-btn";
+    string TabClass(string tab) => activeTab == tab ? "tab active" : "tab";
 
     void SetTab(string tab) { activeTab = tab; error = null; successMsg = null; }
 
@@ -272,8 +272,7 @@
 <style>
     .subtitle { color: #888; margin-top: -8px; font-size: 0.9em; }
     .tabs { display: flex; gap: 4px; margin: 16px 0 12px; }
-    .tab-btn { padding: 8px 18px; border: 1px solid #555; border-bottom: none; border-radius: 6px 6px 0 0; cursor: pointer; background: #333; color: #ccc; }
-    .tab-btn.active { background: #1a1a2e; color: #fff; font-weight: bold; border-color: #667; }
+    /* canonical tabs (.tab / .tab-bar) live in app.css */
     .toolbar { display: flex; gap: 8px; margin: 12px 0; align-items: center; }
     .input-search { padding: 6px; border: 1px solid #555; border-radius: 4px; width: 300px; background: #1a1a2e; color: #eee; }
     button { padding: 6px 14px; border: 1px solid #555; border-radius: 4px; cursor: pointer; background: #2a2a3e; color: #eee; }

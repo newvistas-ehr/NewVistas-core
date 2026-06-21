@@ -27,7 +27,7 @@
 
 @if (dataLoaded)
 {
-    <div class="tabs">
+    <div class="tab-bar">
         <button class="tab @(activeTab == "assessments" ? "active" : "")" @onclick='() => activeTab = "assessments"'>
             Assessments (@assessments.Count)
         </button>
@@ -115,7 +115,7 @@
                         <button @onclick="SubmitAssessment" disabled="@saving" class="btn btn-primary">
                             @if (saving) { <span>Saving...</span> } else { <span>Save Assessment</span> }
                         </button>
-                        <button @onclick="() => showNewAssessment = false" class="btn btn-outline">Cancel</button>
+                        <button @onclick="() => showNewAssessment = false" class="btn btn-secondary">Cancel</button>
                     </div>
                 </div>
             }
@@ -124,10 +124,10 @@
             {
                 <div class="sw-detail">
                     <div class="detail-header">
-                        <span class="badge badge-type">@selectedAssessment.AssessmentType</span>
-                        <span class="badge badge-status status-@selectedAssessment.Status.ToString().ToLowerInvariant()">@selectedAssessment.Status</span>
-                        <span class="badge badge-risk risk-@selectedAssessment.RiskLevel.ToString().ToLowerInvariant()">Risk: @selectedAssessment.RiskLevel</span>
-                        <button @onclick="() => selectedAssessment = null" class="btn btn-sm btn-outline">Close</button>
+                        <span class="badge badge-neutral">@selectedAssessment.AssessmentType</span>
+                        <span class="badge @StatusBadge(selectedAssessment.Status.ToString())">@selectedAssessment.Status</span>
+                        <span class="badge @RiskBadge(selectedAssessment.RiskLevel.ToString())">Risk: @selectedAssessment.RiskLevel</span>
+                        <button @onclick="() => selectedAssessment = null" class="btn btn-secondary">Close</button>
                     </div>
                     <div class="detail-grid">
                         <div><strong>Social Worker:</strong> @(selectedAssessment.SocialWorkerName ?? "—")</div>
@@ -159,8 +159,8 @@
                     @if (selectedAssessment.Status == SocialWorkAssessmentStatus.Draft)
                     {
                         <div class="detail-actions">
-                            <button @onclick="() => CompleteAssessment(selectedAssessment.AssessmentId)" class="btn btn-accept">Complete</button>
-                            <button @onclick="() => CloseAssessment(selectedAssessment.AssessmentId)" class="btn btn-cancel-action">Close</button>
+                            <button @onclick="() => CompleteAssessment(selectedAssessment.AssessmentId)" class="btn btn-primary">Complete</button>
+                            <button @onclick="() => CloseAssessment(selectedAssessment.AssessmentId)" class="btn btn-secondary">Close</button>
                         </div>
                     }
                 </div>
@@ -172,7 +172,7 @@
             }
             else
             {
-                <table class="sw-table">
+                <table class="data-table">
                     <thead>
                         <tr>
                             <th>Date</th>
@@ -190,11 +190,11 @@
                             <tr class="@(selectedAssessment?.AssessmentId == a.AssessmentId ? "selected" : "")">
                                 <td>@a.AssessmentDate.ToString("MM/dd/yyyy")</td>
                                 <td>@a.AssessmentType</td>
-                                <td><span class="badge badge-risk risk-@a.RiskLevel.ToString().ToLowerInvariant()">@a.RiskLevel</span></td>
+                                <td><span class="badge @RiskBadge(a.RiskLevel.ToString())">@a.RiskLevel</span></td>
                                 <td>@(a.HousingStatus ?? "—")</td>
                                 <td>@(a.SocialWorkerName ?? "—")</td>
-                                <td><span class="badge badge-status status-@a.Status.ToString().ToLowerInvariant()">@a.Status</span></td>
-                                <td><button @onclick="() => ViewAssessment(a.AssessmentId)" class="btn btn-sm btn-outline">View</button></td>
+                                <td><span class="badge @StatusBadge(a.Status.ToString())">@a.Status</span></td>
+                                <td><button @onclick="() => ViewAssessment(a.AssessmentId)" class="btn btn-secondary">View</button></td>
                             </tr>
                         }
                     </tbody>
@@ -272,7 +272,7 @@
                         <button @onclick="SubmitReferral" disabled="@saving" class="btn btn-primary">
                             @if (saving) { <span>Saving...</span> } else { <span>Submit Referral</span> }
                         </button>
-                        <button @onclick="() => showNewReferral = false" class="btn btn-outline">Cancel</button>
+                        <button @onclick="() => showNewReferral = false" class="btn btn-secondary">Cancel</button>
                     </div>
                 </div>
             }
@@ -281,10 +281,10 @@
             {
                 <div class="sw-detail">
                     <div class="detail-header">
-                        <span class="badge badge-type">@selectedReferral.ServiceType</span>
-                        <span class="badge badge-status status-@selectedReferral.Status.ToString().ToLowerInvariant()">@selectedReferral.Status</span>
+                        <span class="badge badge-neutral">@selectedReferral.ServiceType</span>
+                        <span class="badge @StatusBadge(selectedReferral.Status.ToString())">@selectedReferral.Status</span>
                         <strong>@(selectedReferral.AgencyName ?? "Agency TBD")</strong>
-                        <button @onclick="() => selectedReferral = null" class="btn btn-sm btn-outline">Close</button>
+                        <button @onclick="() => selectedReferral = null" class="btn btn-secondary">Close</button>
                     </div>
                     <div class="detail-grid">
                         <div><strong>Referral Date:</strong> @selectedReferral.ReferralDate.ToString("MM/dd/yyyy")</div>
@@ -309,14 +309,14 @@
                         <div class="detail-actions">
                             @if (selectedReferral.Status == SocialWorkReferralStatus.Pending)
                             {
-                                <button @onclick='() => UpdateReferralStatus(selectedReferral.ReferralId, "Active")' class="btn btn-accept">Activate</button>
+                                <button @onclick='() => UpdateReferralStatus(selectedReferral.ReferralId, "Active")' class="btn btn-primary">Activate</button>
                             }
                             @if (selectedReferral.Status == SocialWorkReferralStatus.Active)
                             {
-                                <button @onclick='() => UpdateReferralStatus(selectedReferral.ReferralId, "Complete")' class="btn btn-accept">Complete</button>
+                                <button @onclick='() => UpdateReferralStatus(selectedReferral.ReferralId, "Complete")' class="btn btn-primary">Complete</button>
                             }
-                            <button @onclick='() => UpdateReferralStatus(selectedReferral.ReferralId, "FollowUpNeeded")' class="btn btn-outline">Follow-Up Needed</button>
-                            <button @onclick="() => CloseReferral(selectedReferral.ReferralId)" class="btn btn-cancel-action">Close</button>
+                            <button @onclick='() => UpdateReferralStatus(selectedReferral.ReferralId, "FollowUpNeeded")' class="btn btn-secondary">Follow-Up Needed</button>
+                            <button @onclick="() => CloseReferral(selectedReferral.ReferralId)" class="btn btn-secondary">Close</button>
                         </div>
                     }
                 </div>
@@ -328,7 +328,7 @@
             }
             else
             {
-                <table class="sw-table">
+                <table class="data-table">
                     <thead>
                         <tr>
                             <th>Date</th>
@@ -349,8 +349,8 @@
                                 <td>@(r.AgencyName ?? "—")</td>
                                 <td>@(r.SocialWorkerName ?? "—")</td>
                                 <td>@(r.FollowUpDate?.ToString("MM/dd/yyyy") ?? "—")</td>
-                                <td><span class="badge badge-status status-@r.Status.ToString().ToLowerInvariant()">@r.Status</span></td>
-                                <td><button @onclick="() => ViewReferral(r.ReferralId)" class="btn btn-sm btn-outline">View</button></td>
+                                <td><span class="badge @StatusBadge(r.Status.ToString())">@r.Status</span></td>
+                                <td><button @onclick="() => ViewReferral(r.ReferralId)" class="btn btn-secondary">View</button></td>
                             </tr>
                         }
                     </tbody>
@@ -617,14 +617,36 @@
         catch (Exception ex) { error = $"Error: {ex.Message}"; }
     }
 
+    // ── Badge helpers (canonical badge-* classes; see app.css) ─────────────────
+
+    static string RiskBadge(string risk) => risk switch
+    {
+        "Critical" => "badge-danger",
+        "High"     => "badge-danger",
+        "Moderate" => "badge-warning",
+        "Low"      => "badge-success",
+        _          => "badge-neutral"
+    };
+
+    static string StatusBadge(string status) => status switch
+    {
+        "Complete"       => "badge-success",
+        "Active"         => "badge-info",
+        "Pending"        => "badge-warning",
+        "FollowUpNeeded" => "badge-warning",
+        "Declined"       => "badge-danger",
+        "Closed"         => "badge-neutral",
+        "Draft"          => "badge-neutral",
+        _                => "badge-neutral"
+    };
+
 }
 
 <style>
-    .lookup-bar { display: flex; gap: .5rem; margin-bottom: 1rem; align-items: center; }
-    .lookup-input { flex: 1; max-width: 320px; padding: .4rem .6rem; border: 1px solid #ccc; border-radius: 4px; }
-    .tabs { display: flex; gap: 0; border-bottom: 2px solid #ddd; margin-bottom: 1rem; }
-    .tab { padding: .5rem 1.2rem; background: none; border: none; border-bottom: 2px solid transparent; margin-bottom: -2px; cursor: pointer; font-size: .95rem; }
-    .tab.active { border-bottom-color: #0066cc; color: #0066cc; font-weight: 600; }
+    /* Canonical interaction classes (lookup-bar, lookup-input, tab-bar, tab, btn,
+       btn-*, alert, alert-error, alert-success, data-table, badge, badge-*,
+       empty-state) are defined once in app.css per UI-CONVENTIONS.md. Only
+       page-specific styles (layout, forms, detail panels) live here. */
     .tab-content { padding-top: .5rem; }
     .section-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: .75rem; }
     .section-header h3 { margin: 0; }
@@ -643,35 +665,5 @@
     .detail-grid pre { margin: .25rem 0 0; white-space: pre-wrap; word-break: break-word; }
     .detail-actions { display: flex; gap: .5rem; flex-wrap: wrap; }
     .abuse-alert { background: #fff3cd; border: 1px solid #ffc107; border-radius: 4px; padding: .4rem .6rem; }
-    .sw-table { width: 100%; border-collapse: collapse; font-size: .9rem; }
-    .sw-table th { background: #f1f3f5; text-align: left; padding: .4rem .6rem; border-bottom: 2px solid #dee2e6; }
-    .sw-table td { padding: .4rem .6rem; border-bottom: 1px solid #eee; }
-    .sw-table tr.selected td { background: #e8f0fe; }
-    .sw-table tr:hover td { background: #f5f7fb; }
-    .badge { display: inline-block; padding: .15rem .5rem; border-radius: 3px; font-size: .78rem; font-weight: 600; }
-    .badge-type { background: #e9ecef; color: #495057; }
-    .badge-risk.risk-low { background: #d4edda; color: #155724; }
-    .badge-risk.risk-moderate { background: #fff3cd; color: #856404; }
-    .badge-risk.risk-high { background: #f8d7da; color: #721c24; }
-    .badge-risk.risk-critical { background: #dc3545; color: #fff; }
-    .badge-risk.risk-unknown { background: #e9ecef; color: #495057; }
-    .badge-status.status-draft { background: #e9ecef; color: #495057; }
-    .badge-status.status-complete { background: #d4edda; color: #155724; }
-    .badge-status.status-closed { background: #6c757d; color: #fff; }
-    .badge-status.status-pending { background: #fff3cd; color: #856404; }
-    .badge-status.status-active { background: #cce5ff; color: #004085; }
-    .badge-status.status-declined { background: #f8d7da; color: #721c24; }
-    .badge-status.status-followupneeded { background: #f8d7da; color: #721c24; }
-    .btn { padding: .35rem .75rem; border-radius: 4px; border: 1px solid transparent; cursor: pointer; font-size: .9rem; }
-    .btn-primary { background: #0066cc; color: #fff; border-color: #0066cc; }
-    .btn-secondary { background: #6c757d; color: #fff; border-color: #6c757d; }
-    .btn-outline { background: transparent; color: #0066cc; border-color: #0066cc; }
-    .btn-accept { background: #28a745; color: #fff; border-color: #28a745; }
-    .btn-cancel-action { background: #dc3545; color: #fff; border-color: #dc3545; }
-    .btn-sm { padding: .2rem .5rem; font-size: .8rem; }
-    .btn:disabled { opacity: .6; cursor: not-allowed; }
-    .alert { padding: .5rem .75rem; border-radius: 4px; margin-bottom: .5rem; }
-    .alert-error { background: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
-    .alert-success { background: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
-    .empty-state { color: #888; font-style: italic; padding: 1rem 0; }
+    .data-table tr.selected td { background: #e8f0fe; }
 </style>

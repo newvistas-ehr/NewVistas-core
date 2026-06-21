@@ -15,7 +15,7 @@
 
 @if (error != null)
 {
-    <div class="alert alert-danger">@error</div>
+    <div class="alert alert-error">@error</div>
 }
 
 @if (overdueCongressional > 0)
@@ -101,11 +101,11 @@
                             <td>
                                 @if (c.Status == "Received")
                                 {
-                                    <button class="btn btn-sm" @onclick="() => AcknowledgeComplaint(c.ComplaintId)">Acknowledge</button>
+                                    <button class="btn btn-primary" @onclick="() => AcknowledgeComplaint(c.ComplaintId)">Acknowledge</button>
                                 }
                                 @if (c.Status is "Acknowledged" or "UnderInvestigation" or "ResponseDrafted")
                                 {
-                                    <button class="btn btn-sm btn-success" @onclick="() => ShowResolveForm(c.ComplaintId)">Resolve</button>
+                                    <button class="btn btn-primary" @onclick="() => ShowResolveForm(c.ComplaintId)">Resolve</button>
                                 }
                             </td>
                         </tr>
@@ -157,9 +157,9 @@
                 <label>Specific Concern / Desired Resolution:<br /><textarea @bind="newComplaint.SpecificConcern" rows="2" style="width:100%"></textarea></label>
                 <div class="form-actions">
                     <button class="btn btn-primary" @onclick="FileComplaint">File Complaint</button>
-                    <button class="btn" @onclick="() => showFileComplaintForm = false">Cancel</button>
+                    <button class="btn btn-secondary" @onclick="() => showFileComplaintForm = false">Cancel</button>
                 </div>
-                @if (formError != null) { <div class="alert alert-danger">@formError</div> }
+                @if (formError != null) { <div class="alert alert-error">@formError</div> }
             </div>
         }
 
@@ -176,8 +176,8 @@
                 </label>
                 <label>Resolution Summary:<br /><textarea @bind="resolutionSummary" rows="3" style="width:100%"></textarea></label>
                 <div class="form-actions">
-                    <button class="btn btn-success" @onclick="ResolveComplaint">Resolve</button>
-                    <button class="btn" @onclick="() => showResolveForm = false">Cancel</button>
+                    <button class="btn btn-primary" @onclick="ResolveComplaint">Resolve</button>
+                    <button class="btn btn-secondary" @onclick="() => showResolveForm = false">Cancel</button>
                 </div>
             </div>
         }
@@ -233,11 +233,11 @@
                             <td>
                                 @if (i.Status == "Received")
                                 {
-                                    <button class="btn btn-sm" @onclick="() => AcknowledgeInquiry(i.InquiryId)">Acknowledge</button>
+                                    <button class="btn btn-primary" @onclick="() => AcknowledgeInquiry(i.InquiryId)">Acknowledge</button>
                                 }
                                 @if (i.Status is "Acknowledged" or "UnderInvestigation")
                                 {
-                                    <button class="btn btn-sm btn-success" @onclick="() => ShowCompleteInquiryForm(i.InquiryId)">Complete</button>
+                                    <button class="btn btn-primary" @onclick="() => ShowCompleteInquiryForm(i.InquiryId)">Complete</button>
                                 }
                             </td>
                         </tr>
@@ -269,9 +269,9 @@
                 <label>Inquiry Text:<br /><textarea @bind="newInquiry.InquiryText" rows="4" style="width:100%"></textarea></label>
                 <div class="form-actions">
                     <button class="btn btn-primary" @onclick="CreateInquiry">Create Inquiry</button>
-                    <button class="btn" @onclick="() => showCreateInquiryForm = false">Cancel</button>
+                    <button class="btn btn-secondary" @onclick="() => showCreateInquiryForm = false">Cancel</button>
                 </div>
-                @if (formError != null) { <div class="alert alert-danger">@formError</div> }
+                @if (formError != null) { <div class="alert alert-error">@formError</div> }
             </div>
         }
 
@@ -288,8 +288,8 @@
                 </label>
                 <label>Final Response Text:<br /><textarea @bind="resolutionSummary" rows="4" style="width:100%"></textarea></label>
                 <div class="form-actions">
-                    <button class="btn btn-success" @onclick="CompleteInquiry">Submit Final Response</button>
-                    <button class="btn" @onclick="() => showCompleteInquiryForm = false">Cancel</button>
+                    <button class="btn btn-primary" @onclick="CompleteInquiry">Submit Final Response</button>
+                    <button class="btn btn-secondary" @onclick="() => showCompleteInquiryForm = false">Cancel</button>
                 </div>
             </div>
         }
@@ -579,8 +579,8 @@
 
     static string GetPriorityBadge(string priority) => priority switch
     {
-        "Immediate" => "badge-critical",
-        "Urgent"    => "badge-warn",
+        "Immediate" => "badge-danger",
+        "Urgent"    => "badge-warning",
         _           => "badge-info"
     };
 
@@ -642,30 +642,17 @@
 }
 
 <style>
-    .tab-bar { display: flex; gap: 4px; margin-bottom: 16px; border-bottom: 2px solid #dee2e6; }
-    .tab { padding: 8px 16px; border: none; background: #f8f9fa; cursor: pointer; border-radius: 4px 4px 0 0; }
-    .tab.active { background: #0d6efd; color: white; }
+    /* Canonical interaction classes (tab-bar, tab, btn, btn-*, alert, alert-error,
+       data-table, badge, badge-*, empty-state) are defined once in app.css per
+       UI-CONVENTIONS.md. Only page-specific styles (layout, severity tints, custom
+       severity alerts, dashboard stat cards) live here. */
     .section { background: white; border: 1px solid #dee2e6; border-radius: 4px; padding: 16px; margin-bottom: 16px; }
     .filter-bar { display: flex; gap: 12px; align-items: center; margin-bottom: 12px; flex-wrap: wrap; }
-    .data-table { width: 100%; border-collapse: collapse; font-size: 0.9em; }
-    .data-table th { background: #f8f9fa; padding: 8px; text-align: left; border-bottom: 2px solid #dee2e6; }
-    .data-table td { padding: 6px 8px; border-bottom: 1px solid #f0f0f0; }
-    .data-table tr:hover td { background: #f8f9fa; }
     .row-critical td { background: #fff5f5 !important; }
     .row-warn td { background: #fffbf0 !important; }
-    .text-critical { color: #dc3545; font-weight: bold; }
-    .alert { padding: 10px 14px; border-radius: 4px; margin-bottom: 12px; }
-    .alert-danger { background: #f8d7da; border: 1px solid #f5c2c7; color: #842029; }
+    .text-critical { color: #b91c1c; font-weight: bold; }
     .alert-critical { background: #f8d7da; border: 1px solid #dc3545; color: #842029; font-weight: bold; }
     .alert-warn { background: #fff3cd; border: 1px solid #ffc107; color: #664d03; }
-    .btn { padding: 6px 14px; border: 1px solid #dee2e6; border-radius: 4px; cursor: pointer; background: #f8f9fa; }
-    .btn-primary { background: #0d6efd; color: white; border-color: #0d6efd; }
-    .btn-success { background: #198754; color: white; border-color: #198754; }
-    .btn-sm { padding: 3px 8px; font-size: 0.85em; margin-right: 4px; }
-    .badge { padding: 2px 8px; border-radius: 12px; font-size: 0.8em; }
-    .badge-critical { background: #dc3545; color: white; }
-    .badge-warn { background: #ffc107; color: #212529; }
-    .badge-info { background: #e2e8f0; color: #374151; }
     .form-panel { background: #f8f9fa; border: 1px solid #dee2e6; border-radius: 4px; padding: 16px; margin-top: 16px; }
     .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 12px; }
     .form-grid label { display: flex; flex-direction: column; gap: 4px; font-size: 0.9em; }
@@ -675,7 +662,7 @@
     .stat-box { background: #f8f9fa; border: 1px solid #dee2e6; border-radius: 6px; padding: 16px; text-align: center; }
     .stat-box.warn { border-color: #ffc107; background: #fffbf0; }
     .stat-box.critical { border-color: #dc3545; background: #fff5f5; }
-    .stat-value { font-size: 2em; font-weight: bold; color: #1a1a2e; }
+    .stat-value { font-size: 2em; font-weight: bold; color: #003f72; }
     .stat-label { font-size: 0.8em; color: #6c757d; margin-top: 4px; }
     .text-muted { color: #6c757d; font-size: 0.9em; }
 </style>

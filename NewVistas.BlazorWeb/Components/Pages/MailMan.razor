@@ -30,13 +30,13 @@
 @if (inbox != null || groups != null)
 {
     <div class="tab-bar">
-        <button class="tab @(activeTab == "inbox" ? "tab-active" : "")" @onclick='() => SetTab("inbox")'>
+        <button class="tab @(activeTab == "inbox" ? "active" : "")" @onclick='() => SetTab("inbox")'>
             Inbox @if (unreadCount > 0) { <span class="badge-due">@unreadCount unread</span> }
         </button>
-        <button class="tab @(activeTab == "compose" ? "tab-active" : "")" @onclick='() => SetTab("compose")'>
+        <button class="tab @(activeTab == "compose" ? "active" : "")" @onclick='() => SetTab("compose")'>
             Compose
         </button>
-        <button class="tab @(activeTab == "groups" ? "tab-active" : "")" @onclick='() => SetTab("groups")'>
+        <button class="tab @(activeTab == "groups" ? "active" : "")" @onclick='() => SetTab("groups")'>
             Mail Groups
         </button>
     </div>
@@ -44,11 +44,11 @@
     @if (activeTab == "inbox")
     {
         <div class="inbox-controls">
-            <button class="btn btn-sm @(inboxView == "inbox" ? "btn-primary" : "btn-outline")"
+            <button class="btn @(inboxView == "inbox" ? "btn-primary" : "btn-secondary")"
                     @onclick='() => SwitchInboxView("inbox")'>Inbox</button>
-            <button class="btn btn-sm @(inboxView == "sent" ? "btn-primary" : "btn-outline")"
+            <button class="btn @(inboxView == "sent" ? "btn-primary" : "btn-secondary")"
                     @onclick='() => SwitchInboxView("sent")'>Sent</button>
-            <button class="btn btn-sm @(inboxView == "deleted" ? "btn-primary" : "btn-outline")"
+            <button class="btn @(inboxView == "deleted" ? "btn-primary" : "btn-secondary")"
                     @onclick='() => SwitchInboxView("deleted")'>Deleted</button>
         </div>
 
@@ -74,7 +74,7 @@
                     {
                         <tr class="@(!msg.IsRead ? "row-unread" : "")">
                             <td class="center">
-                                @if (msg.IsConfidential) { <span class="badge badge-red" title="Confidential">C</span> }
+                                @if (msg.IsConfidential) { <span class="badge badge-danger" title="Confidential">C</span> }
                                 @if (!msg.IsRead) { <span class="unread-dot" title="Unread"></span> }
                             </td>
                             <td>
@@ -93,17 +93,17 @@
                                 {
                                     @if (!msg.IsRead)
                                     {
-                                        <button class="btn btn-sm btn-outline" @onclick="() => MarkRead(msg.MessageId)">Read</button>
+                                        <button class="btn btn-secondary" @onclick="() => MarkRead(msg.MessageId)">Read</button>
                                     }
                                     else
                                     {
-                                        <button class="btn btn-sm btn-outline" @onclick="() => MarkUnread(msg.MessageId)">Unread</button>
+                                        <button class="btn btn-secondary" @onclick="() => MarkUnread(msg.MessageId)">Unread</button>
                                     }
-                                    <button class="btn btn-sm btn-outline" @onclick="() => DeleteMessage(msg.MessageId)">Delete</button>
+                                    <button class="btn btn-secondary" @onclick="() => DeleteMessage(msg.MessageId)">Delete</button>
                                 }
                                 @if (inboxView == "deleted")
                                 {
-                                    <button class="btn btn-sm btn-outline" @onclick="() => RestoreMessage(msg.MessageId)">Restore</button>
+                                    <button class="btn btn-secondary" @onclick="() => RestoreMessage(msg.MessageId)">Restore</button>
                                 }
                             </td>
                         </tr>
@@ -114,7 +114,7 @@
             @if (inboxView == "deleted" && currentList.Count > 0)
             {
                 <div class="form-actions">
-                    <button class="btn btn-sm btn-outline" @onclick="PurgeDeleted">Purge All Deleted</button>
+                    <button class="btn btn-secondary" @onclick="PurgeDeleted">Purge All Deleted</button>
                 </div>
             }
         }
@@ -127,7 +127,7 @@
                     <div><strong>From:</strong> @selectedMessage.SenderName</div>
                     <div><strong>Date:</strong> @selectedMessage.SentDateTime.ToString("MM/dd/yyyy HH:mm")</div>
                     <div><strong>Priority:</strong> <span class="badge @PriorityBadge(selectedMessage.Priority)">@selectedMessage.Priority</span></div>
-                    @if (selectedMessage.IsConfidential) { <div><span class="badge badge-red">CONFIDENTIAL</span></div> }
+                    @if (selectedMessage.IsConfidential) { <div><span class="badge badge-danger">CONFIDENTIAL</span></div> }
                     @if (selectedMessage.Recipients.Count > 0)
                     {
                         <div><strong>To:</strong> @string.Join(", ", selectedMessage.Recipients.Select(r => r.RecipientName))</div>
@@ -150,7 +150,7 @@
                         </ul>
                     </div>
                 }
-                <button class="btn btn-sm btn-outline" @onclick="() => selectedMessage = null">Close</button>
+                <button class="btn btn-secondary" @onclick="() => selectedMessage = null">Close</button>
             </div>
         }
     }
@@ -225,12 +225,12 @@
                             <td>@g.Description</td>
                             <td class="center">@g.MemberCount</td>
                             <td>
-                                <span class="badge @(g.IsActive ? "badge-green" : "badge-gray")">
+                                <span class="badge @(g.IsActive ? "badge-success" : "badge-neutral")">
                                     @(g.IsActive ? "ACTIVE" : "INACTIVE")
                                 </span>
                             </td>
                             <td>
-                                <button class="btn btn-sm btn-outline" @onclick="() => ViewGroup(g.Name)">View</button>
+                                <button class="btn btn-secondary" @onclick="() => ViewGroup(g.Name)">View</button>
                             </td>
                         </tr>
                     }
@@ -257,14 +257,14 @@
                             {
                                 <tr>
                                     <td>@m.UserName</td>
-                                    <td><span class="badge badge-gray">@m.Role</span></td>
+                                    <td><span class="badge badge-neutral">@m.Role</span></td>
                                     <td class="date">@m.JoinedDate.ToString("MM/dd/yyyy")</td>
                                 </tr>
                             }
                         </tbody>
                     </table>
                 }
-                <button class="btn btn-sm btn-outline" @onclick="() => selectedGroup = null">Close</button>
+                <button class="btn btn-secondary" @onclick="() => selectedGroup = null">Close</button>
             </div>
         }
 
@@ -559,9 +559,9 @@
 
     private static string PriorityBadge(string priority) => priority switch
     {
-        "URGENT" => "badge-red",
-        "HIGH" => "badge-orange",
-        _ => "badge-gray"
+        "URGENT" => "badge-danger",
+        "HIGH" => "badge-warning",
+        _ => "badge-neutral"
     };
 
     // ─── DTOs ─────────────────────────────────────────────────────────────
@@ -637,45 +637,21 @@
 }
 
 <style>
+    /* Canonical interaction classes (lookup-bar, lookup-input, btn, btn-*, alert,
+       alert-*, tab-bar, tab, data-table, badge, badge-*, empty-state) are defined
+       once in app.css per UI-CONVENTIONS.md. Only page-specific styles live here. */
     h1 { color: #003f72; margin-bottom: 1.25rem; font-size: 1.4rem; }
-    .lookup-bar { display: flex; gap: .5rem; margin-bottom: 1.5rem; align-items: center; }
-    .lookup-input { width: 280px; padding: .5rem .75rem; border: 1px solid #ccc; border-radius: 4px; font-size: .9rem; }
-    .btn { padding: .5rem 1.25rem; border: none; border-radius: 4px; cursor: pointer; font-size: .85rem; font-weight: 500; }
-    .btn:disabled { opacity: .6; cursor: default; }
-    .btn-primary { background: #003f72; color: white; }
-    .btn-secondary { background: #16a34a; color: white; }
-    .btn-outline { background: white; border: 1px solid #ccc; color: #333; }
-    .btn-sm { padding: .3rem .75rem; font-size: .8rem; }
-    .alert { padding: .75rem 1rem; border-radius: 4px; margin-bottom: 1rem; font-size: .85rem; }
-    .alert-error { background: #fde8e8; color: #b91c1c; border: 1px solid #f5c6c6; }
-    .alert-success { background: #dcfce7; color: #166534; border: 1px solid #bbf7d0; }
-
-    /* Tabs */
-    .tab-bar { display: flex; gap: 0; border-bottom: 2px solid #d4d9e0; margin-bottom: 1.25rem; }
-    .tab { background: none; border: none; padding: .6rem 1.25rem; cursor: pointer; font-size: .85rem; color: #555; border-bottom: 2px solid transparent; margin-bottom: -2px; }
-    .tab-active { color: #003f72; font-weight: 600; border-bottom-color: #003f72; }
     .badge-due { background: #fde8e8; color: #b91c1c; border-radius: 3px; padding: 1px 6px; font-size: .7rem; margin-left: .4rem; font-weight: 600; }
 
     /* Inbox controls */
     .inbox-controls { display: flex; gap: .5rem; margin-bottom: 1rem; }
 
     /* Table */
-    .data-table { width: 100%; border-collapse: collapse; font-size: .85rem; border: 1px solid #d4d9e0; }
-    .data-table thead { background: #f4f6f9; }
-    .data-table th { text-align: left; padding: .5rem .6rem; font-weight: 600; color: #003f72; border-bottom: 2px solid #d4d9e0; font-size: .75rem; text-transform: uppercase; }
-    .data-table td { padding: .4rem .6rem; border-bottom: 1px solid #f0f0f0; vertical-align: middle; }
     .data-table .center { text-align: center; }
     .row-unread { background: #f0f7ff; }
     .date { color: #888; font-size: .8rem; white-space: nowrap; }
     .bold { font-weight: 600; }
     .unread-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: #003f72; }
-
-    /* Badges */
-    .badge { padding: 2px 8px; border-radius: 3px; font-size: .7rem; font-weight: 600; white-space: nowrap; }
-    .badge-green { background: #dcfce7; color: #166534; }
-    .badge-red { background: #fde8e8; color: #b91c1c; }
-    .badge-orange { background: #fef3c7; color: #92400e; }
-    .badge-gray { background: #f3f4f6; color: #6b7280; }
 
     /* Message detail */
     .message-detail { border: 1px solid #d4d9e0; border-radius: 6px; padding: 1.25rem; background: #f9fafb; margin-top: 1rem; }
@@ -694,5 +670,4 @@
     .form-row label { font-size: .8rem; font-weight: 600; color: #555; }
     .form-row input, .form-row select, .form-row textarea { padding: .4rem .6rem; border: 1px solid #ccc; border-radius: 4px; font-size: .85rem; }
     .form-actions { display: flex; gap: .5rem; margin-top: .75rem; }
-    .empty-state { color: #999; font-style: italic; padding: 2rem 0; text-align: center; }
 </style>

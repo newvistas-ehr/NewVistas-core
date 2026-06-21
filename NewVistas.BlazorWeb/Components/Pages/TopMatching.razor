@@ -15,22 +15,22 @@
 <h3>TOP Federal Debt Matching</h3>
 <p class="text-muted">Treasury Offset Program — Offset Matching &amp; AR Posting (RCTP*.m, RCTOP*.m)</p>
 
-<div class="mb-3 d-flex gap-2">
-    <input class="form-control" style="max-width:260px" placeholder="Patient ID" @bind="patientId" @bind:event="oninput" />
+<div class="lookup-bar">
+    <input class="lookup-input" placeholder="Patient ID" @bind="patientId" @bind:event="oninput" />
     <button class="btn btn-primary" @onclick="LoadMatches" disabled="@loading">Load Matches</button>
 </div>
 
-@if (error != null) { <div class="alert alert-danger">@error</div> }
+@if (error != null) { <div class="alert alert-error">@error</div> }
 
-<ul class="nav nav-tabs mb-3">
-    <li class="nav-item"><button class="nav-link @(tab == "matches" ? "active" : "")" @onclick='() => tab = "matches"'>Match History</button></li>
-    <li class="nav-item"><button class="nav-link @(tab == "detail" ? "active" : "")" @onclick='() => tab = "detail"'>Match Detail</button></li>
-    <li class="nav-item"><button class="nav-link @(tab == "process" ? "active" : "")" @onclick='() => tab = "process"'>Process Offset</button></li>
-</ul>
+<div class="tab-bar">
+    <button class="tab @(tab == "matches" ? "active" : "")" @onclick='() => tab = "matches"'>Match History</button>
+    <button class="tab @(tab == "detail" ? "active" : "")" @onclick='() => tab = "detail"'>Match Detail</button>
+    <button class="tab @(tab == "process" ? "active" : "")" @onclick='() => tab = "process"'>Process Offset</button>
+</div>
 
 @if (tab == "matches" && matches != null)
 {
-    <table class="table table-sm table-striped">
+    <table class="data-table">
         <thead><tr><th>Treasury Tx</th><th>TIN</th><th>Amount</th><th>Source</th><th>Status</th><th>Received</th><th></th></tr></thead>
         <tbody>
             @foreach (var m in matches)
@@ -42,7 +42,7 @@
                     <td>@m.OffsetSource</td>
                     <td><span class="badge @MatchBadge(m.Status)">@m.Status</span></td>
                     <td>@m.OffsetReceivedDate.ToString("MM/dd/yyyy")</td>
-                    <td><button class="btn btn-sm btn-outline-primary" @onclick="() => ViewDetail(m.MatchId)">View</button></td>
+                    <td><button class="btn btn-primary" @onclick="() => ViewDetail(m.MatchId)">View</button></td>
                 </tr>
             }
         </tbody>
@@ -90,22 +90,22 @@
         <div class="card-header">Process Treasury Offset</div>
         <div class="card-body">
             <div class="row g-2 mb-2">
-                <div class="col-md-3"><label class="form-label">Treasury Tx ID</label><input class="form-control" @bind="newTxId" /></div>
-                <div class="col-md-3"><label class="form-label">Taxpayer ID (SSN)</label><input class="form-control" @bind="newTin" /></div>
-                <div class="col-md-3"><label class="form-label">Treasury Name</label><input class="form-control" @bind="newTreasuryName" /></div>
-                <div class="col-md-3"><label class="form-label">Offset Amount</label><input type="number" class="form-control" @bind="newAmount" /></div>
+                <div class="col-md-3"><label class="form-label">Treasury Tx ID</label><input class="form-input" @bind="newTxId" /></div>
+                <div class="col-md-3"><label class="form-label">Taxpayer ID (SSN)</label><input class="form-input" @bind="newTin" /></div>
+                <div class="col-md-3"><label class="form-label">Treasury Name</label><input class="form-input" @bind="newTreasuryName" /></div>
+                <div class="col-md-3"><label class="form-label">Offset Amount</label><input type="number" class="form-input" @bind="newAmount" /></div>
             </div>
             <div class="row g-2 mb-3">
                 <div class="col-md-4">
                     <label class="form-label">Source</label>
-                    <select class="form-select" @bind="newSource">
+                    <select class="form-input" @bind="newSource">
                         <option>TAX_REFUND</option><option>SSA</option><option>OPM</option><option>VENDOR</option><option>OTHER</option>
                     </select>
                 </div>
-                <div class="col-md-4"><label class="form-label">Received Date</label><input type="date" class="form-control" @bind="newDate" /></div>
-                <div class="col-md-4"><label class="form-label">Notes</label><input class="form-control" @bind="newNotes" /></div>
+                <div class="col-md-4"><label class="form-label">Received Date</label><input type="date" class="form-input" @bind="newDate" /></div>
+                <div class="col-md-4"><label class="form-label">Notes</label><input class="form-input" @bind="newNotes" /></div>
             </div>
-            <button class="btn btn-success" @onclick="Process" disabled="@processing">@(processing ? "Processing..." : "Process Offset")</button>
+            <button class="btn btn-primary" @onclick="Process" disabled="@processing">@(processing ? "Processing..." : "Process Offset")</button>
             @if (processResult != null) { <div class="alert alert-success mt-2">@processResult</div> }
         </div>
     </div>
@@ -156,8 +156,8 @@
 
     private string MatchBadge(TopMatchStatus s) => s switch
     {
-        TopMatchStatus.Matched => "bg-success", TopMatchStatus.PartialMatch => "bg-warning text-dark",
-        TopMatchStatus.PendingMatch => "bg-info", TopMatchStatus.Unmatched => "bg-secondary",
-        TopMatchStatus.Rejected => "bg-danger", _ => "bg-secondary",
+        TopMatchStatus.Matched => "badge-success", TopMatchStatus.PartialMatch => "badge-warning",
+        TopMatchStatus.PendingMatch => "badge-info", TopMatchStatus.Unmatched => "badge-neutral",
+        TopMatchStatus.Rejected => "badge-danger", _ => "badge-neutral",
     };
 }

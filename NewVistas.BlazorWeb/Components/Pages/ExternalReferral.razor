@@ -31,9 +31,9 @@ else if (featureChecked && !featureEnabled)
 @if (!loading)
 {
     <div class="tab-bar">
-        <button class="tab-btn @(activeTab == 0 ? "active" : "")" @onclick="() => activeTab = 0">Patient Referrals</button>
-        <button class="tab-btn @(activeTab == 1 ? "active" : "")" @onclick="() => activeTab = 1">Dashboard</button>
-        <button class="tab-btn @(activeTab == 2 ? "active" : "")" @onclick="() => activeTab = 2">Pending Follow-ups</button>
+        <button class="tab @(activeTab == 0 ? "active" : "")" @onclick="() => activeTab = 0">Patient Referrals</button>
+        <button class="tab @(activeTab == 1 ? "active" : "")" @onclick="() => activeTab = 1">Dashboard</button>
+        <button class="tab @(activeTab == 2 ? "active" : "")" @onclick="() => activeTab = 2">Pending Follow-ups</button>
     </div>
 
     @* Tab 0: Patient Referrals *@
@@ -136,7 +136,7 @@ else if (featureChecked && !featureEnabled)
                         @foreach (var r in patientReferrals)
                         {
                             <tr>
-                                <td class="code">@r.ReferralType</td>
+                                <td>@r.ReferralType</td>
                                 <td>@r.ExternalFacilityName</td>
                                 <td><span class="status-badge" style="@GetStatusStyle(r.Status)">@r.Status</span></td>
                                 <td><span class="urgency-badge @GetUrgencyClass(r.Urgency)">@r.Urgency</span></td>
@@ -206,7 +206,7 @@ else if (featureChecked && !featureEnabled)
                         {
                             <tr>
                                 <td>@r.PatientName <span class="patient-id-small">(@r.PatientId)</span></td>
-                                <td class="code">@r.ReferralType</td>
+                                <td>@r.ReferralType</td>
                                 <td>@r.ExternalFacilityName</td>
                                 <td><span class="status-badge" style="@GetStatusStyle(r.Status)">@r.Status</span></td>
                                 <td><span class="urgency-badge @GetUrgencyClass(r.Urgency)">@r.Urgency</span></td>
@@ -257,7 +257,7 @@ else if (featureChecked && !featureEnabled)
                         {
                             <tr>
                                 <td>@r.PatientName <span class="patient-id-small">(@r.PatientId)</span></td>
-                                <td class="code">@r.ReferralType</td>
+                                <td>@r.ReferralType</td>
                                 <td>@r.ExternalFacilityName</td>
                                 <td><span class="status-badge" style="@GetStatusStyle(r.Status)">@r.Status</span></td>
                                 <td><span class="urgency-badge @GetUrgencyClass(r.Urgency)">@r.Urgency</span></td>
@@ -472,26 +472,15 @@ else if (featureChecked && !featureEnabled)
 }
 
 <style>
-    .btn { padding: 0.5rem 1.25rem; border: none; border-radius: 4px; cursor: pointer; font-size: 0.85rem; }
-    .btn-primary { background: #003f72; color: white; }
-    .btn-primary:disabled { background: #999; cursor: not-allowed; }
-    .btn-secondary { background: #e5e7eb; color: #374151; border: 1px solid #d1d5db; }
-    .btn-secondary:hover { background: #d1d5db; }
-    .alert { padding: 0.75rem 1rem; border-radius: 4px; margin-bottom: 1rem; }
-    .alert-error { background: #fde8e8; color: #b91c1c; border: 1px solid #f5c6c6; }
-    .alert-warning { background: #fef3c7; color: #92400e; border: 1px solid #fde68a; }
+    /* Canonical interaction classes (lookup-bar, lookup-input, tab-bar, tab, btn,
+       btn-primary, btn-secondary, alert, alert-error, alert-success, data-table,
+       form-input, badge, badge-*, empty-state) are defined once in app.css per
+       UI-CONVENTIONS.md. Only page-specific styles (layout, status/urgency badges) live here. */
     .alert-warning a { color: #003f72; font-weight: 600; }
-    .empty-state { color: #999; font-style: italic; padding: 2rem 0; }
-
-    .tab-bar { display: flex; gap: 0; border-bottom: 2px solid #d4d9e0; margin-bottom: 1.5rem; }
-    .tab-btn { padding: 0.6rem 1.25rem; border: none; background: transparent; cursor: pointer; font-size: 0.85rem; font-weight: 500; color: #666; border-bottom: 2px solid transparent; margin-bottom: -2px; }
-    .tab-btn.active { color: #003f72; border-bottom-color: #003f72; font-weight: 600; }
-    .tab-btn:hover { color: #003f72; }
 
     .form-section { max-width: 700px; }
     .form-row { display: flex; align-items: center; gap: 1rem; margin-bottom: 0.75rem; }
     .form-row label:first-child { width: 160px; font-size: 0.85rem; font-weight: 500; color: #333; flex-shrink: 0; }
-    .form-input { flex: 1; padding: 0.4rem 0.6rem; border: 1px solid #ccc; border-radius: 4px; font-size: 0.85rem; max-width: 350px; }
     .form-actions { display: flex; gap: 0.75rem; margin-top: 1rem; margin-bottom: 1.5rem; }
 
     .section-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 1rem; }
@@ -499,12 +488,6 @@ else if (featureChecked && !featureEnabled)
 
     .new-form { background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 4px; padding: 1.25rem; margin-bottom: 1.5rem; max-width: 700px; }
     .new-form h4 { margin: 0 0 1rem 0; font-size: 0.9rem; color: #003f72; }
-
-    .data-table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
-    .data-table th { text-align: left; padding: 0.5rem; font-weight: 600; color: #003f72; border-bottom: 2px solid #d4d9e0; font-size: 0.75rem; text-transform: uppercase; background: #f4f6f9; }
-    .data-table td { padding: 0.4rem 0.5rem; border-bottom: 1px solid #f0f0f0; }
-    .data-table tr:hover { background: #f9fafb; }
-    .code { font-family: monospace; color: #003f72; }
 
     .status-badge { display: inline-block; padding: 0.2rem 0.6rem; border-radius: 3px; font-size: 0.75rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.03em; }
 

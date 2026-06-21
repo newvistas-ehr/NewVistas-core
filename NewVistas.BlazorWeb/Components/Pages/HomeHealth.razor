@@ -94,7 +94,7 @@
             <label>Primary Caregiver <input @bind="enroll.PrimaryCaregiver" placeholder="Name of caregiver" /></label>
             <label>Home Address <input @bind="enroll.HomeAddress" placeholder="123 Main St" /></label>
         </div>
-        <button class="btn-primary" @onclick="EnrollPatient" disabled="@enrolling">
+        <button class="btn btn-primary" @onclick="EnrollPatient" disabled="@enrolling">
             @(enrolling ? "Enrolling..." : "Enroll Patient")
         </button>
         @if (enrollMessage != null) { <p class="form-message">@enrollMessage</p> }
@@ -181,7 +181,7 @@
             <label>Clinician Name <input @bind="schedVisit.ClinicianName" placeholder="Smith, RN" /></label>
             <label>Notes <input @bind="schedVisit.Notes" placeholder="Visit notes..." /></label>
         </div>
-        <button class="btn-primary" @onclick="ScheduleVisit" disabled="@scheduling">
+        <button class="btn btn-primary" @onclick="ScheduleVisit" disabled="@scheduling">
             @(scheduling ? "Scheduling..." : "Schedule Visit")
         </button>
         @if (scheduleMessage != null) { <p class="form-message">@scheduleMessage</p> }
@@ -239,8 +239,7 @@
 <style>
     .subtitle { color: #6b7280; margin-top: -0.5rem; margin-bottom: 1rem; }
     .tab-bar { display: flex; gap: 0.5rem; margin-bottom: 1rem; flex-wrap: wrap; }
-    .tab-btn { padding: 0.4rem 1rem; border: 1px solid #d1d5db; border-radius: 6px; background: #f9fafb; cursor: pointer; }
-    .tab-btn.active { background: #1d4ed8; color: white; border-color: #1d4ed8; }
+    /* canonical tabs (.tab / .tab-bar) live in app.css */
     .panel { background: white; border: 1px solid #e5e7eb; border-radius: 8px; padding: 1.5rem; }
     .filter-bar { display: flex; gap: 0.5rem; margin-bottom: 1rem; flex-wrap: wrap; }
     .filter-btn { padding: 0.3rem 0.8rem; border: 1px solid #d1d5db; border-radius: 4px; background: #f9fafb; cursor: pointer; font-size: 0.85rem; }
@@ -319,7 +318,7 @@
         error = null;
     }
 
-    string TabClass(int tab) => activeTab == tab ? "tab-btn active" : "tab-btn";
+    string TabClass(int tab) => activeTab == tab ? "tab active" : "tab";
 
     // ── Registry ──────────────────────────────────────────────────────────────
 

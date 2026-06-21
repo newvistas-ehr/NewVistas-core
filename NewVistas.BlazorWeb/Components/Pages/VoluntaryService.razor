@@ -17,15 +17,15 @@
 
 @if (error != null)
 {
-    <div style="color:red; margin-bottom:1rem;">@error</div>
+    <div class="alert alert-error">@error</div>
 }
 
 <!-- Tab Navigation -->
-<div style="display:flex; gap:0.5rem; margin-bottom:1.5rem; flex-wrap:wrap;">
-    <button class="tab-btn @(activeTab == "volunteers" ? "active" : "")" @onclick='() => SetTab("volunteers")'>Volunteers</button>
-    <button class="tab-btn @(activeTab == "hours" ? "active" : "")" @onclick='() => SetTab("hours")'>Hours Tracking</button>
-    <button class="tab-btn @(activeTab == "recognition" ? "active" : "")" @onclick='() => SetTab("recognition")'>Recognition</button>
-    <button class="tab-btn @(activeTab == "enroll" ? "active" : "")" @onclick='() => SetTab("enroll")'>Enroll Volunteer</button>
+<div class="tab-bar">
+    <button class="tab @(activeTab == "volunteers" ? "active" : "")" @onclick='() => SetTab("volunteers")'>Volunteers</button>
+    <button class="tab @(activeTab == "hours" ? "active" : "")" @onclick='() => SetTab("hours")'>Hours Tracking</button>
+    <button class="tab @(activeTab == "recognition" ? "active" : "")" @onclick='() => SetTab("recognition")'>Recognition</button>
+    <button class="tab @(activeTab == "enroll" ? "active" : "")" @onclick='() => SetTab("enroll")'>Enroll Volunteer</button>
 </div>
 
 <!-- ── Tab: Volunteers ─────────────────────────────────────────────────────── -->
@@ -46,7 +46,7 @@
             <label>Search by Name</label><br/>
             <input @bind="nameSearch" style="width:200px;" placeholder="Last or first name" />
         </div>
-        <button @onclick="LoadVolunteers" disabled="@loading">Search</button>
+        <button class="btn btn-primary" @onclick="LoadVolunteers" disabled="@loading">Search</button>
     </div>
 
     @if (loading)
@@ -59,28 +59,28 @@
     }
     else
     {
-        <table style="width:100%; border-collapse:collapse;">
+        <table class="data-table">
             <thead>
                 <tr>
-                    <th style="text-align:left; border-bottom:1px solid #ccc; padding:4px;">Name</th>
-                    <th style="text-align:left; border-bottom:1px solid #ccc; padding:4px;">Status</th>
-                    <th style="text-align:right; border-bottom:1px solid #ccc; padding:4px;">Total Hours</th>
-                    <th style="text-align:left; border-bottom:1px solid #ccc; padding:4px;">Primary Service</th>
-                    <th style="text-align:left; border-bottom:1px solid #ccc; padding:4px;">Enrolled</th>
-                    <th style="border-bottom:1px solid #ccc; padding:4px;"></th>
+                    <th>Name</th>
+                    <th>Status</th>
+                    <th style="text-align:right;">Total Hours</th>
+                    <th>Primary Service</th>
+                    <th>Enrolled</th>
+                    <th></th>
                 </tr>
             </thead>
             <tbody>
                 @foreach (VolunteerIndexEntry v in volunteers)
                 {
                     <tr>
-                        <td style="padding:4px;">@v.LastName, @v.FirstName</td>
-                        <td style="padding:4px;">@v.Status</td>
-                        <td style="padding:4px; text-align:right;">@v.TotalHours.ToString("F1")</td>
-                        <td style="padding:4px;">@(v.PrimaryServiceType?.ToString() ?? "—")</td>
-                        <td style="padding:4px;">@v.EnrollmentDate.ToString("MM/dd/yyyy")</td>
-                        <td style="padding:4px;">
-                            <button @onclick="() => SelectVolunteer(v.VolunteerId)">View</button>
+                        <td>@v.LastName, @v.FirstName</td>
+                        <td>@v.Status</td>
+                        <td style="text-align:right;">@v.TotalHours.ToString("F1")</td>
+                        <td>@(v.PrimaryServiceType?.ToString() ?? "—")</td>
+                        <td>@v.EnrollmentDate.ToString("MM/dd/yyyy")</td>
+                        <td>
+                            <button class="btn btn-primary" @onclick="() => SelectVolunteer(v.VolunteerId)">View</button>
                         </td>
                     </tr>
                 }
@@ -117,27 +117,27 @@
         @if (selectedVolunteer.Assignments.Count > 0)
         {
             <h4>Assignments</h4>
-            <table style="width:100%; border-collapse:collapse; max-width:700px;">
+            <table class="data-table" style="max-width:700px;">
                 <thead>
                     <tr>
-                        <th style="text-align:left; border-bottom:1px solid #ccc; padding:4px;">Service Area</th>
-                        <th style="text-align:left; border-bottom:1px solid #ccc; padding:4px;">Role</th>
-                        <th style="text-align:left; border-bottom:1px solid #ccc; padding:4px;">Service Type</th>
-                        <th style="text-align:left; border-bottom:1px solid #ccc; padding:4px;">Start</th>
-                        <th style="text-align:left; border-bottom:1px solid #ccc; padding:4px;">End</th>
-                        <th style="text-align:left; border-bottom:1px solid #ccc; padding:4px;">Active</th>
+                        <th>Service Area</th>
+                        <th>Role</th>
+                        <th>Service Type</th>
+                        <th>Start</th>
+                        <th>End</th>
+                        <th>Active</th>
                     </tr>
                 </thead>
                 <tbody>
                     @foreach (VolunteerAssignmentRecord a in selectedVolunteer.Assignments)
                     {
                         <tr>
-                            <td style="padding:4px;">@a.ServiceArea @(a.IsPrimary ? "★" : "")</td>
-                            <td style="padding:4px;">@a.Role</td>
-                            <td style="padding:4px;">@a.ServiceType</td>
-                            <td style="padding:4px;">@a.StartDate.ToString("MM/dd/yyyy")</td>
-                            <td style="padding:4px;">@(a.EndDate?.ToString("MM/dd/yyyy") ?? "—")</td>
-                            <td style="padding:4px;">@(a.IsActive ? "Yes" : "No")</td>
+                            <td>@a.ServiceArea @(a.IsPrimary ? "★" : "")</td>
+                            <td>@a.Role</td>
+                            <td>@a.ServiceType</td>
+                            <td>@a.StartDate.ToString("MM/dd/yyyy")</td>
+                            <td>@(a.EndDate?.ToString("MM/dd/yyyy") ?? "—")</td>
+                            <td>@(a.IsActive ? "Yes" : "No")</td>
                         </tr>
                     }
                 </tbody>
@@ -154,29 +154,29 @@
             <label>Volunteer ID</label><br/>
             <input @bind="hoursVolunteerId" style="width:280px;" placeholder="Volunteer ID" />
         </div>
-        <button @onclick="LoadHours" disabled="@loading">Load Hours</button>
+        <button class="btn btn-primary" @onclick="LoadHours" disabled="@loading">Load Hours</button>
     </div>
 
     @if (hoursLog.Count > 0)
     {
         <p><strong>Total Hours:</strong> @hoursLog.Sum(h => h.Hours).ToString("F1")</p>
-        <table style="width:100%; border-collapse:collapse; max-width:700px;">
+        <table class="data-table" style="max-width:700px;">
             <thead>
                 <tr>
-                    <th style="text-align:left; border-bottom:1px solid #ccc; padding:4px;">Date</th>
-                    <th style="text-align:right; border-bottom:1px solid #ccc; padding:4px;">Hours</th>
-                    <th style="text-align:left; border-bottom:1px solid #ccc; padding:4px;">Service Type</th>
-                    <th style="text-align:left; border-bottom:1px solid #ccc; padding:4px;">Notes</th>
+                    <th>Date</th>
+                    <th style="text-align:right;">Hours</th>
+                    <th>Service Type</th>
+                    <th>Notes</th>
                 </tr>
             </thead>
             <tbody>
                 @foreach (VolunteerHoursRecord h in hoursLog.OrderByDescending(x => x.LoggedDate))
                 {
                     <tr>
-                        <td style="padding:4px;">@h.LoggedDate.ToString("MM/dd/yyyy")</td>
-                        <td style="padding:4px; text-align:right;">@h.Hours.ToString("F2")</td>
-                        <td style="padding:4px;">@h.ServiceType</td>
-                        <td style="padding:4px;">@(h.Notes ?? "—")</td>
+                        <td>@h.LoggedDate.ToString("MM/dd/yyyy")</td>
+                        <td style="text-align:right;">@h.Hours.ToString("F2")</td>
+                        <td>@h.ServiceType</td>
+                        <td>@(h.Notes ?? "—")</td>
                     </tr>
                 }
             </tbody>
@@ -212,10 +212,10 @@
             <input @bind="newHours.Notes" style="width:100%;" />
         </div>
     </div>
-    <button @onclick="LogHours" disabled="@loading" style="margin-top:0.75rem;">Log Hours</button>
+    <button class="btn btn-primary" @onclick="LogHours" disabled="@loading" style="margin-top:0.75rem;">Log Hours</button>
     @if (hoursSuccess != null)
     {
-        <span style="color:green; margin-left:1rem;">@hoursSuccess</span>
+        <span class="success-msg">@hoursSuccess</span>
     }
 }
 
@@ -227,28 +227,28 @@
             <label>Volunteer ID</label><br/>
             <input @bind="recogVolunteerId" style="width:280px;" placeholder="Volunteer ID" />
         </div>
-        <button @onclick="LoadRecognitions" disabled="@loading">Load</button>
+        <button class="btn btn-primary" @onclick="LoadRecognitions" disabled="@loading">Load</button>
     </div>
 
     @if (recognitions.Count > 0)
     {
-        <table style="width:100%; border-collapse:collapse; max-width:700px;">
+        <table class="data-table" style="max-width:700px;">
             <thead>
                 <tr>
-                    <th style="text-align:left; border-bottom:1px solid #ccc; padding:4px;">Award Date</th>
-                    <th style="text-align:left; border-bottom:1px solid #ccc; padding:4px;">Type</th>
-                    <th style="text-align:left; border-bottom:1px solid #ccc; padding:4px;">Awarded By</th>
-                    <th style="text-align:left; border-bottom:1px solid #ccc; padding:4px;">Description</th>
+                    <th>Award Date</th>
+                    <th>Type</th>
+                    <th>Awarded By</th>
+                    <th>Description</th>
                 </tr>
             </thead>
             <tbody>
                 @foreach (VolunteerRecognitionRecord r in recognitions.OrderByDescending(x => x.AwardDate))
                 {
                     <tr>
-                        <td style="padding:4px;">@r.AwardDate.ToString("MM/dd/yyyy")</td>
-                        <td style="padding:4px;">@r.RecognitionType</td>
-                        <td style="padding:4px;">@(r.AwardedBy ?? "—")</td>
-                        <td style="padding:4px;">@(r.Description ?? "—")</td>
+                        <td>@r.AwardDate.ToString("MM/dd/yyyy")</td>
+                        <td>@r.RecognitionType</td>
+                        <td>@(r.AwardedBy ?? "—")</td>
+                        <td>@(r.Description ?? "—")</td>
                     </tr>
                 }
             </tbody>
@@ -288,10 +288,10 @@
             <input @bind="newRecog.Description" style="width:100%;" />
         </div>
     </div>
-    <button @onclick="AddRecognition" disabled="@loading" style="margin-top:0.75rem;">Add Recognition</button>
+    <button class="btn btn-primary" @onclick="AddRecognition" disabled="@loading" style="margin-top:0.75rem;">Add Recognition</button>
     @if (recogSuccess != null)
     {
-        <span style="color:green; margin-left:1rem;">@recogSuccess</span>
+        <span class="success-msg">@recogSuccess</span>
     }
 }
 
@@ -354,27 +354,19 @@
             <textarea @bind="newVolunteer.Notes" style="width:100%; height:60px;"></textarea>
         </div>
     </div>
-    <button @onclick="EnrollVolunteer" disabled="@loading" style="margin-top:0.75rem;">Enroll Volunteer</button>
+    <button class="btn btn-primary" @onclick="EnrollVolunteer" disabled="@loading" style="margin-top:0.75rem;">Enroll Volunteer</button>
     @if (enrollSuccess != null)
     {
-        <span style="color:green; margin-left:1rem;">@enrollSuccess</span>
+        <span class="success-msg">@enrollSuccess</span>
     }
 }
 
 <style>
-    .tab-btn {
-        padding: 0.4rem 1rem;
-        border: 1px solid #999;
-        background: #f0f0f0;
-        cursor: pointer;
-        border-radius: 4px;
-    }
-    .tab-btn.active {
-        background: #0066cc;
-        color: white;
-        border-color: #0066cc;
-    }
-    th { background: #f5f5f5; }
+    /* Canonical interaction classes (lookup-bar, lookup-input, tab-bar, tab, btn,
+       btn-primary, btn-secondary, alert, alert-error, alert-success, data-table, form-input,
+       badge, badge-*, empty-state) are defined once in app.css per UI-CONVENTIONS.md.
+       Only page-specific styles live here. */
+    .success-msg { color: #166534; margin-left: 1rem; }
 </style>
 
 @code {

@@ -17,7 +17,7 @@
 
 @if (error != null)
 {
-    <div class="alert-error">@error</div>
+    <div class="alert alert-error">@error</div>
 }
 
 <div class="tab-bar">
@@ -46,7 +46,7 @@
         }
         else
         {
-            <table>
+            <table class="data-table">
                 <thead>
                     <tr>
                         <th>Protocol #</th>
@@ -110,7 +110,7 @@
             <label>Target Enrollment <input type="number" @bind="newStudy.TargetEnrollment" min="1" /></label>
             <label>Description <input @bind="newStudy.Description" placeholder="Brief study description..." /></label>
         </div>
-        <button class="btn-primary" @onclick="CreateStudy" disabled="@creatingStudy">
+        <button class="btn btn-primary" @onclick="CreateStudy" disabled="@creatingStudy">
             @(creatingStudy ? "Registering..." : "Register Study")
         </button>
         @if (createStudyMessage != null) { <p class="form-message">@createStudyMessage</p> }
@@ -121,9 +121,9 @@
 @if (activeTab == 2)
 {
     <div class="panel">
-        <div class="search-bar">
-            <input @bind="subjectStudyId" placeholder="Enter Study ID (IRB-STUDY:guid) to view subjects..." />
-            <button class="btn-secondary" @onclick="LoadSubjects">Load Subjects</button>
+        <div class="lookup-bar">
+            <input class="lookup-input" @bind="subjectStudyId" placeholder="Enter Study ID (IRB-STUDY:guid) to view subjects..." />
+            <button class="btn btn-primary" @onclick="LoadSubjects">Load Subjects</button>
         </div>
 
         @if (loadingSubjects)
@@ -136,7 +136,7 @@
         }
         else if (subjects.Count > 0)
         {
-            <table>
+            <table class="data-table">
                 <thead>
                     <tr>
                         <th>Patient</th>
@@ -186,7 +186,7 @@
             <label>Consent Obtained By <input @bind="newSubject.ConsentObtainedBy" placeholder="Jones, MD" /></label>
             <label>Study Arm <input @bind="newSubject.Arm" placeholder="Treatment A, Placebo, etc." /></label>
         </div>
-        <button class="btn-primary" @onclick="EnrollSubject" disabled="@enrollingSubject">
+        <button class="btn btn-primary" @onclick="EnrollSubject" disabled="@enrollingSubject">
             @(enrollingSubject ? "Enrolling..." : "Enroll Subject")
         </button>
         @if (enrollSubjectMessage != null) { <p class="form-message">@enrollSubjectMessage</p> }
@@ -242,50 +242,28 @@
 }
 
 <style>
-    .subtitle { color: #6b7280; margin-top: -0.5rem; margin-bottom: 1rem; }
-    .tab-bar { display: flex; gap: 0.5rem; margin-bottom: 1rem; flex-wrap: wrap; }
-    .tab-btn { padding: 0.4rem 1rem; border: 1px solid #d1d5db; border-radius: 6px; background: #f9fafb; cursor: pointer; }
-    .tab-btn.active { background: #1d4ed8; color: white; border-color: #1d4ed8; }
-    .panel { background: white; border: 1px solid #e5e7eb; border-radius: 8px; padding: 1.5rem; }
+    /* Canonical interaction classes (lookup-bar, lookup-input, tab-bar, tab, btn,
+       btn-primary, btn-secondary, alert, alert-error, data-table, badge, badge-*,
+       row-warning, empty-state) are defined once in app.css per UI-CONVENTIONS.md.
+       Only page-specific styles (layout, filter buttons, stat cards) live here. */
+    .subtitle { color: #555; margin-top: -0.5rem; margin-bottom: 1rem; }
+    .panel { background: #fff; border: 1px solid #d4d9e0; border-radius: 8px; padding: 1.5rem; }
     .filter-bar { display: flex; gap: 0.5rem; margin-bottom: 1rem; flex-wrap: wrap; }
-    .filter-btn { padding: 0.3rem 0.8rem; border: 1px solid #d1d5db; border-radius: 4px; background: #f9fafb; cursor: pointer; font-size: 0.85rem; }
-    .filter-btn.active { background: #3b82f6; color: white; border-color: #3b82f6; }
-    .search-bar { display: flex; gap: 0.5rem; margin-bottom: 1rem; }
-    .search-bar input { flex: 1; padding: 0.4rem 0.75rem; border: 1px solid #d1d5db; border-radius: 4px; }
-    table { width: 100%; border-collapse: collapse; margin-bottom: 1rem; }
-    th { background: #f3f4f6; text-align: left; padding: 0.5rem 0.75rem; font-size: 0.85rem; }
-    td { padding: 0.5rem 0.75rem; border-bottom: 1px solid #f3f4f6; font-size: 0.9rem; }
-    tr.row-warning td { background: #fef9c3; }
-    .badge { padding: 0.15rem 0.5rem; border-radius: 4px; font-size: 0.78rem; font-weight: 600; }
-    .badge-open { background: #d1fae5; color: #065f46; }
-    .badge-draft { background: #f3f4f6; color: #374151; }
-    .badge-closed { background: #dbeafe; color: #1e40af; }
-    .badge-completed { background: #d1fae5; color: #065f46; }
-    .badge-suspended { background: #fee2e2; color: #991b1b; }
-    .badge-withdrawn { background: #fce7f3; color: #9d174d; }
-    .badge-screening { background: #fef3c7; color: #92400e; }
-    .badge-enrolled { background: #dbeafe; color: #1e40af; }
-    .badge-active { background: #d1fae5; color: #065f46; }
-    .badge-lost { background: #fce7f3; color: #9d174d; }
-    .badge-deceased { background: #f3f4f6; color: #374151; }
-    .empty-state { color: #6b7280; font-style: italic; }
-    .alert-error { background: #fee2e2; color: #991b1b; padding: 0.75rem 1rem; border-radius: 6px; margin-bottom: 1rem; }
+    .filter-btn { padding: 0.3rem 0.8rem; border: 1px solid #d4d9e0; border-radius: 4px; background: #f9fafb; cursor: pointer; font-size: 0.85rem; color: #333; }
+    .filter-btn.active { background: #003f72; color: #fff; border-color: #003f72; }
     .form-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 0.75rem; margin-bottom: 1rem; }
-    .form-grid label { display: flex; flex-direction: column; gap: 0.25rem; font-size: 0.85rem; font-weight: 500; }
-    .form-grid input, .form-grid select { padding: 0.4rem 0.6rem; border: 1px solid #d1d5db; border-radius: 4px; }
-    .btn-primary { padding: 0.5rem 1.25rem; background: #1d4ed8; color: white; border: none; border-radius: 6px; cursor: pointer; }
-    .btn-primary:disabled { opacity: 0.6; cursor: not-allowed; }
-    .btn-secondary { padding: 0.4rem 1rem; background: #6b7280; color: white; border: none; border-radius: 4px; cursor: pointer; }
-    .form-message { margin-top: 0.5rem; color: #059669; font-weight: 500; }
+    .form-grid label { display: flex; flex-direction: column; gap: 0.25rem; font-size: 0.85rem; font-weight: 500; color: #333; }
+    .form-grid input, .form-grid select { padding: 0.4rem 0.6rem; border: 1px solid #d4d9e0; border-radius: 4px; }
+    .form-message { margin-top: 0.5rem; color: #166534; font-weight: 500; }
     .dashboard-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 1rem; }
-    .stat-card { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 1.25rem; text-align: center; }
+    .stat-card { background: #f9fafb; border: 1px solid #d4d9e0; border-radius: 8px; padding: 1.25rem; text-align: center; }
     .stat-card.stat-green { border-color: #86efac; background: #f0fdf4; }
     .stat-card.stat-yellow { border-color: #fde047; background: #fefce8; }
     .stat-card.stat-red { border-color: #fca5a5; background: #fef2f2; }
     .stat-card.stat-blue { border-color: #93c5fd; background: #eff6ff; }
     .stat-card.stat-orange { border-color: #fdba74; background: #fff7ed; }
-    .stat-number { font-size: 2rem; font-weight: 700; color: #1e293b; }
-    .stat-label { font-size: 0.8rem; color: #64748b; margin-top: 0.25rem; }
+    .stat-number { font-size: 2rem; font-weight: 700; color: #003f72; }
+    .stat-label { font-size: 0.8rem; color: #555; margin-top: 0.25rem; }
 </style>
 
 @code {
@@ -322,7 +300,7 @@
     }
 
     void SetTab(int tab) { activeTab = tab; error = null; }
-    string TabClass(int tab) => activeTab == tab ? "tab-btn active" : "tab-btn";
+    string TabClass(int tab) => activeTab == tab ? "tab active" : "tab";
 
     // ── Studies ───────────────────────────────────────────────────────────────
 
@@ -364,13 +342,13 @@
 
     string StudyStatusBadge(IrbStudyStatus status) => status switch
     {
-        IrbStudyStatus.OpenForEnrollment => "badge-open",
-        IrbStudyStatus.Draft => "badge-draft",
-        IrbStudyStatus.ClosedToEnrollment => "badge-closed",
-        IrbStudyStatus.Completed => "badge-completed",
-        IrbStudyStatus.Suspended => "badge-suspended",
-        IrbStudyStatus.Withdrawn => "badge-withdrawn",
-        _ => ""
+        IrbStudyStatus.OpenForEnrollment => "badge-success",
+        IrbStudyStatus.Draft => "badge-neutral",
+        IrbStudyStatus.ClosedToEnrollment => "badge-info",
+        IrbStudyStatus.Completed => "badge-success",
+        IrbStudyStatus.Suspended => "badge-danger",
+        IrbStudyStatus.Withdrawn => "badge-warning",
+        _ => "badge-neutral"
     };
 
     async Task CreateStudy()
@@ -419,14 +397,14 @@
 
     string SubjectStatusBadge(SubjectEnrollmentStatus status) => status switch
     {
-        SubjectEnrollmentStatus.Screening => "badge-screening",
-        SubjectEnrollmentStatus.Enrolled => "badge-enrolled",
-        SubjectEnrollmentStatus.Active => "badge-active",
-        SubjectEnrollmentStatus.Completed => "badge-completed",
-        SubjectEnrollmentStatus.Withdrawn => "badge-withdrawn",
-        SubjectEnrollmentStatus.LostToFollowUp => "badge-lost",
-        SubjectEnrollmentStatus.Deceased => "badge-deceased",
-        _ => ""
+        SubjectEnrollmentStatus.Screening => "badge-warning",
+        SubjectEnrollmentStatus.Enrolled => "badge-info",
+        SubjectEnrollmentStatus.Active => "badge-success",
+        SubjectEnrollmentStatus.Completed => "badge-success",
+        SubjectEnrollmentStatus.Withdrawn => "badge-warning",
+        SubjectEnrollmentStatus.LostToFollowUp => "badge-warning",
+        SubjectEnrollmentStatus.Deceased => "badge-neutral",
+        _ => "badge-neutral"
     };
 
     async Task EnrollSubject()

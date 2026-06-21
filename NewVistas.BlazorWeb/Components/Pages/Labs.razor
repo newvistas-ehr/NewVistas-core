@@ -15,7 +15,7 @@
 <h2>Laboratory Information System (LR)</h2>
 <p class="subtitle">VistA File #63 — lab orders, results, and panels</p>
 
-<div class="tabs">
+<div class="tab-bar">
     <button class="@TabClass("results")" @onclick='() => SetTab("results")'>Results</button>
     <button class="@TabClass("summary")" @onclick='() => SetTab("summary")'>Current Summary</button>
     <button class="@TabClass("order")" @onclick='() => SetTab("order")'>Order / Submit</button>
@@ -23,21 +23,21 @@
 
 @if (!string.IsNullOrEmpty(error))
 {
-    <div class="error">@error</div>
+    <div class="alert alert-error">@error</div>
 }
 
 @if (!string.IsNullOrEmpty(successMsg))
 {
-    <div class="success">@successMsg</div>
+    <div class="alert alert-success">@successMsg</div>
 }
 
 @* ── Tab 1: Results ─────────────────────────────────────────── *@
 @if (activeTab == "results")
 {
-    <div class="toolbar">
-        <input @bind="patientId" placeholder="Patient ID" class="input-id" />
-        <button @onclick="LoadResults" disabled="@loading">Load Results</button>
-        <button @onclick="LoadDemo" disabled="@loading" class="btn-demo">Load Demo</button>
+    <div class="lookup-bar">
+        <input @bind="patientId" placeholder="Patient ID" class="lookup-input" />
+        <button class="btn btn-primary" @onclick="LoadResults" disabled="@loading">Load Results</button>
+        <button class="btn btn-secondary" @onclick="LoadDemo" disabled="@loading">Load Demo</button>
     </div>
 
     @if (loading) { <p class="loading-msg">Loading…</p> }
@@ -90,15 +90,15 @@
                             <td>
                                 @if (r.Status == "Ordered")
                                 {
-                                    <button class="btn-sm" @onclick="() => OpenCollect(r.LabTestId)" disabled="@loading">Collect</button>
+                                    <button class="btn btn-primary" @onclick="() => OpenCollect(r.LabTestId)" disabled="@loading">Collect</button>
                                 }
                                 @if (r.Status == "Collected")
                                 {
-                                    <button class="btn-sm btn-result" @onclick="() => OpenResult(r.LabTestId, r.TestName)" disabled="@loading">Enter Result</button>
+                                    <button class="btn btn-primary" @onclick="() => OpenResult(r.LabTestId, r.TestName)" disabled="@loading">Enter Result</button>
                                 }
                                 @if (r.Status == "Completed" && string.IsNullOrEmpty(r.VerifyingProviderName))
                                 {
-                                    <button class="btn-sm btn-verify" @onclick="() => OpenVerify(r.LabTestId)" disabled="@loading">Verify</button>
+                                    <button class="btn btn-primary" @onclick="() => OpenVerify(r.LabTestId)" disabled="@loading">Verify</button>
                                 }
                             </td>
                         </tr>
@@ -126,8 +126,8 @@
                 <input @bind="collectLab" placeholder="e.g. Hematology Lab" />
             </div>
             <div class="panel-actions">
-                <button @onclick="SubmitCollect" disabled="@loading" class="btn-primary">Submit</button>
-                <button @onclick="() => collectLabTestId = null">Cancel</button>
+                <button @onclick="SubmitCollect" disabled="@loading" class="btn btn-primary">Submit</button>
+                <button @onclick="() => collectLabTestId = null" class="btn btn-secondary">Cancel</button>
             </div>
         </div>
     }
@@ -164,8 +164,8 @@
                 </select>
             </div>
             <div class="panel-actions">
-                <button @onclick="SubmitResult" disabled="@loading" class="btn-primary">Submit</button>
-                <button @onclick="() => resultLabTestId = null">Cancel</button>
+                <button @onclick="SubmitResult" disabled="@loading" class="btn btn-primary">Submit</button>
+                <button @onclick="() => resultLabTestId = null" class="btn btn-secondary">Cancel</button>
             </div>
         </div>
     }
@@ -183,8 +183,8 @@
                 <input @bind="verifyProviderName" placeholder="Dr. Name" />
             </div>
             <div class="panel-actions">
-                <button @onclick="SubmitVerify" disabled="@loading" class="btn-primary">Verify</button>
-                <button @onclick="() => verifyLabTestId = null">Cancel</button>
+                <button @onclick="SubmitVerify" disabled="@loading" class="btn btn-primary">Verify</button>
+                <button @onclick="() => verifyLabTestId = null" class="btn btn-secondary">Cancel</button>
             </div>
         </div>
     }
@@ -193,9 +193,9 @@
 @* ── Tab 2: Current Summary ──────────────────────────────────── *@
 @if (activeTab == "summary")
 {
-    <div class="toolbar">
-        <input @bind="patientId" placeholder="Patient ID" class="input-id" />
-        <button @onclick="LoadSummary" disabled="@loading">Load Summary</button>
+    <div class="lookup-bar">
+        <input @bind="patientId" placeholder="Patient ID" class="lookup-input" />
+        <button class="btn btn-primary" @onclick="LoadSummary" disabled="@loading">Load Summary</button>
     </div>
 
     @if (loading) { <p class="loading-msg">Loading…</p> }
@@ -302,7 +302,7 @@
             <input @bind="newOrderingProvider" placeholder="Provider name" />
         </div>
         <div class="form-actions">
-            <button @onclick="SubmitOrder" disabled="@loading" class="btn-primary">Place Order</button>
+            <button @onclick="SubmitOrder" disabled="@loading" class="btn btn-primary">Place Order</button>
         </div>
     </div>
 
@@ -342,80 +342,53 @@
             <input @bind="ingestPanel" placeholder="e.g. CBC, BMP (optional)" />
         </div>
         <div class="form-actions">
-            <button @onclick="SubmitIngest" disabled="@loading" class="btn-primary">Ingest Result</button>
+            <button @onclick="SubmitIngest" disabled="@loading" class="btn btn-primary">Ingest Result</button>
         </div>
     </div>
 }
 
 <style>
-    .subtitle { color: #666; font-size: 0.85rem; margin-bottom: 1rem; }
-    .tabs { display: flex; border-bottom: 2px solid #d4d9e0; margin-bottom: 1rem; gap: 0; }
-    .tabs button { padding: 0.4rem 1.1rem; border: 1px solid #ccc; border-bottom: none; background: #f4f6f9; cursor: pointer; font-size: 0.85rem; margin-right: 2px; }
-    .tabs button.active { background: white; border-top: 2px solid #2c5282; color: #2c5282; font-weight: 600; }
-    .toolbar { display: flex; gap: 0.5rem; margin-bottom: 1rem; flex-wrap: wrap; align-items: center; }
-    .input-id { width: 260px; padding: 0.35rem 0.6rem; border: 1px solid #ccc; border-radius: 3px; font-size: 0.85rem; }
-    button { padding: 0.35rem 0.9rem; border: 1px solid #2c5282; background: #2c5282; color: white; border-radius: 3px; cursor: pointer; font-size: 0.83rem; }
-    button:hover { background: #1a3a5c; }
-    button:disabled { background: #999; border-color: #999; cursor: not-allowed; }
-    .btn-demo { background: #4a5568; border-color: #4a5568; }
-    .btn-demo:hover { background: #2d3748; }
-    .btn-sm { padding: 0.2rem 0.55rem; font-size: 0.75rem; }
-    .btn-result { background: #276749; border-color: #276749; }
-    .btn-verify { background: #744210; border-color: #744210; }
-    .btn-primary { background: #2c5282; border-color: #2c5282; }
-    .error { background: #fff5f5; border: 1px solid #fc8181; color: #c53030; padding: 0.6rem 0.9rem; border-radius: 4px; margin-bottom: 0.75rem; }
-    .success { background: #f0fff4; border: 1px solid #68d391; color: #276749; padding: 0.6rem 0.9rem; border-radius: 4px; margin-bottom: 0.75rem; }
-    .loading-msg { color: #666; font-style: italic; }
-    .empty-msg { color: #999; font-style: italic; padding: 1.5rem 0; }
+    /* Canonical classes (lookup-bar, lookup-input, tab, tab-bar, btn, btn-primary,
+       btn-secondary, alert, alert-error, alert-success, data-table + th/td/tr, badge,
+       badge-*, empty-state) are defined once in app.css per UI-CONVENTIONS.md.
+       Only page-specific styles (lab summary cards, panels, row tints) live here. */
+    .subtitle { color: #555; font-size: 0.85rem; margin-bottom: 1rem; }
+    .loading-msg { color: #555; font-style: italic; }
+    .empty-msg { color: #555; font-style: italic; padding: 1.5rem 0; }
 
     .summary-cards { display: flex; gap: 0.75rem; margin-bottom: 1rem; }
-    .card { padding: 0.6rem 1.1rem; border: 1px solid #d4d9e0; border-radius: 6px; text-align: center; min-width: 90px; }
-    .card-num { display: block; font-size: 1.6rem; font-weight: 700; color: #2c5282; }
-    .card-label { font-size: 0.72rem; color: #666; text-transform: uppercase; letter-spacing: 0.04em; }
-    .card-warn .card-num { color: #c05621; }
-    .card-pending .card-num { color: #744210; }
+    .card { padding: 0.6rem 1.1rem; border: 1px solid #d4d9e0; border-radius: 6px; text-align: center; min-width: 90px; background: #f9fafb; }
+    .card-num { display: block; font-size: 1.6rem; font-weight: 700; color: #003f72; }
+    .card-label { font-size: 0.72rem; color: #555; text-transform: uppercase; letter-spacing: 0.04em; }
+    .card-warn .card-num { color: #b45309; }
+    .card-pending .card-num { color: #1e40af; }
 
-    .data-table { width: 100%; border-collapse: collapse; font-size: 0.84rem; }
-    .data-table th { background: #2c5282; color: white; padding: 0.4rem 0.6rem; text-align: left; font-size: 0.77rem; text-transform: uppercase; }
-    .data-table td { padding: 0.38rem 0.6rem; border-bottom: 1px solid #edf2f7; }
-    .data-table tr:hover { background: #f7fafc; }
-    .row-abnormal { background: #fffbeb; }
-    .row-critical { background: #fff5f5; }
+    .row-abnormal > td { background: #fffbeb; }
+    .row-critical > td { background: #fef2f2; }
     .test-name { font-weight: 500; }
-    .result-val.flagged { color: #c53030; font-weight: 600; }
-    .date-col { color: #888; font-size: 0.78rem; white-space: nowrap; }
-    .loinc-col { color: #666; font-size: 0.78rem; font-family: monospace; }
-    .ref-range { color: #666; font-size: 0.78rem; }
-    .trend-col { font-family: monospace; font-size: 0.82rem; color: #444; }
+    .result-val.flagged { color: #b91c1c; font-weight: 600; }
+    .date-col { color: #555; font-size: 0.78rem; white-space: nowrap; }
+    .loinc-col { color: #555; font-size: 0.78rem; }
+    .ref-range { color: #555; font-size: 0.78rem; }
+    .trend-col { font-size: 0.82rem; color: #333; }
 
-    .badge { display: inline-block; padding: 0.15rem 0.45rem; border-radius: 3px; font-size: 0.73rem; font-weight: 700; }
-    .badge-normal { background: #c6f6d5; color: #22543d; }
-    .badge-high { background: #fed7aa; color: #7b341e; }
-    .badge-low { background: #bee3f8; color: #2c5282; }
-    .badge-critical { background: #fc8181; color: #63171b; }
-    .badge-ordered { background: #e9d8fd; color: #44337a; }
-    .badge-collected { background: #bee3f8; color: #2a4365; }
-    .badge-completed { background: #c6f6d5; color: #22543d; }
-    .badge-cancelled { background: #e2e8f0; color: #4a5568; }
-    .badge-verified { background: #c6f6d5; color: #22543d; }
+    .abnormal-banner { background: #fffbeb; border: 1px solid #fcd34d; padding: 0.6rem 1rem; border-radius: 4px; margin-bottom: 1rem; display: flex; gap: 0.5rem; flex-wrap: wrap; align-items: center; color: #333; }
 
-    .abnormal-banner { background: #fff9c4; border: 1px solid #f6e05e; padding: 0.6rem 1rem; border-radius: 4px; margin-bottom: 1rem; display: flex; gap: 0.5rem; flex-wrap: wrap; align-items: center; }
-
-    .action-panel { border: 1px solid #bee3f8; background: #ebf8ff; border-radius: 6px; padding: 1rem 1.25rem; margin-top: 1rem; max-width: 500px; }
-    .action-panel h4 { margin: 0 0 0.75rem; color: #2c5282; }
+    .action-panel { border: 1px solid #d4d9e0; background: #f4f6f9; border-radius: 6px; padding: 1rem 1.25rem; margin-top: 1rem; max-width: 500px; }
+    .action-panel h4 { margin: 0 0 0.75rem; color: #003f72; }
     .form-row { display: flex; gap: 0.75rem; margin-bottom: 0.5rem; align-items: center; }
-    .form-row label { width: 140px; font-size: 0.83rem; color: #555; text-align: right; flex-shrink: 0; }
-    .form-row input, .form-row select { flex: 1; padding: 0.3rem 0.5rem; border: 1px solid #ccc; border-radius: 3px; font-size: 0.83rem; }
+    .form-row label { width: 140px; font-size: 0.83rem; color: #333; text-align: right; flex-shrink: 0; }
+    .form-row input, .form-row select { flex: 1; padding: 0.3rem 0.5rem; border: 1px solid #d4d9e0; border-radius: 3px; font-size: 0.83rem; }
     .panel-actions { display: flex; gap: 0.5rem; margin-top: 0.75rem; }
 
-    .form-card { border: 1px solid #d4d9e0; border-radius: 6px; padding: 1.25rem; margin-bottom: 1.25rem; max-width: 560px; }
-    .form-card h3 { margin: 0 0 1rem; font-size: 1rem; color: #2c5282; }
+    .form-card { border: 1px solid #d4d9e0; border-radius: 6px; padding: 1.25rem; margin-bottom: 1.25rem; max-width: 560px; background: #f9fafb; }
+    .form-card h3 { margin: 0 0 1rem; font-size: 1rem; color: #003f72; }
     .form-grid { display: grid; grid-template-columns: 160px 1fr; gap: 0.5rem 0.75rem; align-items: center; margin-bottom: 0.75rem; }
-    .form-grid label { font-size: 0.83rem; color: #555; text-align: right; }
-    .form-grid input, .form-grid select { padding: 0.3rem 0.5rem; border: 1px solid #ccc; border-radius: 3px; font-size: 0.83rem; }
+    .form-grid label { font-size: 0.83rem; color: #333; text-align: right; }
+    .form-grid input, .form-grid select { padding: 0.3rem 0.5rem; border: 1px solid #d4d9e0; border-radius: 3px; font-size: 0.83rem; }
     .form-actions { display: flex; justify-content: flex-end; margin-top: 0.5rem; }
     .form-section { margin-bottom: 0.75rem; }
-    .form-hint { font-size: 0.8rem; color: #666; margin-bottom: 0.75rem; }
+    .form-hint { font-size: 0.8rem; color: #555; margin-bottom: 0.75rem; }
 </style>
 
 @code {
@@ -472,7 +445,7 @@
     List<LabSummary> AbnormalSummary =>
         summary?.Where(s => s.AbnormalFlag is not "Normal" and not "").ToList() ?? new();
 
-    string TabClass(string tab) => activeTab == tab ? "active" : string.Empty;
+    string TabClass(string tab) => activeTab == tab ? "tab active" : "tab";
 
     void SetTab(string tab)
     {
@@ -492,23 +465,23 @@
 
     string FlagBadge(string? flag) => flag switch
     {
-        "H" or "High" => "badge-high",
-        "L" or "Low" => "badge-low",
-        "CH" or "CriticalHigh" or "Critical" => "badge-critical",
-        "CL" or "CriticalLow" => "badge-critical",
-        "A" or "Abnormal" => "badge-high",
-        _ => "badge-normal"
+        "H" or "High" => "badge-warning",
+        "L" or "Low" => "badge-info",
+        "CH" or "CriticalHigh" or "Critical" => "badge-danger",
+        "CL" or "CriticalLow" => "badge-danger",
+        "A" or "Abnormal" => "badge-warning",
+        _ => "badge-success"
     };
 
     string StatusBadge(string status) => status switch
     {
-        "Ordered" => "badge-ordered",
-        "Collected" => "badge-collected",
-        "Pending" => "badge-collected",
-        "Completed" => "badge-completed",
-        "Verified" => "badge-verified",
-        "Cancelled" => "badge-cancelled",
-        _ => "badge-normal"
+        "Ordered" => "badge-info",
+        "Collected" => "badge-info",
+        "Pending" => "badge-info",
+        "Completed" => "badge-success",
+        "Verified" => "badge-success",
+        "Cancelled" => "badge-neutral",
+        _ => "badge-success"
     };
 
     string TrendDisplay(List<TrendPoint> trend)

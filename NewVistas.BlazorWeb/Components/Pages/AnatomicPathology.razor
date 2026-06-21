@@ -15,27 +15,27 @@
 <h2>Anatomic Pathology (AP)</h2>
 <p class="subtitle">VistA Files #63.08 (Surgical Pathology) · #63.09 (Cytology) · #63.19 (Autopsy)</p>
 
-<div class="tabs">
-    <button class="@TabClass("list")"     @onclick='() => SetTab("list")'>Cases</button>
-    <button class="@TabClass("sp")"       @onclick='() => SetTab("sp")'>Surgical Path</button>
-    <button class="@TabClass("cy")"       @onclick='() => SetTab("cy")'>Cytology</button>
-    <button class="@TabClass("au")"       @onclick='() => SetTab("au")'>Autopsy</button>
-    <button class="@TabClass("accession")" @onclick='() => SetTab("accession")'>Accession</button>
+<div class="tab-bar">
+    <button class="tab @TabClass("list")"     @onclick='() => SetTab("list")'>Cases</button>
+    <button class="tab @TabClass("sp")"       @onclick='() => SetTab("sp")'>Surgical Path</button>
+    <button class="tab @TabClass("cy")"       @onclick='() => SetTab("cy")'>Cytology</button>
+    <button class="tab @TabClass("au")"       @onclick='() => SetTab("au")'>Autopsy</button>
+    <button class="tab @TabClass("accession")" @onclick='() => SetTab("accession")'>Accession</button>
 </div>
 
 @if (!string.IsNullOrEmpty(error))
 {
-    <div class="error">@error</div>
+    <div class="alert alert-error">@error</div>
 }
 @if (!string.IsNullOrEmpty(successMsg))
 {
-    <div class="success">@successMsg</div>
+    <div class="alert alert-success">@successMsg</div>
 }
 
 @* ── Patient / Load Bar ──────────────────────────────────────────────────── *@
-<div class="toolbar">
-    <input @bind="patientId" placeholder="Patient ID" class="input-id" />
-    <button @onclick="LoadCases" disabled="@loading">Load Cases</button>
+<div class="lookup-bar">
+    <input @bind="patientId" placeholder="Patient ID" class="lookup-input" />
+    <button class="btn btn-primary" @onclick="LoadCases" disabled="@loading">Load Cases</button>
 </div>
 
 @* ══════════════════════════════════════════════════════════════════════════ *@
@@ -96,7 +96,7 @@
                             <td><span class="badge @StatusBadge(c.Status)">@c.Status</span></td>
                             <td class="diag-col">@(c.PrimaryDiagnosis ?? "—")</td>
                             <td>@(c.PathologistName ?? "—")</td>
-                            <td><button class="btn-sm" @onclick:stopPropagation="true" @onclick="() => SelectCase(c.CaseId)">View</button></td>
+                            <td><button class="btn btn-primary" @onclick:stopPropagation="true" @onclick="() => SelectCase(c.CaseId)">View</button></td>
                         </tr>
                     }
                 </tbody>
@@ -173,18 +173,18 @@
                 <div class="action-bar">
                     @if (selectedCase.Status is "Received" or "InProgress")
                     {
-                        <button @onclick="() => OpenGrossPanel()" class="btn-action">Record Gross</button>
-                        <button @onclick="() => OpenMicroPanel()" class="btn-action">Record Microscopic</button>
-                        <button @onclick="() => OpenPrelimPanel()" class="btn-action">Preliminary Dx</button>
+                        <button @onclick="() => OpenGrossPanel()" class="btn btn-primary">Record Gross</button>
+                        <button @onclick="() => OpenMicroPanel()" class="btn btn-primary">Record Microscopic</button>
+                        <button @onclick="() => OpenPrelimPanel()" class="btn btn-primary">Preliminary Dx</button>
                     }
                     @if (selectedCase.Status is "Received" or "InProgress" or "Preliminary")
                     {
-                        <button @onclick="() => OpenSignOutPanel()" class="btn-action btn-signout">Sign Out</button>
+                        <button @onclick="() => OpenSignOutPanel()" class="btn btn-primary">Sign Out</button>
                     }
                     @if (selectedCase.Status is "Final" or "Addendum")
                     {
-                        <button @onclick="() => OpenAddendumPanel()" class="btn-action">Add Addendum</button>
-                        <button @onclick="() => OpenAmendPanel()" class="btn-action btn-warn">Amend</button>
+                        <button @onclick="() => OpenAddendumPanel()" class="btn btn-primary">Add Addendum</button>
+                        <button @onclick="() => OpenAmendPanel()" class="btn btn-primary">Amend</button>
                     }
                 </div>
 
@@ -199,8 +199,8 @@
                         <div class="form-row"><label>Frozen Dx</label><input @bind="frozenDx" /></div>
                         <div class="form-row"><label>Gross Description</label><textarea @bind="grossDesc" rows="5"></textarea></div>
                         <div class="panel-actions">
-                            <button @onclick="SubmitGross" disabled="@loading" class="btn-primary">Save</button>
-                            <button @onclick="CloseAllPanels">Cancel</button>
+                            <button @onclick="SubmitGross" disabled="@loading" class="btn btn-primary">Save</button>
+                            <button class="btn btn-secondary" @onclick="CloseAllPanels">Cancel</button>
                         </div>
                     </div>
                 }
@@ -211,8 +211,8 @@
                         <h4>Record Microscopic Description</h4>
                         <div class="form-row"><label>Microscopic Description</label><textarea @bind="microDesc" rows="6"></textarea></div>
                         <div class="panel-actions">
-                            <button @onclick="SubmitMicro" disabled="@loading" class="btn-primary">Save</button>
-                            <button @onclick="CloseAllPanels">Cancel</button>
+                            <button @onclick="SubmitMicro" disabled="@loading" class="btn btn-primary">Save</button>
+                            <button class="btn btn-secondary" @onclick="CloseAllPanels">Cancel</button>
                         </div>
                     </div>
                 }
@@ -224,8 +224,8 @@
                         <div class="form-row"><label>Pathologist</label><input @bind="pathologistName" /></div>
                         <div class="form-row"><label>Preliminary Diagnosis</label><textarea @bind="diagnosis" rows="4"></textarea></div>
                         <div class="panel-actions">
-                            <button @onclick="SubmitPreliminary" disabled="@loading" class="btn-primary">Issue</button>
-                            <button @onclick="CloseAllPanels">Cancel</button>
+                            <button @onclick="SubmitPreliminary" disabled="@loading" class="btn btn-primary">Issue</button>
+                            <button class="btn btn-secondary" @onclick="CloseAllPanels">Cancel</button>
                         </div>
                     </div>
                 }
@@ -239,8 +239,8 @@
                         <div class="form-row"><label>Final Diagnosis</label><textarea @bind="diagnosis" rows="5"></textarea></div>
                         <div class="form-row"><label>ICD-10 Codes (comma-sep.)</label><input @bind="diagnosisCodesRaw" placeholder="C34.11, Z85.118" /></div>
                         <div class="panel-actions">
-                            <button @onclick="SubmitSignOut" disabled="@loading" class="btn-primary btn-signout">Sign Out</button>
-                            <button @onclick="CloseAllPanels">Cancel</button>
+                            <button @onclick="SubmitSignOut" disabled="@loading" class="btn btn-primary">Sign Out</button>
+                            <button class="btn btn-secondary" @onclick="CloseAllPanels">Cancel</button>
                         </div>
                     </div>
                 }
@@ -252,8 +252,8 @@
                         <div class="form-row"><label>Pathologist</label><input @bind="pathologistName" /></div>
                         <div class="form-row"><label>Addendum Text</label><textarea @bind="addendumText" rows="4"></textarea></div>
                         <div class="panel-actions">
-                            <button @onclick="SubmitAddendum" disabled="@loading" class="btn-primary">Append</button>
-                            <button @onclick="CloseAllPanels">Cancel</button>
+                            <button @onclick="SubmitAddendum" disabled="@loading" class="btn btn-primary">Append</button>
+                            <button class="btn btn-secondary" @onclick="CloseAllPanels">Cancel</button>
                         </div>
                     </div>
                 }
@@ -267,8 +267,8 @@
                         <div class="form-row"><label>Corrected Diagnosis</label><textarea @bind="diagnosis" rows="5"></textarea></div>
                         <div class="form-row"><label>ICD-10 Codes (comma-sep.)</label><input @bind="diagnosisCodesRaw" /></div>
                         <div class="panel-actions">
-                            <button @onclick="SubmitAmend" disabled="@loading" class="btn-primary btn-warn">Amend</button>
-                            <button @onclick="CloseAllPanels">Cancel</button>
+                            <button @onclick="SubmitAmend" disabled="@loading" class="btn btn-primary">Amend</button>
+                            <button class="btn btn-secondary" @onclick="CloseAllPanels">Cancel</button>
                         </div>
                     </div>
                 }
@@ -314,7 +314,7 @@
     }
     else
     {
-        <button @onclick="LoadSP" disabled="@loading">Load Surgical Pathology Cases</button>
+        <button class="btn btn-primary" @onclick="LoadSP" disabled="@loading">Load Surgical Pathology Cases</button>
     }
 }
 
@@ -356,7 +356,7 @@
     }
     else
     {
-        <button @onclick="LoadCY" disabled="@loading">Load Cytology Cases</button>
+        <button class="btn btn-primary" @onclick="LoadCY" disabled="@loading">Load Cytology Cases</button>
     }
 }
 
@@ -397,7 +397,7 @@
     }
     else
     {
-        <button @onclick="LoadAU" disabled="@loading">Load Autopsy Cases</button>
+        <button class="btn btn-primary" @onclick="LoadAU" disabled="@loading">Load Autopsy Cases</button>
     }
 }
 
@@ -457,80 +457,55 @@
             <input type="datetime-local" @bind="newDateReceived" />
         </div>
         <div class="form-actions">
-            <button @onclick="SubmitAccession" disabled="@loading" class="btn-primary">Accession Case</button>
+            <button @onclick="SubmitAccession" disabled="@loading" class="btn btn-primary">Accession Case</button>
         </div>
     </div>
 }
 
 <style>
-    .subtitle { color: #666; font-size: 0.85rem; margin-bottom: 1rem; }
-    .tabs { display: flex; border-bottom: 2px solid #d4d9e0; margin-bottom: 1rem; gap: 0; }
-    .tabs button { padding: 0.4rem 1.1rem; border: 1px solid #ccc; border-bottom: none; background: #f4f6f9; cursor: pointer; font-size: 0.85rem; }
-    .tabs button.active { background: white; border-top: 2px solid #2c5282; color: #2c5282; font-weight: 600; }
-    .toolbar { display: flex; gap: 0.5rem; margin-bottom: 1rem; flex-wrap: wrap; align-items: center; }
-    .input-id { width: 260px; padding: 0.35rem 0.6rem; border: 1px solid #ccc; border-radius: 3px; font-size: 0.85rem; }
-    button { padding: 0.35rem 0.9rem; border: 1px solid #2c5282; background: #2c5282; color: white; border-radius: 3px; cursor: pointer; font-size: 0.83rem; }
-    button:hover { background: #1a3a5c; }
-    button:disabled { background: #999; border-color: #999; cursor: not-allowed; }
-    .btn-sm { padding: 0.2rem 0.6rem; font-size: 0.78rem; }
-    .btn-primary { background: #276749; border-color: #276749; }
-    .btn-primary:hover { background: #1a4532; }
-    .btn-signout { background: #2c5282; border-color: #2c5282; }
-    .btn-warn { background: #c05621; border-color: #c05621; }
-    .btn-action { margin-right: 0.4rem; font-size: 0.82rem; }
-    .error { background: #fff5f5; border: 1px solid #fc8181; color: #c53030; padding: 0.6rem 0.9rem; border-radius: 4px; margin-bottom: 0.75rem; }
-    .success { background: #f0fff4; border: 1px solid #68d391; color: #276749; padding: 0.6rem 0.9rem; border-radius: 4px; margin-bottom: 0.75rem; }
-    .loading-msg, .empty-msg { color: #718096; font-style: italic; padding: 0.5rem 0; }
+    /* Canonical interaction classes (lookup-bar, lookup-input, tab-bar, tab, btn,
+       btn-primary, btn-secondary, alert, alert-error, alert-success, data-table,
+       badge, badge-*) are defined once in app.css per UI-CONVENTIONS.md.
+       Only page-specific styles (layout, summary cards, detail panels, AP colors)
+       live here. */
+    .subtitle { color: #555; font-size: 0.85rem; margin-bottom: 1rem; }
+    .loading-msg, .empty-msg { color: #555; font-style: italic; padding: 0.5rem 0; }
     .summary-cards { display: flex; gap: 0.75rem; margin-bottom: 1rem; flex-wrap: wrap; }
     .card { background: white; border: 1px solid #d4d9e0; border-radius: 6px; padding: 0.75rem 1.25rem; min-width: 100px; text-align: center; }
-    .card-num { display: block; font-size: 1.6rem; font-weight: 700; color: #2c5282; }
-    .card-label { display: block; font-size: 0.72rem; color: #718096; text-transform: uppercase; letter-spacing: 0.04em; }
+    .card-num { display: block; font-size: 1.6rem; font-weight: 700; color: #003f72; }
+    .card-label { display: block; font-size: 0.72rem; color: #555; text-transform: uppercase; letter-spacing: 0.04em; }
     .card-sp .card-num { color: #276749; }
     .card-cy .card-num { color: #744210; }
     .card-au .card-num { color: #742a2a; }
-    .data-table { width: 100%; border-collapse: collapse; font-size: 0.83rem; }
-    .data-table th { background: #eef2f7; text-align: left; padding: 0.45rem 0.6rem; border-bottom: 2px solid #d4d9e0; font-weight: 600; color: #4a5568; font-size: 0.78rem; text-transform: uppercase; }
-    .data-table td { padding: 0.4rem 0.6rem; border-bottom: 1px solid #edf2f7; vertical-align: top; }
     .data-table tr:hover { background: #f7f9fc; cursor: pointer; }
-    .row-selected { background: #ebf4ff !important; }
-    .mono { font-family: monospace; font-size: 0.82rem; }
-    .date-col { white-space: nowrap; color: #4a5568; font-size: 0.8rem; }
+    .row-selected { background: #eaf2fb !important; }
+    .mono { font-size: 0.82rem; }
+    .date-col { white-space: nowrap; color: #555; font-size: 0.8rem; }
     .diag-col { max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    .badge { display: inline-block; padding: 0.15rem 0.45rem; border-radius: 3px; font-size: 0.72rem; font-weight: 700; }
-    .badge-sp { background: #c6f6d5; color: #22543d; }
-    .badge-cy { background: #feebc8; color: #744210; }
-    .badge-au { background: #fed7d7; color: #742a2a; }
-    .badge-received { background: #e2e8f0; color: #4a5568; }
-    .badge-inprogress { background: #bee3f8; color: #2b6cb0; }
-    .badge-preliminary { background: #feebc8; color: #744210; }
-    .badge-final { background: #c6f6d5; color: #22543d; }
-    .badge-addendum { background: #bee3f8; color: #2b6cb0; }
-    .badge-amended { background: #fbd38d; color: #744210; }
-    .badge-cancelled { background: #fed7d7; color: #742a2a; }
     .detail-panel { margin-top: 1.5rem; border: 1px solid #d4d9e0; border-radius: 6px; padding: 1rem; background: white; }
-    .detail-panel h4 { margin: 0 0 0.75rem; color: #2c5282; font-size: 1rem; }
+    .detail-panel h4 { margin: 0 0 0.75rem; color: #003f72; font-size: 1rem; }
     .detail-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1rem; }
     .detail-section { padding: 0.5rem; }
     .detail-section.full-width { grid-column: 1 / -1; }
-    .detail-section h5 { margin: 0 0 0.5rem; color: #4a5568; font-size: 0.82rem; text-transform: uppercase; letter-spacing: 0.05em; border-bottom: 1px solid #e2e8f0; padding-bottom: 0.25rem; }
+    .detail-section h5 { margin: 0 0 0.5rem; color: #555; font-size: 0.82rem; text-transform: uppercase; letter-spacing: 0.05em; border-bottom: 1px solid #e2e8f0; padding-bottom: 0.25rem; }
     dl { display: grid; grid-template-columns: 110px 1fr; gap: 0.15rem 0.5rem; font-size: 0.82rem; }
-    dt { color: #718096; font-weight: 600; }
-    dd { margin: 0; color: #2d3748; }
-    .narrative { background: #f7f9fc; border-left: 3px solid #d4d9e0; padding: 0.5rem 0.75rem; font-size: 0.83rem; line-height: 1.5; white-space: pre-wrap; margin: 0.25rem 0; }
-    .diagnosis-text { border-left-color: #2c5282; background: #ebf4ff; font-weight: 500; }
-    .icd-codes { font-size: 0.78rem; color: #4a5568; margin: 0.25rem 0; }
-    .signed-by { font-size: 0.78rem; color: #718096; font-style: italic; margin: 0.25rem 0; }
+    dt { color: #555; font-weight: 600; }
+    dd { margin: 0; color: #333; }
+    .narrative { background: #f9fafb; border-left: 3px solid #d4d9e0; padding: 0.5rem 0.75rem; font-size: 0.83rem; line-height: 1.5; white-space: pre-wrap; margin: 0.25rem 0; color: #333; }
+    .diagnosis-text { border-left-color: #003f72; background: #eaf2fb; font-weight: 500; }
+    .icd-codes { font-size: 0.78rem; color: #555; margin: 0.25rem 0; }
+    .signed-by { font-size: 0.78rem; color: #555; font-style: italic; margin: 0.25rem 0; }
     .addendum-box { border-left: 3px solid #2b6cb0; background: #ebf8ff; }
     .action-bar { display: flex; gap: 0.5rem; flex-wrap: wrap; padding-top: 0.75rem; border-top: 1px solid #e2e8f0; margin-top: 0.5rem; }
-    .action-panel { background: #f7f9fc; border: 1px solid #d4d9e0; border-radius: 6px; padding: 1rem; margin-top: 1rem; }
-    .action-panel h4 { margin: 0 0 0.75rem; color: #2c5282; font-size: 0.95rem; }
+    .action-panel { background: #f9fafb; border: 1px solid #d4d9e0; border-radius: 6px; padding: 1rem; margin-top: 1rem; }
+    .action-panel h4 { margin: 0 0 0.75rem; color: #003f72; font-size: 0.95rem; }
     .form-row { display: flex; align-items: flex-start; gap: 0.75rem; margin-bottom: 0.6rem; }
-    .form-row label { width: 140px; min-width: 140px; font-size: 0.82rem; font-weight: 600; color: #4a5568; padding-top: 0.35rem; }
-    .form-row input, .form-row select, .form-row textarea { flex: 1; padding: 0.35rem 0.6rem; border: 1px solid #cbd5e0; border-radius: 3px; font-size: 0.83rem; font-family: inherit; }
+    .form-row label { width: 140px; min-width: 140px; font-size: 0.82rem; font-weight: 600; color: #333; padding-top: 0.35rem; }
+    .form-row input, .form-row select, .form-row textarea { flex: 1; padding: 0.35rem 0.6rem; border: 1px solid #d4d9e0; border-radius: 3px; font-size: 0.83rem; font-family: inherit; }
     .form-row textarea { resize: vertical; }
     .panel-actions, .form-actions { display: flex; gap: 0.5rem; margin-top: 0.75rem; }
     .accession-form { max-width: 680px; background: white; border: 1px solid #d4d9e0; border-radius: 6px; padding: 1.25rem; }
-    .accession-form h4 { margin: 0 0 1rem; color: #2c5282; }
+    .accession-form h4 { margin: 0 0 1rem; color: #003f72; }
 </style>
 
 @code {
@@ -603,22 +578,22 @@
 
     string TypeBadge(string type) => type switch
     {
-        "SurgicalPathology" => "badge-sp",
-        "Cytology"          => "badge-cy",
-        "Autopsy"           => "badge-au",
-        _                   => "badge-received"
+        "SurgicalPathology" => "badge-info",
+        "Cytology"          => "badge-warning",
+        "Autopsy"           => "badge-danger",
+        _                   => "badge-neutral"
     };
 
     string StatusBadge(string status) => status?.ToLower() switch
     {
-        "received"    => "badge-received",
-        "inprogress"  => "badge-inprogress",
-        "preliminary" => "badge-preliminary",
-        "final"       => "badge-final",
-        "addendum"    => "badge-addendum",
-        "amended"     => "badge-amended",
-        "cancelled"   => "badge-cancelled",
-        _             => "badge-received"
+        "received"    => "badge-neutral",
+        "inprogress"  => "badge-info",
+        "preliminary" => "badge-warning",
+        "final"       => "badge-success",
+        "addendum"    => "badge-info",
+        "amended"     => "badge-warning",
+        "cancelled"   => "badge-danger",
+        _             => "badge-neutral"
     };
 
     IPatientWorkflowGrain GetWorkflow() => Grains.GetGrain<IPatientWorkflowGrain>(patientId.Trim());
