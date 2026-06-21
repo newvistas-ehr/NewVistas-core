@@ -1,9 +1,24 @@
-# NewVistas Blazor UI Conventions — PROPOSED (for review)
+# NewVistas Modern UI Conventions — for review
 
-> Status: **proposal / style guide only. No code has been changed.** This documents the
-> single house style we should adopt and lists every page that is currently off-convention,
-> so the migration can be reviewed and scheduled. Surfaced by the automated UI test run,
-> which needed three different strategies to drive screens that should behave identically.
+> Status: **style guide only. No code has been changed.** Documents the single house style for
+> the two *modern* UIs, the auth/nav model, the patient-safety alerting standard, and lists every
+> page currently off-convention so the migration can be reviewed and scheduled. Surfaced by the
+> automated UI test run, which needed three strategies to drive screens that should be identical.
+
+## Scope — which UIs this governs
+
+NewVistas ships several front ends on purpose; they are **not** held to the same bar:
+
+| UI | Role | Convention bar |
+|---|---|---|
+| **Blazor (main)** | Modern web app | **This guide** — modern, consistent, safe |
+| **WPF (main)** | Modern desktop app | **This guide** — same *interaction* model (own component pass) |
+| **CharUI** | Throwback — VistA character UI | Judge by **fidelity to VistA**, not modern norms. Out of scope. |
+| **WpfDelphiUI** | Throwback — CPRS / RPMS Delphi front end | Judge by **fidelity to CPRS/RPMS**. Out of scope. |
+
+The throwbacks deliberately preserve legacy muscle memory and must stay faithful to their
+originals. This guide standardizes **only the two modern UIs**. Markup examples below are Blazor;
+WPF-main adopts the same interaction model via its own shared controls.
 
 ## Why this matters
 
@@ -67,12 +82,55 @@ pages — keep them visible until the next user action so the result is observab
 ```
 Retire bare `form-control` form fields.
 
-> **Two choices flagged for your call** (the majority differs from the clinical idiom):
-> - **Patient input class**: clinical uses `lookup-input` (39) but `form-control`+PID is more
->   common (79). With a shared `<PatientBar>` the underlying class is uniform either way — I
->   recommend `lookup-input` for semantic clarity. Confirm or override.
-> - **Form field class**: `form-input` (26) vs `form-control` (31) is nearly even. I recommend
->   `form-input`; say the word if you'd rather standardize on Bootstrap `form-control`.
+> **Decided:** canonical = the **clinical/custom idiom**; patient input = **`lookup-input`** (via
+> `<PatientBar>`); form field = **`form-input`** (via `<FormField>`). (Both chosen over the
+> Bootstrap variants for semantic clarity; the shared component makes the class uniform anyway.)
+
+## 7. Authentication & navigation
+
+- **Anonymous = login only.** Before sign-in, render *only* the login screen — no app shell, no
+  nav, no site map. Today the full menu renders behind the login redirect; that exposure must go.
+  If you're not logged in, you don't see the system's map.
+- **Nav is generated from the user's role / security keys**, not hand-listed. A doctor sees
+  clinical sections, billing sees financial, a nurse sees nursing — each user sees only what their
+  keys grant (`RequiresSecurityKey` / `AccessControlGrain` already model this). Build the nav
+  *from* permissions via a shared `<RoleNav>`.
+- **Why:** least privilege, less clutter, and a safety benefit — you can't wander into a tool you
+  shouldn't operate.
+
+## 8. Patient-safety alerting (tiered)
+
+The governing rule is counterintuitive: **warn rarely.** Universal pop-ups train clinicians to
+dismiss everything (*alert fatigue*) — which is exactly how the lethal warning gets clicked
+through. Alerts are **severity-tiered**, and the top tier is **reserved and unmistakable**.
+
+| Tier | When | Interaction |
+|---|---|---|
+| **0 — inline** | low-risk (formulary note) | non-blocking hint, no interruption |
+| **1 — soft stop** | moderate (minor interaction) | one acknowledge, logged |
+| **2 — hard stop** | dangerous: dose > max / lethal range, allergy contraindication, severe interaction, duplicate opioid | the **anti-muscle-memory** pattern below |
+
+### `<SafetyConfirm>` — the reserved Tier-2 pattern (identical in Blazor and WPF)
+A Tier-2 confirmation **must not be dismissible by reflex**:
+1. **State the specific hazard with real numbers, in plain language** — not "Are you sure?":
+   *"Nucynta 50 mg × 100/day = 5,000 mg/day. Max recommended 600 mg/day — lethal range."*
+2. **Safe choice is the default** — *Cancel / Modify* is highlighted and is the keyboard default;
+   the override is visually secondary and **not pre-focused**.
+3. **Override requires active engagement, not a click** — proceed stays disabled until the
+   prescriber **types the value to confirm** ("to override, type the daily dose: `5000`") **and**
+   enters a **reason**. The proceed button is **not in the routine-OK position**, so the reflex
+   misses.
+4. **Reserved styling** — the Tier-2 danger treatment is used *only* here, so a real hazard never
+   looks like a routine prompt.
+5. **Lethal class = true hard stop (co-sign).** For the most dangerous class (e.g. a Schedule-II
+   opioid overdose), a solo override is **not** allowed — it requires a **pharmacist or attending
+   co-sign**. *(Approved policy.)*
+6. **Every override is audited** — who, when, the hazard, the reason → `LogAuditEventAsync`.
+
+Hazard *detection* already exists (`ScreenPrescriptionForInteractionsAsync`, DUR, allergy checks);
+this standardizes how it is **presented and confirmed**. Because the Tier-2 pattern is reserved and
+identical everywhere, clinicians instantly recognize a genuine hazard — an inconsistent danger
+signal is itself a safety risk.
 
 ## Migration checklist (who is off-convention today)
 
@@ -109,8 +167,13 @@ Bootstrap idiom. That makes migration **batchable by feature area**, not scatter
 3. **Migrate by cluster** — Nursing pages → Pharmacy → AR/Billing → Registration → the long tail. Each wave re-run through the smoke + deep harness to confirm no regressions.
 4. **Add a guard** — a tiny analyzer/test that fails CI if a page reintroduces `nav-link` / `tab-btn` / `btn-success` / `alert-danger` / a bare patient input, so it can't drift again.
 
-## Open questions for review
-1. Approve the **clinical/custom idiom** as canonical? (vs. standardizing on Bootstrap.)
-2. Patient-input class: `lookup-input` (recommended) or `form-control`?
-3. Form-field class: `form-input` (recommended) or `form-control`?
-4. Rollout: shared components + pilot first (recommended), and migrate by the feature clusters above?
+## Decisions (approved)
+1. Canonical idiom = **clinical/custom** (not Bootstrap).
+2. Patient-input class = **`lookup-input`** (via `<PatientBar>`).
+3. Form-field class = **`form-input`** (via `<FormField>`).
+4. Navigation = **login-first + role/key-generated** (`<RoleNav>`); no pre-auth site map.
+5. Patient safety = **tiered alerts**; reserved **Tier-2 `<SafetyConfirm>`** (type-to-confirm +
+   reason + reserved styling + audit); **lethal class requires co-sign**.
+6. Rollout = **shared components + pilot**, then migrate by cluster; add a CI guard against drift.
+
+Scope: the **two modern UIs only** (Blazor-main, WPF-main). CharUI and WpfDelphiUI stay faithful throwbacks.

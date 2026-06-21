@@ -1,0 +1,14 @@
+@* Copyright 2026 Merrimack Valley Software Works, LLC. All rights reserved. *@
+@* This Source Code Form is subject to the terms of the Mozilla Public *@
+@* License, v. 2.0. If a copy of the MPL was not distributed with this *@
+@* file, You can obtain one at https://mozilla.org/MPL/2.0/.            *@
+@* Canonical status banners (UI-CONVENTIONS.md §5): one success class, one *@
+@* error class — no .alert-danger / bare .error variants. *@
+
+@if (!string.IsNullOrEmpty(Error)) { <div class="alert alert-error">@Error</div> }
+@if (!string.IsNullOrEmpty(Success)) { <div class="alert alert-success">@Success</div> }
+
+@code {
+    [Parameter] public string? Error { get; set; }
+    [Parameter] public string? Success { get; set; }
+}

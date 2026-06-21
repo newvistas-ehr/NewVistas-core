@@ -1,0 +1,26 @@
+@* Copyright 2026 Merrimack Valley Software Works, LLC. All rights reserved. *@
+@* This Source Code Form is subject to the terms of the Mozilla Public *@
+@* License, v. 2.0. If a copy of the MPL was not distributed with this *@
+@* file, You can obtain one at https://mozilla.org/MPL/2.0/.            *@
+@* Canonical tab strip (UI-CONVENTIONS.md §2-3): one .tab class; the create *@
+@* form is just another tab. *@
+
+<div class="tab-bar">
+    @foreach (var t in Tabs)
+    {
+        var key = t.Key;
+        <button class="tab @(Active == key ? "active" : "")" @onclick="() => Select(key)">@t.Label</button>
+    }
+</div>
+
+@code {
+    [Parameter] public (string Key, string Label)[] Tabs { get; set; } = System.Array.Empty<(string, string)>();
+    [Parameter] public string Active { get; set; } = "";
+    [Parameter] public EventCallback<string> ActiveChanged { get; set; }
+
+    private async Task Select(string key)
+    {
+        Active = key;
+        await ActiveChanged.InvokeAsync(key);
+    }
+}

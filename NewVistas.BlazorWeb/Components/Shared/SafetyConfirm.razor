@@ -1,0 +1,73 @@
+@* Copyright 2026 Merrimack Valley Software Works, LLC. All rights reserved. *@
+@* This Source Code Form is subject to the terms of the Mozilla Public *@
+@* License, v. 2.0. If a copy of the MPL was not distributed with this *@
+@* file, You can obtain one at https://mozilla.org/MPL/2.0/.            *@
+@* Reserved Tier-2 patient-safety confirmation (UI-CONVENTIONS.md §8). Defeats *@
+@* muscle-memory: the safe choice (Cancel) is visually primary and right-most; *@
+@* override is secondary, left, and disabled until the prescriber TYPES the    *@
+@* value to confirm AND a reason. The lethal class requires a co-sign and       *@
+@* cannot be overridden solo. *@
+
+@if (Visible)
+{
+    <div class="safety-overlay">
+        <div class="safety-modal">
+            <h2>⚠ Dangerous order — confirmation required</h2>
+            <div class="safety-body">
+                <div class="safety-hazard">@Hazard</div>
+                @if (RequireCosign)
+                {
+                    <p class="safety-cosign-note">
+                        This order is in the lethal range and <strong>cannot be overridden by a single
+                        prescriber</strong>. It requires a pharmacist or attending co-signature.
+                    </p>
+                }
+                else
+                {
+                    <label>To override, type <strong>@ConfirmValue</strong> exactly:</label>
+                    <input class="safety-confirm-input" value="@_typed" @oninput="e => _typed = e.Value?.ToString() ?? string.Empty" />
+                    <label>Reason for override (required, audited):</label>
+                    <input class="safety-confirm-input" value="@_reason" @oninput="e => _reason = e.Value?.ToString() ?? string.Empty" />
+                }
+            </div>
+            <div class="safety-actions">
+                @* Override = secondary, left, away from the routine-OK position; disabled until typed. *@
+                <button class="btn safety-proceed" @onclick="Proceed"
+                        disabled="@(RequireCosign || _typed != ConfirmValue || string.IsNullOrWhiteSpace(_reason))">
+                    Override
+                </button>
+                @* Safe choice = visually primary, right-most (where muscle memory clicks). *@
+                <button class="btn safety-cancel" @onclick="Cancel">Cancel / Modify order</button>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter] public bool Visible { get; set; }
+    [Parameter] public string Hazard { get; set; } = "";
+    [Parameter] public string ConfirmValue { get; set; } = "";
+    [Parameter] public bool RequireCosign { get; set; }
+    /// <summary>Invoked with the typed reason when a (non-lethal) override is confirmed.</summary>
+    [Parameter] public EventCallback<string> OnOverride { get; set; }
+    [Parameter] public EventCallback OnCancel { get; set; }
+
+    private string _typed = string.Empty;
+    private string _reason = string.Empty;
+
+    private async Task Proceed()
+    {
+        if (!RequireCosign && _typed == ConfirmValue && !string.IsNullOrWhiteSpace(_reason))
+        {
+            var reason = _reason;
+            _typed = string.Empty; _reason = string.Empty;
+            await OnOverride.InvokeAsync(reason);
+        }
+    }
+
+    private async Task Cancel()
+    {
+        _typed = string.Empty; _reason = string.Empty;
+        await OnCancel.InvokeAsync();
+    }
+}

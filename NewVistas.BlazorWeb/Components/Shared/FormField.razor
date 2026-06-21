@@ -1,0 +1,17 @@
+@* Copyright 2026 Merrimack Valley Software Works, LLC. All rights reserved. *@
+@* This Source Code Form is subject to the terms of the Mozilla Public *@
+@* License, v. 2.0. If a copy of the MPL was not distributed with this *@
+@* file, You can obtain one at https://mozilla.org/MPL/2.0/.            *@
+@* Canonical labeled field (UI-CONVENTIONS.md §6): <label> + the input the *@
+@* page supplies (a .form-input element) in one consistent row. *@
+
+<div class="form-row">
+    <label>@Label@if (Required) { <span class="required"> *</span> }</label>
+    @ChildContent
+</div>
+
+@code {
+    [Parameter] public string Label { get; set; } = "";
+    [Parameter] public bool Required { get; set; }
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+}

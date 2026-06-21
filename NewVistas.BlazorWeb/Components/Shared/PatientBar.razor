@@ -1,0 +1,33 @@
+@* Copyright 2026 Merrimack Valley Software Works, LLC. All rights reserved. *@
+@* This Source Code Form is subject to the terms of the Mozilla Public *@
+@* License, v. 2.0. If a copy of the MPL was not distributed with this *@
+@* file, You can obtain one at https://mozilla.org/MPL/2.0/.            *@
+@* Canonical patient bar (UI-CONVENTIONS.md §1): one ID input + Load button + *@
+@* Enter-to-load, used on every patient-scoped page. *@
+
+<div class="lookup-bar">
+    <input type="text" value="@PatientId" @oninput="OnInput" @onkeydown="HandleKeyDown"
+           placeholder="Patient ID" class="lookup-input" />
+    <button @onclick="OnLoad" disabled="@(string.IsNullOrWhiteSpace(PatientId) || Loading)" class="btn btn-primary">
+        @(Loading ? "Loading..." : LoadText)
+    </button>
+</div>
+
+@code {
+    [Parameter] public string? PatientId { get; set; }
+    [Parameter] public EventCallback<string?> PatientIdChanged { get; set; }
+    [Parameter] public bool Loading { get; set; }
+    [Parameter] public EventCallback OnLoad { get; set; }
+    [Parameter] public string LoadText { get; set; } = "Load";
+
+    private async Task OnInput(ChangeEventArgs e)
+    {
+        PatientId = e.Value?.ToString();
+        await PatientIdChanged.InvokeAsync(PatientId);
+    }
+
+    private async Task HandleKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter") await OnLoad.InvokeAsync();
+    }
+}

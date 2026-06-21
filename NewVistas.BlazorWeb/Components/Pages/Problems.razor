@@ -14,23 +14,13 @@
 
 <h1>Problem List</h1>
 
-<div class="lookup-bar">
-    <input type="text" @bind="patientId" @bind:event="oninput" @onkeydown="HandleKeyDown"
-           placeholder="Patient ID" class="lookup-input" />
-    <button @onclick="Load" disabled="@(string.IsNullOrWhiteSpace(patientId) || loading)" class="btn btn-primary">
-        @if (loading) { <span>Loading...</span> } else { <span>Load</span> }
-    </button>
-</div>
+<PatientBar @bind-PatientId="patientId" Loading="loading" OnLoad="Load" />
 
-@if (error != null) { <div class="alert alert-error">@error</div> }
-@if (successMessage != null) { <div class="alert alert-success">@successMessage</div> }
+<AlertBanner Error="@error" Success="@successMessage" />
 
 @if (patientId != null)
 {
-    <div class="tab-bar">
-        <button class="tab @(activeTab == "view" ? "active" : "")" @onclick='() => activeTab = "view"'>Problem List</button>
-        <button class="tab @(activeTab == "add" ? "active" : "")" @onclick='() => activeTab = "add"'>Add Problem</button>
-    </div>
+    <TabStrip Tabs="_tabs" @bind-Active="activeTab" />
 
     @if (activeTab == "view")
     {
@@ -74,16 +64,13 @@
     @if (activeTab == "add")
     {
         <div class="form-section">
-            <div class="form-row">
-                <label>Diagnosis <span class="required">*</span></label>
+            <FormField Label="Diagnosis" Required>
                 <input type="text" @bind="form.Diagnosis" placeholder="e.g. Type 2 Diabetes Mellitus" class="form-input" />
-            </div>
-            <div class="form-row">
-                <label>ICD-10 Code</label>
+            </FormField>
+            <FormField Label="ICD-10 Code">
                 <input type="text" @bind="form.DiagnosisCode" placeholder="e.g. E11.9" class="form-input" />
-            </div>
-            <div class="form-row">
-                <label>Condition</label>
+            </FormField>
+            <FormField Label="Condition">
                 <select @bind="form.Condition" class="form-input">
                     <option value="">-- Select --</option>
                     <option value="ACUTE">Acute</option>
@@ -91,37 +78,31 @@
                     <option value="PERMANENT">Permanent</option>
                     <option value="TRANSCRIBED">Transcribed</option>
                 </select>
-            </div>
-            <div class="form-row">
-                <label>Priority</label>
+            </FormField>
+            <FormField Label="Priority">
                 <select @bind="form.Priority" class="form-input">
                     <option value="">-- Select --</option>
                     <option value="ACUTE">Acute</option>
                     <option value="CHRONIC">Chronic</option>
                 </select>
-            </div>
-            <div class="form-row">
-                <label>Onset Date</label>
+            </FormField>
+            <FormField Label="Onset Date">
                 <input type="date" @bind="form.DateOfOnset" class="form-input" />
-            </div>
-            <div class="form-row">
-                <label>Provider</label>
+            </FormField>
+            <FormField Label="Provider">
                 <input type="text" @bind="form.ProviderName" placeholder="Provider name" class="form-input" />
-            </div>
-            <div class="form-row">
-                <label>Clinic</label>
+            </FormField>
+            <FormField Label="Clinic">
                 <input type="text" @bind="form.ClinicName" placeholder="Clinic name" class="form-input" />
-            </div>
-            <div class="form-row">
-                <label>Service Connected</label>
+            </FormField>
+            <FormField Label="Service Connected">
                 <label class="checkbox-label">
                     <input type="checkbox" @bind="form.IsServiceConnected" /> Yes
                 </label>
-            </div>
-            <div class="form-row align-top">
-                <label>Comments</label>
+            </FormField>
+            <FormField Label="Comments">
                 <textarea @bind="form.Comments" rows="3" class="form-input"></textarea>
-            </div>
+            </FormField>
             <div class="form-actions">
                 <button @onclick="SubmitProblem" disabled="@submitting" class="btn btn-primary">
                     @(submitting ? "Saving..." : "Add Problem")
@@ -136,6 +117,7 @@
     private bool activeOnly = true;
     private List<ProblemDto>? items;
     private bool loading;
+    private readonly (string, string)[] _tabs = new[] { ("view", "Problem List"), ("add", "Add Problem") };
     private bool submitting;
     private string? error;
     private string? successMessage;
