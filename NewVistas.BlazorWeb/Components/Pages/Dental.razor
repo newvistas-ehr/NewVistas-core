@@ -15,15 +15,15 @@
 <div class="dn-container">
     <div class="dn-header">
         <h2>Dental — VistA File #228</h2>
-        <div class="patient-lookup">
-            <input class="form-control" placeholder="Patient ID" @bind="patientId" @onkeyup="@(async e => { if (e.Key == "Enter") await LoadPatient(); })" />
+        <div class="lookup-bar">
+            <input class="lookup-input" placeholder="Patient ID" @bind="patientId" @onkeyup="@(async e => { if (e.Key == "Enter") await LoadPatient(); })" />
             <button class="btn btn-primary" @onclick="LoadPatient" disabled="@loading">Load</button>
         </div>
     </div>
 
     @if (error != null)
     {
-        <div class="alert alert-danger">@error</div>
+        <div class="alert alert-error">@error</div>
     }
 
     @if (loading)
@@ -59,11 +59,11 @@
         </div>
 
         <div class="tab-bar">
-            <button class="tab-btn @(activeTab == "record" ? "active" : "")"
+            <button class="tab @(activeTab == "record" ? "active" : "")"
                     @onclick='() => activeTab = "record"'>Dental Record</button>
-            <button class="tab-btn @(activeTab == "treatments" ? "active" : "")"
+            <button class="tab @(activeTab == "treatments" ? "active" : "")"
                     @onclick='() => { activeTab = "treatments"; }'>Treatment History</button>
-            <button class="tab-btn @(activeTab == "new-treatment" ? "active" : "")"
+            <button class="tab @(activeTab == "new-treatment" ? "active" : "")"
                     @onclick='() => activeTab = "new-treatment"'>New Treatment</button>
         </div>
 
@@ -82,15 +82,15 @@
                             <dd>@(dentalRecord.EligibilityBasisDescription ?? "—")</dd>
                         </dl>
                         <div class="form-row mt-2">
-                            <select class="form-control" @bind="editEligibilityStatus">
+                            <select class="form-input" @bind="editEligibilityStatus">
                                 @foreach (string s in eligibilityStatuses)
                                 {
                                     <option value="@s">@s</option>
                                 }
                             </select>
-                            <input class="form-control" placeholder="Basis code (e.g. SC, POW)" @bind="editEligibilityCode" />
-                            <input class="form-control" placeholder="Basis description" @bind="editEligibilityDesc" />
-                            <button class="btn btn-sm btn-secondary" @onclick="SaveEligibility">Save</button>
+                            <input class="form-input" placeholder="Basis code (e.g. SC, POW)" @bind="editEligibilityCode" />
+                            <input class="form-input" placeholder="Basis description" @bind="editEligibilityDesc" />
+                            <button class="btn btn-primary" @onclick="SaveEligibility">Save</button>
                         </div>
                     </div>
 
@@ -107,19 +107,19 @@
                             <dd>@(dentalRecord.ClinicalNotes ?? "—")</dd>
                         </dl>
                         <div class="form-row mt-2">
-                            <select class="form-control" @bind="editPerioStatus">
+                            <select class="form-input" @bind="editPerioStatus">
                                 @foreach (string s in perioStatuses)
                                 {
                                     <option value="@s">@FormatPerioStatus(s)</option>
                                 }
                             </select>
-                            <input class="form-control" placeholder="Prosthetic status" @bind="editProstheticStatus" />
-                            <input class="form-control" type="number" placeholder="Remaining teeth" @bind="editRemainingTeeth" />
+                            <input class="form-input" placeholder="Prosthetic status" @bind="editProstheticStatus" />
+                            <input class="form-input" type="number" placeholder="Remaining teeth" @bind="editRemainingTeeth" />
                             <label class="form-check-label me-2">
                                 <input type="checkbox" @bind="editOnFluoride" /> On Fluoride
                             </label>
-                            <textarea class="form-control" rows="2" placeholder="Clinical notes" @bind="editClinicalNotes"></textarea>
-                            <button class="btn btn-sm btn-secondary" @onclick="SaveClinicalStatus">Save</button>
+                            <textarea class="form-input" rows="2" placeholder="Clinical notes" @bind="editClinicalNotes"></textarea>
+                            <button class="btn btn-primary" @onclick="SaveClinicalStatus">Save</button>
                         </div>
                     </div>
 
@@ -135,12 +135,12 @@
                         </dl>
                         <div class="form-row mt-2">
                             <label>Last Exam Date</label>
-                            <input type="date" class="form-control" @bind="editLastExamDate" />
+                            <input type="date" class="form-input" @bind="editLastExamDate" />
                             <label>Last X-Ray Date</label>
-                            <input type="date" class="form-control" @bind="editLastXRayDate" />
+                            <input type="date" class="form-input" @bind="editLastXRayDate" />
                             <label>Last Cleaning Date</label>
-                            <input type="date" class="form-control" @bind="editLastCleaningDate" />
-                            <button class="btn btn-sm btn-secondary" @onclick="SaveVisitDates">Save</button>
+                            <input type="date" class="form-input" @bind="editLastCleaningDate" />
+                            <button class="btn btn-primary" @onclick="SaveVisitDates">Save</button>
                         </div>
                     </div>
 
@@ -153,9 +153,9 @@
                             <dd>@(dentalRecord.PrimaryDentistName ?? "Not assigned")</dd>
                         </dl>
                         <div class="form-row mt-2">
-                            <input class="form-control" placeholder="Dentist ID" @bind="editDentistId" />
-                            <input class="form-control" placeholder="Dentist name" @bind="editDentistName" />
-                            <button class="btn btn-sm btn-secondary" @onclick="SavePrimaryDentist">Save</button>
+                            <input class="form-input" placeholder="Dentist ID" @bind="editDentistId" />
+                            <input class="form-input" placeholder="Dentist name" @bind="editDentistName" />
+                            <button class="btn btn-primary" @onclick="SavePrimaryDentist">Save</button>
                         </div>
                     </div>
                 </div>
@@ -167,7 +167,7 @@
             <div class="tab-content">
                 <div class="filter-bar">
                     <label>Filter by status:</label>
-                    <select class="form-control form-control-sm" @bind="txStatusFilter" @bind:after="ApplyStatusFilter">
+                    <select class="form-input" @bind="txStatusFilter" @bind:after="ApplyStatusFilter">
                         <option value="">All</option>
                         @foreach (string s in treatmentStatuses)
                         {
@@ -182,7 +182,7 @@
                 }
                 else
                 {
-                    <table class="dn-table">
+                    <table class="data-table">
                         <thead>
                             <tr>
                                 <th>Date</th>
@@ -205,7 +205,7 @@
                                     <td>@tx.ProcedureCategory</td>
                                     <td>@(tx.ToothNumbers ?? "—")</td>
                                     <td>@tx.ProviderName</td>
-                                    <td><span class="badge badge-@tx.Status.ToString().ToLower()">@tx.Status</span></td>
+                                    <td><span class="badge @TreatmentStatusBadgeClass(tx.Status.ToString())">@tx.Status</span></td>
                                     <td>@(tx.ChargeAmount?.ToString("C") ?? "—")</td>
                                 </tr>
                             }
@@ -221,7 +221,7 @@
                 <h4>Record New Treatment</h4>
                 @if (txError != null)
                 {
-                    <div class="alert alert-danger">@txError</div>
+                    <div class="alert alert-error">@txError</div>
                 }
                 @if (txSuccess)
                 {
@@ -230,19 +230,19 @@
                 <div class="form-grid">
                     <div class="form-group">
                         <label>Treatment Date *</label>
-                        <input type="date" class="form-control" @bind="newTx.TreatmentDate" />
+                        <input type="date" class="form-input" @bind="newTx.TreatmentDate" />
                     </div>
                     <div class="form-group">
                         <label>ADA CDT Code *</label>
-                        <input class="form-control" placeholder="e.g. D2140" @bind="newTx.ProcedureCode" />
+                        <input class="form-input" placeholder="e.g. D2140" @bind="newTx.ProcedureCode" />
                     </div>
                     <div class="form-group">
                         <label>Procedure Description *</label>
-                        <input class="form-control" placeholder="Description" @bind="newTx.ProcedureDescription" />
+                        <input class="form-input" placeholder="Description" @bind="newTx.ProcedureDescription" />
                     </div>
                     <div class="form-group">
                         <label>Category *</label>
-                        <select class="form-control" @bind="newTx.ProcedureCategory">
+                        <select class="form-input" @bind="newTx.ProcedureCategory">
                             @foreach (string s in procedureCategories)
                             {
                                 <option value="@s">@s</option>
@@ -251,43 +251,43 @@
                     </div>
                     <div class="form-group">
                         <label>Tooth Numbers (comma-separated)</label>
-                        <input class="form-control" placeholder="e.g. 14,15" @bind="newTxToothNumbers" />
+                        <input class="form-input" placeholder="e.g. 14,15" @bind="newTxToothNumbers" />
                     </div>
                     <div class="form-group">
                         <label>Surfaces (comma-separated)</label>
-                        <input class="form-control" placeholder="e.g. M,O,D" @bind="newTxSurfaces" />
+                        <input class="form-input" placeholder="e.g. M,O,D" @bind="newTxSurfaces" />
                     </div>
                     <div class="form-group">
                         <label>Provider ID *</label>
-                        <input class="form-control" placeholder="Provider ID" @bind="newTx.ProviderId" />
+                        <input class="form-input" placeholder="Provider ID" @bind="newTx.ProviderId" />
                     </div>
                     <div class="form-group">
                         <label>Provider Name *</label>
-                        <input class="form-control" placeholder="Provider name" @bind="newTx.ProviderName" />
+                        <input class="form-input" placeholder="Provider name" @bind="newTx.ProviderName" />
                     </div>
                     <div class="form-group">
                         <label>Location ID</label>
-                        <input class="form-control" placeholder="Location ID" @bind="newTx.LocationId" />
+                        <input class="form-input" placeholder="Location ID" @bind="newTx.LocationId" />
                     </div>
                     <div class="form-group">
                         <label>Location Name</label>
-                        <input class="form-control" placeholder="Location name" @bind="newTx.LocationName" />
+                        <input class="form-input" placeholder="Location name" @bind="newTx.LocationName" />
                     </div>
                     <div class="form-group">
                         <label>Diagnosis Code (ICD-10)</label>
-                        <input class="form-control" placeholder="e.g. K02.51" @bind="newTx.DiagnosisCode" />
+                        <input class="form-input" placeholder="e.g. K02.51" @bind="newTx.DiagnosisCode" />
                     </div>
                     <div class="form-group">
                         <label>Anesthesia Type</label>
-                        <input class="form-control" placeholder="e.g. Local, Nitrous Oxide, None" @bind="newTx.AnesthesiaType" />
+                        <input class="form-input" placeholder="e.g. Local, Nitrous Oxide, None" @bind="newTx.AnesthesiaType" />
                     </div>
                     <div class="form-group">
                         <label>Charge Amount</label>
-                        <input type="number" step="0.01" class="form-control" placeholder="0.00" @bind="newTx.ChargeAmount" />
+                        <input type="number" step="0.01" class="form-input" placeholder="0.00" @bind="newTx.ChargeAmount" />
                     </div>
                     <div class="form-group form-group--wide">
                         <label>Notes</label>
-                        <textarea class="form-control" rows="3" @bind="newTx.Notes"></textarea>
+                        <textarea class="form-input" rows="3" @bind="newTx.Notes"></textarea>
                     </div>
                 </div>
                 <div class="form-actions">
@@ -302,61 +302,47 @@
 </div>
 
 <style>
-    .dn-container { padding: 1rem; font-family: 'Segoe UI', sans-serif; }
+    /* Canonical interaction classes (lookup-bar, lookup-input, tab-bar, tab, btn,
+       btn-primary, alert, alert-error, alert-success, data-table, form-input, badge,
+       badge-*, empty-state) are defined once in app.css per UI-CONVENTIONS.md.
+       Only page-specific styles (layout, summary/section cards, data lists, forms) live here. */
+    .dn-container { padding: 1rem; }
     .dn-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; }
-    .dn-header h2 { margin: 0; font-size: 1.4rem; color: #1a3c5e; }
-    .patient-lookup { display: flex; gap: .5rem; }
-    .patient-lookup .form-control { width: 220px; }
-    .loading-spinner { text-align: center; padding: 2rem; color: #666; }
+    .dn-header h2 { margin: 0; font-size: 1.4rem; color: #003f72; }
+    .loading-spinner { text-align: center; padding: 2rem; color: #555; }
 
     .patient-summary { display: flex; gap: 1rem; flex-wrap: wrap; margin-bottom: 1rem; }
-    .summary-card { background: #f8f9fa; border: 1px solid #dee2e6; border-radius: 6px; padding: .6rem 1rem; min-width: 140px; }
-    .summary-card .label { display: block; font-size: .7rem; color: #666; text-transform: uppercase; }
-    .summary-card .value { display: block; font-size: 1rem; font-weight: 600; color: #1a3c5e; }
-    .value.eligible { color: #28a745; }
-    .value.limited  { color: #fd7e14; }
-    .value.ineligible { color: #dc3545; }
+    .summary-card { background: #f4f6f9; border: 1px solid #d4d9e0; border-radius: 4px; padding: .6rem 1rem; min-width: 140px; }
+    .summary-card .label { display: block; font-size: .7rem; color: #555; text-transform: uppercase; }
+    .summary-card .value { display: block; font-size: 1rem; font-weight: 600; color: #003f72; }
+    .value.eligible { color: #166534; }
+    .value.limited  { color: #92400e; }
+    .value.ineligible { color: #b91c1c; }
 
-    .tab-bar { display: flex; border-bottom: 2px solid #dee2e6; margin-bottom: 1rem; }
-    .tab-btn { background: none; border: none; padding: .5rem 1rem; cursor: pointer; color: #555; font-size: .9rem; }
-    .tab-btn.active { border-bottom: 2px solid #1a3c5e; color: #1a3c5e; font-weight: 600; margin-bottom: -2px; }
     .tab-content { padding: .5rem 0; }
 
     .section-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 1rem; }
-    .section-card { background: #fff; border: 1px solid #dee2e6; border-radius: 6px; padding: 1rem; }
-    .section-card h4 { margin: 0 0 .75rem; font-size: 1rem; color: #1a3c5e; border-bottom: 1px solid #eee; padding-bottom: .5rem; }
+    .section-card { background: #fff; border: 1px solid #d4d9e0; border-radius: 4px; padding: 1rem; }
+    .section-card h4 { margin: 0 0 .75rem; font-size: 1rem; color: #003f72; border-bottom: 1px solid #eee; padding-bottom: .5rem; }
 
     .data-list { display: grid; grid-template-columns: auto 1fr; gap: .2rem .75rem; font-size: .85rem; margin: 0 0 .5rem; }
-    .data-list dt { color: #666; font-weight: 500; }
-    .data-list dd { margin: 0; color: #222; }
+    .data-list dt { color: #555; font-weight: 500; }
+    .data-list dd { margin: 0; color: #333; }
 
     .form-row { display: flex; flex-direction: column; gap: .4rem; }
-    .form-row .form-control { font-size: .85rem; }
     .form-row .btn { align-self: flex-start; }
 
     .filter-bar { display: flex; align-items: center; gap: .75rem; margin-bottom: .75rem; font-size: .85rem; }
-    .filter-bar .form-control-sm { width: 160px; }
 
-    .dn-table { width: 100%; border-collapse: collapse; font-size: .85rem; }
-    .dn-table th { background: #1a3c5e; color: #fff; padding: .5rem .75rem; text-align: left; font-weight: 500; }
-    .dn-table td { padding: .45rem .75rem; border-bottom: 1px solid #eee; }
-    .dn-table tr:hover td { background: #f5f8fb; }
-    .dn-table tr.completed td { opacity: .7; }
-    .dn-table tr.cancelled td { opacity: .5; text-decoration: line-through; }
+    /* Page-specific row tints layered on canonical .data-table */
+    .data-table tr.completed td { opacity: .7; }
+    .data-table tr.cancelled td { opacity: .5; text-decoration: line-through; }
 
-    .badge { padding: .2rem .5rem; border-radius: 4px; font-size: .75rem; font-weight: 600; }
-    .badge-planned     { background: #cfe2ff; color: #084298; }
-    .badge-inprogress  { background: #fff3cd; color: #664d03; }
-    .badge-completed   { background: #d1e7dd; color: #0a3622; }
-    .badge-referred    { background: #e2d9f3; color: #432874; }
-    .badge-cancelled   { background: #f8d7da; color: #842029; }
-
-    .no-data { text-align: center; color: #888; padding: 2rem 0; }
+    .no-data { text-align: center; color: #555; padding: 2rem 0; }
 
     .form-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: .75rem; margin-bottom: 1rem; }
     .form-group { display: flex; flex-direction: column; gap: .25rem; }
-    .form-group label { font-size: .8rem; font-weight: 500; color: #444; }
-    .form-group .form-control { font-size: .85rem; }
+    .form-group label { font-size: .8rem; font-weight: 500; color: #333; }
     .form-group--wide { grid-column: 1 / -1; }
     .form-actions { display: flex; gap: .75rem; }
     .mt-2 { margin-top: .5rem; }
@@ -663,6 +649,16 @@
         "Completed" => "completed",
         "Cancelled" => "cancelled",
         _           => string.Empty,
+    };
+
+    private static string TreatmentStatusBadgeClass(string status) => status switch
+    {
+        "Planned"    => "badge-info",
+        "InProgress" => "badge-warning",
+        "Completed"  => "badge-success",
+        "Referred"   => "badge-neutral",
+        "Cancelled"  => "badge-danger",
+        _            => "badge-neutral",
     };
 
     private static string FormatPerioStatus(string raw) => raw switch

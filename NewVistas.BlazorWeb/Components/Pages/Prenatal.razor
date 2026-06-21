@@ -14,21 +14,21 @@
 
 @if (!string.IsNullOrEmpty(error))
 {
-    <div class="alert alert-danger">@error</div>
+    <div class="alert alert-error">@error</div>
 }
 
-<div class="patient-bar">
-    <input type="text" @bind="patientId" placeholder="Patient ID" class="form-control d-inline-block" style="width:260px" />
-    <button class="btn btn-primary ms-2" @onclick="LoadPregnancies" disabled="@loading">Load</button>
-    <button class="btn btn-success ms-2" @onclick="() => showCreateForm = !showCreateForm">New Pregnancy</button>
+<div class="lookup-bar">
+    <input type="text" @bind="patientId" placeholder="Patient ID" class="lookup-input" />
+    <button class="btn btn-primary" @onclick="LoadPregnancies" disabled="@loading">Load</button>
+    <button class="btn btn-primary" @onclick="() => showCreateForm = !showCreateForm">New Pregnancy</button>
 </div>
 
 @* ── Tab Bar ─────────────────────────────────────────────────────────── *@
-<ul class="nav nav-tabs mt-3">
-    <li class="nav-item"><a class="nav-link @(activeTab == 0 ? "active" : "")" @onclick="() => activeTab = 0">Pregnancies</a></li>
-    <li class="nav-item"><a class="nav-link @(activeTab == 1 ? "active" : "")" @onclick="() => { activeTab = 1; }">Prenatal Visits</a></li>
-    <li class="nav-item"><a class="nav-link @(activeTab == 2 ? "active" : "")" @onclick="() => activeTab = 2">Delivery &amp; Postpartum</a></li>
-</ul>
+<div class="tab-bar">
+    <button class="tab @(activeTab == 0 ? "active" : "")" @onclick="() => activeTab = 0">Pregnancies</button>
+    <button class="tab @(activeTab == 1 ? "active" : "")" @onclick="() => { activeTab = 1; }">Prenatal Visits</button>
+    <button class="tab @(activeTab == 2 ? "active" : "")" @onclick="() => activeTab = 2">Delivery &amp; Postpartum</button>
+</div>
 
 @* ── Tab 0: Pregnancies ──────────────────────────────────────────────── *@
 @if (activeTab == 0)
@@ -40,29 +40,29 @@
             <div class="row g-2">
                 <div class="col-md-3">
                     <label>LMP</label>
-                    <input type="date" class="form-control" @bind="newPreg.Lmp" />
+                    <input type="date" class="form-input" @bind="newPreg.Lmp" />
                 </div>
                 <div class="col-md-3">
                     <label>EDD (LMP)</label>
-                    <input type="date" class="form-control" @bind="newPreg.EddByLmp" />
+                    <input type="date" class="form-input" @bind="newPreg.EddByLmp" />
                 </div>
                 <div class="col-md-3">
                     <label>EDD (Ultrasound)</label>
-                    <input type="date" class="form-control" @bind="newPreg.EddByUs" />
+                    <input type="date" class="form-input" @bind="newPreg.EddByUs" />
                 </div>
                 <div class="col-md-3">
                     <label>Definitive EDD *</label>
-                    <input type="date" class="form-control" @bind="newPreg.DefinitiveEdd" />
+                    <input type="date" class="form-input" @bind="newPreg.DefinitiveEdd" />
                 </div>
             </div>
             <div class="row g-2 mt-2">
-                <div class="col-md-2"><label>Gravida</label><input type="number" class="form-control" @bind="newPreg.Gravida" /></div>
-                <div class="col-md-2"><label>Para</label><input type="number" class="form-control" @bind="newPreg.Para" /></div>
-                <div class="col-md-2"><label>Abortions</label><input type="number" class="form-control" @bind="newPreg.Abortions" /></div>
-                <div class="col-md-2"><label>Living</label><input type="number" class="form-control" @bind="newPreg.Living" /></div>
+                <div class="col-md-2"><label>Gravida</label><input type="number" class="form-input" @bind="newPreg.Gravida" /></div>
+                <div class="col-md-2"><label>Para</label><input type="number" class="form-input" @bind="newPreg.Para" /></div>
+                <div class="col-md-2"><label>Abortions</label><input type="number" class="form-input" @bind="newPreg.Abortions" /></div>
+                <div class="col-md-2"><label>Living</label><input type="number" class="form-input" @bind="newPreg.Living" /></div>
                 <div class="col-md-4">
                     <label>Risk Level</label>
-                    <select class="form-select" @bind="newPreg.RiskLevel">
+                    <select class="form-input" @bind="newPreg.RiskLevel">
                         <option value="0">Low</option>
                         <option value="1">Moderate</option>
                         <option value="2">High</option>
@@ -70,9 +70,9 @@
                 </div>
             </div>
             <div class="row g-2 mt-2">
-                <div class="col-md-4"><label>Provider Name</label><input type="text" class="form-control" @bind="newPreg.ProviderName" /></div>
-                <div class="col-md-4"><label>Location</label><input type="text" class="form-control" @bind="newPreg.LocationName" /></div>
-                <div class="col-md-4"><label>Notes</label><input type="text" class="form-control" @bind="newPreg.Notes" /></div>
+                <div class="col-md-4"><label>Provider Name</label><input type="text" class="form-input" @bind="newPreg.ProviderName" /></div>
+                <div class="col-md-4"><label>Location</label><input type="text" class="form-input" @bind="newPreg.LocationName" /></div>
+                <div class="col-md-4"><label>Notes</label><input type="text" class="form-input" @bind="newPreg.Notes" /></div>
             </div>
             <button class="btn btn-primary mt-3" @onclick="SubmitPregnancy">Create Pregnancy</button>
         </div>
@@ -84,7 +84,7 @@
     }
     else if (pregnancies != null)
     {
-        <table class="table table-striped mt-3">
+        <table class="data-table mt-3">
             <thead>
                 <tr>
                     <th>EDD</th>
@@ -107,7 +107,7 @@
                         <td>@p.Outcome</td>
                         <td>@p.ProviderName</td>
                         <td>
-                            <button class="btn btn-sm btn-outline-primary" @onclick="() => SelectPregnancy(p.PregnancyId)">View</button>
+                            <button class="btn btn-primary" @onclick="() => SelectPregnancy(p.PregnancyId)">View</button>
                         </td>
                     </tr>
                 }
@@ -124,34 +124,34 @@
         {
             <div class="alert alert-info">Select a pregnancy from the Pregnancies tab first, or enter a Pregnancy ID:</div>
             <div class="input-group" style="max-width:500px">
-                <input type="text" class="form-control" @bind="manualPregnancyId" placeholder="Pregnancy ID" />
+                <input type="text" class="form-input" @bind="manualPregnancyId" placeholder="Pregnancy ID" />
                 <button class="btn btn-primary" @onclick="() => SelectPregnancy(manualPregnancyId)">Load Visits</button>
             </div>
         }
         else
         {
             <h5>Visits for @selectedPregnancy.PregnancyId (EDD: @selectedPregnancy.DefinitiveEdd.ToString("MM/dd/yyyy"))</h5>
-            <button class="btn btn-success btn-sm mb-2" @onclick="() => showVisitForm = !showVisitForm">Add Visit</button>
+            <button class="btn btn-primary" @onclick="() => showVisitForm = !showVisitForm">Add Visit</button>
 
             @if (showVisitForm)
             {
                 <div class="card p-3 mb-3">
                     <h6>New Prenatal Visit</h6>
                     <div class="row g-2">
-                        <div class="col-md-3"><label>Visit Date *</label><input type="datetime-local" class="form-control" @bind="newVisit.VisitDate" /></div>
-                        <div class="col-md-2"><label>GA Weeks</label><input type="number" class="form-control" @bind="newVisit.GaWeeks" /></div>
-                        <div class="col-md-2"><label>GA Days</label><input type="number" class="form-control" @bind="newVisit.GaDays" /></div>
-                        <div class="col-md-2"><label>Weight (lbs)</label><input type="number" step="0.1" class="form-control" @bind="newVisit.Weight" /></div>
-                        <div class="col-md-3"><label>Provider</label><input type="text" class="form-control" @bind="newVisit.ProviderName" /></div>
+                        <div class="col-md-3"><label>Visit Date *</label><input type="datetime-local" class="form-input" @bind="newVisit.VisitDate" /></div>
+                        <div class="col-md-2"><label>GA Weeks</label><input type="number" class="form-input" @bind="newVisit.GaWeeks" /></div>
+                        <div class="col-md-2"><label>GA Days</label><input type="number" class="form-input" @bind="newVisit.GaDays" /></div>
+                        <div class="col-md-2"><label>Weight (lbs)</label><input type="number" step="0.1" class="form-input" @bind="newVisit.Weight" /></div>
+                        <div class="col-md-3"><label>Provider</label><input type="text" class="form-input" @bind="newVisit.ProviderName" /></div>
                     </div>
                     <div class="row g-2 mt-2">
-                        <div class="col-md-2"><label>BP Systolic</label><input type="number" class="form-control" @bind="newVisit.BpSystolic" /></div>
-                        <div class="col-md-2"><label>BP Diastolic</label><input type="number" class="form-control" @bind="newVisit.BpDiastolic" /></div>
-                        <div class="col-md-2"><label>Fundal Ht (cm)</label><input type="number" step="0.1" class="form-control" @bind="newVisit.FundalHeight" /></div>
-                        <div class="col-md-2"><label>FHR (bpm)</label><input type="number" class="form-control" @bind="newVisit.Fhr" /></div>
+                        <div class="col-md-2"><label>BP Systolic</label><input type="number" class="form-input" @bind="newVisit.BpSystolic" /></div>
+                        <div class="col-md-2"><label>BP Diastolic</label><input type="number" class="form-input" @bind="newVisit.BpDiastolic" /></div>
+                        <div class="col-md-2"><label>Fundal Ht (cm)</label><input type="number" step="0.1" class="form-input" @bind="newVisit.FundalHeight" /></div>
+                        <div class="col-md-2"><label>FHR (bpm)</label><input type="number" class="form-input" @bind="newVisit.Fhr" /></div>
                         <div class="col-md-2">
                             <label>Presentation</label>
-                            <select class="form-select" @bind="newVisit.Presentation">
+                            <select class="form-input" @bind="newVisit.Presentation">
                                 <option value="0">Unknown</option>
                                 <option value="1">Cephalic</option>
                                 <option value="2">Breech</option>
@@ -161,7 +161,7 @@
                         </div>
                         <div class="col-md-2">
                             <label>Fetal Movement</label>
-                            <select class="form-select" @bind="newVisit.FetalMovement">
+                            <select class="form-input" @bind="newVisit.FetalMovement">
                                 <option value="">N/A</option>
                                 <option value="true">Yes</option>
                                 <option value="false">No</option>
@@ -171,7 +171,7 @@
                     <div class="row g-2 mt-2">
                         <div class="col-md-2">
                             <label>Urine Protein</label>
-                            <select class="form-select" @bind="newVisit.UrineProtein">
+                            <select class="form-input" @bind="newVisit.UrineProtein">
                                 <option value="">—</option>
                                 <option>Negative</option><option>Trace</option>
                                 <option>1+</option><option>2+</option><option>3+</option><option>4+</option>
@@ -179,7 +179,7 @@
                         </div>
                         <div class="col-md-2">
                             <label>Urine Glucose</label>
-                            <select class="form-select" @bind="newVisit.UrineGlucose">
+                            <select class="form-input" @bind="newVisit.UrineGlucose">
                                 <option value="">—</option>
                                 <option>Negative</option><option>Trace</option>
                                 <option>1+</option><option>2+</option><option>3+</option><option>4+</option>
@@ -187,19 +187,19 @@
                         </div>
                         <div class="col-md-2">
                             <label>Edema</label>
-                            <select class="form-select" @bind="newVisit.Edema">
+                            <select class="form-input" @bind="newVisit.Edema">
                                 <option value="">—</option>
                                 <option>None</option><option>Trace</option>
                                 <option>1+</option><option>2+</option><option>3+</option><option>4+</option>
                             </select>
                         </div>
-                        <div class="col-md-2"><label>Cervix (cm)</label><input type="number" step="0.5" class="form-control" @bind="newVisit.CervicalDilation" /></div>
-                        <div class="col-md-2"><label>Effacement %</label><input type="number" class="form-control" @bind="newVisit.Effacement" /></div>
-                        <div class="col-md-2"><label>Station</label><input type="number" class="form-control" @bind="newVisit.Station" /></div>
+                        <div class="col-md-2"><label>Cervix (cm)</label><input type="number" step="0.5" class="form-input" @bind="newVisit.CervicalDilation" /></div>
+                        <div class="col-md-2"><label>Effacement %</label><input type="number" class="form-input" @bind="newVisit.Effacement" /></div>
+                        <div class="col-md-2"><label>Station</label><input type="number" class="form-input" @bind="newVisit.Station" /></div>
                     </div>
                     <div class="row g-2 mt-2">
-                        <div class="col-md-4"><label>Next Visit</label><input type="date" class="form-control" @bind="newVisit.NextVisitDate" /></div>
-                        <div class="col-md-8"><label>Notes</label><input type="text" class="form-control" @bind="newVisit.Notes" /></div>
+                        <div class="col-md-4"><label>Next Visit</label><input type="date" class="form-input" @bind="newVisit.NextVisitDate" /></div>
+                        <div class="col-md-8"><label>Notes</label><input type="text" class="form-input" @bind="newVisit.Notes" /></div>
                     </div>
                     <button class="btn btn-primary mt-2" @onclick="SubmitVisit">Save Visit</button>
                 </div>
@@ -207,8 +207,8 @@
 
             @if (visits != null && visits.Count > 0)
             {
-                <table class="table table-sm table-bordered">
-                    <thead class="table-light">
+                <table class="data-table">
+                    <thead>
                         <tr>
                             <th>Date</th>
                             <th>GA</th>
@@ -309,8 +309,9 @@
 }
 
 <style>
-    .patient-bar { display: flex; align-items: center; margin-top: 16px; }
-    .badge { font-size: 0.8em; }
+    /* Canonical interaction classes (lookup-bar, lookup-input, tab-bar, tab, btn,
+       btn-primary, alert, alert-error, data-table, form-input, badge, badge-*) are
+       defined once in app.css per UI-CONVENTIONS.md. Only page-specific styles live here. */
 </style>
 
 @code {
@@ -334,19 +335,19 @@
 
     private string RiskBadge(int riskLevel) => riskLevel switch
     {
-        0 => "bg-success",
-        1 => "bg-warning text-dark",
-        2 => "bg-danger",
-        _ => "bg-secondary"
+        0 => "badge-success",
+        1 => "badge-warning",
+        2 => "badge-danger",
+        _ => "badge-neutral"
     };
 
     private string StatusBadge(int status) => status switch
     {
-        0 => "bg-primary",
-        1 => "bg-success",
-        6 => "bg-info",
-        7 => "bg-secondary",
-        _ => "bg-warning text-dark"
+        0 => "badge-info",
+        1 => "badge-success",
+        6 => "badge-info",
+        7 => "badge-neutral",
+        _ => "badge-warning"
     };
 
     private IPatientWorkflowGrain GetWorkflow() => Grains.GetGrain<IPatientWorkflowGrain>(patientId!.Trim());

@@ -14,21 +14,21 @@
 
 @if (!string.IsNullOrEmpty(error))
 {
-    <div class="alert alert-danger">@error</div>
+    <div class="alert alert-error">@error</div>
 }
 
-<div class="patient-bar">
-    <input type="text" @bind="patientId" placeholder="Patient ID" class="form-control d-inline-block" style="width:260px" />
-    <button class="btn btn-primary ms-2" @onclick="LoadEpisodes" disabled="@loading">Load</button>
-    <button class="btn btn-success ms-2" @onclick="() => showCreateForm = !showCreateForm">New Episode</button>
+<div class="lookup-bar">
+    <input type="text" @bind="patientId" placeholder="Patient ID" class="lookup-input" />
+    <button class="btn btn-primary" @onclick="LoadEpisodes" disabled="@loading">Load</button>
+    <button class="btn btn-primary" @onclick="() => showCreateForm = !showCreateForm">New Episode</button>
 </div>
 
 @* ── Tab Bar ─────────────────────────────────────────────────────────── *@
-<ul class="nav nav-tabs mt-3">
-    <li class="nav-item"><a class="nav-link @(activeTab == 0 ? "active" : "")" @onclick="() => activeTab = 0">Treatment Episodes</a></li>
-    <li class="nav-item"><a class="nav-link @(activeTab == 1 ? "active" : "")" @onclick="() => { activeTab = 1; }">Treatment Visits</a></li>
-    <li class="nav-item"><a class="nav-link @(activeTab == 2 ? "active" : "")" @onclick="() => activeTab = 2">MAT &amp; Goals</a></li>
-</ul>
+<div class="tab-bar">
+    <button class="tab @(activeTab == 0 ? "active" : "")" @onclick="() => activeTab = 0">Treatment Episodes</button>
+    <button class="tab @(activeTab == 1 ? "active" : "")" @onclick="() => { activeTab = 1; }">Treatment Visits</button>
+    <button class="tab @(activeTab == 2 ? "active" : "")" @onclick="() => activeTab = 2">MAT &amp; Goals</button>
+</div>
 
 @* ── Tab 0: Treatment Episodes ────────────────────────────────────────── *@
 @if (activeTab == 0)
@@ -40,7 +40,7 @@
             <div class="row g-2">
                 <div class="col-md-3">
                     <label>Modality *</label>
-                    <select class="form-select" @bind="newEpisode.Modality">
+                    <select class="form-input" @bind="newEpisode.Modality">
                         <option value="0">Outpatient</option>
                         <option value="1">Intensive Outpatient</option>
                         <option value="2">Residential / Inpatient</option>
@@ -54,7 +54,7 @@
                 </div>
                 <div class="col-md-3">
                     <label>Primary Substance *</label>
-                    <select class="form-select" @bind="newEpisode.PrimarySubstance">
+                    <select class="form-input" @bind="newEpisode.PrimarySubstance">
                         <option value="0">Alcohol</option>
                         <option value="1">Cannabis</option>
                         <option value="2">Opioids</option>
@@ -69,39 +69,39 @@
                 </div>
                 <div class="col-md-3">
                     <label>Intake Date *</label>
-                    <input type="date" class="form-control" @bind="newEpisode.IntakeDate" />
+                    <input type="date" class="form-input" @bind="newEpisode.IntakeDate" />
                 </div>
                 <div class="col-md-3">
                     <label>Program Name</label>
-                    <input type="text" class="form-control" @bind="newEpisode.ProgramName" />
+                    <input type="text" class="form-input" @bind="newEpisode.ProgramName" />
                 </div>
             </div>
             <div class="row g-2 mt-2">
                 <div class="col-md-3">
                     <label>Last Use Date</label>
-                    <input type="date" class="form-control" @bind="newEpisode.LastUseDate" />
+                    <input type="date" class="form-input" @bind="newEpisode.LastUseDate" />
                 </div>
                 <div class="col-md-3">
                     <label>Sobriety Date</label>
-                    <input type="date" class="form-control" @bind="newEpisode.SobrietyDate" />
+                    <input type="date" class="form-input" @bind="newEpisode.SobrietyDate" />
                 </div>
                 <div class="col-md-3">
                     <label>Provider Name</label>
-                    <input type="text" class="form-control" @bind="newEpisode.ProviderName" />
+                    <input type="text" class="form-input" @bind="newEpisode.ProviderName" />
                 </div>
                 <div class="col-md-3">
                     <label>Location</label>
-                    <input type="text" class="form-control" @bind="newEpisode.LocationName" />
+                    <input type="text" class="form-input" @bind="newEpisode.LocationName" />
                 </div>
             </div>
             <div class="row g-2 mt-2">
                 <div class="col-md-6">
                     <label>Treatment Goals (comma-separated)</label>
-                    <input type="text" class="form-control" @bind="newEpisode.TreatmentGoalsText" />
+                    <input type="text" class="form-input" @bind="newEpisode.TreatmentGoalsText" />
                 </div>
                 <div class="col-md-6">
                     <label>Notes</label>
-                    <input type="text" class="form-control" @bind="newEpisode.Notes" />
+                    <input type="text" class="form-input" @bind="newEpisode.Notes" />
                 </div>
             </div>
             <button class="btn btn-primary mt-3" @onclick="SubmitEpisode">Create Episode</button>
@@ -114,7 +114,7 @@
     }
     else if (episodes != null)
     {
-        <table class="table table-striped mt-3">
+        <table class="data-table">
             <thead>
                 <tr>
                     <th>Intake Date</th>
@@ -137,7 +137,7 @@
                         <td>@ep.ProgramName</td>
                         <td>@ep.ProviderName</td>
                         <td>
-                            <button class="btn btn-sm btn-outline-primary" @onclick="() => SelectEpisode(ep.EpisodeId)">View</button>
+                            <button class="btn btn-primary" @onclick="() => SelectEpisode(ep.EpisodeId)">View</button>
                         </td>
                     </tr>
                 }
@@ -154,24 +154,24 @@
         {
             <div class="alert alert-info">Select an episode from the Treatment Episodes tab first, or enter an Episode ID:</div>
             <div class="input-group" style="max-width:500px">
-                <input type="text" class="form-control" @bind="manualEpisodeId" placeholder="Episode ID" />
+                <input type="text" class="form-input" @bind="manualEpisodeId" placeholder="Episode ID" />
                 <button class="btn btn-primary" @onclick="() => SelectEpisode(manualEpisodeId)">Load Visits</button>
             </div>
         }
         else
         {
             <h5>Visits for @selectedEpisode.EpisodeId (@ModalityLabel(selectedEpisode.Modality))</h5>
-            <button class="btn btn-success btn-sm mb-2" @onclick="() => showVisitForm = !showVisitForm">Add Visit</button>
+            <button class="btn btn-primary mb-2" @onclick="() => showVisitForm = !showVisitForm">Add Visit</button>
 
             @if (showVisitForm)
             {
                 <div class="card p-3 mb-3">
                     <h6>New Treatment Visit</h6>
                     <div class="row g-2">
-                        <div class="col-md-3"><label>Visit Date *</label><input type="datetime-local" class="form-control" @bind="newVisit.VisitDate" /></div>
+                        <div class="col-md-3"><label>Visit Date *</label><input type="datetime-local" class="form-input" @bind="newVisit.VisitDate" /></div>
                         <div class="col-md-3">
                             <label>Visit Type *</label>
-                            <select class="form-select" @bind="newVisit.VisitType">
+                            <select class="form-input" @bind="newVisit.VisitType">
                                 <option value="0">Individual</option>
                                 <option value="1">Group</option>
                                 <option value="2">Family</option>
@@ -184,14 +184,14 @@
                                 <option value="9">Other</option>
                             </select>
                         </div>
-                        <div class="col-md-2"><label>Duration (min)</label><input type="number" class="form-control" @bind="newVisit.DurationMinutes" /></div>
-                        <div class="col-md-2"><label>Provider</label><input type="text" class="form-control" @bind="newVisit.ProviderName" /></div>
-                        <div class="col-md-2"><label>Craving (0-10)</label><input type="number" min="0" max="10" class="form-control" @bind="newVisit.CravingLevel" /></div>
+                        <div class="col-md-2"><label>Duration (min)</label><input type="number" class="form-input" @bind="newVisit.DurationMinutes" /></div>
+                        <div class="col-md-2"><label>Provider</label><input type="text" class="form-input" @bind="newVisit.ProviderName" /></div>
+                        <div class="col-md-2"><label>Craving (0-10)</label><input type="number" min="0" max="10" class="form-input" @bind="newVisit.CravingLevel" /></div>
                     </div>
                     <div class="row g-2 mt-2">
                         <div class="col-md-3">
                             <label>UDS Result</label>
-                            <select class="form-select" @bind="newVisit.UdsResult">
+                            <select class="form-input" @bind="newVisit.UdsResult">
                                 <option value="">N/A</option>
                                 <option>Negative</option>
                                 <option>Positive</option>
@@ -201,10 +201,10 @@
                         </div>
                         <div class="col-md-4">
                             <label>UDS Substances Detected (comma-separated)</label>
-                            <input type="text" class="form-control" @bind="newVisit.UdsSubstancesText" />
+                            <input type="text" class="form-input" @bind="newVisit.UdsSubstancesText" />
                         </div>
-                        <div class="col-md-2"><label>Days Since Last Use</label><input type="number" class="form-control" @bind="newVisit.DaysSinceLastUse" /></div>
-                        <div class="col-md-3"><label>Notes</label><input type="text" class="form-control" @bind="newVisit.Notes" /></div>
+                        <div class="col-md-2"><label>Days Since Last Use</label><input type="number" class="form-input" @bind="newVisit.DaysSinceLastUse" /></div>
+                        <div class="col-md-3"><label>Notes</label><input type="text" class="form-input" @bind="newVisit.Notes" /></div>
                     </div>
                     <button class="btn btn-primary mt-2" @onclick="SubmitVisit">Save Visit</button>
                 </div>
@@ -212,8 +212,8 @@
 
             @if (visits != null && visits.Count > 0)
             {
-                <table class="table table-sm table-bordered">
-                    <thead class="table-light">
+                <table class="data-table">
+                    <thead>
                         <tr>
                             <th>Date</th>
                             <th>Type</th>
@@ -259,7 +259,7 @@
             @* MAT Entries *@
             <div class="card p-3 mb-3">
                 <h6>Medication-Assisted Treatment (MAT)</h6>
-                <button class="btn btn-success btn-sm mb-2" @onclick="() => showMATForm = !showMATForm">Add MAT Entry</button>
+                <button class="btn btn-primary mb-2" @onclick="() => showMATForm = !showMATForm">Add MAT Entry</button>
 
                 @if (showMATForm)
                 {
@@ -267,7 +267,7 @@
                         <div class="row g-2">
                             <div class="col-md-3">
                                 <label>Medication *</label>
-                                <select class="form-select" @bind="newMAT.Medication">
+                                <select class="form-input" @bind="newMAT.Medication">
                                     <option value="0">None</option>
                                     <option value="1">Buprenorphine</option>
                                     <option value="2">Buprenorphine/Naloxone</option>
@@ -279,10 +279,10 @@
                                     <option value="8">Other</option>
                                 </select>
                             </div>
-                            <div class="col-md-2"><label>Dosage</label><input type="text" class="form-control" @bind="newMAT.Dosage" /></div>
-                            <div class="col-md-2"><label>Start Date *</label><input type="date" class="form-control" @bind="newMAT.StartDate" /></div>
-                            <div class="col-md-2"><label>Prescriber</label><input type="text" class="form-control" @bind="newMAT.PrescriberName" /></div>
-                            <div class="col-md-3"><label>Notes</label><input type="text" class="form-control" @bind="newMAT.Notes" /></div>
+                            <div class="col-md-2"><label>Dosage</label><input type="text" class="form-input" @bind="newMAT.Dosage" /></div>
+                            <div class="col-md-2"><label>Start Date *</label><input type="date" class="form-input" @bind="newMAT.StartDate" /></div>
+                            <div class="col-md-2"><label>Prescriber</label><input type="text" class="form-input" @bind="newMAT.PrescriberName" /></div>
+                            <div class="col-md-3"><label>Notes</label><input type="text" class="form-input" @bind="newMAT.Notes" /></div>
                         </div>
                         <button class="btn btn-primary mt-2" @onclick="SubmitMAT">Add MAT</button>
                     </div>
@@ -290,8 +290,8 @@
 
                 @if (selectedEpisodeDetail.MATEntries != null && selectedEpisodeDetail.MATEntries.Count > 0)
                 {
-                    <table class="table table-sm table-bordered">
-                        <thead class="table-light">
+                    <table class="data-table">
+                        <thead>
                             <tr>
                                 <th>Medication</th>
                                 <th>Dosage</th>
@@ -311,11 +311,11 @@
                                     <td>@mat.StartDate.ToString("MM/dd/yyyy")</td>
                                     <td>@(mat.EndDate?.ToString("MM/dd/yyyy") ?? "—")</td>
                                     <td>@mat.PrescriberName</td>
-                                    <td><span class="badge @(mat.IsActive ? "bg-success" : "bg-secondary")">@(mat.IsActive ? "Active" : "Stopped")</span></td>
+                                    <td><span class="badge @(mat.IsActive ? "badge-success" : "badge-neutral")">@(mat.IsActive ? "Active" : "Stopped")</span></td>
                                     <td>
                                         @if (mat.IsActive)
                                         {
-                                            <button class="btn btn-sm btn-outline-danger" @onclick="() => StopMAT(mat.EntryId)">Stop</button>
+                                            <button class="btn btn-primary" @onclick="() => StopMAT(mat.EntryId)">Stop</button>
                                         }
                                     </td>
                                 </tr>
@@ -332,12 +332,12 @@
             @* Treatment Goals *@
             <div class="card p-3">
                 <h6>Treatment Goals</h6>
-                <button class="btn btn-success btn-sm mb-2" @onclick="() => showGoalForm = !showGoalForm">Add Goal</button>
+                <button class="btn btn-primary mb-2" @onclick="() => showGoalForm = !showGoalForm">Add Goal</button>
 
                 @if (showGoalForm)
                 {
                     <div class="input-group mb-3" style="max-width:600px">
-                        <input type="text" class="form-control" @bind="newGoalText" placeholder="Enter treatment goal" />
+                        <input type="text" class="form-input" @bind="newGoalText" placeholder="Enter treatment goal" />
                         <button class="btn btn-primary" @onclick="SubmitGoal">Add</button>
                     </div>
                 }
@@ -361,8 +361,9 @@
 }
 
 <style>
-    .patient-bar { display: flex; align-items: center; margin-top: 16px; }
-    .badge { font-size: 0.8em; }
+    /* Canonical interaction classes (lookup-bar, lookup-input, tab-bar, tab, btn,
+       btn-primary, alert, alert-error, data-table, form-input, badge, badge-*)
+       are defined once in app.css per UI-CONVENTIONS.md. No page-specific styles needed. */
 </style>
 
 @code {
@@ -402,14 +403,14 @@
 
     private string StatusBadge(int status) => status switch
     {
-        0 => "bg-info",
-        1 => "bg-success",
-        2 => "bg-warning text-dark",
-        3 => "bg-secondary",
-        4 => "bg-secondary",
-        5 => "bg-primary",
-        6 => "bg-danger",
-        _ => "bg-secondary"
+        0 => "badge-info",      // Intake
+        1 => "badge-success",   // Active
+        2 => "badge-warning",   // Transferred
+        3 => "badge-neutral",   // Discharged
+        4 => "badge-neutral",   // Closed
+        5 => "badge-info",      // Reopened
+        6 => "badge-danger",    // Cancelled
+        _ => "badge-neutral"
     };
 
     private static string ModalityLabel(int modality) => modality switch
