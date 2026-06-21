@@ -15,15 +15,15 @@
 <div class="ar-container">
     <div class="ar-header">
         <h2>Accounts Receivable</h2>
-        <div class="patient-lookup">
-            <input class="form-control" placeholder="Patient ID" @bind="patientId" />
+        <div class="lookup-bar">
+            <input class="lookup-input" placeholder="Patient ID" @bind="patientId" />
             <button class="btn btn-primary" @onclick="LoadPatient">Load</button>
         </div>
     </div>
 
     @if (error != null)
     {
-        <div class="alert alert-danger">@error</div>
+        <div class="alert alert-error">@error</div>
     }
 
     @if (loaded)
@@ -51,11 +51,11 @@
             }
         </div>
 
-        <div class="ar-tabs">
-            <button class="tab-btn @(activeTab == "accounts" ? "active" : "")" @onclick='() => activeTab = "accounts"'>AR Accounts</button>
-            <button class="tab-btn @(activeTab == "batch" ? "active" : "")" @onclick='() => activeTab = "batch"'>Batch Payments</button>
-            <button class="tab-btn @(activeTab == "site" ? "active" : "")" @onclick='() => activeTab = "site"'>Site Parameters</button>
-            <button class="tab-btn @(activeTab == "top" ? "active" : "")" @onclick='async () => { activeTab = "top"; await LoadTopReferrals(); }'>Treasury Offset</button>
+        <div class="tab-bar">
+            <button class="tab @(activeTab == "accounts" ? "active" : "")" @onclick='() => activeTab = "accounts"'>AR Accounts</button>
+            <button class="tab @(activeTab == "batch" ? "active" : "")" @onclick='() => activeTab = "batch"'>Batch Payments</button>
+            <button class="tab @(activeTab == "site" ? "active" : "")" @onclick='() => activeTab = "site"'>Site Parameters</button>
+            <button class="tab @(activeTab == "top" ? "active" : "")" @onclick='async () => { activeTab = "top"; await LoadTopReferrals(); }'>Treasury Offset</button>
         </div>
 
         <!-- ─── AR Accounts Tab ──────────────────────────────────────────────── -->
@@ -70,7 +70,7 @@
                 }
                 else
                 {
-                    <table class="table ar-table">
+                    <table class="data-table">
                         <thead>
                             <tr>
                                 <th>Category</th>
@@ -91,7 +91,7 @@
                                     <td><span class="badge @StatusBadgeClass(acct.ARStatus)">@acct.ARStatus</span></td>
                                     <td>@acct.DateEstablished.ToString("MM/dd/yyyy")</td>
                                     <td>
-                                        <button class="btn btn-sm btn-outline-primary" @onclick="() => SelectAccount(acct.ARAccountId)">Details</button>
+                                        <button class="btn btn-primary" @onclick="() => SelectAccount(acct.ARAccountId)">Details</button>
                                     </td>
                                 </tr>
                             }
@@ -99,7 +99,7 @@
                     </table>
                 }
 
-                <button class="btn btn-success btn-sm" @onclick='() => showCreateAccount = !showCreateAccount'>+ New AR Account</button>
+                <button class="btn btn-primary" @onclick='() => showCreateAccount = !showCreateAccount'>+ New AR Account</button>
 
                 @if (showCreateAccount)
                 {
@@ -107,7 +107,7 @@
                         <h4>Create AR Account</h4>
                         <div class="form-row">
                             <label>Category</label>
-                            <select class="form-control" @bind="newCategory">
+                            <select class="form-input" @bind="newCategory">
                                 <option value="CopayOutpatient">Copay — Outpatient</option>
                                 <option value="CopayInpatient">Copay — Inpatient</option>
                                 <option value="CopayPharmacy">Copay — Pharmacy</option>
@@ -119,15 +119,15 @@
                         </div>
                         <div class="form-row">
                             <label>Original Amount ($)</label>
-                            <input class="form-control" type="number" step="0.01" @bind="newAmount" />
+                            <input class="form-input" type="number" step="0.01" @bind="newAmount" />
                         </div>
                         <div class="form-row">
                             <label>Billing Action ID (optional)</label>
-                            <input class="form-control" @bind="newBillingActionId" />
+                            <input class="form-input" @bind="newBillingActionId" />
                         </div>
                         <div class="form-row">
                             <label>Due Date (optional)</label>
-                            <input class="form-control" type="date" @bind="newDueDate" />
+                            <input class="form-input" type="date" @bind="newDueDate" />
                         </div>
                         <button class="btn btn-primary" @onclick="CreateAccount">Create Account</button>
                         @if (createAccountMsg != null)
@@ -170,17 +170,17 @@
                         <div class="action-section">
                             <h5>Post Payment</h5>
                             <div class="form-row">
-                                <input class="form-control" type="number" step="0.01" placeholder="Amount" @bind="payAmount" />
-                                <select class="form-control" @bind="payMethod">
+                                <input class="form-input" type="number" step="0.01" placeholder="Amount" @bind="payAmount" />
+                                <select class="form-input" @bind="payMethod">
                                     <option value="CASH">Cash</option>
                                     <option value="CHECK">Check</option>
                                     <option value="CREDIT_CARD">Credit Card</option>
                                     <option value="EFT">EFT</option>
                                 </select>
-                                <input class="form-control" placeholder="Receipt #" @bind="payReceipt" />
-                                <input class="form-control" placeholder="Check #" @bind="payCheck" />
-                                <input class="form-control" placeholder="Applied By User ID" @bind="payUserId" />
-                                <input class="form-control" placeholder="Applied By Name" @bind="payUserName" />
+                                <input class="form-input" placeholder="Receipt #" @bind="payReceipt" />
+                                <input class="form-input" placeholder="Check #" @bind="payCheck" />
+                                <input class="form-input" placeholder="Applied By User ID" @bind="payUserId" />
+                                <input class="form-input" placeholder="Applied By Name" @bind="payUserName" />
                                 <button class="btn btn-primary" @onclick="PostPayment">Post Payment</button>
                             </div>
                             @if (payMsg != null)
@@ -193,11 +193,11 @@
                         <div class="action-section">
                             <h5>Post Adjustment</h5>
                             <div class="form-row">
-                                <input class="form-control" type="number" step="0.01" placeholder="Amount (credit = positive)" @bind="adjAmount" />
-                                <input class="form-control" placeholder="Adjustment Type / Reason" @bind="adjType" />
-                                <input class="form-control" placeholder="Applied By User ID" @bind="adjUserId" />
-                                <input class="form-control" placeholder="Applied By Name" @bind="adjUserName" />
-                                <button class="btn btn-warning" @onclick="PostAdjustment">Post Adjustment</button>
+                                <input class="form-input" type="number" step="0.01" placeholder="Amount (credit = positive)" @bind="adjAmount" />
+                                <input class="form-input" placeholder="Adjustment Type / Reason" @bind="adjType" />
+                                <input class="form-input" placeholder="Applied By User ID" @bind="adjUserId" />
+                                <input class="form-input" placeholder="Applied By Name" @bind="adjUserName" />
+                                <button class="btn btn-primary" @onclick="PostAdjustment">Post Adjustment</button>
                             </div>
                             @if (adjMsg != null)
                             {
@@ -209,11 +209,11 @@
                         <div class="action-section">
                             <h5>Waive Balance</h5>
                             <div class="form-row">
-                                <input class="form-control" type="number" step="0.01" placeholder="Waived Amount" @bind="waiveAmount" />
-                                <input class="form-control" placeholder="Reason" @bind="waiveReason" />
-                                <input class="form-control" placeholder="Waived By User ID" @bind="waiveUserId" />
-                                <input class="form-control" placeholder="Waived By Name" @bind="waiveUserName" />
-                                <button class="btn btn-danger" @onclick="WaiveAccount">Waive</button>
+                                <input class="form-input" type="number" step="0.01" placeholder="Waived Amount" @bind="waiveAmount" />
+                                <input class="form-input" placeholder="Reason" @bind="waiveReason" />
+                                <input class="form-input" placeholder="Waived By User ID" @bind="waiveUserId" />
+                                <input class="form-input" placeholder="Waived By Name" @bind="waiveUserName" />
+                                <button class="btn btn-primary" @onclick="WaiveAccount">Waive</button>
                             </div>
                             @if (waiveMsg != null)
                             {
@@ -225,19 +225,19 @@
                         <div class="action-section">
                             <h5>Accrue Charges</h5>
                             <div class="form-row">
-                                <input class="form-control" placeholder="Applied By User ID" @bind="accrueUserId" />
+                                <input class="form-input" placeholder="Applied By User ID" @bind="accrueUserId" />
                             </div>
                             <div class="form-row">
-                                <input class="form-control" type="number" step="0.01" placeholder="Interest Amount ($)" @bind="accrueInterestAmount" />
-                                <button class="btn btn-warning" @onclick="AccrueInterest">Apply Interest</button>
+                                <input class="form-input" type="number" step="0.01" placeholder="Interest Amount ($)" @bind="accrueInterestAmount" />
+                                <button class="btn btn-primary" @onclick="AccrueInterest">Apply Interest</button>
                             </div>
                             <div class="form-row">
-                                <input class="form-control" type="number" step="0.01" placeholder="Penalty Amount ($)" @bind="accruePenaltyAmount" />
-                                <button class="btn btn-warning" @onclick="AccruePenalty">Apply Penalty</button>
+                                <input class="form-input" type="number" step="0.01" placeholder="Penalty Amount ($)" @bind="accruePenaltyAmount" />
+                                <button class="btn btn-primary" @onclick="AccruePenalty">Apply Penalty</button>
                             </div>
                             <div class="form-row">
-                                <input class="form-control" type="number" step="0.01" placeholder="Admin Cost Amount ($)" @bind="accrueAdminCostAmount" />
-                                <button class="btn btn-warning" @onclick="AccrueAdminCost">Apply Admin Cost</button>
+                                <input class="form-input" type="number" step="0.01" placeholder="Admin Cost Amount ($)" @bind="accrueAdminCostAmount" />
+                                <button class="btn btn-primary" @onclick="AccrueAdminCost">Apply Admin Cost</button>
                             </div>
                             @if (accrueMsg != null)
                             {
@@ -261,7 +261,7 @@
                 }
                 else
                 {
-                    <table class="table ar-table">
+                    <table class="data-table">
                         <thead>
                             <tr>
                                 <th>Batch Date</th>
@@ -282,11 +282,11 @@
                                     <td>@b.PaymentMethod</td>
                                     <td>@b.TotalAmount.ToString("C")</td>
                                     <td>@b.PaymentCount</td>
-                                    <td><span class="badge @(b.IsPosted ? "badge-success" : "badge-secondary")">@(b.IsPosted ? "Posted" : "Open")</span></td>
+                                    <td><span class="badge @(b.IsPosted ? "badge-success" : "badge-neutral")">@(b.IsPosted ? "Posted" : "Open")</span></td>
                                     <td>
                                         @if (!b.IsPosted)
                                         {
-                                            <button class="btn btn-sm btn-primary" @onclick="() => PostBatch(b.BatchId)">Post Batch</button>
+                                            <button class="btn btn-primary" @onclick="() => PostBatch(b.BatchId)">Post Batch</button>
                                         }
                                     </td>
                                 </tr>
@@ -295,30 +295,30 @@
                     </table>
                 }
 
-                <button class="btn btn-success btn-sm" @onclick='() => showCreateBatch = !showCreateBatch'>+ New Batch</button>
+                <button class="btn btn-primary" @onclick='() => showCreateBatch = !showCreateBatch'>+ New Batch</button>
 
                 @if (showCreateBatch)
                 {
                     <div class="form-panel">
                         <h4>Create Batch Payment</h4>
                         <div class="form-row">
-                            <input class="form-control" placeholder="Facility ID (optional)" @bind="batchFacilityId" />
-                            <input class="form-control" placeholder="Facility Name (optional)" @bind="batchFacilityName" />
+                            <input class="form-input" placeholder="Facility ID (optional)" @bind="batchFacilityId" />
+                            <input class="form-input" placeholder="Facility Name (optional)" @bind="batchFacilityName" />
                         </div>
                         <div class="form-row">
                             <label>Batch Date</label>
-                            <input class="form-control" type="date" @bind="batchDate" />
+                            <input class="form-input" type="date" @bind="batchDate" />
                         </div>
                         <div class="form-row">
-                            <select class="form-control" @bind="batchPayMethod">
+                            <select class="form-input" @bind="batchPayMethod">
                                 <option value="CASH">Cash</option>
                                 <option value="CHECK">Check</option>
                                 <option value="EFT">EFT</option>
                             </select>
-                            <input class="form-control" placeholder="Check # (optional)" @bind="batchCheckNumber" />
+                            <input class="form-input" placeholder="Check # (optional)" @bind="batchCheckNumber" />
                         </div>
                         <div class="form-row">
-                            <input class="form-control" placeholder="Notes (optional)" @bind="batchNotes" />
+                            <input class="form-input" placeholder="Notes (optional)" @bind="batchNotes" />
                         </div>
                         <button class="btn btn-primary" @onclick="CreateBatch">Create Batch</button>
                         @if (batchMsg != null)
@@ -358,19 +358,19 @@
                 <div class="form-panel">
                     <h4>Update Site Parameters</h4>
                     <div class="form-row">
-                        <input class="form-control" placeholder="Site Name" @bind="spSiteName" />
-                        <input class="form-control" placeholder="Facility Number" @bind="spFacilityNumber" />
+                        <input class="form-input" placeholder="Site Name" @bind="spSiteName" />
+                        <input class="form-input" placeholder="Facility Number" @bind="spFacilityNumber" />
                     </div>
                     <div class="form-row">
-                        <input class="form-control" type="number" step="0.001" placeholder="Interest Rate (decimal, e.g. 0.015)" @bind="spInterestRate" />
-                        <input class="form-control" type="number" step="0.01" placeholder="Admin Cost ($)" @bind="spAdminCost" />
-                        <input class="form-control" type="number" step="0.001" placeholder="Penalty Rate (decimal)" @bind="spPenaltyRate" />
+                        <input class="form-input" type="number" step="0.001" placeholder="Interest Rate (decimal, e.g. 0.015)" @bind="spInterestRate" />
+                        <input class="form-input" type="number" step="0.01" placeholder="Admin Cost ($)" @bind="spAdminCost" />
+                        <input class="form-input" type="number" step="0.001" placeholder="Penalty Rate (decimal)" @bind="spPenaltyRate" />
                     </div>
                     <div class="form-row">
-                        <input class="form-control" type="number" step="0.01" placeholder="Min Payment ($)" @bind="spMinPayment" />
-                        <input class="form-control" type="number" placeholder="Max Plan Months" @bind="spMaxMonths" />
-                        <input class="form-control" type="number" placeholder="Statement Freq (days)" @bind="spStatementDays" />
-                        <input class="form-control" type="number" step="0.01" placeholder="Collection Threshold ($)" @bind="spCollectionThreshold" />
+                        <input class="form-input" type="number" step="0.01" placeholder="Min Payment ($)" @bind="spMinPayment" />
+                        <input class="form-input" type="number" placeholder="Max Plan Months" @bind="spMaxMonths" />
+                        <input class="form-input" type="number" placeholder="Statement Freq (days)" @bind="spStatementDays" />
+                        <input class="form-input" type="number" step="0.01" placeholder="Collection Threshold ($)" @bind="spCollectionThreshold" />
                     </div>
                     <div class="form-row checkboxes">
                         <label><input type="checkbox" @bind="spAutoInterest" /> Auto Interest</label>
@@ -379,7 +379,7 @@
                         <label><input type="checkbox" @bind="spTreasuryOffset" /> Treasury Offset</label>
                     </div>
                     <div class="form-row">
-                        <input class="form-control" placeholder="Updated By User ID" @bind="spUpdatedByUserId" />
+                        <input class="form-input" placeholder="Updated By User ID" @bind="spUpdatedByUserId" />
                     </div>
                     <button class="btn btn-primary" @onclick="UpdateSiteParams">Update Parameters</button>
                     @if (siteParamsMsg != null)
@@ -400,16 +400,16 @@
                 <div class="form-panel">
                     <h4>Refer Account to TOP</h4>
                     <div class="form-row">
-                        <input class="form-control" placeholder="AR Account ID" @bind="topAccountId" />
-                        <input class="form-control" placeholder="Patient Name" @bind="topPatientName" />
-                        <input class="form-control" type="number" step="0.01" placeholder="Referred Amount ($)" @bind="topReferredAmount" />
+                        <input class="form-input" placeholder="AR Account ID" @bind="topAccountId" />
+                        <input class="form-input" placeholder="Patient Name" @bind="topPatientName" />
+                        <input class="form-input" type="number" step="0.01" placeholder="Referred Amount ($)" @bind="topReferredAmount" />
                     </div>
                     <div class="form-row">
-                        <input class="form-control" placeholder="Referred By User ID" @bind="topReferUserId" />
-                        <input class="form-control" placeholder="Referred By Name" @bind="topReferUserName" />
-                        <input class="form-control" placeholder="Notes (optional)" @bind="topReferNotes" />
+                        <input class="form-input" placeholder="Referred By User ID" @bind="topReferUserId" />
+                        <input class="form-input" placeholder="Referred By Name" @bind="topReferUserName" />
+                        <input class="form-input" placeholder="Notes (optional)" @bind="topReferNotes" />
                     </div>
-                    <button class="btn btn-danger" @onclick="SubmitReferToTop">Refer to TOP</button>
+                    <button class="btn btn-primary" @onclick="SubmitReferToTop">Refer to TOP</button>
                     @if (topReferMsg != null)
                     {
                         <span class="form-msg">@topReferMsg</span>
@@ -424,7 +424,7 @@
                 }
                 else
                 {
-                    <table class="table ar-table">
+                    <table class="data-table">
                         <thead>
                             <tr>
                                 <th>Referral ID</th>
@@ -447,8 +447,8 @@
                                     <td>@entry.OffsetAmount.ToString("C")</td>
                                     <td><span class="badge @TopStatusBadgeClass(entry.Status)">@entry.Status</span></td>
                                     <td>
-                                        <button class="btn btn-sm btn-primary" @onclick='() => ToggleOffsetPanel(entry.ReferralId)'>Record Offset</button>
-                                        <button class="btn btn-sm btn-danger" @onclick='() => ToggleWithdrawPanel(entry.ReferralId)'>Withdraw</button>
+                                        <button class="btn btn-primary" @onclick='() => ToggleOffsetPanel(entry.ReferralId)'>Record Offset</button>
+                                        <button class="btn btn-primary" @onclick='() => ToggleWithdrawPanel(entry.ReferralId)'>Withdraw</button>
                                     </td>
                                 </tr>
                                 @if (recordingOffsetReferralId == entry.ReferralId)
@@ -457,10 +457,10 @@
                                         <td colspan="7">
                                             <div class="form-panel">
                                                 <div class="form-row">
-                                                    <input class="form-control" type="number" step="0.01" placeholder="Offset Amount ($)" @bind="topOffsetAmount" />
-                                                    <input class="form-control" type="date" @bind="topOffsetDate" />
-                                                    <input class="form-control" placeholder="Processed By User ID" @bind="topOffsetUserId" />
-                                                    <input class="form-control" placeholder="Processed By Name" @bind="topOffsetUserName" />
+                                                    <input class="form-input" type="number" step="0.01" placeholder="Offset Amount ($)" @bind="topOffsetAmount" />
+                                                    <input class="form-input" type="date" @bind="topOffsetDate" />
+                                                    <input class="form-input" placeholder="Processed By User ID" @bind="topOffsetUserId" />
+                                                    <input class="form-input" placeholder="Processed By Name" @bind="topOffsetUserName" />
                                                     <button class="btn btn-primary" @onclick='() => SubmitTopOffset(entry.ReferralId)'>Submit Offset</button>
                                                 </div>
                                                 @if (topOffsetMsg != null) { <span class="form-msg">@topOffsetMsg</span> }
@@ -474,8 +474,8 @@
                                         <td colspan="7">
                                             <div class="form-panel">
                                                 <div class="form-row">
-                                                    <input class="form-control" placeholder="Withdrawal Reason" @bind="topWithdrawReason" />
-                                                    <button class="btn btn-danger" @onclick='() => SubmitWithdrawTop(entry.ReferralId)'>Confirm Withdraw</button>
+                                                    <input class="form-input" placeholder="Withdrawal Reason" @bind="topWithdrawReason" />
+                                                    <button class="btn btn-primary" @onclick='() => SubmitWithdrawTop(entry.ReferralId)'>Confirm Withdraw</button>
                                                 </div>
                                                 @if (topWithdrawMsg != null) { <span class="form-msg">@topWithdrawMsg</span> }
                                             </div>
@@ -495,7 +495,7 @@
                 }
                 else
                 {
-                    <table class="table ar-table">
+                    <table class="data-table">
                         <thead>
                             <tr>
                                 <th>Referral ID</th>
@@ -1013,26 +1013,26 @@
 
     private static string StatusBadgeClass(string status) => status switch
     {
-        "Active"         => "badge-primary",
+        "Active"         => "badge-info",
         "Paid"           => "badge-success",
         "Waived"         => "badge-info",
-        "WrittenOff"     => "badge-secondary",
+        "WrittenOff"     => "badge-neutral",
         "InCollection"   => "badge-danger",
         "TreasuryOffset" => "badge-danger",
         "OnPaymentPlan"  => "badge-warning",
-        "Cancelled"      => "badge-secondary",
-        _                => "badge-secondary",
+        "Cancelled"      => "badge-neutral",
+        _                => "badge-neutral",
     };
 
     private static string TopStatusBadgeClass(string status) => status switch
     {
         "Pending"         => "badge-warning",
-        "Certified"       => "badge-primary",
+        "Certified"       => "badge-info",
         "Offset"          => "badge-success",
         "PartiallyOffset" => "badge-info",
-        "Withdrawn"       => "badge-secondary",
+        "Withdrawn"       => "badge-neutral",
         "Resolved"        => "badge-success",
-        _                 => "badge-secondary",
+        _                 => "badge-neutral",
     };
 
     // ─── Local DTOs ───────────────────────────────────────────────────────────
@@ -1075,51 +1075,31 @@
 }
 
 <style>
-    .ar-container { padding: 1rem; font-family: 'Courier New', monospace; max-width: 1200px; }
+    /* Canonical interaction classes (lookup-bar, lookup-input, tab-bar, tab, btn,
+       btn-primary, alert, alert-error, alert-success, data-table, form-input, badge,
+       badge-*, empty-state) are defined once in app.css per UI-CONVENTIONS.md.
+       Only page-specific styles (layout, AR summary cards, panels, domain colors) live here. */
+    .ar-container { padding: 1rem; max-width: 1200px; }
     .ar-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; }
-    .patient-lookup { display: flex; gap: 0.5rem; }
-    .patient-lookup input { width: 200px; }
-    .debtor-summary { display: flex; gap: 1rem; align-items: center; padding: 0.75rem; background: #1a1a2e; border-radius: 4px; margin-bottom: 1rem; }
-    .summary-card { display: flex; flex-direction: column; padding: 0.5rem 1rem; background: #16213e; border-radius: 4px; }
-    .summary-card.balance-due { background: #3d0000; }
-    .summary-card .label { font-size: 0.75rem; color: #aaa; text-transform: uppercase; }
-    .summary-card .value { font-size: 1.1rem; font-weight: bold; color: #e0e0e0; }
-    .summary-card .value.paid { color: #4caf50; }
-    .ar-tabs { display: flex; gap: 0; margin-bottom: 1rem; border-bottom: 2px solid #333; }
-    .tab-btn { padding: 0.4rem 1.2rem; background: transparent; border: none; color: #aaa; cursor: pointer; border-bottom: 2px solid transparent; margin-bottom: -2px; }
-    .tab-btn.active { color: #4fc3f7; border-bottom-color: #4fc3f7; }
+    .debtor-summary { display: flex; gap: 1rem; align-items: center; padding: 0.75rem; background: #f4f6f9; border: 1px solid #d4d9e0; border-radius: 4px; margin-bottom: 1rem; }
+    .summary-card { display: flex; flex-direction: column; padding: 0.5rem 1rem; background: #fff; border: 1px solid #d4d9e0; border-radius: 4px; }
+    .summary-card.balance-due { background: #fef2f2; border-color: #f5c6c6; }
+    .summary-card .label { font-size: 0.75rem; color: #555; text-transform: uppercase; }
+    .summary-card .value { font-size: 1.1rem; font-weight: bold; color: #003f72; }
+    .summary-card .value.paid { color: #166534; }
     .tab-panel { padding: 1rem 0; }
-    .ar-table { width: 100%; border-collapse: collapse; font-size: 0.875rem; }
-    .ar-table th { background: #1a1a2e; color: #aaa; padding: 0.4rem 0.6rem; text-align: left; }
-    .ar-table td { padding: 0.4rem 0.6rem; border-bottom: 1px solid #2a2a3e; }
-    .ar-table tr.selected-row td { background: #1a2a3a; }
-    .badge { padding: 0.2rem 0.5rem; border-radius: 3px; font-size: 0.75rem; font-weight: bold; }
-    .badge-primary { background: #1565c0; color: #fff; }
-    .badge-success { background: #2e7d32; color: #fff; }
-    .badge-info { background: #00838f; color: #fff; }
-    .badge-warning { background: #e65100; color: #fff; }
-    .badge-danger { background: #b71c1c; color: #fff; }
-    .badge-secondary { background: #424242; color: #ddd; }
-    .form-panel { background: #1a1a2e; padding: 1rem; border-radius: 4px; margin-top: 1rem; }
+    .data-table tr.selected-row > td { background: #eaf2fb; }
+    .form-panel { background: #f4f6f9; border: 1px solid #d4d9e0; padding: 1rem; border-radius: 4px; margin-top: 1rem; }
     .form-row { display: flex; gap: 0.5rem; margin-bottom: 0.5rem; flex-wrap: wrap; }
-    .form-row label { color: #aaa; font-size: 0.85rem; min-width: 100px; padding-top: 0.4rem; }
+    .form-row label { color: #333; font-size: 0.85rem; min-width: 100px; padding-top: 0.4rem; }
     .form-row.checkboxes { gap: 1rem; align-items: center; }
-    .form-row.checkboxes label { min-width: auto; display: flex; gap: 0.3rem; align-items: center; cursor: pointer; color: #ccc; }
-    .form-control { background: #0d0d1a; color: #e0e0e0; border: 1px solid #333; padding: 0.3rem 0.5rem; border-radius: 3px; font-family: inherit; }
-    .btn { padding: 0.3rem 0.8rem; border: none; border-radius: 3px; cursor: pointer; font-size: 0.85rem; }
-    .btn-primary { background: #1565c0; color: #fff; }
-    .btn-success { background: #2e7d32; color: #fff; }
-    .btn-warning { background: #e65100; color: #fff; }
-    .btn-danger { background: #b71c1c; color: #fff; }
-    .btn-outline-primary { background: transparent; border: 1px solid #1565c0; color: #4fc3f7; }
-    .btn-sm { padding: 0.2rem 0.5rem; font-size: 0.8rem; }
-    .form-msg { margin-left: 0.5rem; font-size: 0.85rem; color: #4fc3f7; }
-    .detail-panel { background: #0d1117; border: 1px solid #2a2a3e; border-radius: 4px; padding: 1rem; margin-top: 1rem; }
-    .detail-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 0.5rem; margin-bottom: 1rem; font-size: 0.875rem; color: #ccc; }
+    .form-row.checkboxes label { min-width: auto; display: flex; gap: 0.3rem; align-items: center; cursor: pointer; color: #333; }
+    .form-msg { margin-left: 0.5rem; font-size: 0.85rem; color: #1e40af; }
+    .detail-panel { background: #f9fafb; border: 1px solid #d4d9e0; border-radius: 4px; padding: 1rem; margin-top: 1rem; }
+    .detail-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 0.5rem; margin-bottom: 1rem; font-size: 0.875rem; color: #333; }
     .txn-list { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 0.3rem; align-items: flex-start; }
-    .txn-id { background: #1a1a2e; padding: 0.1rem 0.4rem; border-radius: 3px; font-size: 0.7rem; color: #aaa; }
-    .action-section { margin-top: 1rem; padding-top: 0.75rem; border-top: 1px solid #2a2a3e; }
-    .action-section h5 { color: #aaa; font-size: 0.9rem; margin-bottom: 0.5rem; }
-    .alert-danger { background: #3d0000; color: #ff8a80; padding: 0.5rem 1rem; border-radius: 4px; margin-bottom: 1rem; }
+    .txn-id { background: #e5e7eb; padding: 0.1rem 0.4rem; border-radius: 3px; font-size: 0.7rem; color: #374151; }
+    .action-section { margin-top: 1rem; padding-top: 0.75rem; border-top: 1px solid #d4d9e0; }
+    .action-section h5 { color: #003f72; font-size: 0.9rem; margin-bottom: 0.5rem; }
     .text-muted { color: #666; font-size: 0.875rem; }
 </style>

@@ -17,7 +17,7 @@
 
 @if (error != null)
 {
-    <div class="alert alert-danger">@error</div>
+    <div class="alert alert-error">@error</div>
 }
 @if (success != null)
 {
@@ -25,9 +25,9 @@
 }
 
 <div class="tab-bar">
-    <button class="tab-btn @(activeTab == "claims" ? "active" : "")" @onclick='() => SetTab("claims")'>Claims</button>
-    <button class="tab-btn @(activeTab == "transmissions" ? "active" : "")" @onclick='() => SetTab("transmissions")'>Transmissions</button>
-    <button class="tab-btn @(activeTab == "eras" ? "active" : "")" @onclick='() => SetTab("eras")'>Remittances (ERAs)</button>
+    <button class="tab @(activeTab == "claims" ? "active" : "")" @onclick='() => SetTab("claims")'>Claims</button>
+    <button class="tab @(activeTab == "transmissions" ? "active" : "")" @onclick='() => SetTab("transmissions")'>Transmissions</button>
+    <button class="tab @(activeTab == "eras" ? "active" : "")" @onclick='() => SetTab("eras")'>Remittances (ERAs)</button>
 </div>
 
 @* ─── Tab 1: Claims ─────────────────────────────────────────────────────────── *@
@@ -35,8 +35,8 @@
 {
     <div class="section-card">
         <h2>Patient Claims</h2>
-        <div class="input-row">
-            <input class="form-input" placeholder="Patient ID" @bind="patientId" />
+        <div class="lookup-bar">
+            <input class="lookup-input" placeholder="Patient ID" @bind="patientId" />
             <button class="btn btn-primary" @onclick="LoadPatientClaims" disabled="@(loading || string.IsNullOrWhiteSpace(patientId))">Load</button>
         </div>
 
@@ -149,7 +149,7 @@
     <div class="section-card">
         <div class="section-header-row">
             <h2>Open Transmissions</h2>
-            <button class="btn btn-secondary btn-sm" @onclick="LoadTransmissions">Refresh</button>
+            <button class="btn btn-secondary" @onclick="LoadTransmissions">Refresh</button>
         </div>
 
         @if (openTransmissions == null || openTransmissions.Count == 0)
@@ -185,11 +185,11 @@
                                         <option value="Professional837P">Professional</option>
                                         <option value="Institutional837I">Institutional</option>
                                     </select>
-                                    <button class="btn btn-primary btn-sm" @onclick="() => AddClaimToTx(tx.TransmissionId)">Add</button>
+                                    <button class="btn btn-primary" @onclick="() => AddClaimToTx(tx.TransmissionId)">Add</button>
                                 </div>
                             </div>
                             <div class="action-panel">
-                                <button class="btn btn-success btn-sm" @onclick="() => SendTx(tx.TransmissionId)">Send Batch</button>
+                                <button class="btn btn-primary" @onclick="() => SendTx(tx.TransmissionId)">Send Batch</button>
                             </div>
                             <div class="action-panel">
                                 <strong>Record Acknowledgment</strong>
@@ -198,7 +198,7 @@
                                     <input class="form-input" type="number" placeholder="Accepted" @bind="ackReq.AcceptedCount" />
                                     <input class="form-input" type="number" placeholder="Rejected" @bind="ackReq.RejectedCount" />
                                     <input class="form-input" type="date" @bind="ackReq.AcknowledgedDate" />
-                                    <button class="btn btn-primary btn-sm" @onclick="() => AcknowledgeTx(tx.TransmissionId)">Submit</button>
+                                    <button class="btn btn-primary" @onclick="() => AcknowledgeTx(tx.TransmissionId)">Submit</button>
                                 </div>
                             </div>
                         </div>
@@ -274,7 +274,7 @@
     <div class="section-card">
         <div class="section-header-row">
             <h2>ERAs (Electronic Remittance Advices)</h2>
-            <button class="btn btn-secondary btn-sm" @onclick="LoadEras">Refresh</button>
+            <button class="btn btn-secondary" @onclick="LoadEras">Refresh</button>
         </div>
 
         @if (allEras == null || allEras.Count == 0)
@@ -310,7 +310,7 @@
                             <td>
                                 @if (era.Status == "Received")
                                 {
-                                    <button class="btn btn-success btn-sm" @onclick="() => ProcessEra(era.EraId)">Process</button>
+                                    <button class="btn btn-primary" @onclick="() => ProcessEra(era.EraId)">Process</button>
                                 }
                             </td>
                         </tr>
@@ -366,7 +366,7 @@
         <div class="subsection">
             <div class="subsection-header">
                 <strong>Claim Payments</strong>
-                <button class="btn btn-secondary btn-sm" @onclick="AddEraClaimRow">+ Add Claim</button>
+                <button class="btn btn-secondary" @onclick="AddEraClaimRow">+ Add Claim</button>
             </div>
             @foreach (var (cp, i) in newEra.ClaimPayments.Select((cp, i) => (cp, i)))
             {
@@ -377,7 +377,7 @@
                     <input class="form-input" type="number" step="0.01" placeholder="Paid Amount" @bind="cp.PaidAmount" />
                     <input class="form-input" type="number" step="0.01" placeholder="Allowed" @bind="cp.AllowedAmount" />
                     <input class="form-input" placeholder="Denial Code" @bind="cp.DenialReasonCode" />
-                    <button class="btn btn-danger btn-sm" @onclick="() => RemoveEraClaimRow(i)">✕</button>
+                    <button class="btn btn-primary" @onclick="() => RemoveEraClaimRow(i)">✕</button>
                 </div>
             }
         </div>
@@ -391,12 +391,12 @@
 }
 
 <style>
+    /* Canonical classes (lookup-bar, lookup-input, tab-bar, tab, data-table, form-input,
+       badge/badge-*, btn/btn-primary/btn-secondary, alert/alert-error/alert-success) are
+       defined once in app.css per UI-CONVENTIONS.md. Page-specific only below. */
     .page-header { margin-bottom: 1.5rem; }
     .page-header h1 { font-size: 1.75rem; font-weight: 700; margin: 0; }
     .page-subtitle { color: #6c757d; margin: 0.25rem 0 0; }
-    .tab-bar { display: flex; gap: 0.5rem; margin-bottom: 1.5rem; border-bottom: 2px solid #dee2e6; padding-bottom: 0; }
-    .tab-btn { padding: 0.5rem 1.25rem; border: none; background: transparent; cursor: pointer; font-size: 0.95rem; color: #495057; border-bottom: 3px solid transparent; margin-bottom: -2px; }
-    .tab-btn.active { color: #0d6efd; border-bottom-color: #0d6efd; font-weight: 600; }
     .section-card { background: white; border: 1px solid #dee2e6; border-radius: 8px; padding: 1.25rem; margin-bottom: 1.5rem; }
     .section-card h2 { font-size: 1.1rem; font-weight: 600; margin: 0 0 1rem; }
     .section-header-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; }
@@ -406,30 +406,8 @@
     .form-group { display: flex; flex-direction: column; gap: 0.25rem; }
     .form-group-full { grid-column: 1 / -1; }
     .form-group label { font-size: 0.85rem; font-weight: 500; color: #495057; }
-    .form-input { padding: 0.4rem 0.75rem; border: 1px solid #ced4da; border-radius: 4px; font-size: 0.9rem; }
     .form-actions { margin-top: 1rem; }
-    .data-table { width: 100%; border-collapse: collapse; font-size: 0.875rem; }
-    .data-table th { background: #f8f9fa; padding: 0.5rem 0.75rem; text-align: left; font-weight: 600; border-bottom: 2px solid #dee2e6; }
-    .data-table td { padding: 0.5rem 0.75rem; border-bottom: 1px solid #dee2e6; }
-    .data-table tr:hover td { background: #f8f9fa; }
     .mono { font-family: monospace; font-size: 0.8rem; }
-    .badge { padding: 0.2rem 0.5rem; border-radius: 12px; font-size: 0.75rem; font-weight: 600; }
-    .badge-info { background: #cff4fc; color: #055160; }
-    .badge-success { background: #d1e7dd; color: #0a3622; }
-    .badge-warning { background: #fff3cd; color: #664d03; }
-    .badge-danger { background: #f8d7da; color: #58151c; }
-    .badge-secondary { background: #e2e3e5; color: #41464b; }
-    .btn { padding: 0.4rem 0.9rem; border: none; border-radius: 4px; cursor: pointer; font-size: 0.875rem; font-weight: 500; }
-    .btn-primary { background: #0d6efd; color: white; }
-    .btn-primary:hover { background: #0b5ed7; }
-    .btn-primary:disabled { background: #6ea8fe; cursor: not-allowed; }
-    .btn-secondary { background: #6c757d; color: white; }
-    .btn-success { background: #198754; color: white; }
-    .btn-danger { background: #dc3545; color: white; }
-    .btn-sm { padding: 0.25rem 0.6rem; font-size: 0.8rem; }
-    .alert { padding: 0.75rem 1rem; border-radius: 6px; margin-bottom: 1rem; }
-    .alert-danger { background: #f8d7da; color: #58151c; border: 1px solid #f5c2c7; }
-    .alert-success { background: #d1e7dd; color: #0a3622; border: 1px solid #badbcc; }
     .loading-text, .empty-text { color: #6c757d; font-style: italic; padding: 0.5rem 0; }
     .text-muted { color: #6c757d; }
     .ms-2 { margin-left: 0.5rem; }
@@ -484,7 +462,7 @@
     string ClaimStatusBadge(string status) => status switch
     {
         "Paid" => "badge badge-success",
-        "Draft" => "badge badge-secondary",
+        "Draft" => "badge badge-neutral",
         "Denied" => "badge badge-danger",
         "Rejected" => "badge badge-danger",
         "PartiallyPaid" => "badge badge-warning",
@@ -505,7 +483,7 @@
         "Posted" => "badge badge-success",
         "Received" => "badge badge-warning",
         "Error" => "badge badge-danger",
-        _ => "badge badge-secondary",
+        _ => "badge badge-neutral",
     };
 
     // ─── Claims ──────────────────────────────────────────────────────────────────

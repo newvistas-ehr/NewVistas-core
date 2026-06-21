@@ -12,31 +12,23 @@
 
 <PageTitle>Ambulatory Copay Check-Off Sheet</PageTitle>
 
-<h2>Ambulatory Copay Check-Off Sheet</h2>
+<h1>Ambulatory Copay Check-Off Sheet</h1>
 <p class="subtitle">VistA File #350.7 — billable item capture for outpatient visits</p>
 
-<div class="tabs">
+<div class="tab-bar">
     <button class="@TabClass("lookup")" @onclick='() => SetTab("lookup")'>Sheet Lookup</button>
     <button class="@TabClass("create")" @onclick='() => SetTab("create")'>Create Sheet</button>
 </div>
 
-@if (!string.IsNullOrEmpty(error))
-{
-    <div class="error">@error</div>
-}
-
-@if (!string.IsNullOrEmpty(successMsg))
-{
-    <div class="success">@successMsg</div>
-}
+<AlertBanner Error="@error" Success="@result" />
 
 @* ── Tab 1: Sheet Lookup ──────────────────────────────────── *@
 @if (activeTab == "lookup")
 {
-    <div class="toolbar">
-        <input @bind="sheetIdInput" placeholder="Sheet ID (e.g. DEMO-SHEET-001)" class="input-id" />
-        <button @onclick="LoadSheet" disabled="@loading">Load Sheet</button>
-        <button @onclick="LoadDemo" disabled="@loading" class="btn-demo">Load Demo Data</button>
+    <div class="lookup-bar">
+        <input @bind="sheetIdInput" placeholder="Sheet ID (e.g. DEMO-SHEET-001)" class="lookup-input" />
+        <button class="btn btn-primary" @onclick="LoadSheet" disabled="@loading">Load Sheet</button>
+        <button class="btn btn-primary" @onclick="LoadDemo" disabled="@loading">Load Demo Data</button>
     </div>
 
     @if (loading) { <p class="loading-msg">Loading...</p> }
@@ -54,11 +46,11 @@
                     <span class="label">Status:</span>
                     @if (sheet.IsComplete)
                     {
-                        <span class="badge badge-complete">COMPLETE</span>
+                        <span class="badge badge-success">COMPLETE</span>
                     }
                     else
                     {
-                        <span class="badge badge-open">OPEN</span>
+                        <span class="badge badge-warning">OPEN</span>
                     }
                 </div>
                 <div class="info-item"><span class="label">Billable Items:</span> @sheet.TotalBillableItems</div>
@@ -91,11 +83,11 @@
                                 <td>
                                     @if (item.IsChecked)
                                     {
-                                        <span class="badge badge-checked">YES</span>
+                                        <span class="badge badge-success">YES</span>
                                     }
                                     else
                                     {
-                                        <span class="badge badge-unchecked">NO</span>
+                                        <span class="badge badge-neutral">NO</span>
                                     }
                                 </td>
                                 <td>@(item.CheckedByUserName ?? "—")</td>
@@ -123,27 +115,27 @@
 
             @if (!sheet.IsComplete)
             {
-                <div class="action-panel">
+                <div class="form-section">
                     <h4>Check Item</h4>
-                    <label>Item Code: <input @bind="checkItemCode" placeholder="e.g. 99213" /></label>
-                    <label>Description: <input @bind="checkItemDesc" placeholder="Office visit level 3" /></label>
-                    <label>User ID: <input @bind="checkUserId" /></label>
-                    <label>User Name: <input @bind="checkUserName" /></label>
-                    <button @onclick="SubmitCheckItem">Check Item</button>
+                    <FormField Label="Item Code"><input class="form-input" @bind="checkItemCode" placeholder="e.g. 99213" /></FormField>
+                    <FormField Label="Description"><input class="form-input" @bind="checkItemDesc" placeholder="Office visit level 3" /></FormField>
+                    <FormField Label="User ID"><input class="form-input" @bind="checkUserId" /></FormField>
+                    <FormField Label="User Name"><input class="form-input" @bind="checkUserName" /></FormField>
+                    <button class="btn btn-primary" @onclick="SubmitCheckItem">Check Item</button>
                 </div>
 
-                <div class="action-panel">
+                <div class="form-section">
                     <h4>Complete Sheet</h4>
-                    <label>User ID: <input @bind="completeUserId" /></label>
-                    <label>User Name: <input @bind="completeUserName" /></label>
-                    <button @onclick="SubmitComplete">Mark Complete</button>
+                    <FormField Label="User ID"><input class="form-input" @bind="completeUserId" /></FormField>
+                    <FormField Label="User Name"><input class="form-input" @bind="completeUserName" /></FormField>
+                    <button class="btn btn-primary" @onclick="SubmitComplete">Mark Complete</button>
                 </div>
             }
 
-            <div class="action-panel">
+            <div class="form-section">
                 <h4>Link Billing Action</h4>
-                <label>Billing Action ID: <input @bind="linkBillingId" /></label>
-                <button @onclick="SubmitLinkBilling">Link</button>
+                <FormField Label="Billing Action ID"><input class="form-input" @bind="linkBillingId" /></FormField>
+                <button class="btn btn-primary" @onclick="SubmitLinkBilling">Link</button>
             </div>
         </div>
     }
@@ -152,14 +144,14 @@
 @* ── Tab 2: Create Sheet ──────────────────────────────────── *@
 @if (activeTab == "create")
 {
-    <div class="form-panel">
+    <div class="form-section">
         <h3>Create New Check-Off Sheet</h3>
-        <label>Patient ID: <input @bind="newPatientId" /></label>
-        <label>Encounter ID: <input @bind="newEncounterId" placeholder="(optional)" /></label>
-        <label>Visit Date: <input type="datetime-local" @bind="newVisitDate" /></label>
-        <label>Clinic ID: <input @bind="newClinicId" placeholder="(optional)" /></label>
-        <label>Clinic Name: <input @bind="newClinicName" placeholder="(optional)" /></label>
-        <button @onclick="SubmitCreate" disabled="@(loading || string.IsNullOrWhiteSpace(newPatientId))">Create Sheet</button>
+        <FormField Label="Patient ID"><input class="form-input" @bind="newPatientId" /></FormField>
+        <FormField Label="Encounter ID"><input class="form-input" @bind="newEncounterId" placeholder="(optional)" /></FormField>
+        <FormField Label="Visit Date"><input class="form-input" type="datetime-local" @bind="newVisitDate" /></FormField>
+        <FormField Label="Clinic ID"><input class="form-input" @bind="newClinicId" placeholder="(optional)" /></FormField>
+        <FormField Label="Clinic Name"><input class="form-input" @bind="newClinicName" placeholder="(optional)" /></FormField>
+        <button class="btn btn-primary" @onclick="SubmitCreate" disabled="@(loading || string.IsNullOrWhiteSpace(newPatientId))">Create Sheet</button>
     </div>
 }
 
@@ -167,7 +159,7 @@
     string activeTab = "lookup";
     bool loading;
     string? error;
-    string? successMsg;
+    string? result;
 
     // Lookup
     string sheetIdInput = string.Empty;
@@ -193,9 +185,9 @@
     string? newClinicId;
     string? newClinicName;
 
-    string TabClass(string tab) => activeTab == tab ? "tab-btn active" : "tab-btn";
+    string TabClass(string tab) => activeTab == tab ? "tab active" : "tab";
 
-    void SetTab(string tab) { activeTab = tab; error = null; successMsg = null; }
+    void SetTab(string tab) { activeTab = tab; error = null; result = null; }
 
     private IAmbulatoryCopaySheetGrain GetSheetGrain(string id) =>
         Grains.GetGrain<IAmbulatoryCopaySheetGrain>($"IB-SHEET:{id.Trim()}");
@@ -203,7 +195,7 @@
     async Task LoadSheet()
     {
         if (string.IsNullOrWhiteSpace(sheetIdInput)) return;
-        loading = true; error = null; successMsg = null;
+        loading = true; error = null; result = null;
         try
         {
             sheet = await GetSheetGrain(sheetIdInput).GetAsync();
@@ -215,11 +207,11 @@
     async Task SubmitCheckItem()
     {
         if (sheet is null || string.IsNullOrWhiteSpace(checkItemCode)) return;
-        error = null; successMsg = null;
+        error = null; result = null;
         try
         {
             await GetSheetGrain(sheet.SheetId).CheckItemAsync(checkItemCode, checkItemDesc, checkUserId, checkUserName);
-            successMsg = $"Item {checkItemCode} checked.";
+            result = $"Item {checkItemCode} checked.";
             checkItemCode = string.Empty; checkItemDesc = string.Empty;
             await LoadSheet();
         }
@@ -229,11 +221,11 @@
     async Task SubmitComplete()
     {
         if (sheet is null) return;
-        error = null; successMsg = null;
+        error = null; result = null;
         try
         {
             await GetSheetGrain(sheet.SheetId).CompleteAsync(completeUserId, completeUserName);
-            successMsg = "Sheet marked complete.";
+            result = "Sheet marked complete.";
             await LoadSheet();
         }
         catch (Exception ex) { error = ex.Message; }
@@ -242,11 +234,11 @@
     async Task SubmitLinkBilling()
     {
         if (sheet is null || string.IsNullOrWhiteSpace(linkBillingId)) return;
-        error = null; successMsg = null;
+        error = null; result = null;
         try
         {
             await GetSheetGrain(sheet.SheetId).LinkBillingActionAsync(linkBillingId);
-            successMsg = $"Billing action {linkBillingId} linked.";
+            result = $"Billing action {linkBillingId} linked.";
             linkBillingId = string.Empty;
             await LoadSheet();
         }
@@ -256,14 +248,14 @@
     async Task SubmitCreate()
     {
         if (string.IsNullOrWhiteSpace(newPatientId)) return;
-        loading = true; error = null; successMsg = null;
+        loading = true; error = null; result = null;
         try
         {
             string newId = Guid.NewGuid().ToString();
             IAmbulatoryCopaySheetGrain grain = GetSheetGrain(newId);
             string createdId = await grain.CreateAsync(
                 newPatientId, newEncounterId, newVisitDate.ToUniversalTime(), newClinicId, newClinicName);
-            successMsg = $"Sheet created: {createdId}";
+            result = $"Sheet created: {createdId}";
             sheetIdInput = createdId;
             activeTab = "lookup";
             await LoadSheet();
@@ -274,7 +266,7 @@
 
     async Task LoadDemo()
     {
-        loading = true; error = null; successMsg = null;
+        loading = true; error = null; result = null;
         try
         {
             // Create demo sheets directly via grains
@@ -288,7 +280,7 @@
             await s2.CreateAsync("P-002", "ENC-002", DateTime.UtcNow, "CL-CARDIO", "Cardiology Clinic");
             await s2.CheckItemAsync("99214", "Office visit, established patient, level 4", "USR-CLERK-2", "Robert Davis");
 
-            successMsg = "Demo data loaded. Try sheet IDs: DEMO-SHEET-001, DEMO-SHEET-002";
+            result = "Demo data loaded. Try sheet IDs: DEMO-SHEET-001, DEMO-SHEET-002";
             sheetIdInput = "DEMO-SHEET-001";
             await LoadSheet();
         }
@@ -298,38 +290,14 @@
 }
 
 <style>
-    .subtitle { color: #888; margin-top: -8px; font-size: 0.9em; }
-    .tabs { display: flex; gap: 4px; margin: 16px 0 12px; }
-    .tab-btn { padding: 8px 18px; border: 1px solid #555; border-bottom: none; border-radius: 6px 6px 0 0; cursor: pointer; background: #333; color: #ccc; }
-    .tab-btn.active { background: #1a1a2e; color: #fff; font-weight: bold; border-color: #667; }
-    .toolbar { display: flex; gap: 8px; margin: 12px 0; align-items: center; }
-    .input-id { padding: 6px; border: 1px solid #555; border-radius: 4px; width: 280px; background: #1a1a2e; color: #eee; }
-    button { padding: 6px 14px; border: 1px solid #555; border-radius: 4px; cursor: pointer; background: #2a2a3e; color: #eee; }
-    button:hover:not(:disabled) { background: #3a3a5e; }
-    button:disabled { opacity: .5; cursor: not-allowed; }
-    .btn-demo { background: #1a3a5a; }
-    .loading-msg { color: #aaa; }
-    .error { color: #f66; margin: 8px 0; padding: 8px; background: #3a1a1a; border-radius: 4px; }
-    .success { color: #6f6; margin: 8px 0; padding: 8px; background: #1a3a1a; border-radius: 4px; }
-    .detail-panel { margin-top: 16px; padding: 16px; background: #1a1a2e; border: 1px solid #444; border-radius: 6px; }
+    /* Canonical classes (lookup-bar, lookup-input, tab-bar, tab, data-table, alert, btn,
+       badge, form-section, form-input) live in app.css per UI-CONVENTIONS.md.
+       Page-specific only below. */
+    .subtitle { color: #666; margin-top: -8px; font-size: 0.9em; }
+    .loading-msg { color: #666; }
+    .detail-panel { margin-top: 16px; padding: 16px; background: #f9fafb; border: 1px solid #d4d9e0; border-radius: 6px; }
     .info-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 8px; margin-bottom: 16px; }
     .info-item { padding: 4px 0; }
-    .info-item .label { color: #888; font-weight: bold; }
-    .completed-info { color: #8c8; font-style: italic; }
-    .data-table { width: 100%; border-collapse: collapse; font-size: 0.88em; margin-top: 10px; }
-    .data-table th { background: #2a2a4e; color: #ddd; padding: 6px 10px; text-align: left; }
-    .data-table td { padding: 5px 10px; border-bottom: 1px solid #333; color: #ccc; }
-    .data-table tr:hover { background: #252540; }
-    .badge { padding: 2px 8px; border-radius: 10px; font-size: 0.78em; font-weight: bold; }
-    .badge-complete { background: #4a4; color: #fff; }
-    .badge-open { background: #d80; color: #fff; }
-    .badge-checked { background: #4a4; color: #fff; }
-    .badge-unchecked { background: #666; color: #fff; }
-    .action-panel { margin-top: 16px; padding: 16px; background: #1e1e30; border: 1px solid #555; border-radius: 6px; display: flex; flex-direction: column; gap: 8px; max-width: 480px; }
-    .action-panel label { display: flex; gap: 10px; align-items: center; color: #ccc; }
-    .action-panel input { flex: 1; padding: 4px; border: 1px solid #555; border-radius: 3px; background: #1a1a2e; color: #eee; }
-    .form-panel { padding: 16px; background: #1a1a2e; border: 1px solid #444; border-radius: 6px; display: flex; flex-direction: column; gap: 10px; max-width: 480px; }
-    .form-panel label { display: flex; gap: 10px; align-items: center; color: #ccc; }
-    .form-panel input { flex: 1; padding: 4px; border: 1px solid #555; border-radius: 3px; background: #12122a; color: #eee; }
-    ul { color: #ccc; }
+    .info-item .label { color: #555; font-weight: bold; }
+    .completed-info { color: #166534; font-style: italic; }
 </style>

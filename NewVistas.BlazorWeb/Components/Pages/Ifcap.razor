@@ -19,15 +19,15 @@
 
     @if (error != null)
     {
-        <div class="alert-danger">@error</div>
+        <div class="alert alert-error">@error</div>
     }
 
-    <div class="ifcap-tabs">
-        <button class="tab-btn @(activeTab == "cp" ? "active" : "")" @onclick='async () => { activeTab = "cp"; await LoadControlPoints(); }'>Control Points</button>
-        <button class="tab-btn @(activeTab == "pr" ? "active" : "")" @onclick='() => activeTab = "pr"'>Purchase Requests</button>
-        <button class="tab-btn @(activeTab == "po" ? "active" : "")" @onclick='async () => { activeTab = "po"; await LoadPurchaseOrders(); }'>Purchase Orders</button>
-        <button class="tab-btn @(activeTab == "vendor" ? "active" : "")" @onclick='async () => { activeTab = "vendor"; await LoadVendors(); }'>Vendors</button>
-        <button class="tab-btn @(activeTab == "site" ? "active" : "")" @onclick='async () => { activeTab = "site"; await LoadSiteParams(); }'>Site Parameters</button>
+    <div class="tab-bar">
+        <button class="tab @(activeTab == "cp" ? "active" : "")" @onclick='async () => { activeTab = "cp"; await LoadControlPoints(); }'>Control Points</button>
+        <button class="tab @(activeTab == "pr" ? "active" : "")" @onclick='() => activeTab = "pr"'>Purchase Requests</button>
+        <button class="tab @(activeTab == "po" ? "active" : "")" @onclick='async () => { activeTab = "po"; await LoadPurchaseOrders(); }'>Purchase Orders</button>
+        <button class="tab @(activeTab == "vendor" ? "active" : "")" @onclick='async () => { activeTab = "vendor"; await LoadVendors(); }'>Vendors</button>
+        <button class="tab @(activeTab == "site" ? "active" : "")" @onclick='async () => { activeTab = "site"; await LoadSiteParams(); }'>Site Parameters</button>
     </div>
 
     <!-- ─── Control Points Tab ───────────────────────────────────────────────── -->
@@ -37,7 +37,7 @@
             <h3>Control Points</h3>
 
             <div class="form-row">
-                <input class="form-control" type="number" placeholder="Fiscal Year" @bind="cpFiscalYearFilter" />
+                <input class="form-input" type="number" placeholder="Fiscal Year" @bind="cpFiscalYearFilter" />
                 <button class="btn btn-primary" @onclick="LoadControlPoints">Load</button>
             </div>
 
@@ -47,7 +47,7 @@
             }
             else
             {
-                <table class="table ifcap-table">
+                <table class="data-table">
                     <thead>
                         <tr>
                             <th>Name</th>
@@ -67,7 +67,7 @@
                                 <td>—</td>
                                 <td>@cp.RemainingBalance.ToString("C")</td>
                                 <td><span class="badge @CpStatusBadge(cp.Status.ToString())">@cp.Status</span></td>
-                                <td><button class="btn btn-sm btn-outline-primary" @onclick="() => SelectControlPoint(cp.ControlPointId)">Details</button></td>
+                                <td><button class="btn btn-primary" @onclick="() => SelectControlPoint(cp.ControlPointId)">Details</button></td>
                             </tr>
                         }
                     </tbody>
@@ -96,9 +96,9 @@
                     <div class="action-section">
                         <h5>Allocate Additional Funds</h5>
                         <div class="form-row">
-                            <input class="form-control" type="number" step="0.01" placeholder="Amount ($)" @bind="allocateAmount" />
-                            <input class="form-control" placeholder="Authorized By User ID" @bind="allocateUserId" />
-                            <button class="btn btn-success" @onclick="SubmitAllocateFunds">Allocate</button>
+                            <input class="form-input" type="number" step="0.01" placeholder="Amount ($)" @bind="allocateAmount" />
+                            <input class="form-input" placeholder="Authorized By User ID" @bind="allocateUserId" />
+                            <button class="btn btn-primary" @onclick="SubmitAllocateFunds">Allocate</button>
                         </div>
                         @if (allocateMsg != null) { <span class="form-msg">@allocateMsg</span> }
                     </div>
@@ -108,7 +108,7 @@
                     {
                         <div class="action-section">
                             <h5>Pending Requests</h5>
-                            <table class="table ifcap-table">
+                            <table class="data-table">
                                 <thead>
                                     <tr><th>Requestor</th><th>Priority</th><th>Est. Cost</th><th>Status</th><th>Date</th></tr>
                                 </thead>
@@ -131,24 +131,24 @@
             }
 
             <!-- Create CP form -->
-            <button class="btn btn-success btn-sm" style="margin-top:1rem;" @onclick='() => showCreateCp = !showCreateCp'>+ New Control Point</button>
+            <button class="btn btn-primary" style="margin-top:1rem;" @onclick='() => showCreateCp = !showCreateCp'>+ New Control Point</button>
             @if (showCreateCp)
             {
                 <div class="form-panel">
                     <h4>Create Control Point</h4>
                     <div class="form-row">
-                        <input class="form-control" placeholder="Name" @bind="newCpName" />
-                        <input class="form-control" placeholder="Facility ID" @bind="newCpFacilityId" />
-                        <input class="form-control" placeholder="Service ID" @bind="newCpServiceId" />
+                        <input class="form-input" placeholder="Name" @bind="newCpName" />
+                        <input class="form-input" placeholder="Facility ID" @bind="newCpFacilityId" />
+                        <input class="form-input" placeholder="Service ID" @bind="newCpServiceId" />
                     </div>
                     <div class="form-row">
-                        <input class="form-control" type="number" placeholder="Fiscal Year" @bind="newCpFiscalYear" />
-                        <input class="form-control" placeholder="Budget Code" @bind="newCpBudgetCode" />
-                        <input class="form-control" type="number" step="0.01" placeholder="Allocated Amount ($)" @bind="newCpAllocated" />
+                        <input class="form-input" type="number" placeholder="Fiscal Year" @bind="newCpFiscalYear" />
+                        <input class="form-input" placeholder="Budget Code" @bind="newCpBudgetCode" />
+                        <input class="form-input" type="number" step="0.01" placeholder="Allocated Amount ($)" @bind="newCpAllocated" />
                     </div>
                     <div class="form-row">
-                        <input class="form-control" placeholder="Officer User ID" @bind="newCpOfficerId" />
-                        <input class="form-control" placeholder="Officer Name" @bind="newCpOfficerName" />
+                        <input class="form-input" placeholder="Officer User ID" @bind="newCpOfficerId" />
+                        <input class="form-input" placeholder="Officer Name" @bind="newCpOfficerName" />
                     </div>
                     <button class="btn btn-primary" @onclick="CreateControlPoint">Create</button>
                     @if (createCpMsg != null) { <span class="form-msg">@createCpMsg</span> }
@@ -164,7 +164,7 @@
             <h3>Purchase Requests (VA Form 2237)</h3>
 
             <div class="form-row">
-                <select class="form-control" @bind="selectedPrCpId" @bind:after="LoadPrForCp">
+                <select class="form-input" @bind="selectedPrCpId" @bind:after="LoadPrForCp">
                     <option value="">-- Select Control Point --</option>
                     @if (controlPoints != null)
                     {
@@ -185,7 +185,7 @@
                 }
                 else
                 {
-                    <table class="table ifcap-table">
+                    <table class="data-table">
                         <thead>
                             <tr>
                                 <th>Requestor</th>
@@ -208,16 +208,16 @@
                                     <td>
                                         @if (pr.Status == PurchaseRequestStatus.Draft)
                                         {
-                                            <button class="btn btn-sm btn-primary" @onclick='() => TogglePrSubmitPanel(pr.RequestId)'>Submit</button>
+                                            <button class="btn btn-primary" @onclick='() => TogglePrSubmitPanel(pr.RequestId)'>Submit</button>
                                         }
                                         @if (pr.Status == PurchaseRequestStatus.Submitted)
                                         {
-                                            <button class="btn btn-sm btn-success" @onclick='() => TogglePrApprovePanel(pr.RequestId)'>Approve</button>
-                                            <button class="btn btn-sm btn-danger" @onclick='() => TogglePrRejectPanel(pr.RequestId)'>Reject</button>
+                                            <button class="btn btn-primary" @onclick='() => TogglePrApprovePanel(pr.RequestId)'>Approve</button>
+                                            <button class="btn btn-primary" @onclick='() => TogglePrRejectPanel(pr.RequestId)'>Reject</button>
                                         }
                                         @if (pr.Status == PurchaseRequestStatus.Draft || pr.Status == PurchaseRequestStatus.Submitted)
                                         {
-                                            <button class="btn btn-sm btn-warning" @onclick='() => TogglePrCancelPanel(pr.RequestId)'>Cancel</button>
+                                            <button class="btn btn-primary" @onclick='() => TogglePrCancelPanel(pr.RequestId)'>Cancel</button>
                                         }
                                     </td>
                                 </tr>
@@ -225,7 +225,7 @@
                                 {
                                     <tr><td colspan="6"><div class="form-panel">
                                         <div class="form-row">
-                                            <input class="form-control" placeholder="Your User ID" @bind="prActionUserId" />
+                                            <input class="form-input" placeholder="Your User ID" @bind="prActionUserId" />
                                             <button class="btn btn-primary" @onclick='() => SubmitPr(pr.RequestId)'>Confirm Submit</button>
                                         </div>
                                         @if (prActionMsg != null) { <span class="form-msg">@prActionMsg</span> }
@@ -235,9 +235,9 @@
                                 {
                                     <tr><td colspan="6"><div class="form-panel">
                                         <div class="form-row">
-                                            <input class="form-control" placeholder="Approver User ID" @bind="prActionUserId" />
-                                            <input class="form-control" placeholder="Approver Name" @bind="prActionUserName" />
-                                            <button class="btn btn-success" @onclick='() => ApprovePr(pr.RequestId)'>Confirm Approve</button>
+                                            <input class="form-input" placeholder="Approver User ID" @bind="prActionUserId" />
+                                            <input class="form-input" placeholder="Approver Name" @bind="prActionUserName" />
+                                            <button class="btn btn-primary" @onclick='() => ApprovePr(pr.RequestId)'>Confirm Approve</button>
                                         </div>
                                         @if (prActionMsg != null) { <span class="form-msg">@prActionMsg</span> }
                                     </div></td></tr>
@@ -246,15 +246,15 @@
                                 {
                                     <tr><td colspan="6"><div class="form-panel">
                                         <div class="form-row">
-                                            <input class="form-control" placeholder="User ID" @bind="prActionUserId" />
-                                            <input class="form-control" placeholder="Reason" @bind="prActionReason" />
+                                            <input class="form-input" placeholder="User ID" @bind="prActionUserId" />
+                                            <input class="form-input" placeholder="Reason" @bind="prActionReason" />
                                             @if (prRejectId == pr.RequestId)
                                             {
-                                                <button class="btn btn-danger" @onclick='() => RejectPr(pr.RequestId)'>Confirm Reject</button>
+                                                <button class="btn btn-primary" @onclick='() => RejectPr(pr.RequestId)'>Confirm Reject</button>
                                             }
                                             else
                                             {
-                                                <button class="btn btn-warning" @onclick='() => CancelPr(pr.RequestId)'>Confirm Cancel</button>
+                                                <button class="btn btn-primary" @onclick='() => CancelPr(pr.RequestId)'>Confirm Cancel</button>
                                             }
                                         </div>
                                         @if (prActionMsg != null) { <span class="form-msg">@prActionMsg</span> }
@@ -269,50 +269,50 @@
             <!-- Create 2237 form -->
             @if (!string.IsNullOrEmpty(selectedPrCpId))
             {
-                <button class="btn btn-success btn-sm" style="margin-top:1rem;" @onclick='() => showCreatePr = !showCreatePr'>+ New 2237 Request</button>
+                <button class="btn btn-primary" style="margin-top:1rem;" @onclick='() => showCreatePr = !showCreatePr'>+ New 2237 Request</button>
                 @if (showCreatePr)
                 {
                     <div class="form-panel">
                         <h4>Create VA Form 2237 (Purchase Request)</h4>
                         <div class="form-row">
-                            <input class="form-control" placeholder="Requestor User ID" @bind="newPrRequestorId" />
-                            <input class="form-control" placeholder="Requestor Name" @bind="newPrRequestorName" />
-                            <input class="form-control" type="number" placeholder="Fiscal Year" @bind="newPrFiscalYear" />
+                            <input class="form-input" placeholder="Requestor User ID" @bind="newPrRequestorId" />
+                            <input class="form-input" placeholder="Requestor Name" @bind="newPrRequestorName" />
+                            <input class="form-input" type="number" placeholder="Fiscal Year" @bind="newPrFiscalYear" />
                         </div>
                         <div class="form-row">
-                            <select class="form-control" @bind="newPrPriority">
+                            <select class="form-input" @bind="newPrPriority">
                                 <option value="Routine">Routine</option>
                                 <option value="Urgent">Urgent</option>
                                 <option value="Emergency">Emergency</option>
                             </select>
-                            <input class="form-control" type="date" @bind="newPrNeedByDate" />
-                            <input class="form-control" type="number" step="0.01" placeholder="Est. Cost ($)" @bind="newPrEstimatedCost" />
+                            <input class="form-input" type="date" @bind="newPrNeedByDate" />
+                            <input class="form-input" type="number" step="0.01" placeholder="Est. Cost ($)" @bind="newPrEstimatedCost" />
                         </div>
                         <div class="form-row">
-                            <input class="form-control" placeholder="Description" @bind="newPrDescription" />
+                            <input class="form-input" placeholder="Description" @bind="newPrDescription" />
                         </div>
                         <div class="form-row">
-                            <input class="form-control" placeholder="Justification" @bind="newPrJustification" />
+                            <input class="form-input" placeholder="Justification" @bind="newPrJustification" />
                         </div>
                         <div class="form-row">
-                            <input class="form-control" placeholder="Preferred Vendor ID (optional)" @bind="newPrVendorId" />
-                            <input class="form-control" placeholder="Preferred Vendor Name (optional)" @bind="newPrVendorName" />
+                            <input class="form-input" placeholder="Preferred Vendor ID (optional)" @bind="newPrVendorId" />
+                            <input class="form-input" placeholder="Preferred Vendor Name (optional)" @bind="newPrVendorName" />
                         </div>
                         <div class="form-row">
-                            <input class="form-control" placeholder="Notes (optional)" @bind="newPrNotes" />
+                            <input class="form-input" placeholder="Notes (optional)" @bind="newPrNotes" />
                         </div>
                         <h5 style="margin-top:0.5rem;">Line Items</h5>
                         @foreach (var line in newPrLines)
                         {
                             <div class="form-row">
                                 <span style="color:#aaa;font-size:0.8rem;padding-top:0.4rem;">Line @line.LineNumber</span>
-                                <input class="form-control" placeholder="Description" @bind="line.ItemDescription" />
-                                <input class="form-control" type="number" step="1" placeholder="Qty" @bind="line.Quantity" />
-                                <input class="form-control" placeholder="Unit" @bind="line.UnitOfIssue" />
-                                <input class="form-control" type="number" step="0.01" placeholder="Unit Cost" @bind="line.UnitCost" />
+                                <input class="form-input" placeholder="Description" @bind="line.ItemDescription" />
+                                <input class="form-input" type="number" step="1" placeholder="Qty" @bind="line.Quantity" />
+                                <input class="form-input" placeholder="Unit" @bind="line.UnitOfIssue" />
+                                <input class="form-input" type="number" step="0.01" placeholder="Unit Cost" @bind="line.UnitCost" />
                             </div>
                         }
-                        <button class="btn btn-sm btn-secondary" @onclick="AddPrLine">+ Add Line</button>
+                        <button class="btn btn-secondary" @onclick="AddPrLine">+ Add Line</button>
                         <button class="btn btn-primary" style="margin-left:0.5rem;" @onclick="CreatePurchaseRequest">Submit Request</button>
                         @if (createPrMsg != null) { <span class="form-msg">@createPrMsg</span> }
                     </div>
@@ -335,7 +335,7 @@
             }
             else
             {
-                <table class="table ifcap-table">
+                <table class="data-table">
                     <thead>
                         <tr>
                             <th>PO ID</th>
@@ -358,8 +358,8 @@
                                 <td><span class="badge @PoStatusBadge(po.Status.ToString())">@po.Status</span></td>
                                 <td>@po.IssuedDate.ToString("MM/dd/yyyy")</td>
                                 <td>
-                                    <button class="btn btn-sm btn-success" @onclick='() => ToggleReceivePanel(po.PurchaseOrderId)'>Receive Goods</button>
-                                    <button class="btn btn-sm btn-danger" @onclick='() => ToggleCancelPoPanel(po.PurchaseOrderId)'>Cancel</button>
+                                    <button class="btn btn-primary" @onclick='() => ToggleReceivePanel(po.PurchaseOrderId)'>Receive Goods</button>
+                                    <button class="btn btn-primary" @onclick='() => ToggleCancelPoPanel(po.PurchaseOrderId)'>Cancel</button>
                                 </td>
                             </tr>
                             @if (receivingPoId == po.PurchaseOrderId)
@@ -368,20 +368,20 @@
                                     <td colspan="7">
                                         <div class="form-panel">
                                             <div class="form-row">
-                                                <input class="form-control" placeholder="Received By User ID" @bind="rrUserId" />
-                                                <input class="form-control" placeholder="Received By Name" @bind="rrUserName" />
-                                                <input class="form-control" placeholder="Notes (optional)" @bind="rrNotes" />
+                                                <input class="form-input" placeholder="Received By User ID" @bind="rrUserId" />
+                                                <input class="form-input" placeholder="Received By Name" @bind="rrUserName" />
+                                                <input class="form-input" placeholder="Notes (optional)" @bind="rrNotes" />
                                             </div>
                                             @foreach (var line in rrLines)
                                             {
                                                 <div class="form-row">
                                                     <span style="color:#aaa;font-size:0.8rem;padding-top:0.4rem;">Line @line.LineNumber</span>
-                                                    <input class="form-control" type="number" step="0.01" placeholder="Qty Received" @bind="line.QuantityReceived" />
-                                                    <input class="form-control" type="number" step="0.01" placeholder="Qty Accepted" @bind="line.QuantityAccepted" />
-                                                    <input class="form-control" placeholder="Condition (optional)" @bind="line.Condition" />
+                                                    <input class="form-input" type="number" step="0.01" placeholder="Qty Received" @bind="line.QuantityReceived" />
+                                                    <input class="form-input" type="number" step="0.01" placeholder="Qty Accepted" @bind="line.QuantityAccepted" />
+                                                    <input class="form-input" placeholder="Condition (optional)" @bind="line.Condition" />
                                                 </div>
                                             }
-                                            <button class="btn btn-success" @onclick='() => SubmitReceivingReport(po.PurchaseOrderId)'>Submit Receiving Report</button>
+                                            <button class="btn btn-primary" @onclick='() => SubmitReceivingReport(po.PurchaseOrderId)'>Submit Receiving Report</button>
                                             @if (rrMsg != null) { <span class="form-msg">@rrMsg</span> }
                                         </div>
                                     </td>
@@ -393,9 +393,9 @@
                                     <td colspan="7">
                                         <div class="form-panel">
                                             <div class="form-row">
-                                                <input class="form-control" placeholder="User ID" @bind="cancelPoUserId" />
-                                                <input class="form-control" placeholder="Reason" @bind="cancelPoReason" />
-                                                <button class="btn btn-danger" @onclick='() => CancelPurchaseOrder(po.PurchaseOrderId)'>Confirm Cancel</button>
+                                                <input class="form-input" placeholder="User ID" @bind="cancelPoUserId" />
+                                                <input class="form-input" placeholder="Reason" @bind="cancelPoReason" />
+                                                <button class="btn btn-primary" @onclick='() => CancelPurchaseOrder(po.PurchaseOrderId)'>Confirm Cancel</button>
                                             </div>
                                             @if (cancelPoMsg != null) { <span class="form-msg">@cancelPoMsg</span> }
                                         </div>
@@ -415,7 +415,7 @@
             }
             else
             {
-                <table class="table ifcap-table">
+                <table class="data-table">
                     <thead>
                         <tr>
                             <th>PO ID</th>
@@ -438,7 +438,7 @@
                                 <td>
                                     @if (po.Status == PurchaseOrderStatus.Received)
                                     {
-                                        <button class="btn btn-sm btn-secondary" @onclick='() => ClosePoConfirm(po.PurchaseOrderId)'>Close</button>
+                                        <button class="btn btn-secondary" @onclick='() => ClosePoConfirm(po.PurchaseOrderId)'>Close</button>
                                     }
                                 </td>
                             </tr>
@@ -448,38 +448,38 @@
             }
 
             <!-- Create PO from Approved PR -->
-            <button class="btn btn-success btn-sm" style="margin-top:1rem;" @onclick='() => showCreatePo = !showCreatePo'>+ Create Purchase Order</button>
+            <button class="btn btn-primary" style="margin-top:1rem;" @onclick='() => showCreatePo = !showCreatePo'>+ Create Purchase Order</button>
             @if (showCreatePo)
             {
                 <div class="form-panel">
                     <h4>Issue Purchase Order from Approved Request</h4>
                     <div class="form-row">
-                        <input class="form-control" placeholder="Request ID (approved 2237)" @bind="newPoRequestId" />
-                        <input class="form-control" placeholder="Control Point ID" @bind="newPoControlPointId" />
+                        <input class="form-input" placeholder="Request ID (approved 2237)" @bind="newPoRequestId" />
+                        <input class="form-input" placeholder="Control Point ID" @bind="newPoControlPointId" />
                     </div>
                     <div class="form-row">
-                        <input class="form-control" placeholder="Vendor ID" @bind="newPoVendorId" />
-                        <input class="form-control" placeholder="Vendor Name" @bind="newPoVendorName" />
-                        <input class="form-control" placeholder="Vendor Address (optional)" @bind="newPoVendorAddress" />
+                        <input class="form-input" placeholder="Vendor ID" @bind="newPoVendorId" />
+                        <input class="form-input" placeholder="Vendor Name" @bind="newPoVendorName" />
+                        <input class="form-input" placeholder="Vendor Address (optional)" @bind="newPoVendorAddress" />
                     </div>
                     <div class="form-row">
                         <label>Required Delivery Date</label>
-                        <input class="form-control" type="date" @bind="newPoRequiredDelivery" />
-                        <input class="form-control" placeholder="Issued By User ID" @bind="newPoIssuedByUserId" />
-                        <input class="form-control" placeholder="Issued By Name" @bind="newPoIssuedByUserName" />
+                        <input class="form-input" type="date" @bind="newPoRequiredDelivery" />
+                        <input class="form-input" placeholder="Issued By User ID" @bind="newPoIssuedByUserId" />
+                        <input class="form-input" placeholder="Issued By Name" @bind="newPoIssuedByUserName" />
                     </div>
                     <h5 style="margin-top:0.5rem;">Line Items</h5>
                     @foreach (var line in newPoLines)
                     {
                         <div class="form-row">
                             <span style="color:#aaa;font-size:0.8rem;padding-top:0.4rem;">Line @line.LineNumber</span>
-                            <input class="form-control" placeholder="Description" @bind="line.ItemDescription" />
-                            <input class="form-control" type="number" step="1" placeholder="Qty" @bind="line.Quantity" />
-                            <input class="form-control" placeholder="Unit" @bind="line.UnitOfIssue" />
-                            <input class="form-control" type="number" step="0.01" placeholder="Unit Cost" @bind="line.UnitCost" />
+                            <input class="form-input" placeholder="Description" @bind="line.ItemDescription" />
+                            <input class="form-input" type="number" step="1" placeholder="Qty" @bind="line.Quantity" />
+                            <input class="form-input" placeholder="Unit" @bind="line.UnitOfIssue" />
+                            <input class="form-input" type="number" step="0.01" placeholder="Unit Cost" @bind="line.UnitCost" />
                         </div>
                     }
-                    <button class="btn btn-sm btn-secondary" @onclick="AddPoLine">+ Add Line</button>
+                    <button class="btn btn-secondary" @onclick="AddPoLine">+ Add Line</button>
                     <button class="btn btn-primary" style="margin-left:0.5rem;" @onclick="CreatePurchaseOrder">Issue PO</button>
                     @if (createPoMsg != null) { <span class="form-msg">@createPoMsg</span> }
                 </div>
@@ -494,7 +494,7 @@
             <h3>Vendor Directory</h3>
 
             <div class="form-row">
-                <input class="form-control" placeholder="Search name or vendor number" @bind="vendorSearch" />
+                <input class="form-input" placeholder="Search name or vendor number" @bind="vendorSearch" />
                 <button class="btn btn-primary" @onclick="SearchVendors">Search</button>
                 <button class="btn btn-secondary" @onclick="LoadVendors">All</button>
             </div>
@@ -505,7 +505,7 @@
             }
             else
             {
-                <table class="table ifcap-table">
+                <table class="data-table">
                     <thead>
                         <tr>
                             <th>Name</th>
@@ -525,33 +525,33 @@
                                 <td>@(v.IsSmallBusiness ? "✓" : "—")</td>
                                 <td>—</td>
                                 <td>@(v.IsVeteranOwned ? "✓" : "—")</td>
-                                <td><span class="badge @(v.IsActive ? "badge-success" : "badge-secondary")">@(v.IsActive ? "Active" : "Inactive")</span></td>
+                                <td>@(v.IsActive ? "Active" : "Inactive")</td>
                             </tr>
                         }
                     </tbody>
                 </table>
             }
 
-            <button class="btn btn-success btn-sm" style="margin-top:1rem;" @onclick='() => showCreateVendor = !showCreateVendor'>+ New Vendor</button>
+            <button class="btn btn-primary" style="margin-top:1rem;" @onclick='() => showCreateVendor = !showCreateVendor'>+ New Vendor</button>
             @if (showCreateVendor)
             {
                 <div class="form-panel">
                     <h4>Register Vendor</h4>
                     <div class="form-row">
-                        <input class="form-control" placeholder="Vendor Name" @bind="newVendorName" />
-                        <input class="form-control" placeholder="Vendor Number" @bind="newVendorNumber" />
+                        <input class="form-input" placeholder="Vendor Name" @bind="newVendorName" />
+                        <input class="form-input" placeholder="Vendor Number" @bind="newVendorNumber" />
                     </div>
                     <div class="form-row">
-                        <input class="form-control" placeholder="Address" @bind="newVendorAddress" />
-                        <input class="form-control" placeholder="City" @bind="newVendorCity" />
-                        <input class="form-control" placeholder="State" @bind="newVendorState" />
-                        <input class="form-control" placeholder="ZIP" @bind="newVendorZip" />
+                        <input class="form-input" placeholder="Address" @bind="newVendorAddress" />
+                        <input class="form-input" placeholder="City" @bind="newVendorCity" />
+                        <input class="form-input" placeholder="State" @bind="newVendorState" />
+                        <input class="form-input" placeholder="ZIP" @bind="newVendorZip" />
                     </div>
                     <div class="form-row">
-                        <input class="form-control" placeholder="Phone (optional)" @bind="newVendorPhone" />
-                        <input class="form-control" placeholder="Email (optional)" @bind="newVendorEmail" />
-                        <input class="form-control" placeholder="Contact Name (optional)" @bind="newVendorContact" />
-                        <input class="form-control" placeholder="DUNS/SAM (optional)" @bind="newVendorDuns" />
+                        <input class="form-input" placeholder="Phone (optional)" @bind="newVendorPhone" />
+                        <input class="form-input" placeholder="Email (optional)" @bind="newVendorEmail" />
+                        <input class="form-input" placeholder="Contact Name (optional)" @bind="newVendorContact" />
+                        <input class="form-input" placeholder="DUNS/SAM (optional)" @bind="newVendorDuns" />
                     </div>
                     <div class="form-row checkboxes">
                         <label><input type="checkbox" @bind="newVendorSb" /> Small Business</label>
@@ -587,20 +587,20 @@
             <div class="form-panel">
                 <h4>Update Site Parameters</h4>
                 <div class="form-row">
-                    <input class="form-control" placeholder="Site Name" @bind="spSiteName" />
-                    <input class="form-control" placeholder="Facility Number" @bind="spFacilityNumber" />
-                    <input class="form-control" type="number" placeholder="Fiscal Year" @bind="spFiscalYear" />
+                    <input class="form-input" placeholder="Site Name" @bind="spSiteName" />
+                    <input class="form-input" placeholder="Facility Number" @bind="spFacilityNumber" />
+                    <input class="form-input" type="number" placeholder="Fiscal Year" @bind="spFiscalYear" />
                 </div>
                 <div class="form-row">
-                    <input class="form-control" type="number" placeholder="Default Delivery Days" @bind="spDeliveryDays" />
-                    <input class="form-control" type="number" step="0.01" placeholder="Auto-Approval Threshold ($)" @bind="spAutoApprovalThreshold" />
-                    <input class="form-control" placeholder="PO Number Prefix" @bind="spPoPrefix" />
+                    <input class="form-input" type="number" placeholder="Default Delivery Days" @bind="spDeliveryDays" />
+                    <input class="form-input" type="number" step="0.01" placeholder="Auto-Approval Threshold ($)" @bind="spAutoApprovalThreshold" />
+                    <input class="form-input" placeholder="PO Number Prefix" @bind="spPoPrefix" />
                 </div>
                 <div class="form-row checkboxes">
                     <label><input type="checkbox" @bind="spAutoApproval" /> Auto-Approval Enabled</label>
                 </div>
                 <div class="form-row">
-                    <input class="form-control" placeholder="Updated By User ID" @bind="spUpdatedByUserId" />
+                    <input class="form-input" placeholder="Updated By User ID" @bind="spUpdatedByUserId" />
                 </div>
                 <button class="btn btn-primary" @onclick="UpdateSiteParams">Update Parameters</button>
                 @if (siteParamsMsg != null) { <span class="form-msg">@siteParamsMsg</span> }
@@ -1114,31 +1114,31 @@
     private static string CpStatusBadge(string s) => s switch
     {
         "Active"    => "badge-success",
-        "Inactive"  => "badge-secondary",
+        "Inactive"  => "badge-neutral",
         "Suspended" => "badge-warning",
-        _           => "badge-secondary",
+        _           => "badge-neutral",
     };
 
     private static string PrStatusBadge(string s) => s switch
     {
-        "Draft"     => "badge-secondary",
+        "Draft"     => "badge-neutral",
         "Submitted" => "badge-warning",
         "Approved"  => "badge-info",
         "Funded"    => "badge-success",
-        "Cancelled" => "badge-secondary",
+        "Cancelled" => "badge-neutral",
         "Rejected"  => "badge-danger",
-        _           => "badge-secondary",
+        _           => "badge-neutral",
     };
 
     private static string PoStatusBadge(string s) => s switch
     {
-        "Draft"             => "badge-secondary",
-        "Open"              => "badge-primary",
+        "Draft"             => "badge-neutral",
+        "Open"              => "badge-info",
         "PartiallyReceived" => "badge-warning",
         "Received"          => "badge-info",
-        "Cancelled"         => "badge-secondary",
+        "Cancelled"         => "badge-neutral",
         "Closed"            => "badge-success",
-        _                   => "badge-secondary",
+        _                   => "badge-neutral",
     };
 
     // ─── Local form helpers ───────────────────────────────────────────────────
@@ -1208,43 +1208,23 @@
 }
 
 <style>
-    .ifcap-container { padding: 1rem; font-family: 'Courier New', monospace; max-width: 1300px; }
+    /* Canonical classes (.tab-bar, .tab, .btn/.btn-primary/.btn-secondary, .data-table,
+       .form-input, .badge/.badge-*, .alert/.alert-error) live in wwwroot/app.css.
+       Only IFCAP page-specific layout rules remain here. */
+    .ifcap-container { padding: 1rem; max-width: 1300px; }
     .ifcap-header { margin-bottom: 1rem; }
-    .ifcap-header h2 { font-size: 1.1rem; color: #e0e0e0; }
-    .ifcap-tabs { display: flex; gap: 0; margin-bottom: 1rem; border-bottom: 2px solid #333; }
-    .tab-btn { padding: 0.4rem 1.2rem; background: transparent; border: none; color: #aaa; cursor: pointer; border-bottom: 2px solid transparent; margin-bottom: -2px; }
-    .tab-btn.active { color: #4fc3f7; border-bottom-color: #4fc3f7; }
+    .ifcap-header h2 { font-size: 1.1rem; color: #003f72; }
     .tab-panel { padding: 1rem 0; }
-    .ifcap-table { width: 100%; border-collapse: collapse; font-size: 0.875rem; }
-    .ifcap-table th { background: #1a1a2e; color: #aaa; padding: 0.4rem 0.6rem; text-align: left; }
-    .ifcap-table td { padding: 0.4rem 0.6rem; border-bottom: 1px solid #2a2a3e; }
-    .ifcap-table tr.selected-row td { background: #1a2a3a; }
-    .badge { padding: 0.2rem 0.5rem; border-radius: 3px; font-size: 0.75rem; font-weight: bold; }
-    .badge-primary { background: #1565c0; color: #fff; }
-    .badge-success { background: #2e7d32; color: #fff; }
-    .badge-info { background: #00838f; color: #fff; }
-    .badge-warning { background: #e65100; color: #fff; }
-    .badge-danger { background: #b71c1c; color: #fff; }
-    .badge-secondary { background: #424242; color: #ddd; }
-    .form-panel { background: #1a1a2e; padding: 1rem; border-radius: 4px; margin-top: 1rem; }
+    .data-table tr.selected-row td { background: #eaf2fb; }
+    .form-panel { background: #f4f6f9; border: 1px solid #d4d9e0; padding: 1rem; border-radius: 4px; margin-top: 1rem; }
     .form-row { display: flex; gap: 0.5rem; margin-bottom: 0.5rem; flex-wrap: wrap; align-items: flex-start; }
-    .form-row label { color: #aaa; font-size: 0.85rem; min-width: 100px; padding-top: 0.4rem; }
+    .form-row label { color: #333; font-size: 0.85rem; min-width: 100px; padding-top: 0.4rem; }
     .form-row.checkboxes { gap: 1rem; align-items: center; }
-    .form-row.checkboxes label { min-width: auto; display: flex; gap: 0.3rem; align-items: center; cursor: pointer; color: #ccc; }
-    .form-control { background: #0d0d1a; color: #e0e0e0; border: 1px solid #333; padding: 0.3rem 0.5rem; border-radius: 3px; font-family: inherit; min-width: 140px; }
-    .btn { padding: 0.3rem 0.8rem; border: none; border-radius: 3px; cursor: pointer; font-size: 0.85rem; }
-    .btn-primary { background: #1565c0; color: #fff; }
-    .btn-success { background: #2e7d32; color: #fff; }
-    .btn-warning { background: #e65100; color: #fff; }
-    .btn-danger { background: #b71c1c; color: #fff; }
-    .btn-secondary { background: #424242; color: #ddd; }
-    .btn-outline-primary { background: transparent; border: 1px solid #1565c0; color: #4fc3f7; }
-    .btn-sm { padding: 0.2rem 0.5rem; font-size: 0.8rem; }
-    .form-msg { margin-left: 0.5rem; font-size: 0.85rem; color: #4fc3f7; }
-    .detail-panel { background: #0d1117; border: 1px solid #2a2a3e; border-radius: 4px; padding: 1rem; margin-top: 1rem; }
-    .detail-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 0.5rem; margin-bottom: 1rem; font-size: 0.875rem; color: #ccc; }
-    .action-section { margin-top: 1rem; padding-top: 0.75rem; border-top: 1px solid #2a2a3e; }
-    .action-section h5 { color: #aaa; font-size: 0.9rem; margin-bottom: 0.5rem; }
-    .alert-danger { background: #3d0000; color: #ff8a80; padding: 0.5rem 1rem; border-radius: 4px; margin-bottom: 1rem; }
+    .form-row.checkboxes label { min-width: auto; display: flex; gap: 0.3rem; align-items: center; cursor: pointer; color: #333; }
+    .form-msg { margin-left: 0.5rem; font-size: 0.85rem; color: #1e40af; }
+    .detail-panel { background: #f9fafb; border: 1px solid #d4d9e0; border-radius: 4px; padding: 1rem; margin-top: 1rem; }
+    .detail-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 0.5rem; margin-bottom: 1rem; font-size: 0.875rem; color: #333; }
+    .action-section { margin-top: 1rem; padding-top: 0.75rem; border-top: 1px solid #d4d9e0; }
+    .action-section h5 { color: #003f72; font-size: 0.9rem; margin-bottom: 0.5rem; }
     .text-muted { color: #666; font-size: 0.875rem; }
 </style>

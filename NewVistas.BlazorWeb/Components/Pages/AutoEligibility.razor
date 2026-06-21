@@ -12,71 +12,72 @@
 
 <PageTitle>Automatic Eligibility Determination</PageTitle>
 
-<h3>Automatic Eligibility Determination</h3>
-<p class="text-muted">DG/IB Integration — Means Test → Copay → Enrollment (DGENELA.m)</p>
+<h1>Automatic Eligibility Determination</h1>
+<p class="page-subtitle">DG/IB Integration — Means Test → Copay → Enrollment (DGENELA.m)</p>
 
-<div class="mb-3 d-flex gap-2">
-    <input class="form-control" style="max-width:260px" placeholder="Patient ID" @bind="patientId" @bind:event="oninput" />
-    <button class="btn btn-success" @onclick="RunDetermination" disabled="@loading">Run Determination</button>
-    <button class="btn btn-outline-primary" @onclick="LoadExisting" disabled="@loading">Load Existing</button>
+<PatientBar @bind-PatientId="patientId" Loading="loading" OnLoad="RunDetermination" LoadText="Run Determination" />
+<div class="form-actions" style="margin-top:-0.75rem;margin-bottom:1.5rem">
+    <button class="btn btn-secondary" @onclick="LoadExisting" disabled="@loading">Load Existing</button>
 </div>
 
-@if (error != null) { <div class="alert alert-danger">@error</div> }
+<AlertBanner Error="@error" />
 
 @if (det != null)
 {
-    <div class="card mb-3">
-        <div class="card-header d-flex justify-content-between">
-            <span><strong>Eligibility Determination</strong> <span class="badge @ResultBadge(det.Result) ms-2">@det.Result</span></span>
-            <span class="text-muted">@det.DeterminationDate.ToString("yyyy-MM-dd HH:mm:ss")</span>
-        </div>
-        <div class="card-body">
-            <div class="row g-3 mb-3">
-                <div class="col-md-3"><div class="card text-center"><div class="card-body"><h5 class="@ResultColor(det.Result)">@det.Result</h5><p class="text-muted small">Determination</p></div></div></div>
-                <div class="col-md-3"><div class="card text-center"><div class="card-body"><h5>@(det.CopayRequired ? "Yes" : "No")</h5><p class="text-muted small">Copay Required</p></div></div></div>
-                <div class="col-md-3"><div class="card text-center"><div class="card-body"><h5>@(det.AssignedPriorityGroup ?? "—")</h5><p class="text-muted small">Priority Group</p></div></div></div>
-                <div class="col-md-3"><div class="card text-center"><div class="card-body"><h5>@(det.AutoApplied ? "Yes" : "No")</h5><p class="text-muted small">Auto-Applied</p></div></div></div>
-            </div>
+    <div class="form-section" style="max-width:900px">
+        <h3>
+            Eligibility Determination
+            <span class="badge @ResultBadge(det.Result)">@det.Result</span>
+            <span class="page-subtitle" style="margin:0">@det.DeterminationDate.ToString("yyyy-MM-dd HH:mm:ss")</span>
+        </h3>
 
-            <div class="row">
-                <div class="col-md-6">
-                    <h6>Input Factors</h6>
-                    <dl class="row mb-0">
-                        <dt class="col-sm-6">Enrollment Status</dt><dd class="col-sm-6">@det.EnrollmentStatus</dd>
-                        <dt class="col-sm-6">Priority Group</dt><dd class="col-sm-6">@(det.PriorityGroup ?? "—")</dd>
-                        <dt class="col-sm-6">Means Test Required</dt><dd class="col-sm-6">@det.MeansTestRequired</dd>
-                        <dt class="col-sm-6">Means Test Completed</dt><dd class="col-sm-6">@det.MeansTestCompleted</dd>
-                        <dt class="col-sm-6">SC 50%+</dt><dd class="col-sm-6">@det.IsServiceConnected50Plus</dd>
-                        <dt class="col-sm-6">SC %</dt><dd class="col-sm-6">@(det.ServiceConnectedPercent?.ToString() ?? "—")</dd>
-                        <dt class="col-sm-6">VA Pension</dt><dd class="col-sm-6">@det.ReceivesVaPension</dd>
-                        <dt class="col-sm-6">Cat. Disabled</dt><dd class="col-sm-6">@det.IsCatastrophicallyDisabled</dd>
-                        <dt class="col-sm-6">Former POW</dt><dd class="col-sm-6">@det.IsFormerPOW</dd>
-                        <dt class="col-sm-6">Purple Heart</dt><dd class="col-sm-6">@det.IsPurpleHeart</dd>
-                    </dl>
-                </div>
-                <div class="col-md-6">
-                    <h6>Output</h6>
-                    <dl class="row mb-0">
-                        <dt class="col-sm-6">Copay Exemption</dt><dd class="col-sm-6">@(det.CopayExemptionReason ?? "—")</dd>
-                        <dt class="col-sm-6">Adjusted Income</dt><dd class="col-sm-6">@(det.AdjustedIncome?.ToString("C") ?? "—")</dd>
-                        <dt class="col-sm-6">GMT Threshold</dt><dd class="col-sm-6">@(det.GmtThreshold?.ToString("C") ?? "—")</dd>
-                    </dl>
+        <p>
+            <strong>Determination:</strong> @det.Result &nbsp;&nbsp;
+            <strong>Copay Required:</strong> @(det.CopayRequired ? "Yes" : "No") &nbsp;&nbsp;
+            <strong>Priority Group:</strong> @(det.AssignedPriorityGroup ?? "—") &nbsp;&nbsp;
+            <strong>Auto-Applied:</strong> @(det.AutoApplied ? "Yes" : "No")
+        </p>
 
-                    <h6 class="mt-3">Determination Factors</h6>
-                    <ul class="list-group list-group-flush">
-                        @foreach (var f in det.DeterminationFactors)
-                        {
-                            <li class="list-group-item py-1 small">@f</li>
-                        }
-                    </ul>
-                </div>
-            </div>
-        </div>
+        <h3>Input Factors</h3>
+        <p>
+            <strong>Enrollment Status:</strong> @det.EnrollmentStatus &nbsp;&nbsp;
+            <strong>Priority Group:</strong> @(det.PriorityGroup ?? "—") &nbsp;&nbsp;
+            <strong>Means Test Required:</strong> @det.MeansTestRequired &nbsp;&nbsp;
+            <strong>Means Test Completed:</strong> @det.MeansTestCompleted
+        </p>
+        <p>
+            <strong>SC 50%+:</strong> @det.IsServiceConnected50Plus &nbsp;&nbsp;
+            <strong>SC %:</strong> @(det.ServiceConnectedPercent?.ToString() ?? "—") &nbsp;&nbsp;
+            <strong>VA Pension:</strong> @det.ReceivesVaPension &nbsp;&nbsp;
+            <strong>Cat. Disabled:</strong> @det.IsCatastrophicallyDisabled
+        </p>
+        <p>
+            <strong>Former POW:</strong> @det.IsFormerPOW &nbsp;&nbsp;
+            <strong>Purple Heart:</strong> @det.IsPurpleHeart
+        </p>
+
+        <h3>Output</h3>
+        <p>
+            <strong>Copay Exemption:</strong> @(det.CopayExemptionReason ?? "—") &nbsp;&nbsp;
+            <strong>Adjusted Income:</strong> @(det.AdjustedIncome?.ToString("C") ?? "—") &nbsp;&nbsp;
+            <strong>GMT Threshold:</strong> @(det.GmtThreshold?.ToString("C") ?? "—")
+        </p>
+
+        @if (det.DeterminationFactors.Count > 0)
+        {
+            <h3>Determination Factors</h3>
+            <ul>
+                @foreach (var f in det.DeterminationFactors)
+                {
+                    <li>@f</li>
+                }
+            </ul>
+        }
     </div>
 }
 
 @code {
-    private string patientId = string.Empty;
+    private string? patientId;
     private bool loading;
     private string? error;
     private AutoEligibilityDeterminationState? det;
@@ -101,18 +102,15 @@
 
     private string ResultBadge(EligibilityDeterminationResult r) => r switch
     {
-        EligibilityDeterminationResult.Exempt or EligibilityDeterminationResult.HardshipExempt => "bg-success",
-        EligibilityDeterminationResult.CopayRequired => "bg-warning text-dark",
-        EligibilityDeterminationResult.NotEligible or EligibilityDeterminationResult.NotEligibleIncome => "bg-danger",
-        EligibilityDeterminationResult.Pending => "bg-info",
-        _ => "bg-secondary",
-    };
-
-    private string ResultColor(EligibilityDeterminationResult r) => r switch
-    {
-        EligibilityDeterminationResult.Exempt or EligibilityDeterminationResult.HardshipExempt => "text-success",
-        EligibilityDeterminationResult.CopayRequired => "text-warning",
-        EligibilityDeterminationResult.NotEligible or EligibilityDeterminationResult.NotEligibleIncome => "text-danger",
-        _ => "",
+        EligibilityDeterminationResult.Exempt or EligibilityDeterminationResult.HardshipExempt => "badge-success",
+        EligibilityDeterminationResult.CopayRequired => "badge-warning",
+        EligibilityDeterminationResult.NotEligible or EligibilityDeterminationResult.NotEligibleIncome => "badge-danger",
+        EligibilityDeterminationResult.Pending => "badge-info",
+        _ => "badge-neutral",
     };
 }
+
+<style>
+    .page-subtitle { color: #666; margin: -0.5rem 0 1.25rem; font-size: 0.9rem; }
+    .form-section p { font-size: 0.9rem; line-height: 1.6; }
+</style>

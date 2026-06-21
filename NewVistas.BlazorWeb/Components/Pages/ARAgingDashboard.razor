@@ -12,65 +12,61 @@
 
 <PageTitle>AR Aging &amp; Financial Reporting</PageTitle>
 
-<h3>AR Aging &amp; Financial Reporting</h3>
-<p class="text-muted">PRCA AR Aging Analysis &amp; Revenue Cycle Metrics (RCRP*.m)</p>
+<h1>AR Aging &amp; Financial Reporting</h1>
+<p class="page-subtitle">PRCA AR Aging Analysis &amp; Revenue Cycle Metrics (RCRP*.m)</p>
 
-<div class="mb-3 d-flex gap-2">
-    <input class="form-control" style="max-width:260px" placeholder="Patient ID" @bind="patientId" @bind:event="oninput" />
+<div class="lookup-bar">
+    <input class="lookup-input" placeholder="Patient ID" @bind="patientId" @bind:event="oninput" />
     <button class="btn btn-primary" @onclick="GenerateReport" disabled="@loading">Generate Report</button>
-    <button class="btn btn-outline-secondary" @onclick="LoadDemo" disabled="@loading">Load Demo</button>
+    <button class="btn btn-primary" @onclick="LoadDemo" disabled="@loading">Load Demo</button>
 </div>
 
-@if (error != null) { <div class="alert alert-danger">@error</div> }
+<AlertBanner Error="@error" />
 
-<ul class="nav nav-tabs mb-3">
-    <li class="nav-item"><button class="nav-link @(tab == "metrics" ? "active" : "")" @onclick='() => tab = "metrics"'>Revenue Metrics</button></li>
-    <li class="nav-item"><button class="nav-link @(tab == "aging" ? "active" : "")" @onclick='() => tab = "aging"'>Aging Buckets</button></li>
-    <li class="nav-item"><button class="nav-link @(tab == "accounts" ? "active" : "")" @onclick='() => tab = "accounts"'>Account Details</button></li>
-</ul>
+<TabStrip Tabs="_tabs" @bind-Active="tab" />
 
 @* ─── Revenue Metrics ──────────────────────────────────────────────────── *@
 @if (tab == "metrics" && metrics != null)
 {
-    <div class="row g-3 mb-4">
-        <div class="col-md-3"><div class="card text-center"><div class="card-body"><h5 class="card-title text-primary">@metrics.TotalARBalance.ToString("C")</h5><p class="card-text text-muted">Total AR Balance</p></div></div></div>
-        <div class="col-md-3"><div class="card text-center"><div class="card-body"><h5 class="card-title text-success">@metrics.CollectionRate.ToString("P1")</h5><p class="card-text text-muted">Collection Rate</p></div></div></div>
-        <div class="col-md-3"><div class="card text-center"><div class="card-body"><h5 class="card-title text-info">@metrics.AverageDaysOutstanding</h5><p class="card-text text-muted">Avg Days Outstanding</p></div></div></div>
-        <div class="col-md-3"><div class="card text-center"><div class="card-body"><h5 class="card-title text-secondary">@metrics.TotalActiveAccounts</h5><p class="card-text text-muted">Active Accounts</p></div></div></div>
+    <div class="metric-grid">
+        <div class="metric-card"><div class="metric-value">@metrics.TotalARBalance.ToString("C")</div><div class="metric-label">Total AR Balance</div></div>
+        <div class="metric-card"><div class="metric-value">@metrics.CollectionRate.ToString("P1")</div><div class="metric-label">Collection Rate</div></div>
+        <div class="metric-card"><div class="metric-value">@metrics.AverageDaysOutstanding</div><div class="metric-label">Avg Days Outstanding</div></div>
+        <div class="metric-card"><div class="metric-value">@metrics.TotalActiveAccounts</div><div class="metric-label">Active Accounts</div></div>
     </div>
-    <div class="row g-3 mb-4">
-        <div class="col-md-3"><div class="card text-center"><div class="card-body"><h6 class="text-success">@metrics.TotalPaymentsReceived.ToString("C")</h6><p class="card-text text-muted small">Total Payments</p></div></div></div>
-        <div class="col-md-3"><div class="card text-center"><div class="card-body"><h6>@metrics.TotalNewCharges.ToString("C")</h6><p class="card-text text-muted small">Total Charges</p></div></div></div>
-        <div class="col-md-3"><div class="card text-center"><div class="card-body"><h6 class="text-warning">@metrics.DelinquentAccountCount (@metrics.DelinquentBalance.ToString("C"))</h6><p class="card-text text-muted small">Delinquent</p></div></div></div>
-        <div class="col-md-3"><div class="card text-center"><div class="card-body"><h6 class="text-danger">@metrics.InCollectionCount (@metrics.InCollectionBalance.ToString("C"))</h6><p class="card-text text-muted small">In Collection</p></div></div></div>
+    <div class="metric-grid">
+        <div class="metric-card"><div class="metric-value">@metrics.TotalPaymentsReceived.ToString("C")</div><div class="metric-label">Total Payments</div></div>
+        <div class="metric-card"><div class="metric-value">@metrics.TotalNewCharges.ToString("C")</div><div class="metric-label">Total Charges</div></div>
+        <div class="metric-card"><div class="metric-value"><span class="badge badge-warning">@metrics.DelinquentAccountCount</span> @metrics.DelinquentBalance.ToString("C")</div><div class="metric-label">Delinquent</div></div>
+        <div class="metric-card"><div class="metric-value"><span class="badge badge-danger">@metrics.InCollectionCount</span> @metrics.InCollectionBalance.ToString("C")</div><div class="metric-label">In Collection</div></div>
     </div>
-    <p class="text-muted small">Report generated: @metrics.ReportDate.ToString("yyyy-MM-dd HH:mm:ss UTC")</p>
+    <p class="page-subtitle">Report generated: @metrics.ReportDate.ToString("yyyy-MM-dd HH:mm:ss UTC")</p>
 }
 
 @* ─── Aging Buckets ────────────────────────────────────────────────────── *@
 @if (tab == "aging" && buckets != null && buckets.Count > 0)
 {
-    <table class="table table-bordered">
-        <thead class="table-light">
-            <tr><th>Aging Bucket</th><th class="text-end">Accounts</th><th class="text-end">Balance</th><th class="text-end">% of Total</th><th></th></tr>
+    <table class="data-table">
+        <thead>
+            <tr><th>Aging Bucket</th><th>Accounts</th><th>Balance</th><th>% of Total</th><th></th></tr>
         </thead>
         <tbody>
             @foreach (var b in buckets)
             {
-                <tr>
-                    <td><strong>@b.Label</strong></td>
-                    <td class="text-end">@b.AccountCount</td>
-                    <td class="text-end">@b.TotalBalance.ToString("C")</td>
-                    <td class="text-end">@b.PercentOfTotal.ToString("P1")</td>
-                    <td><button class="btn btn-sm btn-outline-primary" @onclick="() => DrillIntoBucket(b.Bucket)">Details</button></td>
+                <tr class="@BucketRowClass(b.Bucket)">
+                    <td><span class="badge @BucketBadge(b.Bucket)">@b.Label</span></td>
+                    <td>@b.AccountCount</td>
+                    <td>@b.TotalBalance.ToString("C")</td>
+                    <td>@b.PercentOfTotal.ToString("P1")</td>
+                    <td><button class="btn btn-primary" @onclick="() => DrillIntoBucket(b.Bucket)">Details</button></td>
                 </tr>
             }
         </tbody>
-        <tfoot class="table-secondary">
+        <tfoot>
             <tr>
                 <td><strong>Total</strong></td>
-                <td class="text-end"><strong>@buckets.Sum(b => b.AccountCount)</strong></td>
-                <td class="text-end"><strong>@buckets.Sum(b => b.TotalBalance).ToString("C")</strong></td>
+                <td><strong>@buckets.Sum(b => b.AccountCount)</strong></td>
+                <td><strong>@buckets.Sum(b => b.TotalBalance).ToString("C")</strong></td>
                 <td></td><td></td>
             </tr>
         </tfoot>
@@ -80,21 +76,21 @@
 @* ─── Account Details ──────────────────────────────────────────────────── *@
 @if (tab == "accounts" && report != null && report.AccountDetails.Count > 0)
 {
-    @if (selectedBucket.HasValue) { <p>Showing accounts in <strong>@selectedBucket</strong> bucket. <button class="btn btn-link btn-sm" @onclick="() => { selectedBucket = null; }">Show All</button></p> }
+    @if (selectedBucket.HasValue) { <p>Showing accounts in <strong>@selectedBucket</strong> bucket. <button class="btn btn-primary" @onclick="() => { selectedBucket = null; }">Show All</button></p> }
 
-    <table class="table table-sm table-striped">
-        <thead><tr><th>Account ID</th><th>Category</th><th>Status</th><th class="text-end">Original</th><th class="text-end">Balance</th><th class="text-end">Days</th><th>Bucket</th></tr></thead>
+    <table class="data-table">
+        <thead><tr><th>Account ID</th><th>Category</th><th>Status</th><th>Original</th><th>Balance</th><th>Days</th><th>Bucket</th></tr></thead>
         <tbody>
             @foreach (var a in filteredAccounts)
             {
-                <tr>
-                    <td class="font-monospace small">@a.ARAccountId[..Math.Min(12, a.ARAccountId.Length)]...</td>
+                <tr class="@BucketRowClass(a.Bucket)">
+                    <td>@a.ARAccountId[..Math.Min(12, a.ARAccountId.Length)]...</td>
                     <td>@a.Category</td>
                     <td><span class="badge @AccountStatusBadge(a.Status)">@a.Status</span></td>
-                    <td class="text-end">@a.OriginalAmount.ToString("C")</td>
-                    <td class="text-end">@a.CurrentBalance.ToString("C")</td>
-                    <td class="text-end">@a.DaysOutstanding</td>
-                    <td>@BucketLabel(a.Bucket)</td>
+                    <td>@a.OriginalAmount.ToString("C")</td>
+                    <td>@a.CurrentBalance.ToString("C")</td>
+                    <td>@a.DaysOutstanding</td>
+                    <td><span class="badge @BucketBadge(a.Bucket)">@BucketLabel(a.Bucket)</span></td>
                 </tr>
             }
         </tbody>
@@ -102,7 +98,7 @@
 }
 else if (tab == "accounts" && !loading)
 {
-    <p class="text-muted">No report generated. Click "Generate Report" to create an AR aging snapshot.</p>
+    <div class="empty-state">No report generated. Click "Generate Report" to create an AR aging snapshot.</div>
 }
 
 @code {
@@ -114,6 +110,7 @@ else if (tab == "accounts" && !loading)
     private List<AgingBucketSummary>? buckets;
     private RevenueCycleMetrics? metrics;
     private AgingBucket? selectedBucket;
+    private readonly (string, string)[] _tabs = new[] { ("metrics", "Revenue Metrics"), ("aging", "Aging Buckets"), ("accounts", "Account Details") };
 
     private IEnumerable<AgingAccountDetail> filteredAccounts =>
         report?.AccountDetails.Where(a => !selectedBucket.HasValue || a.Bucket == selectedBucket.Value) ?? Enumerable.Empty<AgingAccountDetail>();
@@ -162,11 +159,36 @@ else if (tab == "accounts" && !loading)
         AgingBucket.OverOneTwenty => "121+", _ => "—",
     };
 
+    // Aging buckets carry the at-a-glance overdue cue (patient-safety badge rule for AR):
+    // 90+ days = warning, 120+ days = danger.
+    private string BucketBadge(AgingBucket b) => b switch
+    {
+        AgingBucket.NinetyOneToOneTwenty => "badge-warning",
+        AgingBucket.OverOneTwenty => "badge-danger",
+        _ => "badge-neutral",
+    };
+
+    private string BucketRowClass(AgingBucket b) => b switch
+    {
+        AgingBucket.OverOneTwenty => "row-danger",
+        AgingBucket.NinetyOneToOneTwenty => "row-warning",
+        _ => "",
+    };
+
     private string AccountStatusBadge(ARAccountStatus s) => s switch
     {
-        ARAccountStatus.Active => "bg-primary", ARAccountStatus.Paid => "bg-success",
-        ARAccountStatus.InCollection => "bg-danger", ARAccountStatus.TreasuryOffset => "bg-dark",
-        ARAccountStatus.OnPaymentPlan => "bg-info", ARAccountStatus.Waived => "bg-secondary",
-        _ => "bg-secondary",
+        ARAccountStatus.Active => "badge-info", ARAccountStatus.Paid => "badge-success",
+        ARAccountStatus.InCollection => "badge-danger", ARAccountStatus.TreasuryOffset => "badge-danger",
+        ARAccountStatus.OnPaymentPlan => "badge-info", ARAccountStatus.Waived => "badge-neutral",
+        _ => "badge-neutral",
     };
 }
+
+<style>
+    /* Canonical clinical classes live in app.css. Page-specific only: */
+    .page-subtitle { color: #666; margin: -0.5rem 0 1.25rem; font-size: 0.9rem; }
+    .metric-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1rem; margin-bottom: 1.25rem; }
+    .metric-card { border: 1px solid #e5e7eb; border-radius: 6px; padding: 1rem; text-align: center; }
+    .metric-value { font-size: 1.25rem; font-weight: 600; }
+    .metric-label { color: #666; font-size: 0.8rem; margin-top: 0.25rem; }
+</style>

@@ -12,41 +12,23 @@
 
 <PageTitle>Insurance Eligibility Verification (EDI 270/271)</PageTitle>
 
-<h3>Insurance Eligibility Verification</h3>
-<p class="text-muted">EDI 270 Inquiry / 271 Response — VistA IB Eligibility Verification (IBCNEDE*.m)</p>
+<h1>Insurance Eligibility Verification</h1>
+<p class="page-subtitle">EDI 270 Inquiry / 271 Response — VistA IB Eligibility Verification (IBCNEDE*.m)</p>
 
-<div class="mb-3 d-flex gap-2">
-    <input class="form-control" style="max-width:260px" placeholder="Patient ID" @bind="patientId" @bind:event="oninput" />
-    <button class="btn btn-primary" @onclick="LoadHistory" disabled="@loading">Load</button>
-    <button class="btn btn-outline-secondary" @onclick="LoadDemo" disabled="@loading">Load Demo Data</button>
+<PatientBar @bind-PatientId="patientId" Loading="loading" OnLoad="LoadHistory" />
+<div class="form-actions">
+    <button class="btn btn-primary" @onclick="LoadDemo" disabled="@loading">Load Demo Data</button>
 </div>
+<AlertBanner Error="@error" Success="@submitResult" />
 
-@if (error != null)
-{
-    <div class="alert alert-danger">@error</div>
-}
-
-<ul class="nav nav-tabs mb-3">
-    <li class="nav-item">
-        <button class="nav-link @(activeTab == "history" ? "active" : "")" @onclick='() => activeTab = "history"'>Verification History</button>
-    </li>
-    <li class="nav-item">
-        <button class="nav-link @(activeTab == "detail" ? "active" : "")" @onclick='() => activeTab = "detail"'>Inquiry Detail</button>
-    </li>
-    <li class="nav-item">
-        <button class="nav-link @(activeTab == "new" ? "active" : "")" @onclick='() => activeTab = "new"'>New Inquiry</button>
-    </li>
-    <li class="nav-item">
-        <button class="nav-link @(activeTab == "payers" ? "active" : "")" @onclick="LoadPayers">Payer Directory</button>
-    </li>
-</ul>
+<TabStrip Tabs="_tabs" @bind-Active="ActiveTab" />
 
 @* ─── Verification History Tab ─────────────────────────────────────────── *@
 @if (activeTab == "history")
 {
     @if (history != null && history.Count > 0)
     {
-        <table class="table table-sm table-striped">
+        <table class="data-table">
             <thead>
                 <tr>
                     <th>Payer</th>
@@ -66,17 +48,11 @@
                         <td>@entry.PayerName</td>
                         <td>@entry.SubscriberId</td>
                         <td>@entry.ServiceDate.ToString("yyyy-MM-dd")</td>
-                        <td>
-                            <span class="badge @GetStatusBadge(entry.Status)">@entry.Status</span>
-                        </td>
-                        <td>
-                            <span class="badge @GetCoverageBadge(entry.CoverageLevel)">@entry.CoverageLevel</span>
-                        </td>
+                        <td><span class="badge @GetStatusBadge(entry.Status)">@entry.Status</span></td>
+                        <td><span class="badge @GetCoverageBadge(entry.CoverageLevel)">@entry.CoverageLevel</span></td>
                         <td>@entry.SubmittedDate?.ToString("MM/dd HH:mm")</td>
                         <td>@entry.ResponseDate?.ToString("MM/dd HH:mm")</td>
-                        <td>
-                            <button class="btn btn-sm btn-outline-primary" @onclick="() => ViewDetail(entry.InquiryId)">View</button>
-                        </td>
+                        <td><button class="btn btn-primary" @onclick="() => ViewDetail(entry.InquiryId)">View</button></td>
                     </tr>
                 }
             </tbody>
@@ -84,168 +60,98 @@
     }
     else if (!loading)
     {
-        <p class="text-muted">No eligibility verifications found. Enter a Patient ID and click Load.</p>
+        <div class="empty-state">No eligibility verifications found. Enter a Patient ID and click Load.</div>
     }
 }
 
 @* ─── Inquiry Detail Tab ───────────────────────────────────────────────── *@
 @if (activeTab == "detail" && selectedInquiry != null)
 {
-    <div class="card mb-3">
-        <div class="card-header">
-            <strong>Inquiry:</strong> @selectedInquiry.InquiryId
-            <span class="badge @GetStatusBadge(selectedInquiry.Status) ms-2">@selectedInquiry.Status</span>
-        </div>
-        <div class="card-body">
-            <div class="row">
-                <div class="col-md-6">
-                    <h6>270 Inquiry Details</h6>
-                    <dl class="row mb-0">
-                        <dt class="col-sm-5">Payer</dt>
-                        <dd class="col-sm-7">@selectedInquiry.PayerName (@selectedInquiry.PayerId)</dd>
-                        <dt class="col-sm-5">Subscriber ID</dt>
-                        <dd class="col-sm-7">@selectedInquiry.SubscriberId</dd>
-                        <dt class="col-sm-5">Subscriber Name</dt>
-                        <dd class="col-sm-7">@(selectedInquiry.SubscriberName ?? "—")</dd>
-                        <dt class="col-sm-5">Relationship</dt>
-                        <dd class="col-sm-7">@(selectedInquiry.RelationshipToSubscriber ?? "—")</dd>
-                        <dt class="col-sm-5">Service Date</dt>
-                        <dd class="col-sm-7">@selectedInquiry.ServiceDate.ToString("yyyy-MM-dd")</dd>
-                        <dt class="col-sm-5">Service Types</dt>
-                        <dd class="col-sm-7">@string.Join(", ", selectedInquiry.ServiceTypeCodes)</dd>
-                        <dt class="col-sm-5">Trace #</dt>
-                        <dd class="col-sm-7">@(selectedInquiry.TraceNumber ?? "—")</dd>
-                        <dt class="col-sm-5">Submitted</dt>
-                        <dd class="col-sm-7">@selectedInquiry.SubmittedDate?.ToString("yyyy-MM-dd HH:mm:ss")</dd>
-                        <dt class="col-sm-5">Initiated By</dt>
-                        <dd class="col-sm-7">@(selectedInquiry.InitiatedByUserName ?? "—")</dd>
-                    </dl>
-                </div>
-                <div class="col-md-6">
-                    <h6>271 Response</h6>
-                    <dl class="row mb-0">
-                        <dt class="col-sm-5">Coverage Level</dt>
-                        <dd class="col-sm-7">
-                            <span class="badge @GetCoverageBadge(selectedInquiry.CoverageLevel)">@selectedInquiry.CoverageLevel</span>
-                        </dd>
-                        <dt class="col-sm-5">Plan Name</dt>
-                        <dd class="col-sm-7">@(selectedInquiry.ResponsePlanName ?? "—")</dd>
-                        <dt class="col-sm-5">Group #</dt>
-                        <dd class="col-sm-7">@(selectedInquiry.ResponseGroupNumber ?? "—")</dd>
-                        <dt class="col-sm-5">Effective</dt>
-                        <dd class="col-sm-7">@(selectedInquiry.CoverageEffectiveDate?.ToString("yyyy-MM-dd") ?? "—")</dd>
-                        <dt class="col-sm-5">Terminates</dt>
-                        <dd class="col-sm-7">@(selectedInquiry.CoverageTerminationDate?.ToString("yyyy-MM-dd") ?? "—")</dd>
-                        <dt class="col-sm-5">Response Date</dt>
-                        <dd class="col-sm-7">@selectedInquiry.ResponseDate?.ToString("yyyy-MM-dd HH:mm:ss")</dd>
-                        <dt class="col-sm-5">Payer Message</dt>
-                        <dd class="col-sm-7">@(selectedInquiry.PayerMessage ?? "—")</dd>
-                    </dl>
-                </div>
-            </div>
+    <div class="form-section">
+        <h3>Inquiry: @selectedInquiry.InquiryId <span class="badge @GetStatusBadge(selectedInquiry.Status)">@selectedInquiry.Status</span></h3>
 
-            @if (selectedInquiry.BenefitDetails.Count > 0)
-            {
-                <h6 class="mt-3">Benefit Details (EB Segments)</h6>
-                <table class="table table-sm table-bordered">
-                    <thead>
+        <h3>270 Inquiry Details</h3>
+        <p><strong>Payer:</strong> @selectedInquiry.PayerName (@selectedInquiry.PayerId)</p>
+        <p><strong>Subscriber ID:</strong> @selectedInquiry.SubscriberId</p>
+        <p><strong>Subscriber Name:</strong> @(selectedInquiry.SubscriberName ?? "—")</p>
+        <p><strong>Relationship:</strong> @(selectedInquiry.RelationshipToSubscriber ?? "—")</p>
+        <p><strong>Service Date:</strong> @selectedInquiry.ServiceDate.ToString("yyyy-MM-dd")</p>
+        <p><strong>Service Types:</strong> @string.Join(", ", selectedInquiry.ServiceTypeCodes)</p>
+        <p><strong>Trace #:</strong> @(selectedInquiry.TraceNumber ?? "—")</p>
+        <p><strong>Submitted:</strong> @selectedInquiry.SubmittedDate?.ToString("yyyy-MM-dd HH:mm:ss")</p>
+        <p><strong>Initiated By:</strong> @(selectedInquiry.InitiatedByUserName ?? "—")</p>
+
+        <h3>271 Response</h3>
+        <p><strong>Coverage Level:</strong> <span class="badge @GetCoverageBadge(selectedInquiry.CoverageLevel)">@selectedInquiry.CoverageLevel</span></p>
+        <p><strong>Plan Name:</strong> @(selectedInquiry.ResponsePlanName ?? "—")</p>
+        <p><strong>Group #:</strong> @(selectedInquiry.ResponseGroupNumber ?? "—")</p>
+        <p><strong>Effective:</strong> @(selectedInquiry.CoverageEffectiveDate?.ToString("yyyy-MM-dd") ?? "—")</p>
+        <p><strong>Terminates:</strong> @(selectedInquiry.CoverageTerminationDate?.ToString("yyyy-MM-dd") ?? "—")</p>
+        <p><strong>Response Date:</strong> @selectedInquiry.ResponseDate?.ToString("yyyy-MM-dd HH:mm:ss")</p>
+        <p><strong>Payer Message:</strong> @(selectedInquiry.PayerMessage ?? "—")</p>
+
+        @if (selectedInquiry.BenefitDetails.Count > 0)
+        {
+            <h3>Benefit Details (EB Segments)</h3>
+            <table class="data-table">
+                <thead>
+                    <tr>
+                        <th>Type</th>
+                        <th>Service</th>
+                        <th>Period</th>
+                        <th>Amount</th>
+                        <th>%</th>
+                        <th>Network</th>
+                        <th>Message</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var b in selectedInquiry.BenefitDetails)
+                    {
                         <tr>
-                            <th>Type</th>
-                            <th>Service</th>
-                            <th>Period</th>
-                            <th>Amount</th>
-                            <th>%</th>
-                            <th>Network</th>
-                            <th>Message</th>
+                            <td>@b.BenefitType</td>
+                            <td>@(b.ServiceTypeDescription ?? b.ServiceTypeCode)</td>
+                            <td>@(b.TimePeriod ?? "—")</td>
+                            <td>@(b.Amount?.ToString("C") ?? "—")</td>
+                            <td>@(b.Percentage?.ToString("P0") ?? "—")</td>
+                            <td>@(b.NetworkIndicator ?? "—")</td>
+                            <td>@(b.Message ?? "—")</td>
                         </tr>
-                    </thead>
-                    <tbody>
-                        @foreach (var b in selectedInquiry.BenefitDetails)
-                        {
-                            <tr>
-                                <td>@b.BenefitType</td>
-                                <td>@(b.ServiceTypeDescription ?? b.ServiceTypeCode)</td>
-                                <td>@(b.TimePeriod ?? "—")</td>
-                                <td>@(b.Amount?.ToString("C") ?? "—")</td>
-                                <td>@(b.Percentage?.ToString("P0") ?? "—")</td>
-                                <td>@(b.NetworkIndicator ?? "—")</td>
-                                <td>@(b.Message ?? "—")</td>
-                            </tr>
-                        }
-                    </tbody>
-                </table>
-            }
+                    }
+                </tbody>
+            </table>
+        }
 
-            @if (selectedInquiry.RejectReasonCodes.Count > 0)
-            {
-                <div class="alert alert-warning mt-2">
-                    <strong>Reject Reason Codes:</strong> @string.Join(", ", selectedInquiry.RejectReasonCodes)
-                </div>
-            }
-        </div>
+        @if (selectedInquiry.RejectReasonCodes.Count > 0)
+        {
+            <div class="alert alert-error"><strong>Reject Reason Codes:</strong> @string.Join(", ", selectedInquiry.RejectReasonCodes)</div>
+        }
     </div>
 }
 
 @* ─── New Inquiry Tab ──────────────────────────────────────────────────── *@
 @if (activeTab == "new")
 {
-    <div class="card">
-        <div class="card-header">Submit Eligibility Inquiry (EDI 270)</div>
-        <div class="card-body">
-            <div class="row g-2 mb-2">
-                <div class="col-md-4">
-                    <label class="form-label">Payer ID</label>
-                    <input class="form-control" @bind="newPayerId" placeholder="e.g. PAYER-MEDICARE" />
-                </div>
-                <div class="col-md-4">
-                    <label class="form-label">Payer Name</label>
-                    <input class="form-control" @bind="newPayerName" placeholder="e.g. Medicare Part A/B" />
-                </div>
-                <div class="col-md-4">
-                    <label class="form-label">Subscriber ID</label>
-                    <input class="form-control" @bind="newSubscriberId" placeholder="Member number" />
-                </div>
-            </div>
-            <div class="row g-2 mb-2">
-                <div class="col-md-4">
-                    <label class="form-label">Subscriber Name</label>
-                    <input class="form-control" @bind="newSubscriberName" placeholder="LAST,FIRST" />
-                </div>
-                <div class="col-md-4">
-                    <label class="form-label">Relationship</label>
-                    <select class="form-select" @bind="newRelationship">
-                        <option value="SELF">Self</option>
-                        <option value="SPOUSE">Spouse</option>
-                        <option value="CHILD">Child</option>
-                        <option value="OTHER">Other</option>
-                    </select>
-                </div>
-                <div class="col-md-4">
-                    <label class="form-label">Service Date</label>
-                    <input type="date" class="form-control" @bind="newServiceDate" />
-                </div>
-            </div>
-            <div class="row g-2 mb-3">
-                <div class="col-md-4">
-                    <label class="form-label">Insurance Plan ID (optional)</label>
-                    <input class="form-control" @bind="newInsurancePlanId" />
-                </div>
-                <div class="col-md-4">
-                    <label class="form-label">Personal Policy ID (optional)</label>
-                    <input class="form-control" @bind="newPersonalPolicyId" />
-                </div>
-                <div class="col-md-4">
-                    <label class="form-label">Notes (optional)</label>
-                    <input class="form-control" @bind="newNotes" />
-                </div>
-            </div>
-            <button class="btn btn-success" @onclick="SubmitInquiry" disabled="@submitting">
-                @(submitting ? "Submitting..." : "Submit 270 Inquiry")
-            </button>
-            @if (submitResult != null)
-            {
-                <div class="alert alert-success mt-2">@submitResult</div>
-            }
+    <div class="form-section">
+        <h3>Submit Eligibility Inquiry (EDI 270)</h3>
+        <FormField Label="Payer ID" Required><input class="form-input" @bind="newPayerId" placeholder="e.g. PAYER-MEDICARE" /></FormField>
+        <FormField Label="Payer Name"><input class="form-input" @bind="newPayerName" placeholder="e.g. Medicare Part A/B" /></FormField>
+        <FormField Label="Subscriber ID"><input class="form-input" @bind="newSubscriberId" placeholder="Member number" /></FormField>
+        <FormField Label="Subscriber Name"><input class="form-input" @bind="newSubscriberName" placeholder="LAST,FIRST" /></FormField>
+        <FormField Label="Relationship">
+            <select class="form-input" @bind="newRelationship">
+                <option value="SELF">Self</option>
+                <option value="SPOUSE">Spouse</option>
+                <option value="CHILD">Child</option>
+                <option value="OTHER">Other</option>
+            </select>
+        </FormField>
+        <FormField Label="Service Date"><input type="date" class="form-input" @bind="newServiceDate" /></FormField>
+        <FormField Label="Insurance Plan ID (optional)"><input class="form-input" @bind="newInsurancePlanId" /></FormField>
+        <FormField Label="Personal Policy ID (optional)"><input class="form-input" @bind="newPersonalPolicyId" /></FormField>
+        <FormField Label="Notes (optional)"><input class="form-input" @bind="newNotes" /></FormField>
+        <div class="form-actions">
+            <button class="btn btn-primary" @onclick="SubmitInquiry" disabled="@submitting">@(submitting ? "Submitting..." : "Submit 270 Inquiry")</button>
         </div>
     </div>
 }
@@ -253,15 +159,15 @@
 @* ─── Payer Directory Tab ──────────────────────────────────────────────── *@
 @if (activeTab == "payers")
 {
-    <div class="mb-2 d-flex gap-2">
-        <input class="form-control" style="max-width:260px" placeholder="Search payers..." @bind="payerSearch" @bind:event="oninput" />
-        <button class="btn btn-outline-primary btn-sm" @onclick="SearchPayers">Search</button>
-        <button class="btn btn-outline-success btn-sm" @onclick="LoadRealTimePayers">Real-Time Only</button>
+    <div class="lookup-bar">
+        <input class="lookup-input" placeholder="Search payers..." @bind="payerSearch" @bind:event="oninput" />
+        <button class="btn btn-primary" @onclick="SearchPayers">Search</button>
+        <button class="btn btn-primary" @onclick="LoadRealTimePayers">Real-Time Only</button>
     </div>
 
     @if (payers != null && payers.Count > 0)
     {
-        <table class="table table-sm table-striped">
+        <table class="data-table">
             <thead>
                 <tr>
                     <th>Payer ID</th>
@@ -277,29 +183,18 @@
                     <tr>
                         <td>@p.PayerId</td>
                         <td>@p.PayerName</td>
-                        <td>
-                            @if (p.SupportsRealTimeEligibility)
-                            {
-                                <span class="badge bg-success">Yes</span>
-                            }
-                            else
-                            {
-                                <span class="badge bg-secondary">No</span>
-                            }
-                        </td>
+                        <td>@(p.SupportsRealTimeEligibility ? "Yes" : "No")</td>
                         <td>
                             @if (p.IsActive)
                             {
-                                <span class="badge bg-success">Active</span>
+                                <span class="badge badge-success">Active</span>
                             }
                             else
                             {
-                                <span class="badge bg-danger">Inactive</span>
+                                <span class="badge badge-danger">Inactive</span>
                             }
                         </td>
-                        <td>
-                            <button class="btn btn-sm btn-outline-primary" @onclick="() => SelectPayer(p)">Use</button>
-                        </td>
+                        <td><button class="btn btn-primary" @onclick="() => SelectPayer(p)">Use</button></td>
                     </tr>
                 }
             </tbody>
@@ -307,17 +202,12 @@
     }
     else
     {
-        <p class="text-muted">No payers found.</p>
+        <div class="empty-state">No payers found.</div>
     }
 }
 
-<style>
-    dl.row dt { font-weight: 600; }
-    dl.row dd { margin-bottom: 0.25rem; }
-</style>
-
 @code {
-    private string patientId = string.Empty;
+    private string? patientId;
     private string activeTab = "history";
     private bool loading;
     private string? error;
@@ -345,6 +235,24 @@
     private List<PayerConfigIndexEntry>? payers;
     private string payerSearch = string.Empty;
 
+    private readonly (string, string)[] _tabs = new[]
+    {
+        ("history", "Verification History"),
+        ("detail", "Inquiry Detail"),
+        ("new", "New Inquiry"),
+        ("payers", "Payer Directory"),
+    };
+
+    private string ActiveTab
+    {
+        get => activeTab;
+        set
+        {
+            activeTab = value;
+            if (value == "payers" && payers == null) _ = LoadPayers();
+        }
+    }
+
     private async Task LoadHistory()
     {
         if (string.IsNullOrWhiteSpace(patientId)) return;
@@ -364,7 +272,7 @@
         error = null;
         try
         {
-            IPatientWorkflowGrain wf = Grains.GetGrain<IPatientWorkflowGrain>(patientId.Trim());
+            IPatientWorkflowGrain wf = Grains.GetGrain<IPatientWorkflowGrain>(patientId!.Trim());
             selectedInquiry = await wf.GetEligibilityInquiryAsync(inquiryId);
             activeTab = "detail";
         }
@@ -420,12 +328,12 @@
 
     private async Task LoadPayers()
     {
-        activeTab = "payers";
         error = null;
         try
         {
             IPayerConfigIndexGrain index = Grains.GetGrain<IPayerConfigIndexGrain>("PAYER-CFG-INDEX");
             payers = await index.GetAllAsync();
+            StateHasChanged();
         }
         catch (Exception ex) { error = ex.Message; }
     }
@@ -463,22 +371,27 @@
 
     private string GetStatusBadge(EligibilityInquiryStatus status) => status switch
     {
-        EligibilityInquiryStatus.Eligible => "bg-success",
-        EligibilityInquiryStatus.Ineligible => "bg-danger",
-        EligibilityInquiryStatus.Error => "bg-warning text-dark",
-        EligibilityInquiryStatus.Submitted => "bg-info",
-        EligibilityInquiryStatus.Draft => "bg-secondary",
-        EligibilityInquiryStatus.Expired => "bg-dark",
-        _ => "bg-secondary",
+        EligibilityInquiryStatus.Eligible => "badge-success",
+        EligibilityInquiryStatus.Ineligible => "badge-danger",
+        EligibilityInquiryStatus.Error => "badge-warning",
+        EligibilityInquiryStatus.Submitted => "badge-info",
+        EligibilityInquiryStatus.Draft => "badge-neutral",
+        EligibilityInquiryStatus.Expired => "badge-neutral",
+        _ => "badge-neutral",
     };
 
     private string GetCoverageBadge(CoverageLevel level) => level switch
     {
-        CoverageLevel.ActiveCoverage => "bg-success",
-        CoverageLevel.ActiveLimited => "bg-warning text-dark",
-        CoverageLevel.Inactive => "bg-danger",
-        CoverageLevel.Terminated => "bg-danger",
-        CoverageLevel.Pending => "bg-info",
-        _ => "bg-secondary",
+        CoverageLevel.ActiveCoverage => "badge-success",
+        CoverageLevel.ActiveLimited => "badge-warning",
+        CoverageLevel.Inactive => "badge-danger",
+        CoverageLevel.Terminated => "badge-danger",
+        CoverageLevel.Pending => "badge-info",
+        _ => "badge-neutral",
     };
 }
+
+<style>
+    .page-subtitle { color: #666; margin: -0.5rem 0 1.25rem; font-size: 0.9rem; }
+    .form-section p { font-size: 0.9rem; line-height: 1.5; }
+</style>

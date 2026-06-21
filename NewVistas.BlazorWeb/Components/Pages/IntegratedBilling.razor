@@ -15,14 +15,14 @@
 <div class="ib-header">
     <h2>Integrated Billing</h2>
     <div class="lookup-bar">
-        <input @bind="patientId" @bind:event="oninput" placeholder="Patient ID" class="form-control" />
+        <input @bind="patientId" @bind:event="oninput" placeholder="Patient ID" class="lookup-input" />
         <button class="btn btn-primary" @onclick="Load" disabled="@(loading || string.IsNullOrWhiteSpace(patientId))">Load</button>
     </div>
 </div>
 
 @if (error != null)
 {
-    <div class="alert alert-danger">@error</div>
+    <div class="alert alert-error">@error</div>
 }
 @if (success != null)
 {
@@ -31,11 +31,11 @@
 
 @if (loaded)
 {
-    <div class="ib-tabs">
-        <button class="tab-btn @(activeTab == "copay" ? "active" : "")" @onclick='() => activeTab = "copay"'>Copay Account</button>
-        <button class="tab-btn @(activeTab == "actions" ? "active" : "")" @onclick='() => activeTab = "actions"'>Billing Actions</button>
-        <button class="tab-btn @(activeTab == "insurance" ? "active" : "")" @onclick='() => activeTab = "insurance"'>Insurance</button>
-        <button class="tab-btn @(activeTab == "clock" ? "active" : "")" @onclick='() => activeTab = "clock"'>Billing Clock</button>
+    <div class="tab-bar">
+        <button class="tab @(activeTab == "copay" ? "active" : "")" @onclick='() => activeTab = "copay"'>Copay Account</button>
+        <button class="tab @(activeTab == "actions" ? "active" : "")" @onclick='() => activeTab = "actions"'>Billing Actions</button>
+        <button class="tab @(activeTab == "insurance" ? "active" : "")" @onclick='() => activeTab = "insurance"'>Insurance</button>
+        <button class="tab @(activeTab == "clock" ? "active" : "")" @onclick='() => activeTab = "clock"'>Billing Clock</button>
     </div>
 
     <!-- ── Copay Account Tab ────────────────────────────────────────── -->
@@ -65,7 +65,7 @@
                         <div class="info-sub">Cap: @copayAccount.AnnualCopayCapAmount.Value.ToString("C")
                             @if (copayAccount.CopayCapReachedDate.HasValue)
                             {
-                                <span class="badge-success">CAP REACHED</span>
+                                <span class="badge badge-success">CAP REACHED</span>
                             }
                         </div>
                     }
@@ -87,7 +87,7 @@
             </div>
 
             <div class="section-actions">
-                <button class="btn btn-sm btn-outline-primary" @onclick="() => showExemptionForm = !showExemptionForm">
+                <button class="btn btn-primary" @onclick="() => showExemptionForm = !showExemptionForm">
                     Set Exemption
                 </button>
             </div>
@@ -98,7 +98,7 @@
                     <h5>Update Copay Exemption</h5>
                     <div class="form-row">
                         <label>Exempt?</label>
-                        <select @bind="f_exempt" class="form-control form-control-sm">
+                        <select @bind="f_exempt" class="form-input">
                             <option value="true">Yes — Exempt</option>
                             <option value="false">No — Obligated</option>
                         </select>
@@ -107,7 +107,7 @@
                     {
                         <div class="form-row">
                             <label>Reason Code</label>
-                            <select @bind="f_exemptReason" class="form-control form-control-sm">
+                            <select @bind="f_exemptReason" class="form-input">
                                 <option value="">-- Select --</option>
                                 <option>SERVICE CONNECTED</option>
                                 <option>INCOME EXEMPT</option>
@@ -121,18 +121,18 @@
                         </div>
                         <div class="form-row">
                             <label>Effective Date</label>
-                            <input type="date" @bind="f_exemptEffective" class="form-control form-control-sm" />
+                            <input type="date" @bind="f_exemptEffective" class="form-input" />
                         </div>
                         <div class="form-row">
                             <label>Expiration Date (optional)</label>
-                            <input type="date" @bind="f_exemptExpires" class="form-control form-control-sm" />
+                            <input type="date" @bind="f_exemptExpires" class="form-input" />
                         </div>
                     }
                     <div class="form-actions">
-                        <button class="btn btn-sm btn-primary" @onclick="SaveExemption" disabled="@saving">
+                        <button class="btn btn-primary" @onclick="SaveExemption" disabled="@saving">
                             @(saving ? "Saving..." : "Save")
                         </button>
-                        <button class="btn btn-sm btn-secondary" @onclick="() => showExemptionForm = false">Cancel</button>
+                        <button class="btn btn-secondary" @onclick="() => showExemptionForm = false">Cancel</button>
                     </div>
                 </div>
             }
@@ -140,7 +140,7 @@
             @if (copayAccount.YearToDateCopayTransactions.Count > 0)
             {
                 <h5 class="mt-3">Recent Transactions</h5>
-                <table class="ib-table">
+                <table class="data-table">
                     <thead><tr><th>Service Date</th><th>Description</th><th>Amount</th><th>Exempt</th></tr></thead>
                     <tbody>
                         @foreach (var tx in copayAccount.YearToDateCopayTransactions.Take(20))
@@ -163,7 +163,7 @@
     {
         <div class="tab-panel">
             <div class="section-actions">
-                <button class="btn btn-sm btn-success" @onclick="() => showActionForm = !showActionForm">
+                <button class="btn btn-primary" @onclick="() => showActionForm = !showActionForm">
                     + New Action
                 </button>
             </div>
@@ -174,15 +174,15 @@
                     <h5>Record Billing Action</h5>
                     <div class="form-row">
                         <label>Action Type Code</label>
-                        <input @bind="f_actionTypeCode" class="form-control form-control-sm" placeholder="e.g. DG OPT COPAY NEW" />
+                        <input @bind="f_actionTypeCode" class="form-input" placeholder="e.g. DG OPT COPAY NEW" />
                     </div>
                     <div class="form-row">
                         <label>Description</label>
-                        <input @bind="f_actionTypeDesc" class="form-control form-control-sm" />
+                        <input @bind="f_actionTypeDesc" class="form-input" />
                     </div>
                     <div class="form-row">
                         <label>Category</label>
-                        <select @bind="f_actionCategory" class="form-control form-control-sm">
+                        <select @bind="f_actionCategory" class="form-input">
                             <option value="2">Outpatient</option>
                             <option value="0">Pharmacy</option>
                             <option value="1">Inpatient</option>
@@ -192,25 +192,25 @@
                     </div>
                     <div class="form-row">
                         <label>Charge Amount ($)</label>
-                        <input type="number" step="0.01" @bind="f_chargeAmount" class="form-control form-control-sm" />
+                        <input type="number" step="0.01" @bind="f_chargeAmount" class="form-input" />
                     </div>
                     <div class="form-row">
                         <label>Service Date</label>
-                        <input type="date" @bind="f_serviceDate" class="form-control form-control-sm" />
+                        <input type="date" @bind="f_serviceDate" class="form-input" />
                     </div>
                     <div class="form-row">
                         <label>Entered By (User ID)</label>
-                        <input @bind="f_enteredByUserId" class="form-control form-control-sm" />
+                        <input @bind="f_enteredByUserId" class="form-input" />
                     </div>
                     <div class="form-row">
                         <label>Entered By (Name)</label>
-                        <input @bind="f_enteredByUserName" class="form-control form-control-sm" />
+                        <input @bind="f_enteredByUserName" class="form-input" />
                     </div>
                     <div class="form-actions">
-                        <button class="btn btn-sm btn-primary" @onclick="SaveAction" disabled="@saving">
+                        <button class="btn btn-primary" @onclick="SaveAction" disabled="@saving">
                             @(saving ? "Saving..." : "Save Action")
                         </button>
-                        <button class="btn btn-sm btn-secondary" @onclick="() => showActionForm = false">Cancel</button>
+                        <button class="btn btn-secondary" @onclick="() => showActionForm = false">Cancel</button>
                     </div>
                 </div>
             }
@@ -225,7 +225,7 @@
             }
             else
             {
-                <table class="ib-table">
+                <table class="data-table">
                     <thead>
                         <tr>
                             <th>Service Date</th>
@@ -246,7 +246,7 @@
                                 <td>
                                     @if (action.Status != "Cancelled")
                                     {
-                                        <button class="btn btn-xs btn-outline-danger"
+                                        <button class="btn btn-secondary"
                                                 @onclick="() => CancelAction(action.BillingActionId)">
                                             Cancel
                                         </button>
@@ -265,7 +265,7 @@
     {
         <div class="tab-panel">
             <div class="section-actions">
-                <button class="btn btn-sm btn-success" @onclick="() => showPolicyForm = !showPolicyForm">
+                <button class="btn btn-primary" @onclick="() => showPolicyForm = !showPolicyForm">
                     + Add Policy
                 </button>
             </div>
@@ -276,19 +276,19 @@
                     <h5>Add Insurance Policy</h5>
                     <div class="form-row">
                         <label>Plan Name</label>
-                        <input @bind="f_planName" class="form-control form-control-sm" placeholder="e.g. Medicare Part B" />
+                        <input @bind="f_planName" class="form-input" placeholder="e.g. Medicare Part B" />
                     </div>
                     <div class="form-row">
                         <label>Subscriber ID</label>
-                        <input @bind="f_subscriberId" class="form-control form-control-sm" />
+                        <input @bind="f_subscriberId" class="form-input" />
                     </div>
                     <div class="form-row">
                         <label>Subscriber Name</label>
-                        <input @bind="f_subscriberName" class="form-control form-control-sm" />
+                        <input @bind="f_subscriberName" class="form-input" />
                     </div>
                     <div class="form-row">
                         <label>Relationship to Subscriber</label>
-                        <select @bind="f_relationship" class="form-control form-control-sm">
+                        <select @bind="f_relationship" class="form-input">
                             <option>SELF</option>
                             <option>SPOUSE</option>
                             <option>CHILD</option>
@@ -298,28 +298,28 @@
                     </div>
                     <div class="form-row">
                         <label>Coverage Type</label>
-                        <input @bind="f_coverageType" class="form-control form-control-sm" placeholder="INDIVIDUAL, FAMILY..." />
+                        <input @bind="f_coverageType" class="form-input" placeholder="INDIVIDUAL, FAMILY..." />
                     </div>
                     <div class="form-row">
                         <label>Effective Date</label>
-                        <input type="date" @bind="f_policyEffective" class="form-control form-control-sm" />
+                        <input type="date" @bind="f_policyEffective" class="form-input" />
                     </div>
                     <div class="form-row">
                         <label>Expiration Date</label>
-                        <input type="date" @bind="f_policyExpires" class="form-control form-control-sm" />
+                        <input type="date" @bind="f_policyExpires" class="form-input" />
                     </div>
                     <div class="form-row">
                         <label>Primary?</label>
-                        <select @bind="f_isPrimary" class="form-control form-control-sm">
+                        <select @bind="f_isPrimary" class="form-input">
                             <option value="true">Yes — Primary</option>
                             <option value="false">No — Secondary</option>
                         </select>
                     </div>
                     <div class="form-actions">
-                        <button class="btn btn-sm btn-primary" @onclick="SavePolicy" disabled="@saving">
+                        <button class="btn btn-primary" @onclick="SavePolicy" disabled="@saving">
                             @(saving ? "Saving..." : "Save Policy")
                         </button>
-                        <button class="btn btn-sm btn-secondary" @onclick="() => showPolicyForm = false">Cancel</button>
+                        <button class="btn btn-secondary" @onclick="() => showPolicyForm = false">Cancel</button>
                     </div>
                 </div>
             }
@@ -334,7 +334,7 @@
             }
             else
             {
-                <table class="ib-table">
+                <table class="data-table">
                     <thead>
                         <tr>
                             <th>Plan Name</th>
@@ -355,7 +355,7 @@
                                 <td>@pol.SubscriberId</td>
                                 <td>@(pol.IsPrimary ? "PRIMARY" : "")</td>
                                 <td>
-                                    <span class="badge-@(pol.IsActive ? "success" : "secondary")">
+                                    <span class="badge @(pol.IsActive ? "badge-success" : "badge-neutral")">
                                         @(pol.IsActive ? "Active" : "Inactive")
                                     </span>
                                 </td>
@@ -363,7 +363,7 @@
                                 <td>
                                     @if (pol.IsActive)
                                     {
-                                        <button class="btn btn-xs btn-outline-secondary"
+                                        <button class="btn btn-secondary"
                                                 @onclick="() => DeactivatePolicy(pol.PolicyId)">
                                             Deactivate
                                         </button>
@@ -423,7 +423,7 @@
             </div>
 
             <div class="section-actions">
-                <button class="btn btn-sm btn-outline-primary" @onclick="() => showClockForm = !showClockForm">
+                <button class="btn btn-primary" @onclick="() => showClockForm = !showClockForm">
                     Set Clock
                 </button>
             </div>
@@ -434,7 +434,7 @@
                     <h5>Update Billing Clock</h5>
                     <div class="form-row">
                         <label>Clock Status</label>
-                        <select @bind="f_clockStatus" class="form-control form-control-sm">
+                        <select @bind="f_clockStatus" class="form-input">
                             <option>ACTIVE</option>
                             <option>EXPIRED</option>
                             <option>SUSPENDED</option>
@@ -443,29 +443,29 @@
                     </div>
                     <div class="form-row">
                         <label>Start Date</label>
-                        <input type="date" @bind="f_clockStart" class="form-control form-control-sm" />
+                        <input type="date" @bind="f_clockStart" class="form-input" />
                     </div>
                     <div class="form-row">
                         <label>Expiration Date</label>
-                        <input type="date" @bind="f_clockExpires" class="form-control form-control-sm" />
+                        <input type="date" @bind="f_clockExpires" class="form-input" />
                     </div>
                     <div class="form-row">
                         <label>Billing Category</label>
-                        <input @bind="f_clockCategory" class="form-control form-control-sm" placeholder="e.g. COPAY REQUIRED" />
+                        <input @bind="f_clockCategory" class="form-input" placeholder="e.g. COPAY REQUIRED" />
                     </div>
                     <div class="form-row">
                         <label>Priority Group</label>
-                        <select @bind="f_clockPriorityGroup" class="form-control form-control-sm">
+                        <select @bind="f_clockPriorityGroup" class="form-input">
                             <option value="">—</option>
                             <option>1</option><option>2</option><option>3</option><option>4</option>
                             <option>5</option><option>6</option><option>7</option><option>8</option>
                         </select>
                     </div>
                     <div class="form-actions">
-                        <button class="btn btn-sm btn-primary" @onclick="SaveClock" disabled="@saving">
+                        <button class="btn btn-primary" @onclick="SaveClock" disabled="@saving">
                             @(saving ? "Saving..." : "Save Clock")
                         </button>
-                        <button class="btn btn-sm btn-secondary" @onclick="() => showClockForm = false">Cancel</button>
+                        <button class="btn btn-secondary" @onclick="() => showClockForm = false">Cancel</button>
                     </div>
                 </div>
             }
@@ -772,12 +772,10 @@
 }
 
 <style>
+    /* Canonical classes (lookup-bar, lookup-input, tab, tab-bar, data-table, alert,
+       btn, badge, empty-state, form-input) are defined once in app.css per
+       UI-CONVENTIONS.md. Page-specific styles only below. */
     .ib-header { display: flex; align-items: center; gap: 1rem; margin-bottom: 1rem; flex-wrap: wrap; }
-    .lookup-bar { display: flex; gap: 0.5rem; align-items: center; }
-    .lookup-bar input { width: 220px; }
-    .ib-tabs { display: flex; gap: 4px; margin-bottom: 0; border-bottom: 2px solid #dee2e6; }
-    .tab-btn { padding: 8px 18px; border: 1px solid #dee2e6; border-bottom: none; border-radius: 4px 4px 0 0; background: #f8f9fa; cursor: pointer; font-size: 0.9rem; }
-    .tab-btn.active { background: white; border-bottom: 2px solid white; margin-bottom: -2px; font-weight: 600; color: #0d6efd; }
     .tab-panel { border: 1px solid #dee2e6; border-top: none; padding: 1.2rem; background: white; }
     .info-grid { display: flex; flex-wrap: wrap; gap: 1rem; margin-bottom: 1rem; }
     .info-card { background: #f8f9fa; border: 1px solid #dee2e6; border-radius: 6px; padding: 12px 16px; min-width: 150px; }
@@ -790,10 +788,6 @@
     .form-row label { min-width: 160px; font-size: 0.85rem; font-weight: 500; }
     .form-row input, .form-row select { flex: 1; }
     .form-actions { display: flex; gap: 0.5rem; margin-top: 0.75rem; }
-    .ib-table { width: 100%; border-collapse: collapse; font-size: 0.88rem; margin-top: 0.75rem; }
-    .ib-table th { background: #f1f3f5; padding: 7px 10px; text-align: left; border-bottom: 2px solid #dee2e6; }
-    .ib-table td { padding: 6px 10px; border-bottom: 1px solid #f0f0f0; }
-    .ib-table tr:hover td { background: #f8f9fa; }
     .status-badge { padding: 2px 8px; border-radius: 10px; font-size: 0.75rem; font-weight: 600; }
     .status-incomplete { background: #fff3cd; color: #856404; }
     .status-cancelled { background: #f8d7da; color: #721c24; }
@@ -803,8 +797,5 @@
     .text-danger { color: #dc3545; }
     .text-warning { color: #ffc107; }
     .text-muted { color: #6c757d; }
-    .badge-success { background: #d1e7dd; color: #155724; padding: 2px 8px; border-radius: 10px; font-size: 0.75rem; }
-    .badge-secondary { background: #e2e3e5; color: #41464b; padding: 2px 8px; border-radius: 10px; font-size: 0.75rem; }
-    .btn-xs { padding: 2px 8px; font-size: 0.78rem; }
     .mt-3 { margin-top: 1rem; }
 </style>

@@ -12,334 +12,306 @@
 
 <PageTitle>Agent Cashier</PageTitle>
 
-<div class="ac-container">
-    <div class="ac-header">
-        <h2>Agent Cashier</h2>
-    </div>
+<h1>Agent Cashier</h1>
 
-    @if (error != null)
-    {
-        <div class="alert alert-danger">@error</div>
-    }
+<AlertBanner Error="@error" />
 
-    <div class="tab-bar">
-        <button class="tab-btn @(activeTab == "window" ? "active" : "")"
-                @onclick='() => activeTab = "window"'>Cashier Window</button>
-        <button class="tab-btn @(activeTab == "sessions" ? "active" : "")"
-                @onclick='() => SetTab("sessions")'>Sessions</button>
-    </div>
+<div class="tab-bar">
+    <button class="tab @(activeTab == "window" ? "active" : "")"
+            @onclick='() => activeTab = "window"'>Cashier Window</button>
+    <button class="tab @(activeTab == "sessions" ? "active" : "")"
+            @onclick='() => SetTab("sessions")'>Sessions</button>
+</div>
 
-    @* ── TAB: Cashier Window ───────────────────────────────────────────────── *@
-    @if (activeTab == "window")
-    {
-        <div class="tab-content">
-            <div class="window-columns">
+@* ── TAB: Cashier Window ───────────────────────────────────────────────── *@
+@if (activeTab == "window")
+{
+    <div class="tab-content">
+        <div class="window-columns">
 
-                @* Left: patient receipt history *@
-                <div class="col-patient">
-                    <h4>Patient Receipt History</h4>
-                    <div class="form-row mb-2">
-                        <input class="form-control" placeholder="Patient ID" @bind="patientId" />
-                        <button class="btn btn-primary" @onclick="LoadPatientReceipts">Load</button>
-                    </div>
-                    @if (patientReceipts.Count > 0)
-                    {
-                        <table class="ac-table">
-                            <thead>
-                                <tr>
-                                    <th>Receipt #</th>
-                                    <th>Amount</th>
-                                    <th>Method</th>
-                                    <th>Status</th>
-                                    <th>Date</th>
-                                    <th></th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                @foreach (ReceiptIndexEntry r in patientReceipts)
-                                {
-                                    <tr>
-                                        <td>@r.ReceiptNumber</td>
-                                        <td>@r.Amount.ToString("C")</td>
-                                        <td>@r.PaymentMethod</td>
-                                        <td><span class="badge @BadgeClass(r.Status)">@r.Status</span></td>
-                                        <td>@r.ReceiptDate.ToShortDateString()</td>
-                                        <td>
-                                            @if (r.Status == "Issued")
-                                            {
-                                                <button class="btn btn-sm btn-outline-danger"
-                                                        @onclick="() => OpenVoidReceipt(r.ReceiptId, r.ReceiptNumber)">
-                                                    Void
-                                                </button>
-                                            }
-                                        </td>
-                                    </tr>
-                                }
-                            </tbody>
-                        </table>
-                    }
-                    else if (patientLoaded)
-                    {
-                        <p class="text-muted">No receipts on file.</p>
-                    }
-
-                    @* Void panel *@
-                    @if (!string.IsNullOrEmpty(voidingReceiptId))
-                    {
-                        <div class="action-panel">
-                            <h5>Void Receipt @voidingReceiptNumber</h5>
-                            <input class="form-control mb-1" placeholder="Void Reason" @bind="voidReason" />
-                            <input class="form-control mb-1" placeholder="Your User ID" @bind="voidUserId" />
-                            @if (!string.IsNullOrEmpty(voidError)) { <div class="alert alert-danger">@voidError</div> }
-                            <button class="btn btn-danger" @onclick="SubmitVoid">Confirm Void</button>
-                            <button class="btn btn-secondary ms-2" @onclick="() => voidingReceiptId = null">Cancel</button>
-                        </div>
-                    }
+            @* Left: patient receipt history *@
+            <div class="col-patient">
+                <h4>Patient Receipt History</h4>
+                <div class="lookup-bar">
+                    <input class="lookup-input" placeholder="Patient ID" @bind="patientId" />
+                    <button class="btn btn-primary" @onclick="LoadPatientReceipts">Load</button>
                 </div>
+                @if (patientReceipts.Count > 0)
+                {
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th>Receipt #</th>
+                                <th>Amount</th>
+                                <th>Method</th>
+                                <th>Status</th>
+                                <th>Date</th>
+                                <th></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (ReceiptIndexEntry r in patientReceipts)
+                            {
+                                <tr>
+                                    <td>@r.ReceiptNumber</td>
+                                    <td>@r.Amount.ToString("C")</td>
+                                    <td>@r.PaymentMethod</td>
+                                    <td><span class="badge @BadgeClass(r.Status)">@r.Status</span></td>
+                                    <td>@r.ReceiptDate.ToShortDateString()</td>
+                                    <td>
+                                        @if (r.Status == "Issued")
+                                        {
+                                            <button class="btn btn-primary"
+                                                    @onclick="() => OpenVoidReceipt(r.ReceiptId, r.ReceiptNumber)">
+                                                Void
+                                            </button>
+                                        }
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                }
+                else if (patientLoaded)
+                {
+                    <p class="empty-state">No receipts on file.</p>
+                }
 
-                @* Right: issue receipt form *@
-                <div class="col-issue">
-                    <h4>Issue Receipt</h4>
-                    <div class="form-group">
-                        <label>Receipt Number</label>
-                        <input class="form-control" placeholder="e.g. R-20260227-001" @bind="newReceipt.ReceiptNumber" />
+                @* Void panel *@
+                @if (!string.IsNullOrEmpty(voidingReceiptId))
+                {
+                    <div class="action-panel">
+                        <h5>Void Receipt @voidingReceiptNumber</h5>
+                        <div class="form-section">
+                            <FormField Label="Void Reason"><input class="form-input" @bind="voidReason" /></FormField>
+                            <FormField Label="Your User ID"><input class="form-input" @bind="voidUserId" /></FormField>
+                        </div>
+                        <AlertBanner Error="@voidError" />
+                        <div class="form-actions">
+                            <button class="btn btn-primary" @onclick="SubmitVoid">Confirm Void</button>
+                            <button class="btn btn-primary" @onclick="() => voidingReceiptId = null">Cancel</button>
+                        </div>
                     </div>
-                    <div class="form-group">
-                        <label>Patient ID</label>
-                        <input class="form-control" @bind="newReceipt.PatientId" />
-                    </div>
-                    <div class="form-group">
-                        <label>Patient Name</label>
-                        <input class="form-control" @bind="newReceipt.PatientName" />
-                    </div>
-                    <div class="form-group">
-                        <label>AR Account ID</label>
-                        <input class="form-control" placeholder="AR-ACCOUNT:{id}" @bind="newReceipt.ARAccountId" />
-                    </div>
-                    <div class="form-group">
-                        <label>Amount</label>
-                        <input type="number" class="form-control" @bind="newReceipt.Amount" />
-                    </div>
-                    <div class="form-group">
-                        <label>Payment Method</label>
-                        <select class="form-control" @bind="newReceipt.PaymentMethod">
+                }
+            </div>
+
+            @* Right: issue receipt form *@
+            <div class="col-issue">
+                <h4>Issue Receipt</h4>
+                <div class="form-section">
+                    <FormField Label="Receipt Number">
+                        <input class="form-input" placeholder="e.g. R-20260227-001" @bind="newReceipt.ReceiptNumber" />
+                    </FormField>
+                    <FormField Label="Patient ID">
+                        <input class="form-input" @bind="newReceipt.PatientId" />
+                    </FormField>
+                    <FormField Label="Patient Name">
+                        <input class="form-input" @bind="newReceipt.PatientName" />
+                    </FormField>
+                    <FormField Label="AR Account ID">
+                        <input class="form-input" placeholder="AR-ACCOUNT:{id}" @bind="newReceipt.ARAccountId" />
+                    </FormField>
+                    <FormField Label="Amount">
+                        <input type="number" class="form-input" @bind="newReceipt.Amount" />
+                    </FormField>
+                    <FormField Label="Payment Method">
+                        <select class="form-input" @bind="newReceipt.PaymentMethod">
                             @foreach (string m in paymentMethods)
                             {
                                 <option value="@m">@m</option>
                             }
                         </select>
-                    </div>
+                    </FormField>
                     @if (newReceipt.PaymentMethod == "Check" || newReceipt.PaymentMethod == "MoneyOrder")
                     {
-                        <div class="form-group">
-                            <label>Check / MO Number</label>
-                            <input class="form-control" @bind="newReceipt.CheckNumber" />
-                        </div>
+                        <FormField Label="Check / MO Number">
+                            <input class="form-input" @bind="newReceipt.CheckNumber" />
+                        </FormField>
                     }
-                    <div class="form-group">
-                        <label>Session ID</label>
-                        <input class="form-control" placeholder="Paste session ID from Sessions tab" @bind="newReceipt.SessionId" />
-                    </div>
-                    <div class="form-group">
-                        <label>Cashier ID</label>
-                        <input class="form-control" @bind="newReceipt.CashierId" />
-                    </div>
-                    <div class="form-group">
-                        <label>Cashier Name</label>
-                        <input class="form-control" @bind="newReceipt.CashierName" />
-                    </div>
-                    <div class="form-group">
-                        <label>Notes (optional)</label>
-                        <input class="form-control" @bind="newReceipt.Notes" />
-                    </div>
-                    @if (!string.IsNullOrEmpty(receiptFormError)) { <div class="alert alert-danger">@receiptFormError</div> }
-                    @if (!string.IsNullOrEmpty(receiptFormSuccess)) { <div class="alert alert-success">@receiptFormSuccess</div> }
-                    <button class="btn btn-success" @onclick="IssueReceipt">Issue Receipt</button>
+                    <FormField Label="Session ID">
+                        <input class="form-input" placeholder="Paste session ID from Sessions tab" @bind="newReceipt.SessionId" />
+                    </FormField>
+                    <FormField Label="Cashier ID">
+                        <input class="form-input" @bind="newReceipt.CashierId" />
+                    </FormField>
+                    <FormField Label="Cashier Name">
+                        <input class="form-input" @bind="newReceipt.CashierName" />
+                    </FormField>
+                    <FormField Label="Notes (optional)">
+                        <input class="form-input" @bind="newReceipt.Notes" />
+                    </FormField>
                 </div>
-
+                <AlertBanner Error="@receiptFormError" Success="@receiptFormSuccess" />
+                <div class="form-actions">
+                    <button class="btn btn-primary" @onclick="IssueReceipt">Issue Receipt</button>
+                </div>
             </div>
+
         </div>
-    }
+    </div>
+}
 
-    @* ── TAB: Sessions ─────────────────────────────────────────────────────── *@
-    @if (activeTab == "sessions")
-    {
-        <div class="tab-content">
-            <div class="session-columns">
+@* ── TAB: Sessions ─────────────────────────────────────────────────────── *@
+@if (activeTab == "sessions")
+{
+    <div class="tab-content">
+        <div class="session-columns">
 
-                @* Left: open sessions *@
-                <div class="col-open-sessions">
-                    <h4>Open Sessions</h4>
-                    @if (openSessions.Count == 0)
+            @* Left: open sessions *@
+            <div class="col-open-sessions">
+                <h4>Open Sessions</h4>
+                @if (openSessions.Count == 0)
+                {
+                    <p class="empty-state">No open sessions.</p>
+                }
+                else
+                {
+                    @foreach (SessionIndexEntry s in openSessions)
                     {
-                        <p class="text-muted">No open sessions.</p>
-                    }
-                    else
-                    {
-                        @foreach (SessionIndexEntry s in openSessions)
-                        {
-                            <div class="session-card">
-                                <div class="session-card-header">
-                                    <strong>@s.CashierName</strong>
-                                    <span class="badge badge-success ms-2">OPEN</span>
-                                </div>
-                                <div class="session-detail">Station: @s.StationId | @s.SessionDate.ToShortDateString()</div>
-                                <div class="session-detail">Total Collected: @s.TotalCollected.ToString("C")</div>
-                                <div class="session-id text-muted" style="font-size:.7rem">@s.SessionId</div>
-                                <div class="session-actions mt-2">
-                                    <button class="btn btn-sm btn-warning me-1"
-                                            @onclick="() => OpenClosePanel(s.SessionId)">
-                                        Close Session
-                                    </button>
-                                    <button class="btn btn-sm btn-secondary"
-                                            @onclick="() => OpenTurnInPanel(s.SessionId)">
-                                        Turn In
-                                    </button>
-                                </div>
+                        <div class="session-card">
+                            <div class="session-card-header">
+                                <strong>@s.CashierName</strong>
+                                <span class="badge badge-success">OPEN</span>
                             </div>
-                        }
+                            <div class="session-detail">Station: @s.StationId | @s.SessionDate.ToShortDateString()</div>
+                            <div class="session-detail">Total Collected: @s.TotalCollected.ToString("C")</div>
+                            <div class="session-id" style="font-size:.7rem">@s.SessionId</div>
+                            <div class="session-actions mt-2">
+                                <button class="btn btn-primary me-1"
+                                        @onclick="() => OpenClosePanel(s.SessionId)">
+                                    Close Session
+                                </button>
+                                <button class="btn btn-primary"
+                                        @onclick="() => OpenTurnInPanel(s.SessionId)">
+                                    Turn In
+                                </button>
+                            </div>
+                        </div>
                     }
+                }
 
-                    @* Close session panel *@
-                    @if (!string.IsNullOrEmpty(closingSessionId))
-                    {
-                        <div class="action-panel">
-                            <h5>Close Session</h5>
-                            <input type="number" class="form-control mb-1" placeholder="Actual Balance" @bind="actualBalance" />
-                            <input class="form-control mb-1" placeholder="Notes (optional)" @bind="closeNotes" />
-                            @if (!string.IsNullOrEmpty(sessionActionError)) { <div class="alert alert-danger">@sessionActionError</div> }
-                            <button class="btn btn-warning" @onclick="SubmitClose">Close</button>
-                            <button class="btn btn-secondary ms-2" @onclick="() => closingSessionId = null">Cancel</button>
+                @* Close session panel *@
+                @if (!string.IsNullOrEmpty(closingSessionId))
+                {
+                    <div class="action-panel">
+                        <h5>Close Session</h5>
+                        <div class="form-section">
+                            <FormField Label="Actual Balance"><input type="number" class="form-input" @bind="actualBalance" /></FormField>
+                            <FormField Label="Notes (optional)"><input class="form-input" @bind="closeNotes" /></FormField>
                         </div>
-                    }
-
-                    @* Turn-in panel *@
-                    @if (!string.IsNullOrEmpty(turningInSessionId))
-                    {
-                        <div class="action-panel">
-                            <h5>Turn In to Fiscal</h5>
-                            <input type="number" class="form-control mb-1" placeholder="Turned In Amount" @bind="turnInAmount" />
-                            <input class="form-control mb-1" placeholder="Receiving Officer User ID" @bind="turnInToUserId" />
-                            <input class="form-control mb-1" placeholder="Turn-In Receipt # (optional)" @bind="turnInReceiptNumber" />
-                            @if (!string.IsNullOrEmpty(sessionActionError)) { <div class="alert alert-danger">@sessionActionError</div> }
-                            <button class="btn btn-secondary" @onclick="SubmitTurnIn">Submit Turn-In</button>
-                            <button class="btn btn-outline-secondary ms-2" @onclick="() => turningInSessionId = null">Cancel</button>
+                        <AlertBanner Error="@sessionActionError" />
+                        <div class="form-actions">
+                            <button class="btn btn-primary" @onclick="SubmitClose">Close</button>
+                            <button class="btn btn-primary" @onclick="() => closingSessionId = null">Cancel</button>
                         </div>
-                    }
-                </div>
-
-                @* Right: all sessions + open new session *@
-                <div class="col-all-sessions">
-                    <h4>All Sessions</h4>
-                    @if (allSessions.Count > 0)
-                    {
-                        <table class="ac-table">
-                            <thead>
-                                <tr>
-                                    <th>Date</th>
-                                    <th>Cashier</th>
-                                    <th>Station</th>
-                                    <th>Total</th>
-                                    <th>Status</th>
-                                    <th>Turned In</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                @foreach (SessionIndexEntry s in allSessions)
-                                {
-                                    <tr>
-                                        <td>@s.SessionDate.ToShortDateString()</td>
-                                        <td>@s.CashierName</td>
-                                        <td>@s.StationId</td>
-                                        <td>@s.TotalCollected.ToString("C")</td>
-                                        <td><span class="badge @BadgeClass(s.Status)">@s.Status</span></td>
-                                        <td>@(s.TurnedInDate.HasValue ? s.TurnedInDate.Value.ToShortDateString() : "—")</td>
-                                    </tr>
-                                }
-                            </tbody>
-                        </table>
-                    }
-                    else
-                    {
-                        <p class="text-muted">No sessions on file.</p>
-                    }
-
-                    <div class="form-section mt-3">
-                        <h5>Open New Session</h5>
-                        <div class="form-group">
-                            <label>Station ID</label>
-                            <input class="form-control" placeholder="e.g. WIN-1" @bind="newSession.StationId" />
-                        </div>
-                        <div class="form-group">
-                            <label>Station Name</label>
-                            <input class="form-control" placeholder="e.g. Window 1" @bind="newSession.StationName" />
-                        </div>
-                        <div class="form-group">
-                            <label>Cashier ID</label>
-                            <input class="form-control" @bind="newSession.CashierId" />
-                        </div>
-                        <div class="form-group">
-                            <label>Cashier Name</label>
-                            <input class="form-control" @bind="newSession.CashierName" />
-                        </div>
-                        <div class="form-group">
-                            <label>Session Date</label>
-                            <input type="date" class="form-control" @bind="newSession.SessionDate" />
-                        </div>
-                        <div class="form-group">
-                            <label>Opening Balance</label>
-                            <input type="number" class="form-control" @bind="newSession.OpeningBalance" />
-                        </div>
-                        @if (!string.IsNullOrEmpty(sessionFormError)) { <div class="alert alert-danger">@sessionFormError</div> }
-                        @if (!string.IsNullOrEmpty(sessionFormSuccess)) { <div class="alert alert-success">@sessionFormSuccess</div> }
-                        <button class="btn btn-success" @onclick="OpenSession">Open Session</button>
                     </div>
-                </div>
+                }
 
+                @* Turn-in panel *@
+                @if (!string.IsNullOrEmpty(turningInSessionId))
+                {
+                    <div class="action-panel">
+                        <h5>Turn In to Fiscal</h5>
+                        <div class="form-section">
+                            <FormField Label="Turned In Amount"><input type="number" class="form-input" @bind="turnInAmount" /></FormField>
+                            <FormField Label="Receiving Officer User ID"><input class="form-input" @bind="turnInToUserId" /></FormField>
+                            <FormField Label="Turn-In Receipt # (optional)"><input class="form-input" @bind="turnInReceiptNumber" /></FormField>
+                        </div>
+                        <AlertBanner Error="@sessionActionError" />
+                        <div class="form-actions">
+                            <button class="btn btn-primary" @onclick="SubmitTurnIn">Submit Turn-In</button>
+                            <button class="btn btn-primary" @onclick="() => turningInSessionId = null">Cancel</button>
+                        </div>
+                    </div>
+                }
             </div>
+
+            @* Right: all sessions + open new session *@
+            <div class="col-all-sessions">
+                <h4>All Sessions</h4>
+                @if (allSessions.Count > 0)
+                {
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th>Date</th>
+                                <th>Cashier</th>
+                                <th>Station</th>
+                                <th>Total</th>
+                                <th>Status</th>
+                                <th>Turned In</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (SessionIndexEntry s in allSessions)
+                            {
+                                <tr>
+                                    <td>@s.SessionDate.ToShortDateString()</td>
+                                    <td>@s.CashierName</td>
+                                    <td>@s.StationId</td>
+                                    <td>@s.TotalCollected.ToString("C")</td>
+                                    <td><span class="badge @BadgeClass(s.Status)">@s.Status</span></td>
+                                    <td>@(s.TurnedInDate.HasValue ? s.TurnedInDate.Value.ToShortDateString() : "—")</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                }
+                else
+                {
+                    <p class="empty-state">No sessions on file.</p>
+                }
+
+                <h5>Open New Session</h5>
+                <div class="form-section">
+                    <FormField Label="Station ID">
+                        <input class="form-input" placeholder="e.g. WIN-1" @bind="newSession.StationId" />
+                    </FormField>
+                    <FormField Label="Station Name">
+                        <input class="form-input" placeholder="e.g. Window 1" @bind="newSession.StationName" />
+                    </FormField>
+                    <FormField Label="Cashier ID">
+                        <input class="form-input" @bind="newSession.CashierId" />
+                    </FormField>
+                    <FormField Label="Cashier Name">
+                        <input class="form-input" @bind="newSession.CashierName" />
+                    </FormField>
+                    <FormField Label="Session Date">
+                        <input type="date" class="form-input" @bind="newSession.SessionDate" />
+                    </FormField>
+                    <FormField Label="Opening Balance">
+                        <input type="number" class="form-input" @bind="newSession.OpeningBalance" />
+                    </FormField>
+                </div>
+                <AlertBanner Error="@sessionFormError" Success="@sessionFormSuccess" />
+                <div class="form-actions">
+                    <button class="btn btn-primary" @onclick="OpenSession">Open Session</button>
+                </div>
+            </div>
+
         </div>
-    }
-</div>
+    </div>
+}
 
 <style>
-    .ac-container { padding: 1rem; font-family: sans-serif; }
-    .ac-header { margin-bottom: 1rem; }
-    .tab-bar { display: flex; gap: .5rem; margin-bottom: 1rem; border-bottom: 2px solid #dee2e6; padding-bottom: .5rem; }
-    .tab-btn { background: none; border: 1px solid #dee2e6; border-radius: 4px 4px 0 0; padding: .4rem 1rem; cursor: pointer; }
-    .tab-btn.active { background: #0d6efd; color: #fff; border-color: #0d6efd; }
-    .tab-content { padding: 1rem; }
+    /* Canonical classes (lookup-bar, lookup-input, tab, tab-bar, data-table, alert,
+       btn, badge, form-section, empty-state) are defined once in app.css per
+       UI-CONVENTIONS.md. Page-specific layout only below. */
+    .tab-content { padding: 1rem 0; }
     .window-columns { display: flex; gap: 2rem; flex-wrap: wrap; }
     .col-patient { flex: 1; min-width: 320px; }
     .col-issue { flex: 0 0 340px; }
     .session-columns { display: flex; gap: 2rem; flex-wrap: wrap; }
     .col-open-sessions { flex: 1; min-width: 280px; }
     .col-all-sessions { flex: 2; min-width: 360px; }
-    .ac-table { width: 100%; border-collapse: collapse; margin-bottom: 1rem; font-size: .875rem; }
-    .ac-table th, .ac-table td { border: 1px solid #dee2e6; padding: .4rem .6rem; text-align: left; }
-    .ac-table th { background: #e9ecef; }
-    .badge { display: inline-block; padding: .25em .5em; border-radius: 4px; font-size: .75rem; }
-    .badge-success   { background: #198754; color: #fff; }
-    .badge-danger    { background: #dc3545; color: #fff; }
-    .badge-warning   { background: #ffc107; color: #000; }
-    .badge-secondary { background: #6c757d; color: #fff; }
-    .badge-info      { background: #0dcaf0; color: #000; }
-    .form-group { margin-bottom: .5rem; }
-    .form-group label { display: block; font-size: .8rem; margin-bottom: .2rem; }
-    .form-row { display: flex; gap: .5rem; flex-wrap: wrap; align-items: center; }
-    .form-section { background: #f8f9fa; border: 1px solid #dee2e6; border-radius: 4px; padding: 1rem; }
     .action-panel { background: #fff3cd; border: 1px solid #ffc107; border-radius: 4px; padding: 1rem; margin-top: 1rem; }
     .session-card { background: #f8f9fa; border: 1px solid #dee2e6; border-radius: 4px; padding: .75rem; margin-bottom: .75rem; }
-    .session-card-header { display: flex; align-items: center; }
+    .session-card-header { display: flex; align-items: center; gap: .5rem; }
     .session-detail { font-size: .85rem; }
-    .session-id { word-break: break-all; }
-    .session-actions { display: flex; }
-    .ms-2 { margin-left: .5rem; }
+    .session-id { word-break: break-all; color: #6c757d; }
+    .session-actions { display: flex; gap: .25rem; }
     .me-1 { margin-right: .25rem; }
     .mt-2 { margin-top: .5rem; }
-    .mt-3 { margin-top: 1rem; }
-    .mb-1 { margin-bottom: .25rem; }
-    .mb-2 { margin-bottom: .5rem; }
-    .text-muted { color: #6c757d; }
 </style>
 
 @code {
@@ -394,10 +366,10 @@
     {
         "Issued"   => "badge-success",
         "Voided"   => "badge-danger",
-        "TurnedIn" => "badge-secondary",
+        "TurnedIn" => "badge-neutral",
         "Open"     => "badge-success",
         "Closed"   => "badge-warning",
-        _          => "badge-secondary",
+        _          => "badge-neutral",
     };
 
     async Task SetTab(string tab)

@@ -15,15 +15,15 @@
 <div class="fb-container">
     <div class="fb-header">
         <h2>Fee Basis — Community Care</h2>
-        <div class="patient-lookup">
-            <input class="form-control" placeholder="Patient ID" @bind="patientId" />
+        <div class="lookup-bar">
+            <input class="lookup-input" placeholder="Patient ID" @bind="patientId" />
             <button class="btn btn-primary" @onclick="LoadPatient">Load</button>
         </div>
     </div>
 
     @if (error != null)
     {
-        <div class="alert alert-danger">@error</div>
+        <div class="alert alert-error">@error</div>
     }
 
     @if (loaded)
@@ -48,21 +48,21 @@
             }
             else
             {
-                <span class="badge badge-secondary">NOT ELIGIBLE</span>
+                <span class="badge badge-neutral">NOT ELIGIBLE</span>
             }
         </div>
 
         @* Tabs *@
         <div class="tab-bar">
-            <button class="tab-btn @(activeTab == "authorizations" ? "active" : "")"
+            <button class="tab @(activeTab == "authorizations" ? "active" : "")"
                     @onclick='() => activeTab = "authorizations"'>Authorizations</button>
-            <button class="tab-btn @(activeTab == "invoices" ? "active" : "")"
+            <button class="tab @(activeTab == "invoices" ? "active" : "")"
                     @onclick='() => activeTab = "invoices"'>Invoices</button>
-            <button class="tab-btn @(activeTab == "vendors" ? "active" : "")"
+            <button class="tab @(activeTab == "vendors" ? "active" : "")"
                     @onclick='() => activeTab = "vendors"'>Vendors</button>
-            <button class="tab-btn @(activeTab == "config" ? "active" : "")"
+            <button class="tab @(activeTab == "config" ? "active" : "")"
                     @onclick='() => activeTab = "config"'>Configuration</button>
-            <button class="tab-btn @(activeTab == "batch" ? "active" : "")"
+            <button class="tab @(activeTab == "batch" ? "active" : "")"
                     @onclick='async () => { activeTab = "batch"; await LoadBatches(); }'>Batch Payments</button>
         </div>
 
@@ -78,7 +78,7 @@
                 }
                 else
                 {
-                    <table class="fb-table">
+                    <table class="data-table">
                         <thead>
                             <tr>
                                 <th>Vendor</th>
@@ -103,7 +103,7 @@
                                     <td><span class="badge @BadgeClass(a.Status)">@a.Status</span></td>
                                     <td>@a.AuthorizationDate.ToShortDateString()</td>
                                     <td>
-                                        <button class="btn btn-sm btn-outline-secondary"
+                                        <button class="btn btn-primary"
                                                 @onclick="() => ViewAuthorization(a.AuthorizationId)">
                                             Detail
                                         </button>
@@ -134,17 +134,17 @@
                         {
                             <div class="mt-2"><strong>Linked Invoices:</strong> @string.Join(", ", selectedAuth.InvoiceIds)</div>
                         }
-                        <button class="btn btn-sm btn-outline-secondary mt-2" @onclick="() => selectedAuth = null">Close</button>
+                        <button class="btn btn-primary mt-2" @onclick="() => selectedAuth = null">Close</button>
                     </div>
                 }
 
                 @* Create Authorization form *@
-                <div class="form-section">
+                <div class="fb-form-section">
                     <h5>Create Authorization</h5>
-                    <div class="form-row">
-                        <input class="form-control" placeholder="Vendor ID" @bind="newAuth.VendorId" />
-                        <input class="form-control" placeholder="Vendor Name" @bind="newAuth.VendorName" />
-                        <select class="form-control" @bind="newAuth.ServiceType">
+                    <div class="fb-form-row">
+                        <input class="form-input" placeholder="Vendor ID" @bind="newAuth.VendorId" />
+                        <input class="form-input" placeholder="Vendor Name" @bind="newAuth.VendorName" />
+                        <select class="form-input" @bind="newAuth.ServiceType">
                             <option value="">-- Service Type --</option>
                             @foreach (string st in serviceTypes)
                             {
@@ -152,31 +152,31 @@
                             }
                         </select>
                     </div>
-                    <div class="form-row">
+                    <div class="fb-form-row">
                         <label>Auth Date</label>
-                        <input type="date" class="form-control" @bind="newAuth.AuthorizationDate" />
+                        <input type="date" class="form-input" @bind="newAuth.AuthorizationDate" />
                         <label>Effective</label>
-                        <input type="date" class="form-control" @bind="newAuth.EffectiveDate" />
+                        <input type="date" class="form-input" @bind="newAuth.EffectiveDate" />
                         <label>Expires</label>
-                        <input type="date" class="form-control" @bind="newAuth.ExpirationDate" />
+                        <input type="date" class="form-input" @bind="newAuth.ExpirationDate" />
                     </div>
-                    <div class="form-row">
-                        <input type="number" class="form-control" placeholder="Authorized Amount" @bind="newAuth.AuthorizedAmount" />
-                        <input class="form-control" placeholder="Authorized By User ID" @bind="newAuth.AuthorizedByUserId" />
-                        <input class="form-control" placeholder="Authorized By Name" @bind="newAuth.AuthorizedByUserName" />
+                    <div class="fb-form-row">
+                        <input type="number" class="form-input" placeholder="Authorized Amount" @bind="newAuth.AuthorizedAmount" />
+                        <input class="form-input" placeholder="Authorized By User ID" @bind="newAuth.AuthorizedByUserId" />
+                        <input class="form-input" placeholder="Authorized By Name" @bind="newAuth.AuthorizedByUserName" />
                     </div>
-                    <div class="form-row">
-                        <input class="form-control" placeholder="Service Description" @bind="newAuth.ServiceDescription" />
-                        <input type="number" class="form-control" placeholder="Max Visits (optional)" @bind="newAuth.MaxVisits" />
-                        <input class="form-control" placeholder="Diagnosis Code (optional)" @bind="newAuth.DiagnosisCode" />
+                    <div class="fb-form-row">
+                        <input class="form-input" placeholder="Service Description" @bind="newAuth.ServiceDescription" />
+                        <input type="number" class="form-input" placeholder="Max Visits (optional)" @bind="newAuth.MaxVisits" />
+                        <input class="form-input" placeholder="Diagnosis Code (optional)" @bind="newAuth.DiagnosisCode" />
                     </div>
-                    <div class="form-row">
-                        <input class="form-control" placeholder="Auth Number (optional)" @bind="newAuth.AuthorizationNumber" />
-                        <input class="form-control" placeholder="Notes (optional)" @bind="newAuth.Notes" />
+                    <div class="fb-form-row">
+                        <input class="form-input" placeholder="Auth Number (optional)" @bind="newAuth.AuthorizationNumber" />
+                        <input class="form-input" placeholder="Notes (optional)" @bind="newAuth.Notes" />
                     </div>
-                    @if (!string.IsNullOrEmpty(authFormError)) { <div class="alert alert-danger">@authFormError</div> }
+                    @if (!string.IsNullOrEmpty(authFormError)) { <div class="alert alert-error">@authFormError</div> }
                     @if (!string.IsNullOrEmpty(authFormSuccess)) { <div class="alert alert-success">@authFormSuccess</div> }
-                    <button class="btn btn-success" @onclick="CreateAuthorization">Create Authorization</button>
+                    <button class="btn btn-primary" @onclick="CreateAuthorization">Create Authorization</button>
                 </div>
             </div>
         }
@@ -193,7 +193,7 @@
                 }
                 else
                 {
-                    <table class="fb-table">
+                    <table class="data-table">
                         <thead>
                             <tr>
                                 <th>Vendor</th>
@@ -218,14 +218,14 @@
                                     <td>
                                         @if (inv.Status == "Received" || inv.Status == "UnderReview")
                                         {
-                                            <button class="btn btn-sm btn-success me-1"
+                                            <button class="btn btn-primary me-1"
                                                     @onclick="() => OpenApproveInvoice(inv.InvoiceId)">Approve</button>
-                                            <button class="btn btn-sm btn-danger"
+                                            <button class="btn btn-primary"
                                                     @onclick="() => OpenRejectInvoice(inv.InvoiceId)">Reject</button>
                                         }
                                         @if (inv.Status == "Approved")
                                         {
-                                            <button class="btn btn-sm btn-primary"
+                                            <button class="btn btn-primary"
                                                     @onclick="() => OpenPayInvoice(inv.InvoiceId)">Pay</button>
                                         }
                                     </td>
@@ -240,11 +240,11 @@
                 {
                     <div class="action-panel">
                         <h5>Approve Invoice</h5>
-                        <input type="number" class="form-control" placeholder="Approved Amount" @bind="approveAmount" />
-                        <input class="form-control" placeholder="Reviewer User ID" @bind="reviewerUserId" />
-                        <input class="form-control" placeholder="Reviewer Name" @bind="reviewerName" />
-                        @if (!string.IsNullOrEmpty(invoiceFormError)) { <div class="alert alert-danger">@invoiceFormError</div> }
-                        <button class="btn btn-success mt-2" @onclick="SubmitApproval">Submit Approval</button>
+                        <input type="number" class="form-input" placeholder="Approved Amount" @bind="approveAmount" />
+                        <input class="form-input" placeholder="Reviewer User ID" @bind="reviewerUserId" />
+                        <input class="form-input" placeholder="Reviewer Name" @bind="reviewerName" />
+                        @if (!string.IsNullOrEmpty(invoiceFormError)) { <div class="alert alert-error">@invoiceFormError</div> }
+                        <button class="btn btn-primary mt-2" @onclick="SubmitApproval">Submit Approval</button>
                         <button class="btn btn-secondary mt-2 ms-2" @onclick="() => approvingInvoiceId = null">Cancel</button>
                     </div>
                 }
@@ -254,11 +254,11 @@
                 {
                     <div class="action-panel">
                         <h5>Reject Invoice</h5>
-                        <input class="form-control" placeholder="Rejection Reason" @bind="rejectReason" />
-                        <input class="form-control" placeholder="Reviewer User ID" @bind="reviewerUserId" />
-                        <input class="form-control" placeholder="Reviewer Name" @bind="reviewerName" />
-                        @if (!string.IsNullOrEmpty(invoiceFormError)) { <div class="alert alert-danger">@invoiceFormError</div> }
-                        <button class="btn btn-danger mt-2" @onclick="SubmitRejection">Submit Rejection</button>
+                        <input class="form-input" placeholder="Rejection Reason" @bind="rejectReason" />
+                        <input class="form-input" placeholder="Reviewer User ID" @bind="reviewerUserId" />
+                        <input class="form-input" placeholder="Reviewer Name" @bind="reviewerName" />
+                        @if (!string.IsNullOrEmpty(invoiceFormError)) { <div class="alert alert-error">@invoiceFormError</div> }
+                        <button class="btn btn-primary mt-2" @onclick="SubmitRejection">Submit Rejection</button>
                         <button class="btn btn-secondary mt-2 ms-2" @onclick="() => rejectingInvoiceId = null">Cancel</button>
                     </div>
                 }
@@ -268,50 +268,50 @@
                 {
                     <div class="action-panel">
                         <h5>Pay Invoice</h5>
-                        <input type="number" class="form-control" placeholder="Paid Amount" @bind="payAmount" />
-                        <select class="form-control" @bind="paymentMethod">
+                        <input type="number" class="form-input" placeholder="Paid Amount" @bind="payAmount" />
+                        <select class="form-input" @bind="paymentMethod">
                             <option value="EFT">EFT</option>
                             <option value="Check">Check</option>
                         </select>
-                        <input class="form-control" placeholder="Check Number (optional)" @bind="checkNumber" />
-                        @if (!string.IsNullOrEmpty(invoiceFormError)) { <div class="alert alert-danger">@invoiceFormError</div> }
+                        <input class="form-input" placeholder="Check Number (optional)" @bind="checkNumber" />
+                        @if (!string.IsNullOrEmpty(invoiceFormError)) { <div class="alert alert-error">@invoiceFormError</div> }
                         <button class="btn btn-primary mt-2" @onclick="SubmitPayment">Submit Payment</button>
                         <button class="btn btn-secondary mt-2 ms-2" @onclick="() => payingInvoiceId = null">Cancel</button>
                     </div>
                 }
 
                 @* Submit invoice form *@
-                <div class="form-section">
+                <div class="fb-form-section">
                     <h5>Submit Invoice</h5>
-                    <div class="form-row">
-                        <input class="form-control" placeholder="Authorization ID" @bind="newInvoice.AuthorizationId" />
-                        <input class="form-control" placeholder="Vendor ID" @bind="newInvoice.VendorId" />
-                        <input class="form-control" placeholder="Vendor Name" @bind="newInvoice.VendorName" />
+                    <div class="fb-form-row">
+                        <input class="form-input" placeholder="Authorization ID" @bind="newInvoice.AuthorizationId" />
+                        <input class="form-input" placeholder="Vendor ID" @bind="newInvoice.VendorId" />
+                        <input class="form-input" placeholder="Vendor Name" @bind="newInvoice.VendorName" />
                     </div>
-                    <div class="form-row">
-                        <input class="form-control" placeholder="Invoice Number" @bind="newInvoice.InvoiceNumber" />
-                        <select class="form-control" @bind="newInvoice.ServiceType">
+                    <div class="fb-form-row">
+                        <input class="form-input" placeholder="Invoice Number" @bind="newInvoice.InvoiceNumber" />
+                        <select class="form-input" @bind="newInvoice.ServiceType">
                             <option value="">-- Service Type --</option>
                             @foreach (string st in serviceTypes)
                             {
                                 <option value="@st">@st</option>
                             }
                         </select>
-                        <input type="number" class="form-control" placeholder="Billed Amount" @bind="newInvoice.BilledAmount" />
+                        <input type="number" class="form-input" placeholder="Billed Amount" @bind="newInvoice.BilledAmount" />
                     </div>
-                    <div class="form-row">
+                    <div class="fb-form-row">
                         <label>Service Date</label>
-                        <input type="date" class="form-control" @bind="newInvoice.ServiceDate" />
+                        <input type="date" class="form-input" @bind="newInvoice.ServiceDate" />
                         <label>Service End (optional)</label>
-                        <input type="date" class="form-control" @bind="newInvoice.ServiceDateEnd" />
+                        <input type="date" class="form-input" @bind="newInvoice.ServiceDateEnd" />
                     </div>
-                    <div class="form-row">
-                        <input class="form-control" placeholder="Diagnosis Code (optional)" @bind="newInvoice.DiagnosisCode" />
-                        <input class="form-control" placeholder="Notes (optional)" @bind="newInvoice.Notes" />
+                    <div class="fb-form-row">
+                        <input class="form-input" placeholder="Diagnosis Code (optional)" @bind="newInvoice.DiagnosisCode" />
+                        <input class="form-input" placeholder="Notes (optional)" @bind="newInvoice.Notes" />
                     </div>
-                    @if (!string.IsNullOrEmpty(invoiceSubmitError)) { <div class="alert alert-danger">@invoiceSubmitError</div> }
+                    @if (!string.IsNullOrEmpty(invoiceSubmitError)) { <div class="alert alert-error">@invoiceSubmitError</div> }
                     @if (!string.IsNullOrEmpty(invoiceSubmitSuccess)) { <div class="alert alert-success">@invoiceSubmitSuccess</div> }
-                    <button class="btn btn-success" @onclick="SubmitNewInvoice">Submit Invoice</button>
+                    <button class="btn btn-primary" @onclick="SubmitNewInvoice">Submit Invoice</button>
                 </div>
             </div>
         }
@@ -334,7 +334,7 @@
                 }
                 else
                 {
-                    <table class="fb-table">
+                    <table class="data-table">
                         <thead>
                             <tr>
                                 <th>Name</th>
@@ -361,36 +361,36 @@
                     </table>
                 }
 
-                <div class="form-section">
+                <div class="fb-form-section">
                     <h5>Add Vendor</h5>
-                    <div class="form-row">
-                        <input class="form-control" placeholder="Vendor Name" @bind="newVendor.VendorName" />
-                        <select class="form-control" @bind="newVendor.VendorType">
+                    <div class="fb-form-row">
+                        <input class="form-input" placeholder="Vendor Name" @bind="newVendor.VendorName" />
+                        <select class="form-input" @bind="newVendor.VendorType">
                             <option value="Individual">Individual</option>
                             <option value="Organization">Organization</option>
                         </select>
                     </div>
-                    <div class="form-row">
-                        <input class="form-control" placeholder="Specialty Code (optional)" @bind="newVendor.SpecialtyCode" />
-                        <input class="form-control" placeholder="Specialty Name (optional)" @bind="newVendor.SpecialtyName" />
-                        <input class="form-control" placeholder="NPI (optional)" @bind="newVendor.NPI" />
-                        <input class="form-control" placeholder="Tax ID (optional)" @bind="newVendor.TaxId" />
+                    <div class="fb-form-row">
+                        <input class="form-input" placeholder="Specialty Code (optional)" @bind="newVendor.SpecialtyCode" />
+                        <input class="form-input" placeholder="Specialty Name (optional)" @bind="newVendor.SpecialtyName" />
+                        <input class="form-input" placeholder="NPI (optional)" @bind="newVendor.NPI" />
+                        <input class="form-input" placeholder="Tax ID (optional)" @bind="newVendor.TaxId" />
                     </div>
-                    <div class="form-row">
-                        <input class="form-control" placeholder="Address (optional)" @bind="newVendor.Address" />
-                        <input class="form-control" placeholder="Phone (optional)" @bind="newVendor.Phone" />
+                    <div class="fb-form-row">
+                        <input class="form-input" placeholder="Address (optional)" @bind="newVendor.Address" />
+                        <input class="form-input" placeholder="Phone (optional)" @bind="newVendor.Phone" />
                     </div>
-                    <div class="form-row">
-                        <input class="form-control" placeholder="Contract Number (optional)" @bind="newVendor.ContractNumber" />
+                    <div class="fb-form-row">
+                        <input class="form-input" placeholder="Contract Number (optional)" @bind="newVendor.ContractNumber" />
                         <label>Contract Start</label>
-                        <input type="date" class="form-control" @bind="newVendor.ContractStartDate" />
+                        <input type="date" class="form-input" @bind="newVendor.ContractStartDate" />
                         <label>Contract End</label>
-                        <input type="date" class="form-control" @bind="newVendor.ContractEndDate" />
+                        <input type="date" class="form-input" @bind="newVendor.ContractEndDate" />
                     </div>
-                    <input class="form-control mb-2" placeholder="Notes (optional)" @bind="newVendor.Notes" />
-                    @if (!string.IsNullOrEmpty(vendorFormError)) { <div class="alert alert-danger">@vendorFormError</div> }
+                    <input class="form-input mb-2" placeholder="Notes (optional)" @bind="newVendor.Notes" />
+                    @if (!string.IsNullOrEmpty(vendorFormError)) { <div class="alert alert-error">@vendorFormError</div> }
                     @if (!string.IsNullOrEmpty(vendorFormSuccess)) { <div class="alert alert-success">@vendorFormSuccess</div> }
-                    <button class="btn btn-success" @onclick="CreateVendor">Add Vendor</button>
+                    <button class="btn btn-primary" @onclick="CreateVendor">Add Vendor</button>
                 </div>
             </div>
         }
@@ -418,29 +418,29 @@
                             </div>
                         }
                         <h5 class="mt-3">Update Site Parameters</h5>
-                        <div class="form-row">
-                            <input class="form-control" placeholder="Site Name" @bind="siteParamForm.SiteName" />
-                            <input type="number" class="form-control" placeholder="Fiscal Year" @bind="siteParamForm.FiscalYear" />
+                        <div class="fb-form-row">
+                            <input class="form-input" placeholder="Site Name" @bind="siteParamForm.SiteName" />
+                            <input type="number" class="form-input" placeholder="Fiscal Year" @bind="siteParamForm.FiscalYear" />
                         </div>
-                        <div class="form-row">
+                        <div class="fb-form-row">
                             <label>Fee Basis Enabled</label>
                             <input type="checkbox" @bind="siteParamForm.IsFeeBasisEnabled" />
                             <label>Pre-Auth Required</label>
                             <input type="checkbox" @bind="siteParamForm.RequiresPreAuthorization" />
                         </div>
-                        <div class="form-row">
-                            <input type="number" class="form-control" placeholder="Annual Budget (optional)" @bind="siteParamForm.AnnualBudget" />
-                            <input type="number" class="form-control" placeholder="Max Auth Days" @bind="siteParamForm.MaxAuthorizationDays" />
-                            <input type="number" class="form-control" placeholder="Auto-Approval Limit (optional)" @bind="siteParamForm.AutoApprovalLimit" />
+                        <div class="fb-form-row">
+                            <input type="number" class="form-input" placeholder="Annual Budget (optional)" @bind="siteParamForm.AnnualBudget" />
+                            <input type="number" class="form-input" placeholder="Max Auth Days" @bind="siteParamForm.MaxAuthorizationDays" />
+                            <input type="number" class="form-input" placeholder="Auto-Approval Limit (optional)" @bind="siteParamForm.AutoApprovalLimit" />
                         </div>
-                        <div class="form-row">
-                            <select class="form-control" @bind="siteParamForm.DefaultPaymentMethod">
+                        <div class="fb-form-row">
+                            <select class="form-input" @bind="siteParamForm.DefaultPaymentMethod">
                                 <option value="EFT">EFT</option>
                                 <option value="Check">Check</option>
                             </select>
-                            <input class="form-control" placeholder="Updated By User ID" @bind="siteParamForm.UpdatedByUserId" />
+                            <input class="form-input" placeholder="Updated By User ID" @bind="siteParamForm.UpdatedByUserId" />
                         </div>
-                        @if (!string.IsNullOrEmpty(siteParamError)) { <div class="alert alert-danger">@siteParamError</div> }
+                        @if (!string.IsNullOrEmpty(siteParamError)) { <div class="alert alert-error">@siteParamError</div> }
                         @if (!string.IsNullOrEmpty(siteParamSuccess)) { <div class="alert alert-success">@siteParamSuccess</div> }
                         <button class="btn btn-primary mt-2" @onclick="UpdateSiteParameters">Update</button>
                     </div>
@@ -448,17 +448,17 @@
                     @* Income Thresholds *@
                     <div class="config-section">
                         <h4>Income Thresholds (FY @thresholdYear)</h4>
-                        <div class="form-row mb-2">
-                            <input type="number" class="form-control" placeholder="Year" @bind="thresholdYear" />
-                            <button class="btn btn-outline-primary" @onclick="LoadThresholds">Load</button>
-                            <button class="btn btn-outline-secondary" @onclick="SeedThresholds">Seed Defaults</button>
+                        <div class="fb-form-row mb-2">
+                            <input type="number" class="form-input" placeholder="Year" @bind="thresholdYear" />
+                            <button class="btn btn-primary" @onclick="LoadThresholds">Load</button>
+                            <button class="btn btn-primary" @onclick="SeedThresholds">Seed Defaults</button>
                         </div>
-                        @if (!string.IsNullOrEmpty(thresholdError)) { <div class="alert alert-danger">@thresholdError</div> }
+                        @if (!string.IsNullOrEmpty(thresholdError)) { <div class="alert alert-error">@thresholdError</div> }
                         @if (!string.IsNullOrEmpty(thresholdSuccess)) { <div class="alert alert-success">@thresholdSuccess</div> }
 
                         @if (thresholds.Count > 0)
                         {
-                            <table class="fb-table">
+                            <table class="data-table">
                                 <thead>
                                     <tr>
                                         <th>Category</th>
@@ -511,12 +511,12 @@
                                 <div><strong>Invoices:</strong> @b.InvoiceCount</div>
                                 <div><strong>Total:</strong> @b.TotalAmount.ToString("C")</div>
                             </div>
-                            <div class="form-row mt-2">
-                                <button class="btn btn-sm btn-outline-primary"
+                            <div class="fb-form-row mt-2">
+                                <button class="btn btn-primary"
                                         @onclick="() => ToggleAddInvoicePanel(b.BatchId)">
                                     @(addingInvoiceToBatchId == b.BatchId ? "Cancel Add" : "Add Invoice")
                                 </button>
-                                <button class="btn btn-sm btn-warning"
+                                <button class="btn btn-primary"
                                         @onclick="() => TogglePostPanel(b.BatchId)">
                                     @(postingBatchId == b.BatchId ? "Cancel Post" : "Post Batch")
                                 </button>
@@ -527,21 +527,21 @@
                             {
                                 <div class="action-panel mt-2">
                                     <h6>Add Invoice to Batch</h6>
-                                    <div class="form-row">
-                                        <input class="form-control" placeholder="Invoice ID" @bind="addInvoiceForm.InvoiceId" />
-                                        <input class="form-control" placeholder="Authorization ID" @bind="addInvoiceForm.AuthorizationId" />
-                                        <input class="form-control" placeholder="Patient ID" @bind="addInvoiceForm.PatientId" />
+                                    <div class="fb-form-row">
+                                        <input class="form-input" placeholder="Invoice ID" @bind="addInvoiceForm.InvoiceId" />
+                                        <input class="form-input" placeholder="Authorization ID" @bind="addInvoiceForm.AuthorizationId" />
+                                        <input class="form-input" placeholder="Patient ID" @bind="addInvoiceForm.PatientId" />
                                     </div>
-                                    <div class="form-row">
-                                        <input class="form-control" placeholder="Patient Name" @bind="addInvoiceForm.PatientName" />
-                                        <input class="form-control" placeholder="Vendor ID" @bind="addInvoiceForm.VendorId" />
-                                        <input class="form-control" placeholder="Vendor Name" @bind="addInvoiceForm.VendorName" />
+                                    <div class="fb-form-row">
+                                        <input class="form-input" placeholder="Patient Name" @bind="addInvoiceForm.PatientName" />
+                                        <input class="form-input" placeholder="Vendor ID" @bind="addInvoiceForm.VendorId" />
+                                        <input class="form-input" placeholder="Vendor Name" @bind="addInvoiceForm.VendorName" />
                                     </div>
-                                    <div class="form-row">
-                                        <input type="number" class="form-control" placeholder="Paid Amount" @bind="addInvoiceForm.PaidAmount" />
+                                    <div class="fb-form-row">
+                                        <input type="number" class="form-input" placeholder="Paid Amount" @bind="addInvoiceForm.PaidAmount" />
                                     </div>
-                                    @if (!string.IsNullOrEmpty(addInvoiceError)) { <div class="alert alert-danger mt-2">@addInvoiceError</div> }
-                                    <div class="form-row mt-2">
+                                    @if (!string.IsNullOrEmpty(addInvoiceError)) { <div class="alert alert-error mt-2">@addInvoiceError</div> }
+                                    <div class="fb-form-row mt-2">
                                         <button class="btn btn-primary" @onclick="SubmitAddInvoice">Add Invoice</button>
                                     </div>
                                 </div>
@@ -553,13 +553,13 @@
                                 <div class="action-panel mt-2">
                                     <h6>Post Batch — @b.InvoiceCount Invoice(s) — @b.TotalAmount.ToString("C")</h6>
                                     <p class="text-muted">Posting marks every invoice as Paid and updates each authorization's spent balance.</p>
-                                    <div class="form-row">
-                                        <input class="form-control" placeholder="Posted By User ID" @bind="postBatchUserId" />
-                                        <input class="form-control" placeholder="Posted By User Name" @bind="postBatchUserName" />
+                                    <div class="fb-form-row">
+                                        <input class="form-input" placeholder="Posted By User ID" @bind="postBatchUserId" />
+                                        <input class="form-input" placeholder="Posted By User Name" @bind="postBatchUserName" />
                                     </div>
-                                    @if (!string.IsNullOrEmpty(postBatchError)) { <div class="alert alert-danger mt-2">@postBatchError</div> }
-                                    <div class="form-row mt-2">
-                                        <button class="btn btn-warning" @onclick="SubmitPostBatch">Confirm Post</button>
+                                    @if (!string.IsNullOrEmpty(postBatchError)) { <div class="alert alert-error mt-2">@postBatchError</div> }
+                                    <div class="fb-form-row mt-2">
+                                        <button class="btn btn-primary" @onclick="SubmitPostBatch">Confirm Post</button>
                                     </div>
                                 </div>
                             }
@@ -575,7 +575,7 @@
                 }
                 else
                 {
-                    <table class="fb-table">
+                    <table class="data-table">
                         <thead>
                             <tr>
                                 <th>Batch ID</th>
@@ -607,26 +607,26 @@
                 }
 
                 @* Create Batch form *@
-                <div class="form-section mt-3">
+                <div class="fb-form-section mt-3">
                     <h5>Create New Batch</h5>
-                    <div class="form-row">
-                        <input class="form-control" placeholder="Vendor ID (optional)" @bind="newBatch.VendorId" />
-                        <input class="form-control" placeholder="Vendor Name (optional)" @bind="newBatch.VendorName" />
+                    <div class="fb-form-row">
+                        <input class="form-input" placeholder="Vendor ID (optional)" @bind="newBatch.VendorId" />
+                        <input class="form-input" placeholder="Vendor Name (optional)" @bind="newBatch.VendorName" />
                     </div>
-                    <div class="form-row">
+                    <div class="fb-form-row">
                         <label>Batch Date:</label>
-                        <input type="date" class="form-control" @bind="newBatch.BatchDate" />
-                        <select class="form-control" @bind="newBatch.PaymentMethod">
+                        <input type="date" class="form-input" @bind="newBatch.BatchDate" />
+                        <select class="form-input" @bind="newBatch.PaymentMethod">
                             <option value="EFT">EFT</option>
                             <option value="Check">Check</option>
                             <option value="ACH">ACH</option>
                         </select>
-                        <input class="form-control" placeholder="Check # (optional)" @bind="newBatch.CheckNumber" />
+                        <input class="form-input" placeholder="Check # (optional)" @bind="newBatch.CheckNumber" />
                     </div>
-                    <div class="form-row">
-                        <input class="form-control" placeholder="Notes (optional)" @bind="newBatch.Notes" />
+                    <div class="fb-form-row">
+                        <input class="form-input" placeholder="Notes (optional)" @bind="newBatch.Notes" />
                     </div>
-                    @if (!string.IsNullOrEmpty(batchFormError)) { <div class="alert alert-danger mt-2">@batchFormError</div> }
+                    @if (!string.IsNullOrEmpty(batchFormError)) { <div class="alert alert-error mt-2">@batchFormError</div> }
                     @if (!string.IsNullOrEmpty(batchFormSuccess)) { <div class="alert alert-success mt-2">@batchFormSuccess</div> }
                     <button class="btn btn-primary mt-2" @onclick="CreateBatch">Create Batch</button>
                 </div>
@@ -636,33 +636,22 @@
 </div>
 
 <style>
+    /* Canonical classes (lookup-bar, lookup-input, tab-bar, tab, data-table,
+       alert-error/success, btn, badge) are defined once in app.css per
+       UI-CONVENTIONS.md and must not be redefined here. Page-specific only below. */
     .fb-container { padding: 1rem; font-family: sans-serif; }
     .fb-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; }
-    .patient-lookup { display: flex; gap: .5rem; }
     .patient-summary { display: flex; gap: 1rem; align-items: center; margin-bottom: 1rem; flex-wrap: wrap; }
     .summary-card { background: #f8f9fa; border: 1px solid #dee2e6; border-radius: 4px; padding: .5rem 1rem; text-align: center; }
     .summary-card .label { display: block; font-size: .75rem; color: #6c757d; }
     .summary-card .value { display: block; font-size: 1.25rem; font-weight: bold; }
     .summary-card .value.paid { color: #198754; }
-    .tab-bar { display: flex; gap: .5rem; margin-bottom: 1rem; border-bottom: 2px solid #dee2e6; padding-bottom: .5rem; }
-    .tab-btn { background: none; border: 1px solid #dee2e6; border-radius: 4px 4px 0 0; padding: .4rem 1rem; cursor: pointer; }
-    .tab-btn.active { background: #0d6efd; color: #fff; border-color: #0d6efd; }
     .tab-content { padding: 1rem; }
-    .fb-table { width: 100%; border-collapse: collapse; margin-bottom: 1rem; font-size: .875rem; }
-    .fb-table th, .fb-table td { border: 1px solid #dee2e6; padding: .4rem .6rem; text-align: left; }
-    .fb-table th { background: #e9ecef; }
-    .badge { display: inline-block; padding: .25em .5em; border-radius: 4px; font-size: .75rem; }
-    .badge-success { background: #198754; color: #fff; }
-    .badge-danger  { background: #dc3545; color: #fff; }
-    .badge-warning { background: #ffc107; color: #000; }
-    .badge-secondary { background: #6c757d; color: #fff; }
-    .badge-info    { background: #0dcaf0; color: #000; }
-    .badge-primary { background: #0d6efd; color: #fff; }
     .detail-panel  { background: #f8f9fa; border: 1px solid #dee2e6; border-radius: 4px; padding: 1rem; margin-bottom: 1rem; }
     .detail-grid   { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: .5rem; margin-bottom: .5rem; }
-    .form-section  { background: #f8f9fa; border: 1px solid #dee2e6; border-radius: 4px; padding: 1rem; margin-top: 1rem; }
-    .form-row      { display: flex; gap: .5rem; margin-bottom: .5rem; flex-wrap: wrap; align-items: center; }
-    .form-row label { white-space: nowrap; font-size: .875rem; }
+    .fb-form-section  { background: #f8f9fa; border: 1px solid #dee2e6; border-radius: 4px; padding: 1rem; margin-top: 1rem; }
+    .fb-form-row      { display: flex; gap: .5rem; margin-bottom: .5rem; flex-wrap: wrap; align-items: center; }
+    .fb-form-row label { white-space: nowrap; font-size: .875rem; }
     .action-panel  { background: #fff3cd; border: 1px solid #ffc107; border-radius: 4px; padding: 1rem; margin-bottom: 1rem; }
     .config-columns { display: flex; gap: 2rem; flex-wrap: wrap; }
     .config-section { flex: 1; min-width: 320px; }
@@ -755,16 +744,16 @@
         "Active"      => "badge-success",
         "Pending"     => "badge-warning",
         "Suspended"   => "badge-warning",
-        "Exhausted"   => "badge-secondary",
+        "Exhausted"   => "badge-neutral",
         "Cancelled"   => "badge-danger",
-        "Expired"     => "badge-secondary",
+        "Expired"     => "badge-neutral",
         "Paid"        => "badge-success",
-        "Approved"    => "badge-primary",
+        "Approved"    => "badge-info",
         "Received"    => "badge-info",
         "UnderReview" => "badge-warning",
         "Rejected"    => "badge-danger",
         "OnHold"      => "badge-warning",
-        _             => "badge-secondary",
+        _             => "badge-neutral",
     };
 
     // ── load ──────────────────────────────────────────────────────────────────
