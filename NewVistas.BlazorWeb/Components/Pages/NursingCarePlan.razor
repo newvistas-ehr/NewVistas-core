@@ -12,97 +12,85 @@
 
 <PageTitle>Nursing Care Plan</PageTitle>
 
-<h3>Nursing Care Plan</h3>
-<p class="text-muted">NANDA Nursing Diagnoses, Goals, Interventions &amp; Outcomes (VistA File #212)</p>
+<h1>Nursing Care Plan</h1>
+<p class="page-subtitle">NANDA Nursing Diagnoses, Goals, Interventions &amp; Outcomes (VistA File #212)</p>
 
-<div class="mb-3 d-flex gap-2">
-    <input class="form-control" style="max-width:260px" placeholder="Patient ID" @bind="patientId" @bind:event="oninput" />
-    <button class="btn btn-primary" @onclick="LoadCarePlan" disabled="@loading">Load</button>
-</div>
+<PatientBar @bind-PatientId="patientId" Loading="loading" OnLoad="LoadCarePlan" />
+<AlertBanner Error="@error" Success="@addResult" />
 
-@if (error != null) { <div class="alert alert-danger">@error</div> }
-
-<ul class="nav nav-tabs mb-3">
-    <li class="nav-item"><button class="nav-link @(tab == "plan" ? "active" : "")" @onclick='() => tab = "plan"'>Care Plan</button></li>
-    <li class="nav-item"><button class="nav-link @(tab == "add" ? "active" : "")" @onclick='() => tab = "add"'>Add Diagnosis</button></li>
-</ul>
-
-@if (tab == "plan" && carePlan != null)
+@if (!string.IsNullOrWhiteSpace(patientId))
 {
-    @if (carePlan.Problems.Count == 0)
-    {
-        <p class="text-muted">No nursing diagnoses on care plan. Use the Add Diagnosis tab to start.</p>
-    }
-    @foreach (var p in carePlan.Problems)
-    {
-        <div class="card mb-3">
-            <div class="card-header d-flex justify-content-between">
-                <span>
-                    <strong>@p.NursingDiagnosis</strong>
-                    @if (!string.IsNullOrEmpty(p.RelatedTo)) { <span class="text-muted"> R/T @p.RelatedTo</span> }
-                    <span class="badge @StatusBadge(p.Status) ms-2">@p.Status</span>
-                </span>
-                <span class="text-muted small">Priority: @(p.Priority?.ToString() ?? "—") | @p.CreatedDateTime.ToString("MM/dd/yyyy")</span>
-            </div>
-            <div class="card-body">
-                @if (!string.IsNullOrEmpty(p.EvidencedBy)) { <p class="small text-muted mb-2"><strong>AEB:</strong> @p.EvidencedBy</p> }
+    <TabStrip Tabs="_tabs" @bind-Active="tab" />
 
-                <div class="row">
-                    <div class="col-md-6">
-                        <h6>Goals</h6>
+    @if (tab == "plan" && carePlan != null)
+    {
+        @if (carePlan.Problems.Count == 0)
+        {
+            <div class="empty-state">No nursing diagnoses on care plan. Use the Add Diagnosis tab to start.</div>
+        }
+        @foreach (var p in carePlan.Problems)
+        {
+            <div class="form-section">
+                <div class="problem-header">
+                    <span>
+                        <strong>@p.NursingDiagnosis</strong>
+                        @if (!string.IsNullOrEmpty(p.RelatedTo)) { <span class="muted"> R/T @p.RelatedTo</span> }
+                        <span class="status-tag">@p.Status</span>
+                    </span>
+                    <span class="muted">Priority: @(p.Priority?.ToString() ?? "—") | @p.CreatedDateTime.ToString("MM/dd/yyyy")</span>
+                </div>
+
+                @if (!string.IsNullOrEmpty(p.EvidencedBy)) { <p class="muted"><strong>AEB:</strong> @p.EvidencedBy</p> }
+
+                <div class="problem-columns">
+                    <div>
+                        <h3>Goals</h3>
                         @if (p.Goals.Count > 0)
                         {
-                            <ul class="list-group list-group-flush">
+                            <ul class="plain-list">
                                 @foreach (var g in p.Goals)
                                 {
-                                    <li class="list-group-item py-1 d-flex justify-content-between">
-                                        <span>@g.GoalText</span>
-                                        <span class="badge @GoalBadge(g.Status)">@g.Status</span>
-                                    </li>
+                                    <li><span>@g.GoalText</span> <span class="status-tag">@g.Status</span></li>
                                 }
                             </ul>
                         }
-                        else { <p class="text-muted small">No goals</p> }
+                        else { <p class="muted">No goals</p> }
 
-                        <div class="mt-2">
-                            <div class="input-group input-group-sm">
-                                <input class="form-control" placeholder="New goal..." @bind="newGoalText" />
-                                <button class="btn btn-outline-success btn-sm" @onclick="() => AddGoal(p.ProblemId)">Add</button>
-                            </div>
+                        <div class="inline-add">
+                            <input class="form-input" placeholder="New goal..." @bind="newGoalText" />
+                            <button class="btn btn-primary" @onclick="() => AddGoal(p.ProblemId)">Add</button>
                         </div>
                     </div>
-                    <div class="col-md-6">
-                        <h6>Interventions</h6>
+                    <div>
+                        <h3>Interventions</h3>
                         @if (p.Interventions.Count > 0)
                         {
-                            <ul class="list-group list-group-flush">
+                            <ul class="plain-list">
                                 @foreach (var i in p.Interventions.Where(x => x.IsActive))
                                 {
-                                    <li class="list-group-item py-1"><span>@i.InterventionText</span> <span class="text-muted small">(@(i.Frequency ?? "PRN"))</span></li>
+                                    <li><span>@i.InterventionText</span> <span class="muted">(@(i.Frequency ?? "PRN"))</span></li>
                                 }
                             </ul>
                         }
-                        else { <p class="text-muted small">No interventions</p> }
+                        else { <p class="muted">No interventions</p> }
 
-                        <div class="mt-2">
-                            <div class="input-group input-group-sm">
-                                <input class="form-control" placeholder="New intervention..." @bind="newInterventionText" />
-                                <input class="form-control" style="max-width:100px" placeholder="Freq" @bind="newFrequency" />
-                                <button class="btn btn-outline-success btn-sm" @onclick="() => AddIntervention(p.ProblemId)">Add</button>
-                            </div>
+                        <div class="inline-add">
+                            <input class="form-input" placeholder="New intervention..." @bind="newInterventionText" />
+                            <input class="form-input freq-input" placeholder="Freq" @bind="newFrequency" />
+                            <button class="btn btn-primary" @onclick="() => AddIntervention(p.ProblemId)">Add</button>
                         </div>
                     </div>
                 </div>
 
                 @if (p.OutcomeEvaluations.Count > 0)
                 {
-                    <h6 class="mt-3">Outcome Evaluations</h6>
-                    <table class="table table-sm">
+                    <h3>Outcome Evaluations</h3>
+                    <table class="data-table">
                         <thead><tr><th>Date</th><th>By</th><th>Rating</th><th>Notes</th></tr></thead>
                         <tbody>
                             @foreach (var o in p.OutcomeEvaluations.OrderByDescending(x => x.EvaluationDateTime))
                             {
-                                <tr><td>@o.EvaluationDateTime.ToString("MM/dd HH:mm")</td><td>@o.EvaluatedByName</td><td><span class="badge @OutcomeBadge(o.OutcomeRating)">@o.OutcomeRating</span></td><td>@(o.Notes ?? "—")</td></tr>
+                                <tr><td>@o.EvaluationDateTime.ToString("MM/dd HH:mm")</td><td>@o.EvaluatedByName</td><td>@o.OutcomeRating</td><td>@(o.Notes ?? "—")</td></tr>
                             }
                         </tbody>
                     </table>
@@ -110,37 +98,38 @@
 
                 @if (p.Status == NursingCarePlanStatus.Active)
                 {
-                    <button class="btn btn-sm btn-outline-danger mt-2" @onclick="() => Resolve(p.ProblemId)">Resolve Diagnosis</button>
+                    <div class="form-actions">
+                        <button class="btn btn-primary" @onclick="() => Resolve(p.ProblemId)">Resolve Diagnosis</button>
+                    </div>
                 }
+            </div>
+        }
+    }
+
+    @if (tab == "add")
+    {
+        <div class="form-section">
+            <h3>Add Nursing Diagnosis (NANDA)</h3>
+            <FormField Label="Nursing Diagnosis" Required><input class="form-input" @bind="newDiagnosis" placeholder="e.g. Acute Pain" /></FormField>
+            <FormField Label="Related To"><input class="form-input" @bind="newRelatedTo" placeholder="Etiology" /></FormField>
+            <FormField Label="As Evidenced By"><input class="form-input" @bind="newEvidencedBy" placeholder="Defining characteristics" /></FormField>
+
+            <div class="form-actions">
+                <button class="btn btn-primary" @onclick="AddDiagnosis" disabled="@adding">@(adding ? "Adding..." : "Add to Care Plan")</button>
             </div>
         </div>
     }
 }
 
-@if (tab == "add")
-{
-    <div class="card">
-        <div class="card-header">Add Nursing Diagnosis (NANDA)</div>
-        <div class="card-body">
-            <div class="row g-2 mb-2">
-                <div class="col-md-4"><label class="form-label">Nursing Diagnosis</label><input class="form-control" @bind="newDiagnosis" placeholder="e.g. Acute Pain" /></div>
-                <div class="col-md-4"><label class="form-label">Related To</label><input class="form-control" @bind="newRelatedTo" placeholder="Etiology" /></div>
-                <div class="col-md-4"><label class="form-label">As Evidenced By</label><input class="form-control" @bind="newEvidencedBy" placeholder="Defining characteristics" /></div>
-            </div>
-            <button class="btn btn-success" @onclick="AddDiagnosis" disabled="@adding">@(adding ? "Adding..." : "Add to Care Plan")</button>
-            @if (addResult != null) { <div class="alert alert-success mt-2">@addResult</div> }
-        </div>
-    </div>
-}
-
 @code {
-    private string patientId = string.Empty;
+    private string? patientId;
     private string tab = "plan";
     private bool loading, adding;
     private string? error, addResult;
     private NursingCarePlanState? carePlan;
     private string newDiagnosis = string.Empty, newRelatedTo = string.Empty, newEvidencedBy = string.Empty;
     private string newGoalText = string.Empty, newInterventionText = string.Empty, newFrequency = string.Empty;
+    private readonly (string, string)[] _tabs = new[] { ("plan", "Care Plan"), ("add", "Add Diagnosis") };
 
     private async Task LoadCarePlan()
     {
@@ -170,24 +159,33 @@
     private async Task AddGoal(string problemId)
     {
         if (string.IsNullOrWhiteSpace(newGoalText)) return;
-        try { await Grains.GetGrain<IPatientWorkflowGrain>(patientId.Trim()).AddCarePlanGoalAsync(problemId, newGoalText, null); newGoalText = string.Empty; await LoadCarePlan(); }
+        try { await Grains.GetGrain<IPatientWorkflowGrain>(patientId!.Trim()).AddCarePlanGoalAsync(problemId, newGoalText, null); newGoalText = string.Empty; await LoadCarePlan(); }
         catch (Exception ex) { error = ex.Message; }
     }
 
     private async Task AddIntervention(string problemId)
     {
         if (string.IsNullOrWhiteSpace(newInterventionText)) return;
-        try { await Grains.GetGrain<IPatientWorkflowGrain>(patientId.Trim()).AddCarePlanInterventionAsync(problemId, newInterventionText, newFrequency, null, null); newInterventionText = newFrequency = string.Empty; await LoadCarePlan(); }
+        try { await Grains.GetGrain<IPatientWorkflowGrain>(patientId!.Trim()).AddCarePlanInterventionAsync(problemId, newInterventionText, newFrequency, null, null); newInterventionText = newFrequency = string.Empty; await LoadCarePlan(); }
         catch (Exception ex) { error = ex.Message; }
     }
 
     private async Task Resolve(string problemId)
     {
-        try { await Grains.GetGrain<IPatientWorkflowGrain>(patientId.Trim()).ResolveNursingDiagnosisAsync(problemId, "Resolved via UI"); await LoadCarePlan(); }
+        try { await Grains.GetGrain<IPatientWorkflowGrain>(patientId!.Trim()).ResolveNursingDiagnosisAsync(problemId, "Resolved via UI"); await LoadCarePlan(); }
         catch (Exception ex) { error = ex.Message; }
     }
-
-    private string StatusBadge(NursingCarePlanStatus s) => s switch { NursingCarePlanStatus.Active => "bg-success", NursingCarePlanStatus.Resolved => "bg-secondary", NursingCarePlanStatus.OnHold => "bg-warning text-dark", _ => "bg-danger" };
-    private string GoalBadge(NursingGoalStatus s) => s switch { NursingGoalStatus.Achieved => "bg-success", NursingGoalStatus.Pending => "bg-info", NursingGoalStatus.PartiallyAchieved => "bg-warning text-dark", _ => "bg-secondary" };
-    private string OutcomeBadge(NursingOutcomeRating r) => r switch { NursingOutcomeRating.GoalMet => "bg-success", NursingOutcomeRating.GoalPartiallyMet => "bg-warning text-dark", NursingOutcomeRating.GoalNotMet => "bg-danger", _ => "bg-info" };
 }
+
+<style>
+    /* Canonical clinical classes live in app.css. Page-specific only: */
+    .page-subtitle { color: #666; margin: -0.5rem 0 1.25rem; font-size: 0.9rem; }
+    .muted { color: #666; font-size: 0.9rem; }
+    .status-tag { margin-left: 0.5rem; color: #444; font-size: 0.85rem; }
+    .problem-header { display: flex; justify-content: space-between; align-items: baseline; gap: 1rem; }
+    .problem-columns { display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; margin-top: 0.5rem; }
+    .plain-list { list-style: none; padding: 0; margin: 0 0 0.5rem; }
+    .plain-list li { display: flex; justify-content: space-between; padding: 0.25rem 0; font-size: 0.9rem; }
+    .inline-add { display: flex; gap: 0.5rem; margin-top: 0.5rem; }
+    .inline-add .freq-input { max-width: 100px; }
+</style>

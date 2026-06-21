@@ -12,105 +12,105 @@
 
 <PageTitle>Nursing Task Worklist</PageTitle>
 
-<h3>Nursing Task Worklist</h3>
-<p class="text-muted">Unified view of due medications, vitals, interventions, and nursing tasks</p>
+<h1>Nursing Task Worklist</h1>
+<p class="page-subtitle">Unified view of due medications, vitals, interventions, and nursing tasks</p>
 
-<div class="mb-3 d-flex gap-2">
-    <input class="form-control" style="max-width:260px" placeholder="Patient ID" @bind="patientId" @bind:event="oninput" />
-    <button class="btn btn-success" @onclick="Refresh" disabled="@loading">Refresh Worklist</button>
-    <button class="btn btn-outline-primary" @onclick="LoadWorklist" disabled="@loading">Load</button>
+<PatientBar @bind-PatientId="patientId" Loading="loading" OnLoad="LoadWorklist" />
+
+<div class="form-actions">
+    <button class="btn btn-primary" @onclick="Refresh" disabled="@loading">Refresh Worklist</button>
 </div>
 
-@if (error != null) { <div class="alert alert-danger">@error</div> }
+<AlertBanner Error="@error" />
 
-<ul class="nav nav-tabs mb-3">
-    <li class="nav-item"><button class="nav-link @(tab == "due" ? "active" : "")" @onclick='() => tab = "due"'>Due Now @(dueCount > 0 ? $"({dueCount})" : "")</button></li>
-    <li class="nav-item"><button class="nav-link @(tab == "all" ? "active" : "")" @onclick='() => tab = "all"'>All Tasks</button></li>
-    <li class="nav-item"><button class="nav-link @(tab == "add" ? "active" : "")" @onclick='() => tab = "add"'>Add Task</button></li>
-</ul>
-
-@if ((tab == "due" || tab == "all") && worklist != null)
+@if (!string.IsNullOrWhiteSpace(patientId))
 {
-    var displayTasks = tab == "due" ? worklist.Tasks.Where(t => t.Status == NursingTaskStatus.Due || t.Status == NursingTaskStatus.Overdue).ToList() : worklist.Tasks;
+    <TabStrip Tabs="_tabs" @bind-Active="tab" />
 
-    @if (displayTasks.Count > 0)
+    @if ((tab == "due" || tab == "all") && worklist != null)
     {
-        <table class="table table-sm table-striped">
-            <thead><tr><th>Priority</th><th>Category</th><th>Description</th><th>Due</th><th>Status</th><th>Actions</th></tr></thead>
-            <tbody>
-                @foreach (var t in displayTasks)
-                {
-                    <tr class="@(t.Priority == NursingTaskPriority.STAT ? "table-danger" : t.Priority == NursingTaskPriority.Urgent ? "table-warning" : "")">
-                        <td><span class="badge @PriorityBadge(t.Priority)">@t.Priority</span></td>
-                        <td><span class="badge @CategoryBadge(t.Category)">@t.Category</span></td>
-                        <td>@t.Description</td>
-                        <td>@t.DueDateTime.ToString("HH:mm")</td>
-                        <td><span class="badge @TaskStatusBadge(t.Status)">@t.Status</span></td>
-                        <td>
-                            @if (t.Status == NursingTaskStatus.Due || t.Status == NursingTaskStatus.Overdue)
-                            {
-                                <button class="btn btn-sm btn-success" @onclick="() => Complete(t.TaskId)">Done</button>
-                                <button class="btn btn-sm btn-outline-secondary" @onclick="() => Defer(t.TaskId)">Defer</button>
-                            }
-                        </td>
-                    </tr>
-                }
-            </tbody>
-        </table>
-        <p class="text-muted small">Last refreshed: @worklist.LastRefreshedDate.ToString("yyyy-MM-dd HH:mm:ss")</p>
-    }
-    else { <p class="text-muted">@(tab == "due" ? "No tasks due right now." : "No tasks in worklist. Click Refresh to generate.")</p> }
-}
+        var displayTasks = tab == "due" ? worklist.Tasks.Where(t => t.Status == NursingTaskStatus.Due || t.Status == NursingTaskStatus.Overdue).ToList() : worklist.Tasks;
 
-@if (tab == "add")
-{
-    <div class="card">
-        <div class="card-header">Add Ad-Hoc Nursing Task</div>
-        <div class="card-body">
-            <div class="row g-2 mb-3">
-                <div class="col-md-4">
-                    <label class="form-label">Category</label>
-                    <select class="form-select" @bind="newCategory">
-                        <option value="@NursingTaskCategory.VitalSigns">Vital Signs</option>
-                        <option value="@NursingTaskCategory.Assessment">Assessment</option>
-                        <option value="@NursingTaskCategory.Wound">Wound Care</option>
-                        <option value="@NursingTaskCategory.PatientEducation">Patient Education</option>
-                        <option value="@NursingTaskCategory.Discharge">Discharge</option>
-                        <option value="@NursingTaskCategory.Other">Other</option>
-                    </select>
-                </div>
-                <div class="col-md-4">
-                    <label class="form-label">Priority</label>
-                    <select class="form-select" @bind="newPriority">
-                        <option value="@NursingTaskPriority.Routine">Routine</option>
-                        <option value="@NursingTaskPriority.Urgent">Urgent</option>
-                        <option value="@NursingTaskPriority.STAT">STAT</option>
-                    </select>
-                </div>
-                <div class="col-md-4"><label class="form-label">Description</label><input class="form-control" @bind="newDesc" /></div>
+        @if (displayTasks.Count > 0)
+        {
+            <table class="data-table">
+                <thead><tr><th>Priority</th><th>Category</th><th>Description</th><th>Due</th><th>Status</th><th>Actions</th></tr></thead>
+                <tbody>
+                    @foreach (var t in displayTasks)
+                    {
+                        <tr class="@(t.Priority == NursingTaskPriority.STAT ? "row-danger" : t.Priority == NursingTaskPriority.Urgent ? "row-warning" : "")">
+                            <td>@t.Priority</td>
+                            <td>@t.Category</td>
+                            <td>@t.Description</td>
+                            <td>@t.DueDateTime.ToString("HH:mm")</td>
+                            <td>@t.Status</td>
+                            <td>
+                                @if (t.Status == NursingTaskStatus.Due || t.Status == NursingTaskStatus.Overdue)
+                                {
+                                    <button class="btn btn-primary" @onclick="() => Complete(t.TaskId)">Done</button>
+                                    <button class="btn btn-primary" @onclick="() => Defer(t.TaskId)">Defer</button>
+                                }
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+            <p class="page-subtitle">Last refreshed: @worklist.LastRefreshedDate.ToString("yyyy-MM-dd HH:mm:ss")</p>
+        }
+        else { <div class="empty-state">@(tab == "due" ? "No tasks due right now." : "No tasks in worklist. Click Refresh to generate.")</div> }
+    }
+
+    @if (tab == "add")
+    {
+        <div class="form-section">
+            <h3>Add Ad-Hoc Nursing Task</h3>
+            <FormField Label="Category">
+                <select class="form-input" @bind="newCategory">
+                    <option value="@NursingTaskCategory.VitalSigns">Vital Signs</option>
+                    <option value="@NursingTaskCategory.Assessment">Assessment</option>
+                    <option value="@NursingTaskCategory.Wound">Wound Care</option>
+                    <option value="@NursingTaskCategory.PatientEducation">Patient Education</option>
+                    <option value="@NursingTaskCategory.Discharge">Discharge</option>
+                    <option value="@NursingTaskCategory.Other">Other</option>
+                </select>
+            </FormField>
+            <FormField Label="Priority">
+                <select class="form-input" @bind="newPriority">
+                    <option value="@NursingTaskPriority.Routine">Routine</option>
+                    <option value="@NursingTaskPriority.Urgent">Urgent</option>
+                    <option value="@NursingTaskPriority.STAT">STAT</option>
+                </select>
+            </FormField>
+            <FormField Label="Description"><input class="form-input" @bind="newDesc" /></FormField>
+
+            <div class="form-actions">
+                <button class="btn btn-primary" @onclick="AddTask">Add Task</button>
             </div>
-            <button class="btn btn-success" @onclick="AddTask">Add Task</button>
         </div>
-    </div>
+    }
 }
 
 @code {
-    private string patientId = string.Empty, tab = "due";
+    private string? patientId;
+    private string tab = "due";
     private bool loading;
     private string? error;
     private NursingTaskWorklistState? worklist;
-    private int dueCount => worklist?.Tasks.Count(t => t.Status == NursingTaskStatus.Due || t.Status == NursingTaskStatus.Overdue) ?? 0;
     private NursingTaskCategory newCategory = NursingTaskCategory.VitalSigns;
     private NursingTaskPriority newPriority = NursingTaskPriority.Routine;
     private string newDesc = string.Empty;
+    private readonly (string, string)[] _tabs = new[] { ("due", "Due Now"), ("all", "All Tasks"), ("add", "Add Task") };
 
     private async Task Refresh() { if (string.IsNullOrWhiteSpace(patientId)) return; loading = true; error = null; try { worklist = await Grains.GetGrain<IPatientWorkflowGrain>(patientId.Trim()).RefreshNursingTaskWorklistAsync(); } catch (Exception ex) { error = ex.Message; } finally { loading = false; } }
     private async Task LoadWorklist() { if (string.IsNullOrWhiteSpace(patientId)) return; loading = true; error = null; try { worklist = await Grains.GetGrain<IPatientWorkflowGrain>(patientId.Trim()).GetNursingTaskWorklistAsync(); } catch (Exception ex) { error = ex.Message; } finally { loading = false; } }
-    private async Task Complete(string taskId) { try { await Grains.GetGrain<IPatientWorkflowGrain>(patientId.Trim()).CompleteNursingTaskAsync(taskId, "NURSE-UI", "Nurse", null); await LoadWorklist(); } catch (Exception ex) { error = ex.Message; } }
-    private async Task Defer(string taskId) { try { await Grains.GetGrain<IPatientWorkflowGrain>(patientId.Trim()).DeferNursingTaskAsync(taskId, "Deferred via UI"); await LoadWorklist(); } catch (Exception ex) { error = ex.Message; } }
-    private async Task AddTask() { if (string.IsNullOrWhiteSpace(newDesc)) return; try { await Grains.GetGrain<IPatientWorkflowGrain>(patientId.Trim()).AddNursingTaskAsync(newCategory, newPriority, newDesc, DateTime.UtcNow, null, null); newDesc = string.Empty; await LoadWorklist(); } catch (Exception ex) { error = ex.Message; } }
-
-    private string PriorityBadge(NursingTaskPriority p) => p switch { NursingTaskPriority.STAT => "bg-danger", NursingTaskPriority.Urgent => "bg-warning text-dark", _ => "bg-secondary" };
-    private string CategoryBadge(NursingTaskCategory c) => c switch { NursingTaskCategory.Medication => "bg-primary", NursingTaskCategory.VitalSigns => "bg-info", NursingTaskCategory.Intervention => "bg-success", NursingTaskCategory.Assessment => "bg-warning text-dark", _ => "bg-secondary" };
-    private string TaskStatusBadge(NursingTaskStatus s) => s switch { NursingTaskStatus.Due => "bg-warning text-dark", NursingTaskStatus.Overdue => "bg-danger", NursingTaskStatus.Completed => "bg-success", NursingTaskStatus.Deferred => "bg-info", _ => "bg-secondary" };
+    private async Task Complete(string taskId) { try { await Grains.GetGrain<IPatientWorkflowGrain>(patientId!.Trim()).CompleteNursingTaskAsync(taskId, "NURSE-UI", "Nurse", null); await LoadWorklist(); } catch (Exception ex) { error = ex.Message; } }
+    private async Task Defer(string taskId) { try { await Grains.GetGrain<IPatientWorkflowGrain>(patientId!.Trim()).DeferNursingTaskAsync(taskId, "Deferred via UI"); await LoadWorklist(); } catch (Exception ex) { error = ex.Message; } }
+    private async Task AddTask() { if (string.IsNullOrWhiteSpace(newDesc)) return; try { await Grains.GetGrain<IPatientWorkflowGrain>(patientId!.Trim()).AddNursingTaskAsync(newCategory, newPriority, newDesc, DateTime.UtcNow, null, null); newDesc = string.Empty; await LoadWorklist(); } catch (Exception ex) { error = ex.Message; } }
 }
+
+<style>
+    /* Canonical clinical classes live in app.css. Page-specific only: */
+    .page-subtitle { color: #666; margin: -0.5rem 0 1.25rem; font-size: 0.9rem; }
+    .data-table tr.row-danger { background: #fde8e8; }
+    .data-table tr.row-warning { background: #fef6e0; }
+</style>

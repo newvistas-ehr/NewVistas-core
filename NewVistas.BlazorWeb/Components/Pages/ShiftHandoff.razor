@@ -12,117 +12,112 @@
 
 <PageTitle>Nursing Shift Handoff</PageTitle>
 
-<h3>Nursing Shift Handoff / Report</h3>
-<p class="text-muted">SBAR-structured nurse-to-nurse shift transfer documentation</p>
+<h1>Nursing Shift Handoff / Report</h1>
+<p class="page-subtitle">SBAR-structured nurse-to-nurse shift transfer documentation</p>
 
-<div class="mb-3 d-flex gap-2">
-    <input class="form-control" style="max-width:260px" placeholder="Patient ID" @bind="patientId" @bind:event="oninput" />
-    <button class="btn btn-primary" @onclick="LoadHandoffs" disabled="@loading">Load</button>
-</div>
+<PatientBar @bind-PatientId="patientId" Loading="loading" OnLoad="LoadHandoffs" />
+<AlertBanner Error="@error" Success="@createResult" />
 
-@if (error != null) { <div class="alert alert-danger">@error</div> }
-
-<ul class="nav nav-tabs mb-3">
-    <li class="nav-item"><button class="nav-link @(tab == "list" ? "active" : "")" @onclick='() => tab = "list"'>Handoff History</button></li>
-    <li class="nav-item"><button class="nav-link @(tab == "detail" ? "active" : "")" @onclick='() => tab = "detail"'>Report Detail</button></li>
-    <li class="nav-item"><button class="nav-link @(tab == "new" ? "active" : "")" @onclick='() => tab = "new"'>New Handoff</button></li>
-</ul>
-
-@if (tab == "list" && handoffs != null)
+@if (!string.IsNullOrWhiteSpace(patientId))
 {
-    <table class="table table-sm table-striped">
-        <thead><tr><th>Date</th><th>Shift</th><th>Outgoing</th><th>Incoming</th><th>Status</th><th></th></tr></thead>
-        <tbody>
-            @foreach (var h in handoffs)
-            {
-                <tr>
-                    <td>@h.ShiftDate.ToString("MM/dd/yyyy")</td>
-                    <td>@h.Shift</td>
-                    <td>@h.OutgoingNurseName</td>
-                    <td>@(h.IncomingNurseName ?? "—")</td>
-                    <td><span class="badge @HBadge(h.Status)">@h.Status</span></td>
-                    <td><button class="btn btn-sm btn-outline-primary" @onclick="() => ViewDetail(h.HandoffId)">View</button></td>
-                </tr>
-            }
-        </tbody>
-    </table>
-}
+    <TabStrip Tabs="_tabs" @bind-Active="tab" />
 
-@if (tab == "detail" && selected != null)
-{
-    <div class="card mb-3">
-        <div class="card-header"><strong>Shift Handoff:</strong> @selected.Shift @selected.ShiftDate.ToString("MM/dd/yyyy") <span class="badge @HBadge(selected.Status) ms-2">@selected.Status</span></div>
-        <div class="card-body">
-            <div class="row mb-3">
-                <div class="col-md-4"><strong>Outgoing:</strong> @selected.OutgoingNurseName</div>
-                <div class="col-md-4"><strong>Incoming:</strong> @(selected.IncomingNurseName ?? "Pending")</div>
-                <div class="col-md-4"><strong>Location:</strong> @(selected.LocationName ?? "—") Bed @(selected.BedNumber ?? "—")</div>
-            </div>
+    @if (tab == "list")
+    {
+        @if (handoffs == null) { <div class="empty-state">Enter a Patient ID and click Load.</div> }
+        else if (handoffs.Count == 0) { <div class="empty-state">No handoffs recorded.</div> }
+        else
+        {
+            <table class="data-table">
+                <thead><tr><th>Date</th><th>Shift</th><th>Outgoing</th><th>Incoming</th><th>Status</th><th></th></tr></thead>
+                <tbody>
+                    @foreach (var h in handoffs)
+                    {
+                        <tr>
+                            <td>@h.ShiftDate.ToString("MM/dd/yyyy")</td>
+                            <td>@h.Shift</td>
+                            <td>@h.OutgoingNurseName</td>
+                            <td>@(h.IncomingNurseName ?? "—")</td>
+                            <td>@h.Status</td>
+                            <td><button class="btn btn-primary" @onclick="() => ViewDetail(h.HandoffId)">View</button></td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        }
+    }
+
+    @if (tab == "detail" && selected != null)
+    {
+        <div class="form-section">
+            <h3>Shift Handoff: @selected.Shift @selected.ShiftDate.ToString("MM/dd/yyyy") — @selected.Status</h3>
+            <p>
+                <strong>Outgoing:</strong> @selected.OutgoingNurseName &nbsp;&nbsp;
+                <strong>Incoming:</strong> @(selected.IncomingNurseName ?? "Pending") &nbsp;&nbsp;
+                <strong>Location:</strong> @(selected.LocationName ?? "—") Bed @(selected.BedNumber ?? "—")
+            </p>
 
             @if (selected.Sbar != null)
             {
-                <h6>SBAR Report</h6>
-                <div class="row g-2 mb-3">
-                    <div class="col-md-6"><div class="card"><div class="card-body"><h6 class="card-title text-primary">S — Situation</h6><p>@selected.Sbar.Situation</p></div></div></div>
-                    <div class="col-md-6"><div class="card"><div class="card-body"><h6 class="card-title text-info">B — Background</h6><p>@selected.Sbar.Background</p></div></div></div>
-                    <div class="col-md-6"><div class="card"><div class="card-body"><h6 class="card-title text-success">A — Assessment</h6><p>@selected.Sbar.Assessment</p></div></div></div>
-                    <div class="col-md-6"><div class="card"><div class="card-body"><h6 class="card-title text-warning">R — Recommendation</h6><p>@selected.Sbar.Recommendation</p></div></div></div>
-                </div>
+                <h3>SBAR Report</h3>
+                <p><strong>S — Situation:</strong> @selected.Sbar.Situation</p>
+                <p><strong>B — Background:</strong> @selected.Sbar.Background</p>
+                <p><strong>A — Assessment:</strong> @selected.Sbar.Assessment</p>
+                <p><strong>R — Recommendation:</strong> @selected.Sbar.Recommendation</p>
             }
 
             @if (selected.ClinicalSnapshot != null)
             {
-                <h6>Clinical Snapshot</h6>
-                <dl class="row mb-0">
-                    <dt class="col-sm-3">Vitals</dt><dd class="col-sm-9">@(selected.ClinicalSnapshot.VitalsSummary ?? "—")</dd>
-                    <dt class="col-sm-3">Pain</dt><dd class="col-sm-9">@(selected.ClinicalSnapshot.PainScore?.ToString() ?? "—")/10</dd>
-                    <dt class="col-sm-3">Acuity</dt><dd class="col-sm-9">@(selected.ClinicalSnapshot.AcuityLevel ?? "—")</dd>
-                    <dt class="col-sm-3">Active Dx</dt><dd class="col-sm-9">@(selected.ClinicalSnapshot.ActiveNursingDiagnoses.Count > 0 ? string.Join(", ", selected.ClinicalSnapshot.ActiveNursingDiagnoses) : "None")</dd>
-                    <dt class="col-sm-3">Pending Tasks</dt><dd class="col-sm-9">@(selected.ClinicalSnapshot.PendingTasks.Count > 0 ? string.Join("; ", selected.ClinicalSnapshot.PendingTasks) : "None")</dd>
-                </dl>
+                <h3>Clinical Snapshot</h3>
+                <p><strong>Vitals:</strong> @(selected.ClinicalSnapshot.VitalsSummary ?? "—")</p>
+                <p><strong>Pain:</strong> @(selected.ClinicalSnapshot.PainScore?.ToString() ?? "—")/10</p>
+                <p><strong>Acuity:</strong> @(selected.ClinicalSnapshot.AcuityLevel ?? "—")</p>
+                <p><strong>Active Dx:</strong> @(selected.ClinicalSnapshot.ActiveNursingDiagnoses.Count > 0 ? string.Join(", ", selected.ClinicalSnapshot.ActiveNursingDiagnoses) : "None")</p>
+                <p><strong>Pending Tasks:</strong> @(selected.ClinicalSnapshot.PendingTasks.Count > 0 ? string.Join("; ", selected.ClinicalSnapshot.PendingTasks) : "None")</p>
             }
 
             @if (selected.SafetyConcerns.Count > 0)
             {
-                <div class="alert alert-warning mt-2"><strong>Safety Concerns:</strong> @string.Join("; ", selected.SafetyConcerns)</div>
+                <div class="alert alert-error"><strong>Safety Concerns:</strong> @string.Join("; ", selected.SafetyConcerns)</div>
             }
 
-            <div class="d-flex gap-2 mt-3">
-                @if (selected.Status == ShiftHandoffStatus.Draft) { <button class="btn btn-sm btn-success" @onclick="() => Complete(selected.HandoffId)">Complete Report</button> }
-                @if (selected.Status == ShiftHandoffStatus.Completed) { <button class="btn btn-sm btn-primary" @onclick="() => Ack(selected.HandoffId)">Acknowledge (Incoming)</button> }
+            <div class="form-actions">
+                @if (selected.Status == ShiftHandoffStatus.Draft) { <button class="btn btn-primary" @onclick="() => Complete(selected.HandoffId)">Complete Report</button> }
+                @if (selected.Status == ShiftHandoffStatus.Completed) { <button class="btn btn-primary" @onclick="() => Ack(selected.HandoffId)">Acknowledge (Incoming)</button> }
             </div>
         </div>
-    </div>
-}
+    }
 
-@if (tab == "new")
-{
-    <div class="card">
-        <div class="card-header">New Shift Handoff Report (SBAR)</div>
-        <div class="card-body">
-            <div class="row g-2 mb-2">
-                <div class="col-md-3"><label class="form-label">Shift</label><select class="form-select" @bind="nShift"><option value="@NursingShift.Day">Day</option><option value="@NursingShift.Evening">Evening</option><option value="@NursingShift.Night">Night</option></select></div>
-                <div class="col-md-3"><label class="form-label">Outgoing Nurse ID</label><input class="form-control" @bind="nNurseId" /></div>
-                <div class="col-md-3"><label class="form-label">Outgoing Nurse Name</label><input class="form-control" @bind="nNurseName" /></div>
-                <div class="col-md-3"><label class="form-label">Bed #</label><input class="form-control" @bind="nBed" /></div>
+    @if (tab == "new")
+    {
+        <div class="form-section">
+            <FormField Label="Shift">
+                <select class="form-input" @bind="nShift">
+                    <option value="@NursingShift.Day">Day</option>
+                    <option value="@NursingShift.Evening">Evening</option>
+                    <option value="@NursingShift.Night">Night</option>
+                </select>
+            </FormField>
+            <FormField Label="Outgoing Nurse ID"><input class="form-input" @bind="nNurseId" /></FormField>
+            <FormField Label="Outgoing Nurse Name"><input class="form-input" @bind="nNurseName" /></FormField>
+            <FormField Label="Bed #"><input class="form-input" @bind="nBed" /></FormField>
+
+            <h3>SBAR</h3>
+            <FormField Label="S — Situation"><textarea class="form-input" rows="2" @bind="nSituation"></textarea></FormField>
+            <FormField Label="B — Background"><textarea class="form-input" rows="2" @bind="nBackground"></textarea></FormField>
+            <FormField Label="A — Assessment"><textarea class="form-input" rows="2" @bind="nAssessment"></textarea></FormField>
+            <FormField Label="R — Recommendation"><textarea class="form-input" rows="2" @bind="nRecommendation"></textarea></FormField>
+
+            <div class="form-actions">
+                <button class="btn btn-primary" @onclick="Create" disabled="@creating">@(creating ? "Creating..." : "Create Handoff")</button>
             </div>
-            <h6 class="mt-2">SBAR</h6>
-            <div class="row g-2 mb-2">
-                <div class="col-md-6"><label class="form-label">S — Situation</label><textarea class="form-control" rows="2" @bind="nSituation"></textarea></div>
-                <div class="col-md-6"><label class="form-label">B — Background</label><textarea class="form-control" rows="2" @bind="nBackground"></textarea></div>
-            </div>
-            <div class="row g-2 mb-3">
-                <div class="col-md-6"><label class="form-label">A — Assessment</label><textarea class="form-control" rows="2" @bind="nAssessment"></textarea></div>
-                <div class="col-md-6"><label class="form-label">R — Recommendation</label><textarea class="form-control" rows="2" @bind="nRecommendation"></textarea></div>
-            </div>
-            <button class="btn btn-success" @onclick="Create" disabled="@creating">@(creating ? "Creating..." : "Create Handoff")</button>
-            @if (createResult != null) { <div class="alert alert-success mt-2">@createResult</div> }
         </div>
-    </div>
+    }
 }
 
 @code {
-    private string patientId = string.Empty, tab = "list";
+    private string? patientId;
+    private string tab = "list";
     private bool loading, creating;
     private string? error, createResult;
     private List<ShiftHandoffIndexEntry>? handoffs;
@@ -130,11 +125,12 @@
     private NursingShift nShift = NursingShift.Day;
     private string nNurseId = string.Empty, nNurseName = string.Empty, nBed = string.Empty;
     private string nSituation = string.Empty, nBackground = string.Empty, nAssessment = string.Empty, nRecommendation = string.Empty;
+    private readonly (string, string)[] _tabs = new[] { ("list", "Handoff History"), ("detail", "Report Detail"), ("new", "New Handoff") };
 
     private async Task LoadHandoffs() { if (string.IsNullOrWhiteSpace(patientId)) return; loading = true; error = null; try { handoffs = await Grains.GetGrain<IPatientWorkflowGrain>(patientId.Trim()).GetShiftHandoffsAsync(); } catch (Exception ex) { error = ex.Message; } finally { loading = false; } }
-    private async Task ViewDetail(string id) { try { selected = await Grains.GetGrain<IPatientWorkflowGrain>(patientId.Trim()).GetShiftHandoffAsync(id); tab = "detail"; } catch (Exception ex) { error = ex.Message; } }
-    private async Task Complete(string id) { try { await Grains.GetGrain<IPatientWorkflowGrain>(patientId.Trim()).CompleteShiftHandoffAsync(id); await ViewDetail(id); await LoadHandoffs(); } catch (Exception ex) { error = ex.Message; } }
-    private async Task Ack(string id) { try { await Grains.GetGrain<IPatientWorkflowGrain>(patientId.Trim()).AcknowledgeShiftHandoffAsync(id, "RN-INCOMING", "Incoming Nurse"); await ViewDetail(id); await LoadHandoffs(); } catch (Exception ex) { error = ex.Message; } }
+    private async Task ViewDetail(string id) { try { selected = await Grains.GetGrain<IPatientWorkflowGrain>(patientId!.Trim()).GetShiftHandoffAsync(id); tab = "detail"; } catch (Exception ex) { error = ex.Message; } }
+    private async Task Complete(string id) { try { await Grains.GetGrain<IPatientWorkflowGrain>(patientId!.Trim()).CompleteShiftHandoffAsync(id); await ViewDetail(id); await LoadHandoffs(); } catch (Exception ex) { error = ex.Message; } }
+    private async Task Ack(string id) { try { await Grains.GetGrain<IPatientWorkflowGrain>(patientId!.Trim()).AcknowledgeShiftHandoffAsync(id, "RN-INCOMING", "Incoming Nurse"); await ViewDetail(id); await LoadHandoffs(); } catch (Exception ex) { error = ex.Message; } }
 
     private async Task Create()
     {
@@ -150,6 +146,10 @@
         catch (Exception ex) { error = ex.Message; }
         finally { creating = false; }
     }
-
-    private string HBadge(ShiftHandoffStatus s) => s switch { ShiftHandoffStatus.Draft => "bg-warning text-dark", ShiftHandoffStatus.Completed => "bg-primary", ShiftHandoffStatus.Acknowledged => "bg-success", _ => "bg-secondary" };
 }
+
+<style>
+    /* Canonical clinical classes live in app.css. Page-specific only: */
+    .page-subtitle { color: #666; margin: -0.5rem 0 1.25rem; font-size: 0.9rem; }
+    .form-section p { font-size: 0.9rem; line-height: 1.5; }
+</style>

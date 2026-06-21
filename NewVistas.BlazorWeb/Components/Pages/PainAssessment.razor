@@ -12,143 +12,124 @@
 
 <PageTitle>Pain Assessment</PageTitle>
 
-<h3>Pain Assessment Workflow</h3>
-<p class="text-muted">Structured Pain Assessment — DVPRS, Wong-Baker FACES, FLACC, NRS, CPOT, VAS</p>
+<h1>Pain Assessment Workflow</h1>
+<p class="page-subtitle">Structured Pain Assessment — DVPRS, Wong-Baker FACES, FLACC, NRS, CPOT, VAS</p>
 
-<div class="mb-3 d-flex gap-2">
-    <input class="form-control" style="max-width:260px" placeholder="Patient ID" @bind="patientId" @bind:event="oninput" />
-    <button class="btn btn-primary" @onclick="LoadAssessments" disabled="@loading">Load</button>
-</div>
+<PatientBar @bind-PatientId="patientId" Loading="loading" OnLoad="LoadAssessments" />
+<AlertBanner Error="@error" Success="@recordResult" />
 
-@if (error != null) { <div class="alert alert-danger">@error</div> }
-
-<ul class="nav nav-tabs mb-3">
-    <li class="nav-item"><button class="nav-link @(tab == "history" ? "active" : "")" @onclick='() => tab = "history"'>Pain History</button></li>
-    <li class="nav-item"><button class="nav-link @(tab == "detail" ? "active" : "")" @onclick='() => tab = "detail"'>Assessment Detail</button></li>
-    <li class="nav-item"><button class="nav-link @(tab == "new" ? "active" : "")" @onclick='() => tab = "new"'>New Assessment</button></li>
-    <li class="nav-item"><button class="nav-link @(tab == "reassess" ? "active" : "")" @onclick='() => tab = "reassess"'>Reassessment</button></li>
-</ul>
-
-@if (tab == "history" && assessments != null)
+@if (!string.IsNullOrWhiteSpace(patientId))
 {
-    <table class="table table-sm table-striped">
-        <thead><tr><th>Date/Time</th><th>Nurse</th><th>Tool</th><th>Score</th><th>Location</th><th>Reassess?</th><th>Post-Rx</th><th></th></tr></thead>
-        <tbody>
-            @foreach (var a in assessments)
+    <TabStrip Tabs="_tabs" @bind-Active="tab" />
+
+    @if (tab == "history")
+    {
+        @if (assessments == null) { <div class="empty-state">Enter a Patient ID and click Load.</div> }
+        else if (assessments.Count == 0) { <div class="empty-state">No pain assessments recorded.</div> }
+        else
+        {
+            <table class="data-table">
+                <thead><tr><th>Date/Time</th><th>Nurse</th><th>Tool</th><th>Score</th><th>Location</th><th>Reassess?</th><th>Post-Rx</th><th></th></tr></thead>
+                <tbody>
+                    @foreach (var a in assessments)
+                    {
+                        <tr class="@(a.PainScore >= 7 ? "row-danger" : a.PainScore >= 4 ? "row-warning" : "")">
+                            <td>@a.AssessmentDateTime.ToString("MM/dd HH:mm")</td>
+                            <td>@a.NurseName</td>
+                            <td>@a.Tool</td>
+                            <td><span class="badge @PainBadge(a.PainScore)">@a.PainScore/10</span></td>
+                            <td>@(a.PainLocation ?? "—")</td>
+                            <td>@(a.IsReassessment ? "Yes" : "No")</td>
+                            <td>@(a.PostInterventionScore?.ToString() ?? "—")</td>
+                            <td><button class="btn btn-primary" @onclick="() => ViewDetail(a.AssessmentId)">View</button></td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        }
+    }
+
+    @if (tab == "detail" && selected != null)
+    {
+        <div class="form-section">
+            <h3>Pain Assessment — @selected.Tool <span class="badge @PainBadge(selected.PainScore)">@selected.PainScore/10</span></h3>
+            <p><strong>Location:</strong> @(selected.PainLocation ?? "—")</p>
+            <p><strong>Character:</strong> @(selected.PainCharacter ?? "—")</p>
+            <p><strong>Onset:</strong> @(selected.PainOnset ?? "—")</p>
+            <p><strong>Radiation:</strong> @(selected.Radiation ?? "—")</p>
+            <p><strong>Aggravating:</strong> @(selected.AggravatingFactors ?? "—")</p>
+            <p><strong>Alleviating:</strong> @(selected.AlleviatingFactors ?? "—")</p>
+            <p><strong>Acceptable Level:</strong> @(selected.AcceptablePainLevel?.ToString() ?? "—")/10</p>
+            <p><strong>Intervention:</strong> @(selected.InterventionProvided ?? "—")</p>
+
+            @if (selected.DvprsSupplemental != null)
             {
-                <tr class="@(a.PainScore >= 7 ? "table-danger" : a.PainScore >= 4 ? "table-warning" : "")">
-                    <td>@a.AssessmentDateTime.ToString("MM/dd HH:mm")</td>
-                    <td>@a.NurseName</td>
-                    <td>@a.Tool</td>
-                    <td><strong>@a.PainScore/10</strong></td>
-                    <td>@(a.PainLocation ?? "—")</td>
-                    <td>@(a.IsReassessment ? "Yes" : "No")</td>
-                    <td>@(a.PostInterventionScore?.ToString() ?? "—")</td>
-                    <td><button class="btn btn-sm btn-outline-primary" @onclick="() => ViewDetail(a.AssessmentId)">View</button></td>
-                </tr>
+                <h3>DVPRS Supplemental</h3>
+                <p><strong>Activity:</strong> @(selected.DvprsSupplemental.ActivityInterference?.ToString() ?? "—")/10 &nbsp; <strong>Sleep:</strong> @(selected.DvprsSupplemental.SleepInterference?.ToString() ?? "—")/10 &nbsp; <strong>Mood:</strong> @(selected.DvprsSupplemental.MoodInterference?.ToString() ?? "—")/10 &nbsp; <strong>Stress:</strong> @(selected.DvprsSupplemental.StressInterference?.ToString() ?? "—")/10</p>
             }
-        </tbody>
-    </table>
-}
+            @if (selected.FlaccComponents != null)
+            {
+                <h3>FLACC Components</h3>
+                <p><strong>Face:</strong> @selected.FlaccComponents.Face &nbsp; <strong>Legs:</strong> @selected.FlaccComponents.Legs &nbsp; <strong>Activity:</strong> @selected.FlaccComponents.Activity &nbsp; <strong>Cry:</strong> @selected.FlaccComponents.Cry &nbsp; <strong>Consolability:</strong> @selected.FlaccComponents.Consolability &nbsp; <strong>Total:</strong> @selected.FlaccComponents.Total</p>
+            }
+            @if (selected.IsReassessment)
+            {
+                <h3>Reassessment</h3>
+                <p><strong>Post-Rx Score:</strong> @(selected.PostInterventionScore?.ToString() ?? "—")/10 &nbsp; <strong>Minutes Since:</strong> @(selected.MinutesSinceIntervention?.ToString() ?? "—") &nbsp; <strong>Effective?:</strong> @(selected.InterventionEffective == true ? "Yes" : selected.InterventionEffective == false ? "No" : "—")</p>
+            }
+        </div>
+    }
 
-@if (tab == "detail" && selected != null)
-{
-    <div class="card mb-3">
-        <div class="card-header"><strong>Pain Assessment</strong> — @selected.Tool <span class="badge @PainBadge(selected.PainScore) ms-2">@selected.PainScore/10</span></div>
-        <div class="card-body">
-            <div class="row">
-                <div class="col-md-6">
-                    <dl class="row mb-0">
-                        <dt class="col-sm-5">Location</dt><dd class="col-sm-7">@(selected.PainLocation ?? "—")</dd>
-                        <dt class="col-sm-5">Character</dt><dd class="col-sm-7">@(selected.PainCharacter ?? "—")</dd>
-                        <dt class="col-sm-5">Onset</dt><dd class="col-sm-7">@(selected.PainOnset ?? "—")</dd>
-                        <dt class="col-sm-5">Radiation</dt><dd class="col-sm-7">@(selected.Radiation ?? "—")</dd>
-                        <dt class="col-sm-5">Aggravating</dt><dd class="col-sm-7">@(selected.AggravatingFactors ?? "—")</dd>
-                        <dt class="col-sm-5">Alleviating</dt><dd class="col-sm-7">@(selected.AlleviatingFactors ?? "—")</dd>
-                        <dt class="col-sm-5">Acceptable Level</dt><dd class="col-sm-7">@(selected.AcceptablePainLevel?.ToString() ?? "—")/10</dd>
-                        <dt class="col-sm-5">Intervention</dt><dd class="col-sm-7">@(selected.InterventionProvided ?? "—")</dd>
-                    </dl>
-                </div>
-                <div class="col-md-6">
-                    @if (selected.DvprsSupplemental != null)
-                    {
-                        <h6>DVPRS Supplemental</h6>
-                        <dl class="row mb-0">
-                            <dt class="col-sm-6">Activity</dt><dd class="col-sm-6">@(selected.DvprsSupplemental.ActivityInterference?.ToString() ?? "—")/10</dd>
-                            <dt class="col-sm-6">Sleep</dt><dd class="col-sm-6">@(selected.DvprsSupplemental.SleepInterference?.ToString() ?? "—")/10</dd>
-                            <dt class="col-sm-6">Mood</dt><dd class="col-sm-6">@(selected.DvprsSupplemental.MoodInterference?.ToString() ?? "—")/10</dd>
-                            <dt class="col-sm-6">Stress</dt><dd class="col-sm-6">@(selected.DvprsSupplemental.StressInterference?.ToString() ?? "—")/10</dd>
-                        </dl>
-                    }
-                    @if (selected.FlaccComponents != null)
-                    {
-                        <h6>FLACC Components</h6>
-                        <dl class="row mb-0">
-                            <dt class="col-sm-5">Face</dt><dd class="col-sm-7">@selected.FlaccComponents.Face</dd>
-                            <dt class="col-sm-5">Legs</dt><dd class="col-sm-7">@selected.FlaccComponents.Legs</dd>
-                            <dt class="col-sm-5">Activity</dt><dd class="col-sm-7">@selected.FlaccComponents.Activity</dd>
-                            <dt class="col-sm-5">Cry</dt><dd class="col-sm-7">@selected.FlaccComponents.Cry</dd>
-                            <dt class="col-sm-5">Consolability</dt><dd class="col-sm-7">@selected.FlaccComponents.Consolability</dd>
-                            <dt class="col-sm-5">Total</dt><dd class="col-sm-7"><strong>@selected.FlaccComponents.Total</strong></dd>
-                        </dl>
-                    }
-                    @if (selected.IsReassessment)
-                    {
-                        <h6>Reassessment</h6>
-                        <dl class="row mb-0">
-                            <dt class="col-sm-6">Post-Rx Score</dt><dd class="col-sm-6">@(selected.PostInterventionScore?.ToString() ?? "—")/10</dd>
-                            <dt class="col-sm-6">Minutes Since</dt><dd class="col-sm-6">@(selected.MinutesSinceIntervention?.ToString() ?? "—")</dd>
-                            <dt class="col-sm-6">Effective?</dt><dd class="col-sm-6">@(selected.InterventionEffective == true ? "Yes" : selected.InterventionEffective == false ? "No" : "—")</dd>
-                        </dl>
-                    }
-                </div>
+    @if (tab == "new")
+    {
+        <div class="form-section">
+            <FormField Label="Tool">
+                <select class="form-input" @bind="nTool">
+                    <option value="@PainAssessmentTool.NumericRatingScale">NRS (0-10)</option>
+                    <option value="@PainAssessmentTool.DVPRS">DVPRS</option>
+                    <option value="@PainAssessmentTool.WongBakerFACES">Wong-Baker FACES</option>
+                    <option value="@PainAssessmentTool.FLACC">FLACC</option>
+                    <option value="@PainAssessmentTool.CPOT">CPOT</option>
+                    <option value="@PainAssessmentTool.VisualAnalogScale">VAS</option>
+                </select>
+            </FormField>
+            <FormField Label="Pain Score" Required><input type="number" min="0" max="10" class="form-input" @bind="nScore" /></FormField>
+            <FormField Label="Location"><input class="form-input" @bind="nLocation" /></FormField>
+            <FormField Label="Character">
+                <select class="form-input" @bind="nCharacter">
+                    <option>Sharp</option><option>Dull</option><option>Burning</option><option>Throbbing</option><option>Aching</option><option>Pressure</option><option>Stabbing</option>
+                </select>
+            </FormField>
+            <FormField Label="Nurse ID"><input class="form-input" @bind="nNurseId" /></FormField>
+            <FormField Label="Onset">
+                <select class="form-input" @bind="nOnset"><option>Acute</option><option>Chronic</option><option>Intermittent</option></select>
+            </FormField>
+            <FormField Label="Intervention"><input class="form-input" @bind="nIntervention" placeholder="e.g. Morphine 4mg IV" /></FormField>
+            <FormField Label="Acceptable Level"><input type="number" min="0" max="10" class="form-input" @bind="nAcceptable" /></FormField>
+            <FormField Label="Notes"><input class="form-input" @bind="nNotes" /></FormField>
+            <div class="form-actions">
+                <button class="btn btn-primary" @onclick="RecordPain" disabled="@recording">@(recording ? "Recording..." : "Record Pain Assessment")</button>
             </div>
         </div>
-    </div>
-}
+    }
 
-@if (tab == "new")
-{
-    <div class="card">
-        <div class="card-header">New Pain Assessment</div>
-        <div class="card-body">
-            <div class="row g-2 mb-2">
-                <div class="col-md-3"><label class="form-label">Tool</label><select class="form-select" @bind="nTool"><option value="@PainAssessmentTool.NumericRatingScale">NRS (0-10)</option><option value="@PainAssessmentTool.DVPRS">DVPRS</option><option value="@PainAssessmentTool.WongBakerFACES">Wong-Baker FACES</option><option value="@PainAssessmentTool.FLACC">FLACC</option><option value="@PainAssessmentTool.CPOT">CPOT</option><option value="@PainAssessmentTool.VisualAnalogScale">VAS</option></select></div>
-                <div class="col-md-2"><label class="form-label">Pain Score</label><input type="number" min="0" max="10" class="form-control" @bind="nScore" /></div>
-                <div class="col-md-3"><label class="form-label">Location</label><input class="form-control" @bind="nLocation" /></div>
-                <div class="col-md-2"><label class="form-label">Character</label><select class="form-select" @bind="nCharacter"><option>Sharp</option><option>Dull</option><option>Burning</option><option>Throbbing</option><option>Aching</option><option>Pressure</option><option>Stabbing</option></select></div>
-                <div class="col-md-2"><label class="form-label">Nurse ID</label><input class="form-control" @bind="nNurseId" /></div>
+    @if (tab == "reassess")
+    {
+        <div class="form-section">
+            <FormField Label="Initial Assessment ID" Required><input class="form-input" @bind="rInitialId" /></FormField>
+            <FormField Label="Post-Rx Score"><input type="number" min="0" max="10" class="form-input" @bind="rPostScore" /></FormField>
+            <FormField Label="Minutes Since"><input type="number" class="form-input" @bind="rMinutes" /></FormField>
+            <FormField Label="Intervention"><input class="form-input" @bind="rIntervention" /></FormField>
+            <div class="form-actions">
+                <button class="btn btn-primary" @onclick="Reassess" disabled="@recording">Reassess</button>
             </div>
-            <div class="row g-2 mb-3">
-                <div class="col-md-3"><label class="form-label">Onset</label><select class="form-select" @bind="nOnset"><option>Acute</option><option>Chronic</option><option>Intermittent</option></select></div>
-                <div class="col-md-3"><label class="form-label">Intervention</label><input class="form-control" @bind="nIntervention" placeholder="e.g. Morphine 4mg IV" /></div>
-                <div class="col-md-2"><label class="form-label">Acceptable</label><input type="number" min="0" max="10" class="form-control" @bind="nAcceptable" /></div>
-                <div class="col-md-4"><label class="form-label">Notes</label><input class="form-control" @bind="nNotes" /></div>
-            </div>
-            <button class="btn btn-success" @onclick="RecordPain" disabled="@recording">@(recording ? "Recording..." : "Record Pain Assessment")</button>
-            @if (recordResult != null) { <div class="alert alert-success mt-2">@recordResult</div> }
         </div>
-    </div>
-}
-
-@if (tab == "reassess")
-{
-    <div class="card">
-        <div class="card-header">Pain Reassessment (Post-Intervention)</div>
-        <div class="card-body">
-            <div class="row g-2 mb-3">
-                <div class="col-md-4"><label class="form-label">Initial Assessment ID</label><input class="form-control" @bind="rInitialId" /></div>
-                <div class="col-md-2"><label class="form-label">Post-Rx Score</label><input type="number" min="0" max="10" class="form-control" @bind="rPostScore" /></div>
-                <div class="col-md-2"><label class="form-label">Minutes Since</label><input type="number" class="form-control" @bind="rMinutes" /></div>
-                <div class="col-md-4"><label class="form-label">Intervention</label><input class="form-control" @bind="rIntervention" /></div>
-            </div>
-            <button class="btn btn-success" @onclick="Reassess" disabled="@recording">Reassess</button>
-        </div>
-    </div>
+    }
 }
 
 @code {
-    private string patientId = string.Empty, tab = "history";
+    private string? patientId;
+    private string tab = "history";
     private bool loading, recording;
     private string? error, recordResult;
     private List<PainAssessmentIndexEntry>? assessments;
@@ -157,11 +138,17 @@
     private int nScore; private string nLocation = string.Empty, nCharacter = "Sharp", nOnset = "Acute", nIntervention = string.Empty, nNurseId = string.Empty, nNotes = string.Empty;
     private int? nAcceptable;
     private string rInitialId = string.Empty, rIntervention = string.Empty; private int rPostScore, rMinutes = 30;
+    private readonly (string, string)[] _tabs = new[] { ("history", "Pain History"), ("detail", "Assessment Detail"), ("new", "New Assessment"), ("reassess", "Reassessment") };
 
     private async Task LoadAssessments() { if (string.IsNullOrWhiteSpace(patientId)) return; loading = true; error = null; try { assessments = await Grains.GetGrain<IPatientWorkflowGrain>(patientId.Trim()).GetPainAssessmentsAsync(); } catch (Exception ex) { error = ex.Message; } finally { loading = false; } }
-    private async Task ViewDetail(string id) { try { selected = await Grains.GetGrain<IPatientWorkflowGrain>(patientId.Trim()).GetPainAssessmentAsync(id); tab = "detail"; } catch (Exception ex) { error = ex.Message; } }
+    private async Task ViewDetail(string id) { try { selected = await Grains.GetGrain<IPatientWorkflowGrain>(patientId!.Trim()).GetPainAssessmentAsync(id); tab = "detail"; } catch (Exception ex) { error = ex.Message; } }
     private async Task RecordPain() { if (string.IsNullOrWhiteSpace(patientId)) return; recording = true; error = null; recordResult = null; try { string id = await Grains.GetGrain<IPatientWorkflowGrain>(patientId.Trim()).RecordPainAssessmentAsync(nTool, nScore, nLocation, nCharacter, nOnset, null, null, null, nAcceptable, null, null, string.IsNullOrWhiteSpace(nIntervention) ? null : nIntervention, nNurseId, "Nurse", nNotes); recordResult = $"Assessment recorded: {id}"; await LoadAssessments(); } catch (Exception ex) { error = ex.Message; } finally { recording = false; } }
     private async Task Reassess() { if (string.IsNullOrWhiteSpace(patientId) || string.IsNullOrWhiteSpace(rInitialId)) return; recording = true; error = null; try { await Grains.GetGrain<IPatientWorkflowGrain>(patientId.Trim()).RecordPainReassessmentAsync(rInitialId, nTool, rPostScore, rMinutes, rIntervention, nNurseId, "Nurse", null); recordResult = "Reassessment recorded"; await LoadAssessments(); } catch (Exception ex) { error = ex.Message; } finally { recording = false; } }
 
-    private string PainBadge(int score) => score >= 7 ? "bg-danger" : score >= 4 ? "bg-warning text-dark" : score > 0 ? "bg-info" : "bg-success";
+    private string PainBadge(int score) => score >= 7 ? "badge-danger" : score >= 4 ? "badge-warning" : score > 0 ? "badge-info" : "badge-success";
 }
+
+<style>
+    .page-subtitle { color: #666; margin: -0.5rem 0 1.25rem; font-size: 0.9rem; }
+    .form-section p { font-size: 0.9rem; line-height: 1.6; }
+</style>

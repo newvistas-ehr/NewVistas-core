@@ -12,13 +12,11 @@
 
 <PageTitle>Nursing — VistA Files #210-212</PageTitle>
 
-<div class="lookup-bar">
-    <input type="text" @bind="patientId" placeholder="Patient ID" />
-    <button @onclick="Load" disabled="@(loading)">@(loading ? "Loading…" : "Load Patient")</button>
-</div>
+<h1>Nursing</h1>
 
-@if (error != null) { <div class="alert alert-error">@error</div> }
-@if (success != null) { <div class="alert alert-success">@success</div> }
+<PatientBar @bind-PatientId="patientId" Loading="loading" OnLoad="Load" LoadText="Load Patient" />
+
+<AlertBanner Error="@error" Success="@success" />
 
 @if (loaded)
 {
@@ -101,7 +99,7 @@
                     }
                     @if (selectedAssessment.Status == NursingAssessmentStatus.Draft)
                     {
-                        <button class="btn-primary" @onclick="() => SignAssessment(selectedAssessment.AssessmentId)">Sign Assessment</button>
+                        <button class="btn btn-primary" @onclick="() => SignAssessment(selectedAssessment.AssessmentId)">Sign Assessment</button>
                     }
                 </div>
             }
@@ -250,7 +248,7 @@
                 <label>Narrative Notes:</label>
                 <textarea @bind="newAssmt.NarrativeNotes" rows="3" style="width:100%"></textarea>
             </div>
-            <button class="btn-primary" @onclick="RecordAssessment" disabled="@saving">
+            <button class="btn btn-primary" @onclick="RecordAssessment" disabled="@saving">
                 @(saving ? "Saving…" : "Record Assessment")
             </button>
         </section>
@@ -303,7 +301,7 @@
                         @if (p.Status == "Active")
                         {
                             <div class="inline-form">
-                                <button class="btn-sm" @onclick="() => resolveTarget = p.ProblemId">Resolve</button>
+                                <button class="btn btn-primary" @onclick="() => resolveTarget = p.ProblemId">Resolve</button>
                             </div>
                         }
 
@@ -330,7 +328,7 @@
                 <div class="inline-form">
                     <strong>Resolve diagnosis:</strong>
                     <input @bind="resolveNotes" placeholder="Resolution notes (optional)" />
-                    <button class="btn-primary" @onclick="ResolveSelectedDiagnosis">Confirm Resolve</button>
+                    <button class="btn btn-primary" @onclick="ResolveSelectedDiagnosis">Confirm Resolve</button>
                     <button @onclick="() => resolveTarget = null">Cancel</button>
                 </div>
             }
@@ -345,7 +343,7 @@
                 <label>Nurse ID:</label><input @bind="newDx.NurseId" />
                 <label>Nurse Name:</label><input @bind="newDx.NurseName" />
             </div>
-            <button class="btn-primary" @onclick="AddDiagnosis" disabled="@saving">
+            <button class="btn btn-primary" @onclick="AddDiagnosis" disabled="@saving">
                 @(saving ? "Saving…" : "Add Diagnosis")
             </button>
 
@@ -354,12 +352,12 @@
                 <div class="inline-form" style="margin-top:1rem">
                     <strong>Add goal to @lastAddedProblemId:</strong>
                     <input @bind="newGoalText" placeholder="Measurable goal statement" />
-                    <button class="btn-sm" @onclick="AddGoal">Add Goal</button>
+                    <button class="btn btn-primary" @onclick="AddGoal">Add Goal</button>
 
                     <strong>Add intervention:</strong>
                     <input @bind="newInterventionText" placeholder="Nursing action" />
                     <input @bind="newInterventionFreq" placeholder="Frequency (e.g. Q4H)" style="width:120px" />
-                    <button class="btn-sm" @onclick="AddIntervention">Add Intervention</button>
+                    <button class="btn btn-primary" @onclick="AddIntervention">Add Intervention</button>
                 </div>
             }
         </section>
@@ -428,7 +426,7 @@
                 <label>Nurse Name:</label><input @bind="newAcuity.NurseName" />
                 <label>Notes:</label><input @bind="newAcuity.Notes" />
             </div>
-            <button class="btn-primary" @onclick="RecordAcuity" disabled="@saving">
+            <button class="btn btn-primary" @onclick="RecordAcuity" disabled="@saving">
                 @(saving ? "Saving…" : "Record Acuity")
             </button>
         </section>
@@ -441,8 +439,8 @@
             <h3>Nursing Unit Census</h3>
 
             <div class="lookup-bar">
-                <input type="text" @bind="unitId" placeholder="Unit ID" />
-                <button @onclick="LoadUnit">Load Unit</button>
+                <input type="text" @bind="unitId" placeholder="Unit ID" class="lookup-input" />
+                <button @onclick="LoadUnit" class="btn btn-primary">Load Unit</button>
             </div>
 
             @if (unitState != null)
@@ -469,7 +467,7 @@
                                 <td>
                                     @if (b.IsOccupied)
                                     {
-                                        <button class="btn-sm btn-danger" @onclick="() => DischargeFromBed(b.Bed)">Clear</button>
+                                        <button class="btn btn-primary" @onclick="() => DischargeFromBed(b.Bed)">Clear</button>
                                     }
                                 </td>
                             </tr>
@@ -502,7 +500,7 @@
 
 @code {
     // ── State ──────────────────────────────────────────────────────────────────
-    private string patientId = string.Empty;
+    private string? patientId;
     private string unitId = string.Empty;
     private int activeTab;
     private bool loaded;
@@ -535,7 +533,7 @@
     private List<NursingUnitEntryDto>? units;
 
     // ── Grain helpers ────────────────────────────────────────────────────────────
-    private IPatientWorkflowGrain GetWorkflow() => Grains.GetGrain<IPatientWorkflowGrain>(patientId.Trim());
+    private IPatientWorkflowGrain GetWorkflow() => Grains.GetGrain<IPatientWorkflowGrain>(patientId!.Trim());
 
     // ── Load ───────────────────────────────────────────────────────────────────
     private async Task Load()
@@ -777,7 +775,7 @@
     }
 
     // ── Helpers ────────────────────────────────────────────────────────────────
-    private string TabClass(int tab) => activeTab == tab ? "tab-btn active" : "tab-btn";
+    private string TabClass(int tab) => activeTab == tab ? "tab active" : "tab";
     private string AcuityClass(AcuityLevel l) => l switch
     {
         AcuityLevel.CriticalCare      => "acuity-5",
@@ -904,30 +902,20 @@
 }
 
 <style>
-    .lookup-bar { display: flex; gap: .5rem; margin-bottom: 1rem; align-items: center; }
-    .tab-bar { display: flex; gap: .25rem; margin-bottom: 1rem; }
-    .tab-btn { padding: .4rem .9rem; border: 1px solid #ccc; background: #f5f5f5; cursor: pointer; border-radius: 4px 4px 0 0; }
-    .tab-btn.active { background: #fff; border-bottom-color: #fff; font-weight: 600; }
+    /* Canonical classes (lookup-bar, lookup-input, tab, data-table, alert, btn, empty-state)
+       are defined once in app.css per UI-CONVENTIONS.md. Page-specific only below. */
     .panel { border: 1px solid #ddd; padding: 1rem; border-radius: 4px; background: #fff; }
-    .data-table { width: 100%; border-collapse: collapse; font-size: .875rem; }
-    .data-table th, .data-table td { border: 1px solid #ddd; padding: .35rem .6rem; text-align: left; }
-    .data-table th { background: #f0f4f8; font-weight: 600; }
-    .data-table tr:hover { background: #f7fbff; }
     .row-signed { color: #444; }
-    .row-occupied { background: #fef9e7; }
+    .row-occupied > td { background: #fef9e7; }
     .row-vacant { color: #aaa; }
-    .form-grid { display: grid; grid-template-columns: 160px 1fr; gap: .4rem .6rem; align-items: center; margin-bottom: 1rem; }
-    .alert-error { color: #c0392b; background: #fdecea; border: 1px solid #f5c6cb; padding: .5rem .8rem; border-radius: 4px; margin-bottom: .5rem; }
-    .alert-success { color: #27ae60; background: #eafaf1; border: 1px solid #a9dfbf; padding: .5rem .8rem; border-radius: 4px; margin-bottom: .5rem; }
-    .btn-primary { background: #2980b9; color: #fff; border: none; padding: .45rem 1rem; border-radius: 4px; cursor: pointer; }
-    .btn-primary:hover { background: #1f6391; }
-    .btn-sm { background: #ecf0f1; border: 1px solid #bdc3c7; padding: .2rem .6rem; border-radius: 3px; cursor: pointer; font-size: .8rem; }
-    .btn-danger { background: #e74c3c; color: #fff; border: none; }
+    .form-grid { display: grid; grid-template-columns: 170px 1fr; gap: .5rem .75rem; align-items: center; margin-bottom: 1rem; max-width: 700px; }
+    .form-grid > label { font-size: 0.85rem; font-weight: 500; color: #333; }
+    .form-grid input, .form-grid select, .form-grid textarea { padding: .4rem .6rem; border: 1px solid #ccc; border-radius: 4px; font-size: .85rem; }
     .detail-card { border: 1px solid #b8d4f0; background: #eaf2fb; padding: 1rem; border-radius: 4px; margin: 1rem 0; }
     .detail-grid { display: grid; grid-template-columns: 150px 1fr; gap: .2rem .5rem; font-size: .875rem; margin-bottom: .5rem; }
     .care-plan-problem { border: 1px solid #d5e8d4; background: #f6fef5; padding: .75rem; border-radius: 4px; margin-bottom: .75rem; }
     .problem-resolved { opacity: .6; border-color: #ccc; }
-    .status-badge { font-size: .75rem; padding: .1rem .4rem; border-radius: 3px; background: #27ae60; color: #fff; margin-left: .5rem; }
+    .status-badge { font-size: .75rem; padding: .1rem .4rem; border-radius: 3px; background: #166534; color: #fff; margin-left: .5rem; }
     .acuity-current { font-size: 1.1rem; margin-bottom: .5rem; }
     .acuity-level { font-weight: 700; padding: .2rem .6rem; border-radius: 4px; }
     .acuity-1 { background: #d5f5e3; color: #1e8449; }
@@ -937,5 +925,4 @@
     .acuity-5 { background: #fadbd8; color: #922b21; }
     .unit-header { font-size: 1rem; margin-bottom: .5rem; }
     .inline-form { display: flex; gap: .5rem; align-items: center; flex-wrap: wrap; margin-top: .5rem; }
-    .empty-state { color: #888; font-style: italic; }
 </style>

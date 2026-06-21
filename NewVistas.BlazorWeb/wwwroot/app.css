@@ -112,3 +112,16 @@ h1:focus {
 .safety-proceed { background: #fff; color: #b91c1c; border: 1px solid #b91c1c; }
 .safety-proceed:disabled { color: #d4a3a3; border-color: #e5c7c7; cursor: not-allowed; }
 .safety-cosign-note { font-size: 0.8rem; color: #7f1d1d; font-style: italic; }
+
+/* Canonical status / severity badges (replaces Bootstrap badge bg-*). Use ONLY for
+   clinically-meaningful status that benefits from an at-a-glance color cue — acuity
+   (ESI), pain score, order/task priority. Keep them rare so the color stays meaningful. */
+.badge { display: inline-block; padding: 0.1rem 0.55rem; border-radius: 10px; font-size: 0.72rem; font-weight: 600; }
+.badge-danger { background: #fde8e8; color: #b91c1c; }
+.badge-warning { background: #fef3c7; color: #92400e; }
+.badge-info { background: #dbeafe; color: #1e40af; }
+.badge-success { background: #dcfce7; color: #166534; }
+.badge-neutral { background: #e5e7eb; color: #374151; }
+/* Row severity tint for data tables (e.g. high pain / STAT priority rows) */
+.data-table tr.row-danger > td { background: #fef2f2; }
+.data-table tr.row-warning > td { background: #fffbeb; }

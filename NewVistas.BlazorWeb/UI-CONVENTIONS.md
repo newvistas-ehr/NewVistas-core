@@ -175,5 +175,6 @@ Bootstrap idiom. That makes migration **batchable by feature area**, not scatter
 5. Patient safety = **tiered alerts**; reserved **Tier-2 `<SafetyConfirm>`** (type-to-confirm +
    reason + reserved styling + audit); **lethal class requires co-sign**.
 6. Rollout = **shared components + pilot**, then migrate by cluster; add a CI guard against drift.
+7. **Status / severity badges** = canonical `.badge` + `.badge-danger/.warning/.info/.success/.neutral` (and `.row-danger/.row-warning` table tints) in app.css — replaces Bootstrap `badge bg-*`. Use ONLY for clinically-meaningful at-a-glance cues (ESI acuity, pain score, order/task priority); keep rare so the color stays meaningful. (A patient-safety signal — don't drop these in a migration.)
 
 Scope: the **two modern UIs only** (Blazor-main, WPF-main). CharUI and WpfDelphiUI stay faithful throwbacks.
