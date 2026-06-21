@@ -18,7 +18,7 @@
 @if (error != null) { <div class="alert alert-error">@error</div> }
 @if (successMessage != null) { <div class="alert alert-success">@successMessage</div> }
 
-<div class="tabs">
+<div class="tab-bar">
     <button class="tab @(activeTab == "workorders" ? "active" : "")"
             @onclick='() => { activeTab = "workorders"; _ = LoadActiveWorkOrders(); }'>
         Work Orders
@@ -47,19 +47,19 @@
                 <div class="form-grid">
                     <div class="form-group">
                         <label>Facility ID *</label>
-                        <input type="text" @bind="newWoFacilityId" placeholder="ENG-FAC:..." class="form-control" />
+                        <input type="text" @bind="newWoFacilityId" placeholder="ENG-FAC:..." class="form-input" />
                     </div>
                     <div class="form-group">
                         <label>Facility Name *</label>
-                        <input type="text" @bind="newWoFacilityName" placeholder="e.g. Building A — Room 201" class="form-control" />
+                        <input type="text" @bind="newWoFacilityName" placeholder="e.g. Building A — Room 201" class="form-input" />
                     </div>
                     <div class="form-group">
                         <label>Location Description</label>
-                        <input type="text" @bind="newWoLocation" placeholder="e.g. 2nd floor, west corridor" class="form-control" />
+                        <input type="text" @bind="newWoLocation" placeholder="e.g. 2nd floor, west corridor" class="form-input" />
                     </div>
                     <div class="form-group">
                         <label>Work Order Type *</label>
-                        <select @bind="newWoType" class="form-control">
+                        <select @bind="newWoType" class="form-input">
                             <option value="Repair">Repair</option>
                             <option value="PreventiveMaintenance">Preventive Maintenance</option>
                             <option value="NewInstall">New Install</option>
@@ -71,7 +71,7 @@
                     </div>
                     <div class="form-group">
                         <label>Priority *</label>
-                        <select @bind="newWoPriority" class="form-control">
+                        <select @bind="newWoPriority" class="form-input">
                             <option value="Routine">Routine</option>
                             <option value="Urgent">Urgent</option>
                             <option value="Emergency">Emergency</option>
@@ -79,7 +79,7 @@
                     </div>
                     <div class="form-group">
                         <label>Shop *</label>
-                        <select @bind="newWoShop" class="form-control">
+                        <select @bind="newWoShop" class="form-input">
                             <option value="Electrical">Electrical</option>
                             <option value="Mechanical">Mechanical</option>
                             <option value="Plumbing">Plumbing</option>
@@ -94,26 +94,26 @@
                     </div>
                     <div class="form-group form-group-full">
                         <label>Description *</label>
-                        <textarea @bind="newWoDescription" placeholder="Describe the problem or work required..." class="form-control" rows="3"></textarea>
+                        <textarea @bind="newWoDescription" placeholder="Describe the problem or work required..." class="form-input" rows="3"></textarea>
                     </div>
                     <div class="form-group">
                         <label>Requested By ID *</label>
-                        <input type="text" @bind="newWoRequestedById" placeholder="STAFF-..." class="form-control" />
+                        <input type="text" @bind="newWoRequestedById" placeholder="STAFF-..." class="form-input" />
                     </div>
                     <div class="form-group">
                         <label>Requested By Name *</label>
-                        <input type="text" @bind="newWoRequestedByName" placeholder="Staff name" class="form-control" />
+                        <input type="text" @bind="newWoRequestedByName" placeholder="Staff name" class="form-input" />
                     </div>
                     <div class="form-group">
                         <label>Estimated Hours</label>
-                        <input type="number" @bind="newWoEstimatedHours" step="0.5" min="0" class="form-control" />
+                        <input type="number" @bind="newWoEstimatedHours" step="0.5" min="0" class="form-input" />
                     </div>
                     <div class="form-group">
                         <label>Scheduled Date</label>
-                        <input type="date" @bind="newWoScheduledDate" class="form-control" />
+                        <input type="date" @bind="newWoScheduledDate" class="form-input" />
                     </div>
                 </div>
-                <button class="btn btn-success" @onclick="CreateWorkOrder" disabled="@creatingWorkOrder">
+                <button class="btn btn-primary" @onclick="CreateWorkOrder" disabled="@creatingWorkOrder">
                     @(creatingWorkOrder ? "Creating..." : "Create Work Order")
                 </button>
             </div>
@@ -121,7 +121,7 @@
 
         <!-- Search / Filter Bar -->
         <div class="filter-bar">
-            <select @bind="filterStatus" class="form-control form-control-sm">
+            <select @bind="filterStatus" class="form-input form-input-sm">
                 <option value="">All Statuses</option>
                 <option value="Open">Open</option>
                 <option value="InProgress">In Progress</option>
@@ -129,7 +129,7 @@
                 <option value="Completed">Completed</option>
                 <option value="Cancelled">Cancelled</option>
             </select>
-            <select @bind="filterShop" class="form-control form-control-sm">
+            <select @bind="filterShop" class="form-input form-input-sm">
                 <option value="">All Shops</option>
                 <option value="Electrical">Electrical</option>
                 <option value="Mechanical">Mechanical</option>
@@ -191,7 +191,7 @@
                                 <td>@(wo.AssignedToName ?? "—")</td>
                                 <td>@(wo.ScheduledDate?.ToString("MM/dd/yyyy") ?? "—")</td>
                                 <td>
-                                    <button class="btn btn-xs" @onclick="() => ViewWorkOrder(wo.WorkOrderId)">Detail</button>
+                                    <button class="btn btn-secondary btn-xs" @onclick="() => ViewWorkOrder(wo.WorkOrderId)">Detail</button>
                                 </td>
                             </tr>
                         }
@@ -206,7 +206,7 @@
             <div class="detail-panel">
                 <div class="section-header">
                     <h3>Work Order @selectedWorkOrder.WorkOrderNumber</h3>
-                    <button class="btn btn-sm" @onclick="() => selectedWorkOrder = null">Close</button>
+                    <button class="btn btn-secondary btn-sm" @onclick="() => selectedWorkOrder = null">Close</button>
                 </div>
                 <div class="detail-grid">
                     <div><strong>Facility:</strong> @selectedWorkOrder.FacilityName</div>
@@ -284,12 +284,12 @@
                     @if (selectedWorkOrder.Status == WorkOrderStatus.Open)
                     {
                         <button class="btn btn-primary btn-sm" @onclick="() => showAssignForm = !showAssignForm">Assign</button>
-                        <button class="btn btn-success btn-sm" @onclick="() => showStartForm = !showStartForm">Start</button>
+                        <button class="btn btn-primary btn-sm" @onclick="() => showStartForm = !showStartForm">Start</button>
                     }
                     @if (selectedWorkOrder.Status == WorkOrderStatus.InProgress)
                     {
-                        <button class="btn btn-warning btn-sm" @onclick="() => showHoldForm = !showHoldForm">Hold</button>
-                        <button class="btn btn-success btn-sm" @onclick="CompleteWorkOrder">Complete</button>
+                        <button class="btn btn-primary btn-sm" @onclick="() => showHoldForm = !showHoldForm">Hold</button>
+                        <button class="btn btn-primary btn-sm" @onclick="CompleteWorkOrder">Complete</button>
                     }
                     @if (selectedWorkOrder.Status == WorkOrderStatus.OnHold)
                     {
@@ -297,7 +297,7 @@
                     }
                     @if (selectedWorkOrder.Status != WorkOrderStatus.Completed && selectedWorkOrder.Status != WorkOrderStatus.Cancelled)
                     {
-                        <button class="btn btn-danger btn-sm" @onclick="() => showCancelForm = !showCancelForm">Cancel</button>
+                        <button class="btn btn-primary btn-sm" @onclick="() => showCancelForm = !showCancelForm">Cancel</button>
                     }
                     <button class="btn btn-secondary btn-sm" @onclick="() => showNoteForm = !showNoteForm">Add Note</button>
                     <button class="btn btn-secondary btn-sm" @onclick="() => showLaborForm = !showLaborForm">Log Labor</button>
@@ -307,17 +307,17 @@
                 @if (showAssignForm || showStartForm)
                 {
                     <div class="form-inline">
-                        <input type="text" @bind="actionTechId" placeholder="Technician ID" class="form-control form-control-sm" />
-                        <input type="text" @bind="actionTechName" placeholder="Technician Name" class="form-control form-control-sm" />
+                        <input type="text" @bind="actionTechId" placeholder="Technician ID" class="form-input form-input-sm" />
+                        <input type="text" @bind="actionTechName" placeholder="Technician Name" class="form-input form-input-sm" />
                         @if (showAssignForm)
                         {
                             <button class="btn btn-primary btn-sm" @onclick="AssignWorkOrder">Assign</button>
-                            <button class="btn btn-sm" @onclick="() => showAssignForm = false">Cancel</button>
+                            <button class="btn btn-secondary btn-sm" @onclick="() => showAssignForm = false">Cancel</button>
                         }
                         else
                         {
-                            <button class="btn btn-success btn-sm" @onclick="StartWorkOrder">Start</button>
-                            <button class="btn btn-sm" @onclick="() => showStartForm = false">Cancel</button>
+                            <button class="btn btn-primary btn-sm" @onclick="StartWorkOrder">Start</button>
+                            <button class="btn btn-secondary btn-sm" @onclick="() => showStartForm = false">Cancel</button>
                         }
                     </div>
                 }
@@ -325,56 +325,56 @@
                 @if (showHoldForm)
                 {
                     <div class="form-inline">
-                        <input type="text" @bind="actionReason" placeholder="Hold reason (optional)" class="form-control form-control-sm" />
-                        <button class="btn btn-warning btn-sm" @onclick="HoldWorkOrder">Place On Hold</button>
-                        <button class="btn btn-sm" @onclick="() => showHoldForm = false">Cancel</button>
+                        <input type="text" @bind="actionReason" placeholder="Hold reason (optional)" class="form-input form-input-sm" />
+                        <button class="btn btn-primary btn-sm" @onclick="HoldWorkOrder">Place On Hold</button>
+                        <button class="btn btn-secondary btn-sm" @onclick="() => showHoldForm = false">Cancel</button>
                     </div>
                 }
 
                 @if (showCancelForm)
                 {
                     <div class="form-inline">
-                        <input type="text" @bind="actionCancelById" placeholder="Cancelled by ID" class="form-control form-control-sm" />
-                        <input type="text" @bind="actionCancelByName" placeholder="Cancelled by name" class="form-control form-control-sm" />
-                        <input type="text" @bind="actionReason" placeholder="Reason (optional)" class="form-control form-control-sm" />
-                        <button class="btn btn-danger btn-sm" @onclick="CancelWorkOrder">Confirm Cancel</button>
-                        <button class="btn btn-sm" @onclick="() => showCancelForm = false">Cancel</button>
+                        <input type="text" @bind="actionCancelById" placeholder="Cancelled by ID" class="form-input form-input-sm" />
+                        <input type="text" @bind="actionCancelByName" placeholder="Cancelled by name" class="form-input form-input-sm" />
+                        <input type="text" @bind="actionReason" placeholder="Reason (optional)" class="form-input form-input-sm" />
+                        <button class="btn btn-primary btn-sm" @onclick="CancelWorkOrder">Confirm Cancel</button>
+                        <button class="btn btn-secondary btn-sm" @onclick="() => showCancelForm = false">Cancel</button>
                     </div>
                 }
 
                 @if (showNoteForm)
                 {
                     <div class="form-inline">
-                        <input type="text" @bind="noteAuthorId" placeholder="Author ID" class="form-control form-control-sm" />
-                        <input type="text" @bind="noteAuthorName" placeholder="Author Name" class="form-control form-control-sm" />
-                        <input type="text" @bind="noteText" placeholder="Note text..." class="form-control form-control-sm" />
+                        <input type="text" @bind="noteAuthorId" placeholder="Author ID" class="form-input form-input-sm" />
+                        <input type="text" @bind="noteAuthorName" placeholder="Author Name" class="form-input form-input-sm" />
+                        <input type="text" @bind="noteText" placeholder="Note text..." class="form-input form-input-sm" />
                         <button class="btn btn-secondary btn-sm" @onclick="AddNote">Add Note</button>
-                        <button class="btn btn-sm" @onclick="() => showNoteForm = false">Cancel</button>
+                        <button class="btn btn-secondary btn-sm" @onclick="() => showNoteForm = false">Cancel</button>
                     </div>
                 }
 
                 @if (showLaborForm)
                 {
                     <div class="form-inline">
-                        <input type="text" @bind="laborTechId" placeholder="Technician ID" class="form-control form-control-sm" />
-                        <input type="text" @bind="laborTechName" placeholder="Technician Name" class="form-control form-control-sm" />
-                        <input type="number" @bind="laborHours" step="0.5" min="0.5" placeholder="Hours" class="form-control form-control-sm" style="width:80px" />
-                        <input type="date" @bind="laborDate" class="form-control form-control-sm" />
-                        <input type="text" @bind="laborNotes" placeholder="Notes (optional)" class="form-control form-control-sm" />
+                        <input type="text" @bind="laborTechId" placeholder="Technician ID" class="form-input form-input-sm" />
+                        <input type="text" @bind="laborTechName" placeholder="Technician Name" class="form-input form-input-sm" />
+                        <input type="number" @bind="laborHours" step="0.5" min="0.5" placeholder="Hours" class="form-input form-input-sm" style="width:80px" />
+                        <input type="date" @bind="laborDate" class="form-input form-input-sm" />
+                        <input type="text" @bind="laborNotes" placeholder="Notes (optional)" class="form-input form-input-sm" />
                         <button class="btn btn-secondary btn-sm" @onclick="AddLabor">Log Labor</button>
-                        <button class="btn btn-sm" @onclick="() => showLaborForm = false">Cancel</button>
+                        <button class="btn btn-secondary btn-sm" @onclick="() => showLaborForm = false">Cancel</button>
                     </div>
                 }
 
                 @if (showPartForm)
                 {
                     <div class="form-inline">
-                        <input type="text" @bind="partNumber" placeholder="Part #" class="form-control form-control-sm" />
-                        <input type="text" @bind="partDescription" placeholder="Description" class="form-control form-control-sm" />
-                        <input type="number" @bind="partQty" min="1" placeholder="Qty" class="form-control form-control-sm" style="width:60px" />
-                        <input type="number" @bind="partUnitCost" step="0.01" min="0" placeholder="Unit $" class="form-control form-control-sm" style="width:80px" />
+                        <input type="text" @bind="partNumber" placeholder="Part #" class="form-input form-input-sm" />
+                        <input type="text" @bind="partDescription" placeholder="Description" class="form-input form-input-sm" />
+                        <input type="number" @bind="partQty" min="1" placeholder="Qty" class="form-input form-input-sm" style="width:60px" />
+                        <input type="number" @bind="partUnitCost" step="0.01" min="0" placeholder="Unit $" class="form-input form-input-sm" style="width:80px" />
                         <button class="btn btn-secondary btn-sm" @onclick="AddPart">Add Part</button>
-                        <button class="btn btn-sm" @onclick="() => showPartForm = false">Cancel</button>
+                        <button class="btn btn-secondary btn-sm" @onclick="() => showPartForm = false">Cancel</button>
                     </div>
                 }
             </div>
@@ -400,11 +400,11 @@
                 <div class="form-grid">
                     <div class="form-group">
                         <label>Facility Name *</label>
-                        <input type="text" @bind="newFacilityName" placeholder="e.g. Building A — MRI Room" class="form-control" />
+                        <input type="text" @bind="newFacilityName" placeholder="e.g. Building A — MRI Room" class="form-input" />
                     </div>
                     <div class="form-group">
                         <label>Category *</label>
-                        <select @bind="newFacilityCategory" class="form-control">
+                        <select @bind="newFacilityCategory" class="form-input">
                             <option value="Building">Building</option>
                             <option value="Room">Room</option>
                             <option value="Equipment">Equipment</option>
@@ -416,42 +416,42 @@
                     </div>
                     <div class="form-group">
                         <label>Building</label>
-                        <input type="text" @bind="newFacilityBuilding" placeholder="Building name/number" class="form-control" />
+                        <input type="text" @bind="newFacilityBuilding" placeholder="Building name/number" class="form-input" />
                     </div>
                     <div class="form-group">
                         <label>Floor</label>
-                        <input type="text" @bind="newFacilityFloor" placeholder="Floor/Level" class="form-control" />
+                        <input type="text" @bind="newFacilityFloor" placeholder="Floor/Level" class="form-input" />
                     </div>
                     <div class="form-group">
                         <label>Room</label>
-                        <input type="text" @bind="newFacilityRoom" placeholder="Room number" class="form-control" />
+                        <input type="text" @bind="newFacilityRoom" placeholder="Room number" class="form-input" />
                     </div>
                     <div class="form-group">
                         <label>Department Name</label>
-                        <input type="text" @bind="newFacilityDept" placeholder="Department" class="form-control" />
+                        <input type="text" @bind="newFacilityDept" placeholder="Department" class="form-input" />
                     </div>
                     <div class="form-group">
                         <label>Equipment Type</label>
-                        <input type="text" @bind="newFacilityEquipType" placeholder="e.g. MRI Scanner" class="form-control" />
+                        <input type="text" @bind="newFacilityEquipType" placeholder="e.g. MRI Scanner" class="form-input" />
                     </div>
                     <div class="form-group">
                         <label>Manufacturer</label>
-                        <input type="text" @bind="newFacilityManufacturer" placeholder="Manufacturer" class="form-control" />
+                        <input type="text" @bind="newFacilityManufacturer" placeholder="Manufacturer" class="form-input" />
                     </div>
                     <div class="form-group">
                         <label>Model</label>
-                        <input type="text" @bind="newFacilityModel" placeholder="Model" class="form-control" />
+                        <input type="text" @bind="newFacilityModel" placeholder="Model" class="form-input" />
                     </div>
                     <div class="form-group">
                         <label>Serial Number</label>
-                        <input type="text" @bind="newFacilitySerial" placeholder="Serial #" class="form-control" />
+                        <input type="text" @bind="newFacilitySerial" placeholder="Serial #" class="form-input" />
                     </div>
                     <div class="form-group">
                         <label>Warranty Expiration</label>
-                        <input type="date" @bind="newFacilityWarranty" class="form-control" />
+                        <input type="date" @bind="newFacilityWarranty" class="form-input" />
                     </div>
                 </div>
-                <button class="btn btn-success" @onclick="CreateFacility" disabled="@creatingFacility">
+                <button class="btn btn-primary" @onclick="CreateFacility" disabled="@creatingFacility">
                     @(creatingFacility ? "Creating..." : "Create Facility")
                 </button>
             </div>
@@ -464,8 +464,8 @@
         else if (facilities != null)
         {
             <div class="filter-bar">
-                <input type="text" @bind="facilitySearch" @bind:event="oninput" placeholder="Search..." class="form-control form-control-sm" />
-                <select @bind="facilityActiveOnly" class="form-control form-control-sm">
+                <input type="text" @bind="facilitySearch" @bind:event="oninput" placeholder="Search..." class="form-input form-input-sm" />
+                <select @bind="facilityActiveOnly" class="form-input form-input-sm">
                     <option value="true">Active Only</option>
                     <option value="false">All</option>
                 </select>
@@ -506,21 +506,21 @@
                                 <td>
                                     @if (fac.Status == FacilityStatus.Active)
                                     {
-                                        <button class="btn btn-xs btn-warning"
+                                        <button class="btn btn-primary btn-xs"
                                                 @onclick="() => SetFacilityMaintenance(fac.FacilityId)">
                                             Maintenance
                                         </button>
                                     }
                                     else if (fac.Status == FacilityStatus.UnderMaintenance)
                                     {
-                                        <button class="btn btn-xs btn-success"
+                                        <button class="btn btn-primary btn-xs"
                                                 @onclick="() => ActivateFacility(fac.FacilityId)">
                                             Activate
                                         </button>
                                     }
                                     @if (fac.Status != FacilityStatus.Decommissioned)
                                     {
-                                        <button class="btn btn-xs btn-danger"
+                                        <button class="btn btn-primary btn-xs"
                                                 @onclick="() => DecommissionFacility(fac.FacilityId)">
                                             Decommission
                                         </button>
@@ -536,11 +536,10 @@
 }
 
 <style>
+    /* Canonical classes (.tab-bar/.tab, .btn/.btn-*, .alert/.alert-*, .data-table,
+       .form-input, .badge/.badge-*, .empty-state) live in wwwroot/app.css.
+       Only page-specific layout/sizing modifiers remain below. */
     .subtitle { color: #6b7280; font-size: 0.9rem; margin-top: -0.5rem; margin-bottom: 1rem; }
-
-    .tabs { display: flex; gap: 0.25rem; margin-bottom: 1rem; border-bottom: 2px solid #e5e7eb; }
-    .tab { padding: 0.5rem 1.25rem; border: none; background: none; cursor: pointer; color: #6b7280; font-weight: 500; border-bottom: 3px solid transparent; margin-bottom: -2px; }
-    .tab.active { color: #2563eb; border-bottom-color: #2563eb; }
 
     .section-card { background: white; border: 1px solid #e5e7eb; border-radius: 8px; padding: 1.5rem; margin-bottom: 1.5rem; }
     .section-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; }
@@ -551,25 +550,13 @@
     .form-group { display: flex; flex-direction: column; gap: 0.25rem; }
     .form-group-full { grid-column: 1 / -1; }
     .form-group label { font-size: 0.8rem; font-weight: 600; color: #374151; }
-    .form-control { padding: 0.375rem 0.5rem; border: 1px solid #d1d5db; border-radius: 4px; font-size: 0.875rem; }
-    .form-control-sm { padding: 0.25rem 0.375rem; font-size: 0.8rem; }
+    .form-input-sm { padding: 0.25rem 0.375rem; font-size: 0.8rem; }
 
     .filter-bar { display: flex; gap: 0.5rem; margin-bottom: 1rem; flex-wrap: wrap; align-items: center; }
 
-    .data-table { width: 100%; border-collapse: collapse; font-size: 0.875rem; }
-    .data-table th { background: #f3f4f6; text-align: left; padding: 0.5rem 0.75rem; font-weight: 600; border-bottom: 1px solid #e5e7eb; }
-    .data-table td { padding: 0.5rem 0.75rem; border-bottom: 1px solid #f3f4f6; vertical-align: top; }
     .data-table-sm td, .data-table-sm th { padding: 0.25rem 0.5rem; font-size: 0.8rem; }
     .data-table tr.priority-emergency { background-color: #fff1f2; }
     .data-table tr.priority-urgent { background-color: #fffbeb; }
-
-    .badge { display: inline-block; padding: 0.15rem 0.5rem; border-radius: 9999px; font-size: 0.75rem; font-weight: 600; }
-    .badge-red { background: #fee2e2; color: #991b1b; }
-    .badge-yellow { background: #fef3c7; color: #92400e; }
-    .badge-green { background: #d1fae5; color: #065f46; }
-    .badge-blue { background: #dbeafe; color: #1e40af; }
-    .badge-gray { background: #f3f4f6; color: #374151; }
-    .badge-orange { background: #ffedd5; color: #9a3412; }
 
     .detail-panel { background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 6px; padding: 1rem; margin-top: 1rem; }
     .detail-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 0.5rem; margin-bottom: 1rem; font-size: 0.875rem; }
@@ -580,22 +567,11 @@
     .note-entry { background: white; border: 1px solid #e5e7eb; border-radius: 4px; padding: 0.5rem 0.75rem; margin-bottom: 0.5rem; font-size: 0.875rem; }
     .note-entry p { margin: 0.25rem 0 0; }
 
-    .empty-state { color: #9ca3af; text-align: center; padding: 2rem; }
     .loading-hint { color: #6b7280; font-style: italic; }
 
-    .btn { padding: 0.375rem 0.75rem; border: none; border-radius: 4px; cursor: pointer; font-weight: 500; font-size: 0.875rem; }
-    .btn-primary { background: #2563eb; color: white; }
-    .btn-success { background: #059669; color: white; }
-    .btn-warning { background: #d97706; color: white; }
-    .btn-danger { background: #dc2626; color: white; }
-    .btn-secondary { background: #6b7280; color: white; }
+    /* page-specific button size modifiers (base .btn/.btn-* are canonical in app.css) */
     .btn-sm { font-size: 0.8rem; padding: 0.25rem 0.5rem; }
     .btn-xs { font-size: 0.75rem; padding: 0.15rem 0.4rem; margin-right: 0.25rem; }
-    .btn:disabled { opacity: 0.6; cursor: not-allowed; }
-
-    .alert { padding: 0.75rem 1rem; border-radius: 4px; margin-bottom: 1rem; }
-    .alert-error { background: #fee2e2; color: #991b1b; border: 1px solid #fecaca; }
-    .alert-success { background: #d1fae5; color: #065f46; border: 1px solid #a7f3d0; }
 
     code { background: #f3f4f6; padding: 0.1rem 0.3rem; border-radius: 3px; font-size: 0.8rem; }
 </style>
@@ -1054,27 +1030,27 @@
 
     static string GetPriorityBadge(WorkOrderPriority priority) => priority switch
     {
-        WorkOrderPriority.Emergency => "badge-red",
-        WorkOrderPriority.Urgent => "badge-orange",
-        _ => "badge-gray",
+        WorkOrderPriority.Emergency => "badge-danger",
+        WorkOrderPriority.Urgent => "badge-warning",
+        _ => "badge-neutral",
     };
 
     static string GetStatusBadge(WorkOrderStatus status) => status switch
     {
-        WorkOrderStatus.Open => "badge-blue",
-        WorkOrderStatus.InProgress => "badge-yellow",
-        WorkOrderStatus.Completed => "badge-green",
-        WorkOrderStatus.Cancelled => "badge-gray",
-        WorkOrderStatus.OnHold => "badge-orange",
-        _ => "badge-gray",
+        WorkOrderStatus.Open => "badge-info",
+        WorkOrderStatus.InProgress => "badge-warning",
+        WorkOrderStatus.Completed => "badge-success",
+        WorkOrderStatus.Cancelled => "badge-neutral",
+        WorkOrderStatus.OnHold => "badge-warning",
+        _ => "badge-neutral",
     };
 
     static string GetFacilityStatusBadge(FacilityStatus status) => status switch
     {
-        FacilityStatus.Active => "badge-green",
-        FacilityStatus.UnderMaintenance => "badge-yellow",
-        FacilityStatus.Decommissioned => "badge-gray",
-        _ => "badge-gray",
+        FacilityStatus.Active => "badge-success",
+        FacilityStatus.UnderMaintenance => "badge-warning",
+        FacilityStatus.Decommissioned => "badge-neutral",
+        _ => "badge-neutral",
     };
 
     // DTOs removed — using grain state types directly from NewVistas.Abstractions.GrainStates
