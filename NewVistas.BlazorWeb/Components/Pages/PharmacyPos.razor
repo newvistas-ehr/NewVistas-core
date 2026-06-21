@@ -12,6 +12,9 @@
 
 <h3>Pharmacy Point of Sale (POS)</h3>
 
+<SafetyConfirm Visible="_safetyPending" Hazard="@_safetyHazard" ConfirmValue="@_safetyConfirmValue"
+               RequireCosign="_safetyCosign" OnOverride="OnSafetyOverride" OnCancel="OnSafetyCancel" />
+
 @if (!string.IsNullOrEmpty(error))
 {
     <div class="alert alert-error">@error</div>
@@ -557,9 +560,57 @@
         showAdjudicateForm = true;
     }
 
+    // Patient-safety Tier-2 confirmation gate state (UI-CONVENTIONS.md §8).
+    private bool _safetyPending;
+    private string _safetyHazard = string.Empty;
+    private string _safetyConfirmValue = string.Empty;
+    private bool _safetyCosign;
+
     private async Task SubmitClaim()
     {
         if (string.IsNullOrWhiteSpace(patientId)) return;
+        // Patient-safety Tier-2 gate (UI-CONVENTIONS.md §8): dispensing an implausibly high daily
+        // quantity must defeat muscle-memory before the claim is submitted.
+        var risk = AssessDispenseSafety();
+        if (risk.Dangerous)
+        {
+            _safetyHazard = risk.Hazard;
+            _safetyConfirmValue = string.IsNullOrWhiteSpace(newClaim.DrugName) ? "CONFIRM" : newClaim.DrugName!.Trim();
+            _safetyCosign = risk.Lethal;
+            _safetyPending = true;
+            return;
+        }
+        await DoSubmitClaim();
+    }
+
+    /// <summary>Daily-quantity risk check for the dispense about to be claimed. No DEA schedule is
+    /// captured at POS, so this uses generic doses/day thresholds.</summary>
+    private (bool Dangerous, string Hazard, bool Lethal) AssessDispenseSafety()
+    {
+        decimal qty = newClaim.QuantityDispensed ?? 0m;
+        int days = newClaim.DaysSupply is int d && d > 0 ? d : 1;
+        if (qty <= 0) return (false, string.Empty, false);
+        decimal perDay = qty / days;
+        const decimal warnAt = 20m, lethalAt = 40m;
+        if (perDay >= lethalAt)
+            return (true, $"{Disp(newClaim.DrugName)} — {qty:0.##} dispensed over {days} day(s) = {perDay:0.#}/day. This is an implausibly high daily quantity and is in the LETHAL range.", true);
+        if (perDay > warnAt)
+            return (true, $"{Disp(newClaim.DrugName)} — {qty:0.##} dispensed over {days} day(s) = {perDay:0.#}/day, far above a normal daily quantity. Confirm this is intentional.", false);
+        return (false, string.Empty, false);
+    }
+
+    private static string Disp(string? s) => string.IsNullOrWhiteSpace(s) ? "(unspecified)" : s;
+
+    private async Task OnSafetyOverride(string reason)
+    {
+        _safetyPending = false;
+        await DoSubmitClaim();
+    }
+
+    private void OnSafetyCancel() => _safetyPending = false;
+
+    private async Task DoSubmitClaim()
+    {
         error = null;
         try
         {

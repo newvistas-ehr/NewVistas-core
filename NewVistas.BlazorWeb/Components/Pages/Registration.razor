@@ -17,7 +17,7 @@
         <h2 class="mb-0">Registration</h2>
         @if (!string.IsNullOrWhiteSpace(PatientId))
         {
-            <span class="badge bg-secondary fs-6">@PatientId</span>
+            <span class="text-muted">@PatientId</span>
         }
     </div>
 
@@ -29,7 +29,7 @@
     {
         @if (error != null)
         {
-            <div class="alert alert-danger">@error</div>
+            <div class="alert alert-error">@error</div>
         }
         @if (success != null)
         {
@@ -37,26 +37,14 @@
         }
 
         <!-- Tab navigation -->
-        <ul class="nav nav-tabs mb-3">
-            <li class="nav-item">
-                <button class="nav-link @(activeTab == "enrollment" ? "active" : "")" @onclick='() => SetTab("enrollment")'>Enrollment</button>
-            </li>
-            <li class="nav-item">
-                <button class="nav-link @(activeTab == "prf" ? "active" : "")" @onclick='() => SetTab("prf")'>PRF Flags</button>
-            </li>
-            <li class="nav-item">
-                <button class="nav-link @(activeTab == "mst" ? "active" : "")" @onclick='() => SetTab("mst")'>MST History</button>
-            </li>
-            <li class="nav-item">
-                <button class="nav-link @(activeTab == "relations" ? "active" : "")" @onclick='() => SetTab("relations")'>Relations</button>
-            </li>
-            <li class="nav-item">
-                <button class="nav-link @(activeTab == "income" ? "active" : "")" @onclick='() => SetTab("income")'>Income</button>
-            </li>
-            <li class="nav-item">
-                <button class="nav-link @(activeTab == "facilities" ? "active" : "")" @onclick='() => SetTab("facilities")'>Treating Facilities</button>
-            </li>
-        </ul>
+        <div class="tab-bar">
+            <button class="tab @(activeTab == "enrollment" ? "active" : "")" @onclick='() => SetTab("enrollment")'>Enrollment</button>
+            <button class="tab @(activeTab == "prf" ? "active" : "")" @onclick='() => SetTab("prf")'>PRF Flags</button>
+            <button class="tab @(activeTab == "mst" ? "active" : "")" @onclick='() => SetTab("mst")'>MST History</button>
+            <button class="tab @(activeTab == "relations" ? "active" : "")" @onclick='() => SetTab("relations")'>Relations</button>
+            <button class="tab @(activeTab == "income" ? "active" : "")" @onclick='() => SetTab("income")'>Income</button>
+            <button class="tab @(activeTab == "facilities" ? "active" : "")" @onclick='() => SetTab("facilities")'>Treating Facilities</button>
+        </div>
 
         <!-- ── ENROLLMENT TAB ─────────────────────────────────────────────── -->
         @if (activeTab == "enrollment")
@@ -72,7 +60,7 @@
                         <div class="card text-center">
                             <div class="card-body">
                                 <div class="small text-muted">Status</div>
-                                <span class="badge @EnrollmentStatusBadge(enrollment.EnrollmentStatus) fs-6">@enrollment.EnrollmentStatus</span>
+                                <span class="badge @EnrollmentStatusBadge(enrollment.EnrollmentStatus)">@enrollment.EnrollmentStatus</span>
                             </div>
                         </div>
                     </div>
@@ -108,7 +96,7 @@
 
                 <div class="row mb-4">
                     <div class="col-md-6">
-                        <table class="table table-sm table-borderless">
+                        <table class="data-table">
                             <tbody>
                                 <tr><th class="text-muted" style="width:180px">Application Date</th><td>@(enrollment.ApplicationDate?.ToString("d") ?? "—")</td></tr>
                                 <tr><th class="text-muted">Effective Date</th><td>@(enrollment.EffectiveDate?.ToString("d") ?? "—")</td></tr>
@@ -127,7 +115,7 @@
                     <div class="card-body">
                         <div class="mb-2">
                             <label class="form-label">Status</label>
-                            <select class="form-select" @bind="newEnrollmentStatus">
+                            <select class="form-input" @bind="newEnrollmentStatus">
                                 @foreach (string s in enrollmentStatusOptions)
                                 {
                                     <option value="@s">@s</option>
@@ -136,13 +124,13 @@
                         </div>
                         <div class="mb-2">
                             <label class="form-label">Changed By User ID</label>
-                            <input class="form-control" @bind="enrollmentChangedBy" placeholder="USER-1" />
+                            <input class="form-input" @bind="enrollmentChangedBy" placeholder="USER-1" />
                         </div>
                         <div class="mb-2">
                             <label class="form-label">Notes (optional)</label>
-                            <input class="form-control" @bind="enrollmentNotes" />
+                            <input class="form-input" @bind="enrollmentNotes" />
                         </div>
-                        <button class="btn btn-primary btn-sm" @onclick="SetEnrollmentStatus" disabled="@savingEnrollment">
+                        <button class="btn btn-primary" @onclick="SetEnrollmentStatus" disabled="@savingEnrollment">
                             @if (savingEnrollment) { <span class="spinner-border spinner-border-sm"></span> } Update Status
                         </button>
                     </div>
@@ -155,11 +143,11 @@
                         <div class="row g-2 mb-2">
                             <div class="col">
                                 <label class="form-label">Priority Group</label>
-                                <input class="form-control" @bind="newPriorityGroup" placeholder="1" />
+                                <input class="form-input" @bind="newPriorityGroup" placeholder="1" />
                             </div>
                             <div class="col">
                                 <label class="form-label">Subgroup (optional)</label>
-                                <input class="form-control" @bind="newPrioritySubgroup" placeholder="a" />
+                                <input class="form-input" @bind="newPrioritySubgroup" placeholder="a" />
                             </div>
                         </div>
                         <div class="row g-2 mb-2">
@@ -180,10 +168,10 @@
                         {
                             <div class="mb-2">
                                 <label class="form-label">Exemption Reason Code</label>
-                                <input class="form-control" @bind="newCopayExemptionReason" placeholder="SC" />
+                                <input class="form-input" @bind="newCopayExemptionReason" placeholder="SC" />
                             </div>
                         }
-                        <button class="btn btn-primary btn-sm" @onclick="SetEnrollmentPriority" disabled="@savingEnrollment">
+                        <button class="btn btn-primary" @onclick="SetEnrollmentPriority" disabled="@savingEnrollment">
                             @if (savingEnrollment) { <span class="spinner-border spinner-border-sm"></span> } Set Priority Group
                         </button>
                     </div>
@@ -207,19 +195,19 @@
                 }
                 else
                 {
-                    <table class="table table-sm table-hover mb-4">
+                    <table class="data-table mb-4">
                         <thead><tr><th>Flag Name</th><th>Type</th><th>Assigned</th><th>Review Due</th><th>Narrative</th><th></th></tr></thead>
                         <tbody>
                             @foreach (PrfFlagAssignmentDto flag in prfState.Assignments.Where(a => a.IsActive))
                             {
                                 <tr>
                                     <td><strong>@flag.FlagName</strong></td>
-                                    <td><span class="badge @(flag.IsNational ? "bg-danger" : "bg-secondary")">@flag.FlagType</span></td>
+                                    <td><span class="badge @(flag.IsNational ? "badge-danger" : "badge-neutral")">@flag.FlagType</span></td>
                                     <td>@flag.AssignedDate.ToString("d")</td>
                                     <td>@(prfState.ReviewDueDate?.ToString("d") ?? "—")</td>
                                     <td class="small">@(flag.Narrative ?? "—")</td>
                                     <td>
-                                        <button class="btn btn-outline-danger btn-sm" @onclick="() => DeactivateFlag(flag.FlagId)">Deactivate</button>
+                                        <button class="btn btn-secondary" @onclick="() => DeactivateFlag(flag.FlagId)">Deactivate</button>
                                     </td>
                                 </tr>
                             }
@@ -233,7 +221,7 @@
                     <div class="card-body">
                         <div class="mb-2">
                             <label class="form-label">Flag</label>
-                            <select class="form-select" @bind="selectedNationalFlagId" @bind:after="UpdateSelectedFlag">
+                            <select class="form-input" @bind="selectedNationalFlagId" @bind:after="UpdateSelectedFlag">
                                 <option value="">— Select national flag —</option>
                                 @foreach (PrfNationalFlagDto nf in nationalFlags)
                                 {
@@ -243,17 +231,17 @@
                         </div>
                         <div class="mb-2">
                             <label class="form-label">Assigned By User ID</label>
-                            <input class="form-control" @bind="prfAssignedBy" placeholder="USER-1" />
+                            <input class="form-input" @bind="prfAssignedBy" placeholder="USER-1" />
                         </div>
                         <div class="mb-2">
                             <label class="form-label">Assigned By Name</label>
-                            <input class="form-control" @bind="prfAssignedByName" placeholder="Dr. Smith" />
+                            <input class="form-input" @bind="prfAssignedByName" placeholder="Dr. Smith" />
                         </div>
                         <div class="mb-2">
                             <label class="form-label">Narrative</label>
-                            <textarea class="form-control" rows="2" @bind="prfNarrative"></textarea>
+                            <textarea class="form-input" rows="2" @bind="prfNarrative"></textarea>
                         </div>
-                        <button class="btn btn-primary btn-sm" @onclick="AssignFlag" disabled="@savingPrf">
+                        <button class="btn btn-primary" @onclick="AssignFlag" disabled="@savingPrf">
                             @if (savingPrf) { <span class="spinner-border spinner-border-sm"></span> } Assign Flag
                         </button>
                     </div>
@@ -275,7 +263,7 @@
                         <div class="card text-center">
                             <div class="card-body">
                                 <div class="small text-muted">Current Status</div>
-                                <span class="badge @MstStatusBadge(mstHistory.CurrentStatus) fs-6">@mstHistory.CurrentStatus</span>
+                                <span class="badge @MstStatusBadge(mstHistory.CurrentStatus)">@mstHistory.CurrentStatus</span>
                             </div>
                         </div>
                     </div>
@@ -312,7 +300,7 @@
                 }
                 else
                 {
-                    <table class="table table-sm table-hover mb-4">
+                    <table class="data-table mb-4">
                         <thead><tr><th>Date</th><th>Status</th><th>Screened By</th><th>Location</th><th>Notes</th></tr></thead>
                         <tbody>
                             @foreach (MstScreeningDto s in mstHistory.Screenings.OrderByDescending(x => x.ScreeningDate))
@@ -335,11 +323,11 @@
                     <div class="card-body">
                         <div class="mb-2">
                             <label class="form-label">Screening Date</label>
-                            <input type="date" class="form-control" @bind="mstScreeningDate" />
+                            <input type="date" class="form-input" @bind="mstScreeningDate" />
                         </div>
                         <div class="mb-2">
                             <label class="form-label">Status</label>
-                            <select class="form-select" @bind="mstScreeningStatus">
+                            <select class="form-input" @bind="mstScreeningStatus">
                                 <option value="Unasked">Unasked</option>
                                 <option value="Verified">Verified (MST positive)</option>
                                 <option value="Denied">Denied</option>
@@ -348,21 +336,21 @@
                         </div>
                         <div class="mb-2">
                             <label class="form-label">Screened By User ID</label>
-                            <input class="form-control" @bind="mstScreenedBy" placeholder="USER-1" />
+                            <input class="form-input" @bind="mstScreenedBy" placeholder="USER-1" />
                         </div>
                         <div class="mb-2">
                             <label class="form-label">Screened By Name</label>
-                            <input class="form-control" @bind="mstScreenedByName" placeholder="Dr. Smith" />
+                            <input class="form-input" @bind="mstScreenedByName" placeholder="Dr. Smith" />
                         </div>
                         <div class="mb-2">
                             <label class="form-label">Location (optional)</label>
-                            <input class="form-control" @bind="mstLocation" />
+                            <input class="form-input" @bind="mstLocation" />
                         </div>
                         <div class="mb-2">
                             <label class="form-label">Notes (optional)</label>
-                            <input class="form-control" @bind="mstNotes" />
+                            <input class="form-input" @bind="mstNotes" />
                         </div>
-                        <button class="btn btn-primary btn-sm" @onclick="RecordScreening" disabled="@savingMst">
+                        <button class="btn btn-primary" @onclick="RecordScreening" disabled="@savingMst">
                             @if (savingMst) { <span class="spinner-border spinner-border-sm"></span> } Record Screening
                         </button>
                     </div>
@@ -385,7 +373,7 @@
                 }
                 else
                 {
-                    <table class="table table-sm table-hover mb-4">
+                    <table class="data-table mb-4">
                         <thead><tr><th>Name</th><th>Relationship</th><th>Phone</th><th>NOK</th><th>Emergency</th><th></th></tr></thead>
                         <tbody>
                             @foreach (PatientRelationDto r in relationsState.Relations)
@@ -397,7 +385,7 @@
                                     <td>@(r.IsPrimaryNextOfKin ? "✓" : "")</td>
                                     <td>@(r.IsEmergencyContact ? "✓" : "")</td>
                                     <td>
-                                        <button class="btn btn-outline-danger btn-sm" @onclick="() => RemoveRelation(r.RelationId)">Remove</button>
+                                        <button class="btn btn-secondary" @onclick="() => RemoveRelation(r.RelationId)">Remove</button>
                                     </td>
                                 </tr>
                             }
@@ -411,11 +399,11 @@
                     <div class="card-body">
                         <div class="mb-2">
                             <label class="form-label">Name</label>
-                            <input class="form-control" @bind="relName" placeholder="Jane Doe" />
+                            <input class="form-input" @bind="relName" placeholder="Jane Doe" />
                         </div>
                         <div class="mb-2">
                             <label class="form-label">Relationship</label>
-                            <select class="form-select" @bind="relType">
+                            <select class="form-input" @bind="relType">
                                 <option value="Spouse">Spouse</option>
                                 <option value="Child">Child</option>
                                 <option value="Parent">Parent</option>
@@ -428,7 +416,7 @@
                         </div>
                         <div class="mb-2">
                             <label class="form-label">Phone</label>
-                            <input class="form-control" @bind="relPhone" placeholder="555-0100" />
+                            <input class="form-input" @bind="relPhone" placeholder="555-0100" />
                         </div>
                         <div class="row g-2 mb-2">
                             <div class="col">
@@ -444,7 +432,7 @@
                                 </div>
                             </div>
                         </div>
-                        <button class="btn btn-primary btn-sm" @onclick="AddRelation" disabled="@savingRelations">
+                        <button class="btn btn-primary" @onclick="AddRelation" disabled="@savingRelations">
                             @if (savingRelations) { <span class="spinner-border spinner-border-sm"></span> } Save Relation
                         </button>
                     </div>
@@ -503,7 +491,7 @@
                 }
                 else
                 {
-                    <table class="table table-sm table-hover mb-4">
+                    <table class="data-table mb-4">
                         <thead><tr><th>Name</th><th>Relationship</th><th>Gross Income</th><th>Net Worth</th><th>Self</th></tr></thead>
                         <tbody>
                             @foreach (IncomePersonDto m in incomeState.HouseholdMembers)
@@ -526,26 +514,26 @@
                     <div class="card-body">
                         <div class="mb-2">
                             <label class="form-label">Name</label>
-                            <input class="form-control" @bind="incName" />
+                            <input class="form-input" @bind="incName" />
                         </div>
                         <div class="mb-2">
                             <label class="form-label">Relationship</label>
-                            <input class="form-control" @bind="incRelationship" placeholder="Spouse" />
+                            <input class="form-input" @bind="incRelationship" placeholder="Spouse" />
                         </div>
                         <div class="row g-2 mb-2">
                             <div class="col">
                                 <label class="form-label">Gross Annual Income</label>
-                                <input type="number" class="form-control" @bind="incGrossIncome" />
+                                <input type="number" class="form-input" @bind="incGrossIncome" />
                             </div>
                             <div class="col">
                                 <label class="form-label">Net Worth</label>
-                                <input type="number" class="form-control" @bind="incNetWorth" />
+                                <input type="number" class="form-input" @bind="incNetWorth" />
                             </div>
                         </div>
                         <div class="row g-2 mb-2">
                             <div class="col">
                                 <label class="form-label">Income Year</label>
-                                <input type="number" class="form-control" @bind="incYear" />
+                                <input type="number" class="form-input" @bind="incYear" />
                             </div>
                             <div class="col d-flex align-items-end">
                                 <div class="form-check">
@@ -554,7 +542,7 @@
                                 </div>
                             </div>
                         </div>
-                        <button class="btn btn-primary btn-sm" @onclick="AddIncomeMember" disabled="@savingIncome">
+                        <button class="btn btn-primary" @onclick="AddIncomeMember" disabled="@savingIncome">
                             @if (savingIncome) { <span class="spinner-border spinner-border-sm"></span> } Add Member
                         </button>
                     </div>
@@ -566,7 +554,7 @@
                     <div class="card-body">
                         <div class="mb-2">
                             <label class="form-label">Decision</label>
-                            <select class="form-select" @bind="mtDecision">
+                            <select class="form-input" @bind="mtDecision">
                                 <option value="EXEMPT">EXEMPT</option>
                                 <option value="COPAY REQUIRED">COPAY REQUIRED</option>
                                 <option value="HIGH INCOME">HIGH INCOME</option>
@@ -575,13 +563,13 @@
                         </div>
                         <div class="mb-2">
                             <label class="form-label">Decision Date</label>
-                            <input type="date" class="form-control" @bind="mtDecisionDate" />
+                            <input type="date" class="form-input" @bind="mtDecisionDate" />
                         </div>
                         <div class="mb-2">
                             <label class="form-label">Threshold Applied ($)</label>
-                            <input type="number" class="form-control" @bind="mtThreshold" />
+                            <input type="number" class="form-input" @bind="mtThreshold" />
                         </div>
-                        <button class="btn btn-primary btn-sm" @onclick="RecordMeansTest" disabled="@savingIncome">
+                        <button class="btn btn-primary" @onclick="RecordMeansTest" disabled="@savingIncome">
                             @if (savingIncome) { <span class="spinner-border spinner-border-sm"></span> } Record Decision
                         </button>
                     </div>
@@ -611,7 +599,7 @@
                 }
                 else
                 {
-                    <table class="table table-sm table-hover mb-4">
+                    <table class="data-table mb-4">
                         <thead><tr><th>Facility</th><th>Type</th><th>Last Activity</th><th>Primary</th><th>Status</th><th></th></tr></thead>
                         <tbody>
                             @foreach (TreatingFacilityDto f in facilitiesState.Facilities)
@@ -621,12 +609,12 @@
                                     <td>@(f.FacilityType ?? "—")</td>
                                     <td>@(f.LastActivityDate?.ToString("d") ?? "—")</td>
                                     <td>@(f.FacilityId == facilitiesState.PrimaryFacilityId ? "⭐" : "")</td>
-                                    <td><span class="badge @(f.IsActive ? "bg-success" : "bg-secondary")">@(f.IsActive ? "Active" : "Inactive")</span></td>
+                                    <td><span class="badge @(f.IsActive ? "badge-success" : "badge-neutral")">@(f.IsActive ? "Active" : "Inactive")</span></td>
                                     <td>
                                         @if (f.IsActive)
                                         {
-                                            <button class="btn btn-outline-secondary btn-sm me-1" @onclick="() => SetPrimary(f.FacilityId, f.FacilityName)">Set Primary</button>
-                                            <button class="btn btn-outline-danger btn-sm" @onclick="() => DeactivateFacility(f.FacilityId)">Deactivate</button>
+                                            <button class="btn btn-secondary me-1" @onclick="() => SetPrimary(f.FacilityId, f.FacilityName)">Set Primary</button>
+                                            <button class="btn btn-secondary" @onclick="() => DeactivateFacility(f.FacilityId)">Deactivate</button>
                                         }
                                     </td>
                                 </tr>
@@ -641,15 +629,15 @@
                     <div class="card-body">
                         <div class="mb-2">
                             <label class="form-label">Station / Facility ID</label>
-                            <input class="form-control" @bind="facId" placeholder="500" />
+                            <input class="form-input" @bind="facId" placeholder="500" />
                         </div>
                         <div class="mb-2">
                             <label class="form-label">Facility Name</label>
-                            <input class="form-control" @bind="facName" placeholder="VA Medical Center" />
+                            <input class="form-input" @bind="facName" placeholder="VA Medical Center" />
                         </div>
                         <div class="mb-2">
                             <label class="form-label">Facility Type</label>
-                            <select class="form-select" @bind="facType">
+                            <select class="form-input" @bind="facType">
                                 <option value="VAMC">VAMC</option>
                                 <option value="CBOC">CBOC</option>
                                 <option value="COMMUNITY CARE">COMMUNITY CARE</option>
@@ -659,13 +647,13 @@
                         </div>
                         <div class="mb-2">
                             <label class="form-label">Relationship Type</label>
-                            <select class="form-select" @bind="facRelType">
+                            <select class="form-input" @bind="facRelType">
                                 <option value="BOTH">BOTH</option>
                                 <option value="INPATIENT">INPATIENT</option>
                                 <option value="OUTPATIENT">OUTPATIENT</option>
                             </select>
                         </div>
-                        <button class="btn btn-primary btn-sm" @onclick="AddFacility" disabled="@savingFacilities">
+                        <button class="btn btn-primary" @onclick="AddFacility" disabled="@savingFacilities">
                             @if (savingFacilities) { <span class="spinner-border spinner-border-sm"></span> } Add Facility
                         </button>
                     </div>
@@ -1099,22 +1087,22 @@
 
     private static string EnrollmentStatusBadge(string status) => status switch
     {
-        "Verified"        => "bg-success",
-        "Inactive"        => "bg-secondary",
-        "Rejected"        => "bg-danger",
-        "Cancelled"       => "bg-danger",
-        "Closed"          => "bg-secondary",
-        _ when status.StartsWith("Pending") => "bg-warning text-dark",
-        _ when status.StartsWith("NotEligible") => "bg-danger",
-        _                 => "bg-info text-dark",
+        "Verified"        => "badge-success",
+        "Inactive"        => "badge-neutral",
+        "Rejected"        => "badge-danger",
+        "Cancelled"       => "badge-danger",
+        "Closed"          => "badge-neutral",
+        _ when status.StartsWith("Pending") => "badge-warning",
+        _ when status.StartsWith("NotEligible") => "badge-danger",
+        _                 => "badge-info",
     };
 
     private static string MstStatusBadge(string status) => status switch
     {
-        "Verified"    => "bg-danger",
-        "Denied"      => "bg-success",
-        "NoResponse"  => "bg-warning text-dark",
-        _             => "bg-secondary",
+        "Verified"    => "badge-danger",
+        "Denied"      => "badge-success",
+        "NoResponse"  => "badge-warning",
+        _             => "badge-neutral",
     };
 
     // ── Local DTOs ───────────────────────────────────────────────────────────

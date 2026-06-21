@@ -12,6 +12,9 @@
 
 <h3>Electronic Prescribing of Controlled Substances (EPCS)</h3>
 
+<SafetyConfirm Visible="_safetyPending" Hazard="@_safetyHazard" ConfirmValue="@_safetyConfirmValue"
+               RequireCosign="_safetyCosign" OnOverride="OnSafetyOverride" OnCancel="OnSafetyCancel" />
+
 @if (!string.IsNullOrEmpty(error))
 {
     <div class="alert alert-error">@error</div>
@@ -450,6 +453,12 @@
     private List<ProviderIndexDto>? providers;
 
     private NewRxForm newRx = new();
+
+    // Patient-safety Tier-2 confirmation gate state (UI-CONVENTIONS.md §8).
+    private bool _safetyPending;
+    private string _safetyHazard = string.Empty;
+    private string _safetyConfirmValue = string.Empty;
+    private bool _safetyCosign;
     private SignForm signReq = new();
     private ProviderForm newProvider = new();
 
@@ -622,6 +631,65 @@
     private async Task CreatePrescription()
     {
         if (string.IsNullOrWhiteSpace(patientId)) return;
+        // Patient-safety Tier-2 gate (UI-CONVENTIONS.md §8): a dangerous controlled-substance
+        // order must defeat muscle-memory before it can be written. Don't submit yet — show the
+        // confirmation overlay and only proceed from its OnOverride (or block entirely if lethal).
+        var risk = AssessRxSafety();
+        if (risk.Dangerous)
+        {
+            _safetyHazard = risk.Hazard;
+            _safetyConfirmValue = string.IsNullOrWhiteSpace(newRx.DrugName) ? "CONFIRM" : newRx.DrugName.Trim();
+            _safetyCosign = risk.Lethal;
+            _safetyPending = true;
+            return;
+        }
+        await SubmitPrescription();
+    }
+
+    /// <summary>Daily-dose risk check for the e-Rx about to be written. Returns whether the order
+    /// is dangerous, a human-readable hazard, and whether it is in the lethal (co-sign-required)
+    /// range. Thresholds are doses/day, tightened for Schedule II (opioids and the like).</summary>
+    private (bool Dangerous, string Hazard, bool Lethal) AssessRxSafety()
+    {
+        int days = newRx.DaysSupply > 0 ? newRx.DaysSupply : 1;
+        decimal perDay = newRx.Quantity / days;
+
+        // Normalize the schedule text: "CII" / "C-II" / "II" / "2" -> "II".
+        string sch = new string((newRx.DeaSchedule ?? string.Empty).Where(char.IsLetterOrDigit).ToArray()).ToUpperInvariant();
+        if (sch.StartsWith("C") && sch.Length > 1) sch = sch.Substring(1);
+        bool scheduleII = sch is "II" or "2";
+
+        decimal warnAt = scheduleII ? 12m : 24m;    // unusually high above this
+        decimal lethalAt = scheduleII ? 24m : 48m;  // co-sign required at/above this
+
+        if (perDay >= lethalAt)
+            return (true,
+                $"{Disp(newRx.DrugName)} — {newRx.Quantity:0.##} units over {days} day(s) = {perDay:0.#}/day. "
+                + $"This is in the LETHAL range for a Schedule {Disp(newRx.DeaSchedule)} controlled substance.",
+                true);
+        if (perDay > warnAt)
+            return (true,
+                $"{Disp(newRx.DrugName)} — {newRx.Quantity:0.##} units over {days} day(s) = {perDay:0.#}/day, "
+                + $"far above the usual maximum for a Schedule {Disp(newRx.DeaSchedule)} controlled substance. "
+                + "Confirm this dose is intentional.",
+                false);
+        return (false, string.Empty, false);
+    }
+
+    private static string Disp(string? s) => string.IsNullOrWhiteSpace(s) ? "(unspecified)" : s;
+
+    private async Task OnSafetyOverride(string reason)
+    {
+        _safetyPending = false;
+        // Persist the audited override reason with the order so it survives on the record.
+        newRx.Sig = string.IsNullOrWhiteSpace(newRx.Sig) ? $"[OVERRIDE: {reason}]" : $"{newRx.Sig} [OVERRIDE: {reason}]";
+        await SubmitPrescription();
+    }
+
+    private void OnSafetyCancel() => _safetyPending = false;
+
+    private async Task SubmitPrescription()
+    {
         error = null;
         try
         {
