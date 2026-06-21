@@ -1,0 +1,114 @@
+[
+  {
+    "role": "Doctors",
+    "script": "14-Allergy-Documentation",
+    "login": "DOCTOR1",
+    "route": "/allergies",
+    "verdict": "PASS",
+    "detail": "submitted; no error"
+  },
+  {
+    "role": "Doctors",
+    "script": "13-Patient-Demographics",
+    "login": "DOCTOR1",
+    "route": "/patient-edit",
+    "verdict": "PASS",
+    "detail": "Saved successfully."
+  },
+  {
+    "role": "Doctors",
+    "script": "02-Order-Entry",
+    "login": "DOCTOR1",
+    "route": "/orders",
+    "verdict": "N/A",
+    "detail": "submit 'Place Order' not clickable"
+  },
+  {
+    "role": "Doctors",
+    "script": "05-Problem-List",
+    "login": "DOCTOR2",
+    "route": "/problems",
+    "verdict": "PASS",
+    "detail": "submitted; no error"
+  },
+  {
+    "role": "Doctors",
+    "script": "10-Mental-Health-Screening",
+    "login": "MH1",
+    "route": "/mental-health",
+    "verdict": "PASS",
+    "detail": "Screen recorded."
+  },
+  {
+    "role": "Nurses",
+    "script": "02-Vital-Signs-Recording",
+    "login": "NURSE1",
+    "route": "/vitals",
+    "verdict": "PASS",
+    "detail": "submitted; no error"
+  },
+  {
+    "role": "Nurses",
+    "script": "04-Nursing-Care-Plan",
+    "login": "NURSE1",
+    "route": "/nursing-careplan",
+    "verdict": "PASS",
+    "detail": "Diagnosis added: NDP-2c314fbb2b0f43b080724b1215e3b15b"
+  },
+  {
+    "role": "Pharmacist",
+    "script": "02-Drug-Utilization-Review",
+    "login": "PHARM1",
+    "route": "/drug-utilization-review",
+    "verdict": "N/A",
+    "detail": "trigger '+ Perform DUR' not clickable (disabled/hidden)"
+  },
+  {
+    "role": "Pharmacist",
+    "script": "03-Interaction-Screening",
+    "login": "PHARM1",
+    "route": "/interaction-blocking",
+    "verdict": "N/A",
+    "detail": "trigger '+ Screen Rx' not clickable (disabled/hidden)"
+  },
+  {
+    "role": "Pharmacist",
+    "script": "05-IV-Admixture",
+    "login": "PHARM1",
+    "route": "/iv-pharmacy",
+    "verdict": "N/A",
+    "detail": "trigger button 'New Order' not found on page"
+  },
+  {
+    "role": "Pharmacist",
+    "script": "10-CMOP",
+    "login": "PHARM1",
+    "route": "/cmop",
+    "verdict": "PASS",
+    "detail": "Added to suspense queue."
+  },
+  {
+    "role": "Pharmacist",
+    "script": "12-POS-Claims",
+    "login": "PHARM1",
+    "route": "/pharmacy-pos",
+    "verdict": "FAIL",
+    "detail": "Pharmacy Point of Sale is not enabled for this site. Enable the PHARMACY_POS feature in Site Parameters."
+  },
+  {
+    "role": "Pharmacist",
+    "script": "13-EPCS",
+    "login": "PHARM1",
+    "route": "/epcs",
+    "verdict": "FAIL",
+    "detail": "EPCS (E-Prescribing for Controlled Substances) is not enabled for this site. Enable the EPCS feature in Site Parameters."
+  },
+  {
+    "role": "Pharmacist",
+    "script": "18-Lab-Shipping",
+    "login": "PHARM1",
+    "route": "/lab-shipping",
+    "verdict": "N/A",
+    "detail": "submit 'Create' not clickable"
+  }
+]

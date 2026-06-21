@@ -1,0 +1,29 @@
+[
+  {
+    "role": "Doctors",
+    "script": "14-Allergy-Documentation",
+    "login": "DOCTOR1",
+    "patient": "P9",
+    "route": "/allergies",
+    "verdict": "PASS",
+    "detail": "submitted; no error (success banner transient)"
+  },
+  {
+    "role": "Doctors",
+    "script": "05-Problem-List",
+    "login": "DOCTOR2",
+    "patient": "P22",
+    "route": "/problems",
+    "verdict": "PASS",
+    "detail": "submitted; no error (success banner transient)"
+  },
+  {
+    "role": "Nurses",
+    "script": "02-Vital-Signs-Recording",
+    "login": "NURSE1",
+    "patient": "P9",
+    "route": "/vitals",
+    "verdict": "PASS",
+    "detail": "submitted; no error (success banner transient)"
+  }
+]
