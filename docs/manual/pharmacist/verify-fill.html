@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Verify &amp; Fill — Pharmacist Manual — NewVistas</title>
+  <link rel="stylesheet" href="../assets/css/manual.css" />
+</head>
+<body>
+  <div class="topbar">
+    <div class="brand"><a href="../index.html">NewVistas</a> <span>· User Manual</span></div>
+    <div class="role-pill">💊 Pharmacist</div>
+  </div>
+
+  <div class="layout">
+    <nav class="sidebar">
+      <div class="section">Pharmacist Manual</div>
+      <a href="index.html">Overview</a>
+      <a href="getting-started.html">Getting Started</a>
+      <div class="section">Workflows</div>
+      <a href="verify-fill.html" class="active">Verify &amp; Fill</a>
+      <a href="drug-utilization-review.html">Drug Utilization Review</a>
+      <a href="epcs.html">EPCS</a>
+      <a href="pos-claims.html">POS Claims</a>
+      <div class="section">More (coming soon)</div>
+      <a href="#" style="opacity:.45;pointer-events:none">Interaction Screening</a>
+      <a href="#" style="opacity:.45;pointer-events:none">Controlled Substances</a>
+      <a href="#" style="opacity:.45;pointer-events:none">Drug Accountability</a>
+      <a href="#" style="opacity:.45;pointer-events:none">IV Admixture</a>
+      <a href="#" style="opacity:.45;pointer-events:none">CMOP</a>
+      <a href="#" style="opacity:.45;pointer-events:none">Auto-Refill</a>
+      <div class="section">&nbsp;</div>
+      <a href="../index.html">← All roles</a>
+    </nav>
+
+    <main class="content">
+      <div class="crumb"><a href="../index.html">Manual</a> › <a href="index.html">Pharmacist</a> › Verify &amp; Fill</div>
+      <h1>Prescription Verification &amp; Fill</h1>
+      <p class="lead">
+        The Outpatient Pharmacy screen is where you verify, fill, refill, hold,
+        and discontinue a patient's prescriptions. It's the equivalent of VistA's
+        Outpatient Pharmacy package.
+      </p>
+
+      <h2>Load a patient's prescriptions</h2>
+      <ol class="steps">
+        <li>In the sidebar, under <strong>Pharmacy</strong>, open <kbd>Outpatient Pharmacy</kbd> (or go to <code>/outpatientpharmacy</code>).</li>
+        <li>In the <strong>Patient ID</strong> field, type the patient ID (e.g. <code>4</code>).</li>
+        <li>Click <kbd>Load Prescriptions</kbd>.</li>
+        <li>The prescription table loads with columns: <strong>Drug</strong>, <strong>Dosage</strong>, <strong>Status</strong>, <strong>Priority</strong>, <strong>Refills Left</strong>, <strong>Expires</strong>, <strong>Verified</strong>, <strong>Counsel</strong>, and <strong>Provider</strong>.</li>
+      </ol>
+
+      <figure class="shot">
+        <img src="../assets/img/pharmacist/verify-fill.png" alt="Outpatient Pharmacy prescription list and detail panel" />
+        <figcaption>The Outpatient Pharmacy screen — the prescription list on the left, the selected-Rx detail panel with its action bar on the right.</figcaption>
+      </figure>
+
+      <h2>Verify and fill a prescription</h2>
+      <p>
+        An unverified prescription shows an empty <strong>Verified</strong> column.
+        A pharmacist must verify it before it can be filled.
+      </p>
+      <ol class="steps">
+        <li>Click the prescription's row to select it. The <strong>detail panel</strong> opens, showing Rx ID, drug, status, verification state, and priority.</li>
+        <li>Click <kbd>Verify</kbd>. The action message confirms <em>"Action 'verify' completed successfully."</em></li>
+        <li>The detail panel now shows <strong>Verified by</strong> and the date/time, and the row's Verified column shows a checkmark.</li>
+        <li>The <kbd>Fill</kbd> button becomes available. Click it to dispense.</li>
+      </ol>
+      <div class="callout note">
+        <span class="ct">Fill is gated on safety checks</span>
+        A fill can be blocked if a <a href="drug-utilization-review.html">Drug
+        Utilization Review</a> has not been cleared (<em>"DUR assessment has not
+        been cleared."</em>) or if an interaction screen flagged a significant or
+        contraindicated interaction. Resolve or override the check first, then
+        fill.
+      </div>
+
+      <h2>Refill an eligible prescription</h2>
+      <ol class="steps">
+        <li>Select a verified, filled prescription (e.g. <code>LISINOPRIL 10MG TAB</code>).</li>
+        <li>In the <strong>Refill Status</strong> section, confirm it shows <strong>Eligible</strong> (green badge) and the refills remaining.</li>
+        <li>Click <kbd>Refill</kbd>. The message confirms <em>"Action 'refill' completed successfully."</em></li>
+        <li>The <strong>Refills Left</strong> column decrements, and a new row appears in the <strong>Refill History</strong> table (fill number, date, quantity, days).</li>
+      </ol>
+
+      <h3>When a refill is blocked</h3>
+      <p>
+        When a prescription isn't refillable, the Refill Status shows
+        <strong>Not Eligible</strong> (red badge), the <kbd>Refill</kbd> button is
+        disabled, and the <strong>Reasons</strong> list explains why:
+      </p>
+      <ul>
+        <li><strong>No refills remaining</strong> — the authorized refills are used up (Schedule II controlled substances are always created with zero refills, so they hit this immediately).</li>
+        <li><strong>Too early to refill</strong> — the 75% rule isn't met yet. The panel shows the percentage consumed and the <strong>Next eligible</strong> date.</li>
+        <li><strong>Prescription has expired</strong> — the expiration date has passed.</li>
+      </ul>
+      <div class="callout tip">
+        <span class="ct">The 75% rule</span>
+        A fill isn't eligible until roughly 75% of the days supply has elapsed. On
+        a 30-day supply that's about 22.5 days, so a refill attempted 10 days after
+        the last fill is blocked as too early.
+      </div>
+
+      <h2>Hold and resume</h2>
+      <ol class="steps">
+        <li>Select an active prescription and click <kbd>Hold</kbd>.</li>
+        <li>Status changes to <strong>HOLD</strong> (orange badge), and a hold reason is recorded.</li>
+        <li>The action bar now shows only <kbd>Resume</kbd> — Fill, Refill, Discontinue, and Hold are hidden while on hold.</li>
+        <li>Click <kbd>Resume</kbd> to return the prescription to <strong>ACTIVE</strong>, clear the hold reason, and restore the full action bar.</li>
+      </ol>
+
+      <h2>Discontinue with a reason</h2>
+      <ol class="steps">
+        <li>Select the prescription and click <kbd>Discontinue</kbd>.</li>
+        <li>A reason row appears with <kbd>Confirm D/C</kbd> and <kbd>Cancel</kbd> buttons.</li>
+        <li>Type the discontinue reason (e.g. <em>"Patient developed lactic acidosis — discontinue metformin per provider order"</em>).</li>
+        <li>Click <kbd>Confirm D/C</kbd>. Status changes to <strong>DISCONTINUED</strong> (red badge), the D/C reason is stored, and no action buttons remain.</li>
+      </ol>
+      <div class="callout safety">
+        <span class="ct">⚠ Discontinue is terminal</span>
+        A discontinued prescription cannot be filled, refilled, held, or
+        re-verified — the action bar disappears entirely. If therapy needs to
+        restart, the provider must write a new prescription.
+      </div>
+
+      <footer>NewVistas User Manual · Pharmacist · Verify &amp; Fill</footer>
+    </main>
+  </div>
+</body>
+</html>

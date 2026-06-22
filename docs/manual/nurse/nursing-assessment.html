@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Nursing Assessment — Nurse Manual — NewVistas</title>
+  <link rel="stylesheet" href="../assets/css/manual.css" />
+</head>
+<body>
+  <div class="topbar">
+    <div class="brand"><a href="../index.html">NewVistas</a> <span>· User Manual</span></div>
+    <div class="role-pill">🩹 Nurse</div>
+  </div>
+
+  <div class="layout">
+    <nav class="sidebar">
+      <div class="section">Nurse Manual</div>
+      <a href="index.html">Overview</a>
+      <a href="getting-started.html">Getting Started</a>
+      <div class="section">Workflows</div>
+      <a href="vital-signs.html">Vital Signs</a>
+      <a href="nursing-assessment.html" class="active">Nursing Assessment</a>
+      <a href="shift-handoff.html">Shift Handoff</a>
+      <a href="bcma.html">BCMA</a>
+      <div class="section">More (coming soon)</div>
+      <a href="#" style="opacity:.45;pointer-events:none">Nursing Care Plan</a>
+      <a href="#" style="opacity:.45;pointer-events:none">Triage</a>
+      <a href="#" style="opacity:.45;pointer-events:none">Task Worklist</a>
+      <a href="#" style="opacity:.45;pointer-events:none">Pain Assessment</a>
+      <a href="#" style="opacity:.45;pointer-events:none">Clinical Notes</a>
+      <div class="section">&nbsp;</div>
+      <a href="../index.html">← All roles</a>
+    </nav>
+
+    <main class="content">
+      <div class="crumb"><a href="../index.html">Manual</a> › <a href="index.html">Nurse</a> › Nursing Assessment</div>
+      <h1>Nursing Assessment</h1>
+      <p class="lead">
+        Document a head-to-toe assessment across every body system, with built-in
+        Braden (pressure-injury) and Morse (fall) risk scoring, then sign it to
+        finalize the record. The screen has four tabs: Assessments, Care Plan,
+        Acuity, and Unit Census.
+      </p>
+
+      <h2>Open the Nursing screen</h2>
+      <ol class="steps">
+        <li>In the sidebar, under <strong>Nursing</strong>, click <kbd>Nursing</kbd> (or go to <code>/nursing</code>).</li>
+        <li>In the <strong>Patient ID</strong> field, type the patient ID (e.g. <code>16</code>).</li>
+        <li>Click <kbd>Load Patient</kbd>. The page loads with four tabs; if no prior assessments exist, the Assessments tab shows "No assessments recorded."</li>
+      </ol>
+
+      <figure class="shot">
+        <img src="../assets/img/nurse/nursing-assessment.png" alt="Nursing Assessment screen for a loaded patient" />
+        <figcaption>The Nursing screen — the Assessments tab with the assessment history and the "Record New Assessment" form below it.</figcaption>
+      </figure>
+
+      <h2>Record a new assessment</h2>
+      <p>
+        On the <strong>Assessments</strong> tab, scroll to the "Record New
+        Assessment" section. Choose the assessment <strong>Type</strong> for the
+        situation — <code>Initial</code> on admission, <code>Shift</code> at the
+        start of a shift, <code>Focused</code> for a single system, or
+        <code>PRN</code> for an unscheduled event.
+      </p>
+      <ol class="steps">
+        <li>Set <strong>Type</strong>, <strong>Nurse ID</strong> (e.g. <code>NURSE1</code>), <strong>Nurse Name</strong> (e.g. <code>JOHNSON,MARY R</code>), and <strong>Location</strong>.</li>
+        <li>Document the body systems — <strong>LOC (AVPU)</strong>, <strong>Breath Sounds</strong>, <strong>O2 Therapy</strong>, <strong>SpO2</strong>, <strong>Heart Rhythm</strong>, <strong>Edema</strong>, <strong>Skin Integrity</strong>, <strong>Bowel Sounds</strong>, <strong>Appetite</strong>, <strong>Urine Output</strong>, <strong>Foley Catheter</strong>, <strong>Anxiety</strong>, <strong>Mood</strong>, and <strong>Mobility</strong>.</li>
+        <li>Enter the risk scores — <strong>Braden Score</strong> (6–23), <strong>Pain Score</strong> (0–10) with location, <strong>Morse Score</strong> (0–125), and <strong>Fall Risk</strong>.</li>
+        <li>Type the <strong>Narrative Notes</strong> summarizing your findings.</li>
+        <li>Click <kbd>Record Assessment</kbd>.</li>
+      </ol>
+      <p>
+        A green banner confirms the save and the new row appears at the top of the
+        Assessments table showing date/time, type, nurse, status, and the Pain,
+        Morse, and Braden scores. Click any row to expand a detail card with every
+        documented field; fields you left blank show "--".
+      </p>
+      <div class="callout note">
+        <span class="ct">Focused and Shift assessments can be partial</span>
+        For a <code>Focused</code> assessment you only document the relevant system
+        (e.g. respiratory) and leave the rest at "--". The detail view makes it
+        clear which systems were assessed and which were not.
+      </div>
+
+      <h2>Risk scoring at a glance</h2>
+      <p>
+        The system labels the Morse fall score with its risk band right in the
+        detail view (e.g. "35 — Moderate"). Use these scales to interpret what you
+        recorded:
+      </p>
+      <table style="border-collapse:collapse;font-size:.9rem;margin:.5rem 0">
+        <thead>
+          <tr>
+            <th style="text-align:left;border-bottom:2px solid #d4d9e0;padding:.4rem .8rem;color:#003f72">Braden (pressure injury)</th>
+            <th style="text-align:left;border-bottom:2px solid #d4d9e0;padding:.4rem .8rem;color:#003f72">Risk</th>
+            <th style="text-align:left;border-bottom:2px solid #d4d9e0;padding:.4rem .8rem;color:#003f72">Morse (fall)</th>
+            <th style="text-align:left;border-bottom:2px solid #d4d9e0;padding:.4rem .8rem;color:#003f72">Risk</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td style="padding:.35rem .8rem;border-bottom:1px solid #eee">19–23</td><td style="padding:.35rem .8rem;border-bottom:1px solid #eee">No risk</td><td style="padding:.35rem .8rem;border-bottom:1px solid #eee">0–24</td><td style="padding:.35rem .8rem;border-bottom:1px solid #eee">Low</td></tr>
+          <tr><td style="padding:.35rem .8rem;border-bottom:1px solid #eee">15–18</td><td style="padding:.35rem .8rem;border-bottom:1px solid #eee">Mild</td><td style="padding:.35rem .8rem;border-bottom:1px solid #eee">25–50</td><td style="padding:.35rem .8rem;border-bottom:1px solid #eee">Moderate</td></tr>
+          <tr><td style="padding:.35rem .8rem;border-bottom:1px solid #eee">13–14</td><td style="padding:.35rem .8rem;border-bottom:1px solid #eee">Moderate</td><td style="padding:.35rem .8rem;border-bottom:1px solid #eee">51+</td><td style="padding:.35rem .8rem;border-bottom:1px solid #eee">High</td></tr>
+          <tr><td style="padding:.35rem .8rem;border-bottom:1px solid #eee">10–12</td><td style="padding:.35rem .8rem;border-bottom:1px solid #eee">High</td><td style="padding:.35rem .8rem;border-bottom:1px solid #eee">&nbsp;</td><td style="padding:.35rem .8rem;border-bottom:1px solid #eee">&nbsp;</td></tr>
+          <tr><td style="padding:.35rem .8rem;border-bottom:1px solid #eee">6–9</td><td style="padding:.35rem .8rem;border-bottom:1px solid #eee">Very high</td><td style="padding:.35rem .8rem;border-bottom:1px solid #eee">&nbsp;</td><td style="padding:.35rem .8rem;border-bottom:1px solid #eee">&nbsp;</td></tr>
+        </tbody>
+      </table>
+      <p style="color:#555;font-size:.88rem">AVPU level of consciousness runs Alert → Verbal → Pain → Unresponsive. A finding of <code>Pain</code> or <code>Unresponsive</code> is a critical change worth escalating.</p>
+
+      <h2>Sign an assessment</h2>
+      <p>
+        A new assessment is saved as a <strong>Draft</strong>. Signing finalizes it.
+      </p>
+      <ol class="steps">
+        <li>In the Assessments table, click the row for the assessment you want to finalize.</li>
+        <li>In the expanded detail card, confirm the Status shows <strong>Draft</strong>.</li>
+        <li>Click <kbd>Sign Assessment</kbd> (this button only appears while the status is Draft).</li>
+      </ol>
+      <p>
+        The detail reloads, the status changes from Draft to <strong>Signed</strong>,
+        and the Sign button disappears. The table row updates to show Status: Signed.
+      </p>
+      <div class="callout safety">
+        <span class="ct">⚠ Escalate critical findings</span>
+        A PRN assessment that captures an acute change — for example LOC dropping to
+        <code>Pain</code>, SpO2 in the 80s, a Braden of 12, or a Morse of 85 — is a
+        rapid-response situation. Document it, but make sure the provider is at the
+        bedside; the record supplements escalation, it doesn't replace it.
+      </div>
+
+      <footer>NewVistas User Manual · Nurse · Nursing Assessment</footer>
+    </main>
+  </div>
+</body>
+</html>

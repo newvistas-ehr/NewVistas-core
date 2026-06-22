@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Patient Merge — Administrator Manual — NewVistas</title>
+  <link rel="stylesheet" href="../assets/css/manual.css" />
+</head>
+<body>
+  <div class="topbar">
+    <div class="brand"><a href="../index.html">NewVistas</a> <span>· User Manual</span></div>
+    <div class="role-pill">⚙️ Administrator</div>
+  </div>
+
+  <div class="layout">
+    <nav class="sidebar">
+      <div class="section">Administrator Manual</div>
+      <a href="index.html">Overview</a>
+      <a href="getting-started.html">Getting Started</a>
+      <div class="section">Administration</div>
+      <a href="adt.html">ADT</a>
+      <a href="patient-merge.html" class="active">Patient Merge</a>
+      <a href="security-keys.html">Security Keys</a>
+      <a href="site-parameters.html">Site Parameters</a>
+      <div class="section">More (coming soon)</div>
+      <a href="#" style="opacity:.45;pointer-events:none">Registration</a>
+      <a href="#" style="opacity:.45;pointer-events:none">Means Test</a>
+      <a href="#" style="opacity:.45;pointer-events:none">Integrated Billing</a>
+      <a href="#" style="opacity:.45;pointer-events:none">Federation Dashboard</a>
+      <div class="section">&nbsp;</div>
+      <a href="../index.html">← All roles</a>
+    </nav>
+
+    <main class="content">
+      <div class="crumb"><a href="../index.html">Manual</a> › <a href="index.html">Administrator</a> › Patient Merge</div>
+      <h1>Patient Merge</h1>
+      <p class="lead">
+        When the same person ends up in the system twice — usually from a
+        registration in two clusters — Patient Merge consolidates the duplicate
+        into a single surviving record. All clinical data moves from the source
+        into the target, the source is deactivated, and the source's master
+        patient index (MPI) identity is aliased to the target.
+      </p>
+
+      <div class="callout safety">
+        <span class="ct">⚠ Merging is destructive and irreversible</span>
+        A merge cannot be undone. The <strong>source</strong> record is
+        permanently deactivated and its ICN is aliased to the
+        <strong>target</strong>; future lookups by the source ICN resolve to —
+        and are flagged as an alias of — the target. Because of this, merge is
+        restricted to senior registration, Health Information Management (HIM),
+        and administrator staff who hold the <code>CanMergePatients</code>
+        security key. Confirm you have the correct source and target before you
+        proceed.
+      </div>
+
+      <h2>Before you begin</h2>
+      <ul>
+        <li>You must hold the <code>CanMergePatients</code> security key — the workflow grain rejects anyone without it.</li>
+        <li>The <code>PATIENT_MERGE</code> feature must be enabled for your site (it is a per-site opt-in in <a href="site-parameters.html">Site Parameters</a>). VA- and tribal-aligned profiles enable it by default.</li>
+        <li>Identify which record survives. The <strong>target</strong> is the keeper; the <strong>source</strong> is the duplicate that will be deactivated.</li>
+      </ul>
+
+      <figure class="shot">
+        <img src="../assets/img/admin/patient-merge.png" alt="Patient Merge admin page" />
+        <figcaption>The Patient Merge page — source and target selection, with a clear indication of which record survives.</figcaption>
+      </figure>
+
+      <h2>Merge a duplicate into the survivor</h2>
+      <ol class="steps">
+        <li>Open <strong>Patient Merge</strong> from the sidebar under <strong>Administrative</strong>.</li>
+        <li>Enter the <strong>target</strong> patient (the record that will survive) — by ICN or patient ID.</li>
+        <li>Enter the <strong>source</strong> patient (the duplicate to be retired).</li>
+        <li>Review both records to confirm they are the same person and that source and target are not reversed.</li>
+        <li>Confirm the merge. Clinical data (allergies, problems, immunizations, and lab / order / note ID lists) moves from source into target.</li>
+      </ol>
+
+      <h2>What the merge does</h2>
+      <ul>
+        <li><strong>Moves all clinical data</strong> from source to target, de-duplicating by ID so overlapping entries are never doubled.</li>
+        <li><strong>Deactivates the source</strong> — its record is marked inactive and stamped with <code>MergedIntoPatientId</code> = the target's ICN.</li>
+        <li><strong>Aliases the source identity</strong> — the source ICN's MPI correlation grain and search-index entry both record <code>MergedIntoIcn</code> = the target ICN, so later searches by the source ICN flag the alias.</li>
+        <li><strong>Leaves the target unaliased</strong> — the surviving record's MPI entries are unchanged.</li>
+      </ul>
+
+      <div class="callout note">
+        <span class="ct">Idempotent, but not re-routable</span>
+        Repeating the exact same merge (same source, same target) is safe — no
+        data is moved twice. Trying to merge an already-merged source into a
+        <em>different</em> target is refused: the alias chain is never re-pointed.
+      </div>
+
+      <div class="callout tip">
+        <span class="ct">After the merge</span>
+        Reload the target's <a href="../doctor/cover-sheet.html">Cover Sheet</a> to
+        confirm the moved allergies and problems are present with no duplicates.
+        Opening the source record shows it has been merged into the target.
+      </div>
+
+      <footer>NewVistas User Manual · Administrator · Patient Merge</footer>
+    </main>
+  </div>
+</body>
+</html>

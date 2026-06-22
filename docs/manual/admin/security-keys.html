@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Security Keys — Administrator Manual — NewVistas</title>
+  <link rel="stylesheet" href="../assets/css/manual.css" />
+</head>
+<body>
+  <div class="topbar">
+    <div class="brand"><a href="../index.html">NewVistas</a> <span>· User Manual</span></div>
+    <div class="role-pill">⚙️ Administrator</div>
+  </div>
+
+  <div class="layout">
+    <nav class="sidebar">
+      <div class="section">Administrator Manual</div>
+      <a href="index.html">Overview</a>
+      <a href="getting-started.html">Getting Started</a>
+      <div class="section">Administration</div>
+      <a href="adt.html">ADT</a>
+      <a href="patient-merge.html">Patient Merge</a>
+      <a href="security-keys.html" class="active">Security Keys</a>
+      <a href="site-parameters.html">Site Parameters</a>
+      <div class="section">More (coming soon)</div>
+      <a href="#" style="opacity:.45;pointer-events:none">Registration</a>
+      <a href="#" style="opacity:.45;pointer-events:none">Means Test</a>
+      <a href="#" style="opacity:.45;pointer-events:none">Integrated Billing</a>
+      <a href="#" style="opacity:.45;pointer-events:none">Federation Dashboard</a>
+      <div class="section">&nbsp;</div>
+      <a href="../index.html">← All roles</a>
+    </nav>
+
+    <main class="content">
+      <div class="crumb"><a href="../index.html">Manual</a> › <a href="index.html">Administrator</a> › Security Keys</div>
+      <h1>Security Key Management</h1>
+      <p class="lead">
+        Security keys are the access-control primitive behind every role in
+        NewVistas. From this page you look up a user, see the keys they hold,
+        grant or revoke keys, review a full audit log of every change, and end an
+        active session. It's the equivalent of VistA's <code>XUSER</code> key
+        allocation.
+      </p>
+
+      <h2>Look up a user</h2>
+      <ol class="steps">
+        <li>In the sidebar, under the system-administration items, click <kbd>Security Keys</kbd> (or go to <code>/security-keys</code>).</li>
+        <li>In the <strong>User ID</strong> field, type the user's ID (e.g. <code>DOCTOR1</code>).</li>
+        <li>Click <kbd>Load User</kbd> (or press <kbd>Enter</kbd>) to load that user's keys, audit log, and session.</li>
+      </ol>
+
+      <figure class="shot">
+        <img src="../assets/img/admin/security-keys.png" alt="Security Key Management screen with a loaded user" />
+        <figcaption>Security Key Management — the user lookup bar, the session banner, and the three tabs (Security Keys, Grant Key, Key Audit Log).</figcaption>
+      </figure>
+
+      <div class="callout note">
+        <span class="ct">What a key actually controls</span>
+        A security key does two things at once. It drives <strong>menu
+        visibility</strong> — the role-scoped sidebar only shows the areas the
+        user's keys grant — <em>and</em> it gates <strong>grain-level
+        actions</strong>: the workflow grains check the caller's keys before
+        performing a protected operation (for example, <code>CanMergePatients</code>
+        is required to run a patient merge). Removing a key both hides the menu
+        and blocks the underlying action.
+      </div>
+
+      <h2>The three tabs</h2>
+      <ul>
+        <li><strong>Security Keys</strong> — the keys this user currently holds, with each key's category and a <kbd>Revoke</kbd> button.</li>
+        <li><strong>Grant Key</strong> — the catalog of available keys (filterable by category), each marked <strong>HELD</strong> or grantable.</li>
+        <li><strong>Key Audit Log</strong> — every grant and revoke, with the date/time, action, key, who performed it, and the reason.</li>
+      </ul>
+
+      <h2>Grant a key</h2>
+      <ol class="steps">
+        <li>Load the user, then open the <kbd>Grant Key</kbd> tab.</li>
+        <li>Optionally narrow the list with the <strong>Category Filter</strong> (e.g. CPRS, Clinical, Pharmacy, Lab, ADT, System).</li>
+        <li>Find the key and click <kbd>Grant</kbd>. Keys the user already holds are shown as <strong>HELD</strong> with no Grant button.</li>
+        <li>The change is recorded in the audit log and the user's key count updates immediately.</li>
+      </ol>
+
+      <h2>Revoke a key</h2>
+      <ol class="steps">
+        <li>On the <kbd>Security Keys</kbd> tab, find the key in the user's list.</li>
+        <li>Click <kbd>Revoke</kbd>. The key is removed and the action is logged.</li>
+      </ol>
+
+      <h2>Sessions</h2>
+      <p>
+        Above the tabs, a banner shows whether the user has an active session.
+        When active, it lists the start time, device, IP address, and timeout. To
+        force the user out — for example after a credential reset — click
+        <kbd>End Session</kbd>.
+      </p>
+      <div class="callout tip">
+        <span class="ct">Tip</span>
+        Click <kbd>Load Demo Keys</kbd> to grant the loaded user a standard
+        starter set (ORES, PROVIDER, LRLAB, DGADMIT) so you have keys to revoke
+        and audit while exploring.
+      </div>
+
+      <footer>NewVistas User Manual · Administrator · Security Keys</footer>
+    </main>
+  </div>
+</body>
+</html>

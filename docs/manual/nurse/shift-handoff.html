@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Shift Handoff — Nurse Manual — NewVistas</title>
+  <link rel="stylesheet" href="../assets/css/manual.css" />
+</head>
+<body>
+  <div class="topbar">
+    <div class="brand"><a href="../index.html">NewVistas</a> <span>· User Manual</span></div>
+    <div class="role-pill">🩹 Nurse</div>
+  </div>
+
+  <div class="layout">
+    <nav class="sidebar">
+      <div class="section">Nurse Manual</div>
+      <a href="index.html">Overview</a>
+      <a href="getting-started.html">Getting Started</a>
+      <div class="section">Workflows</div>
+      <a href="vital-signs.html">Vital Signs</a>
+      <a href="nursing-assessment.html">Nursing Assessment</a>
+      <a href="shift-handoff.html" class="active">Shift Handoff</a>
+      <a href="bcma.html">BCMA</a>
+      <div class="section">More (coming soon)</div>
+      <a href="#" style="opacity:.45;pointer-events:none">Nursing Care Plan</a>
+      <a href="#" style="opacity:.45;pointer-events:none">Triage</a>
+      <a href="#" style="opacity:.45;pointer-events:none">Task Worklist</a>
+      <a href="#" style="opacity:.45;pointer-events:none">Pain Assessment</a>
+      <a href="#" style="opacity:.45;pointer-events:none">Clinical Notes</a>
+      <div class="section">&nbsp;</div>
+      <a href="../index.html">← All roles</a>
+    </nav>
+
+    <main class="content">
+      <div class="crumb"><a href="../index.html">Manual</a> › <a href="index.html">Nurse</a> › Shift Handoff</div>
+      <h1>Shift Handoff (SBAR)</h1>
+      <p class="lead">
+        Hand a patient off at end of shift with a structured SBAR report —
+        Situation, Background, Assessment, Recommendation — and carry it through
+        the Draft → Completed → Acknowledged lifecycle so the incoming nurse
+        confirms receipt. The screen has three tabs: Handoff History, New
+        Handoff, and Report Detail.
+      </p>
+
+      <h2>Open the Shift Handoff screen</h2>
+      <ol class="steps">
+        <li>In the sidebar, under <strong>Nursing</strong>, click <kbd>Shift Handoff</kbd> (or go to <code>/shift-handoff</code>).</li>
+        <li>In the <strong>Patient ID</strong> field, type the patient ID (e.g. <code>9</code>).</li>
+        <li>Click <kbd>Load</kbd>. The Handoff History tab loads; if no handoffs exist yet, the table is empty.</li>
+      </ol>
+
+      <figure class="shot">
+        <img src="../assets/img/nurse/shift-handoff.png" alt="Shift Handoff screen for a loaded patient" />
+        <figcaption>The Shift Handoff screen — Handoff History, New Handoff, and Report Detail tabs.</figcaption>
+      </figure>
+
+      <h2>Create an SBAR handoff</h2>
+      <ol class="steps">
+        <li>Click the <kbd>New Handoff</kbd> tab.</li>
+        <li>Set the <strong>Shift</strong> (<code>Day</code>, <code>Evening</code>, or <code>Night</code>), your <strong>Outgoing Nurse ID</strong> (e.g. <code>NURSE1</code>), <strong>Outgoing Nurse Name</strong> (e.g. <code>JOHNSON,MARY R</code>), and the <strong>Bed #</strong> (e.g. <code>301-A</code>).</li>
+        <li>Write the four SBAR sections — <strong>S – Situation</strong> (current condition and reason for the report), <strong>B – Background</strong> (history, meds, allergies, labs), <strong>A – Assessment</strong> (your nursing findings and trends), and <strong>R – Recommendation</strong> (pending items, watch parameters, plans).</li>
+        <li>Click <kbd>Create Handoff</kbd>.</li>
+      </ol>
+      <p>
+        A green banner reads "Handoff created: HANDOFF-…" and the new entry appears
+        on the <strong>Handoff History</strong> tab with today's date, the shift,
+        your name as Outgoing, Incoming shown as "--" (not yet assigned), and a
+        <strong>Draft</strong> status (yellow badge).
+      </p>
+      <div class="callout note">
+        <span class="ct">Why SBAR</span>
+        SBAR is the standard structured-communication framework for handoffs:
+        <strong>S</strong>ituation, <strong>B</strong>ackground,
+        <strong>A</strong>ssessment, <strong>R</strong>ecommendation. Each section
+        has a job, so nothing critical is left to memory at the end of a long shift.
+      </div>
+
+      <h2>Review the report detail</h2>
+      <p>
+        On the <strong>Handoff History</strong> tab, click <kbd>View</kbd> on a
+        handoff to open it on the <strong>Report Detail</strong> tab. The detail
+        shows the shift and date, status badge, outgoing and incoming nurses, and
+        the bed/location, followed by the four colour-coded SBAR cards:
+      </p>
+      <ul>
+        <li><strong>S – Situation</strong> (blue heading)</li>
+        <li><strong>B – Background</strong> (teal heading)</li>
+        <li><strong>A – Assessment</strong> (green heading)</li>
+        <li><strong>R – Recommendation</strong> (yellow heading)</li>
+      </ul>
+      <p>
+        Below the SBAR cards, a <strong>Clinical Snapshot</strong> auto-populates
+        (when data is available) with the latest vitals, pain score, acuity level,
+        active nursing diagnoses, and pending tasks, and a <strong>Safety
+        Concerns</strong> alert box appears if any concerns are flagged.
+      </p>
+
+      <h2>The handoff lifecycle</h2>
+      <p>
+        A handoff moves through three states. The action buttons on the Report
+        Detail tab change with the status, so the next step is always the only one
+        offered.
+      </p>
+      <ol class="steps">
+        <li><strong>Draft</strong> — the outgoing nurse has created the report. Click <kbd>Complete Report</kbd> to finalize it; the status becomes <strong>Completed</strong> (blue badge) and the <kbd>Acknowledge (Incoming)</kbd> button appears.</li>
+        <li><strong>Completed</strong> — the report is final and waiting for the incoming nurse. The incoming nurse signs in, loads the same patient, opens the report, and clicks <kbd>Acknowledge (Incoming)</kbd>.</li>
+        <li><strong>Acknowledged</strong> — the incoming nurse has read and accepted the report (green badge). The Incoming field now shows their name and the handoff is complete.</li>
+      </ol>
+      <table style="border-collapse:collapse;font-size:.9rem;margin:.5rem 0">
+        <thead>
+          <tr>
+            <th style="text-align:left;border-bottom:2px solid #d4d9e0;padding:.4rem .8rem;color:#003f72">Status</th>
+            <th style="text-align:left;border-bottom:2px solid #d4d9e0;padding:.4rem .8rem;color:#003f72">Meaning</th>
+            <th style="text-align:left;border-bottom:2px solid #d4d9e0;padding:.4rem .8rem;color:#003f72">Badge</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td style="padding:.35rem .8rem;border-bottom:1px solid #eee">Draft</td><td style="padding:.35rem .8rem;border-bottom:1px solid #eee">Report created, not yet finalized</td><td style="padding:.35rem .8rem;border-bottom:1px solid #eee">Yellow / Warning</td></tr>
+          <tr><td style="padding:.35rem .8rem;border-bottom:1px solid #eee">Completed</td><td style="padding:.35rem .8rem;border-bottom:1px solid #eee">Outgoing nurse has finalized the report</td><td style="padding:.35rem .8rem;border-bottom:1px solid #eee">Blue / Primary</td></tr>
+          <tr><td style="padding:.35rem .8rem;border-bottom:1px solid #eee">Acknowledged</td><td style="padding:.35rem .8rem;border-bottom:1px solid #eee">Incoming nurse has read and accepted</td><td style="padding:.35rem .8rem;border-bottom:1px solid #eee">Green / Success</td></tr>
+        </tbody>
+      </table>
+
+      <div class="callout tip">
+        <span class="ct">Tip</span>
+        Handoffs stay in the history across shifts. A Day and an Evening handoff for
+        the same patient both remain visible, in chronological order, giving an
+        unbroken record of the care that was passed along.
+      </div>
+
+      <div class="callout safety">
+        <span class="ct">⚠ Acknowledgement closes the loop</span>
+        A handoff isn't done when you click Complete — it's done when the incoming
+        nurse <strong>Acknowledges</strong> it. That hand-back is the safety control
+        that confirms the next nurse actually received the report, not just that you
+        wrote one.
+      </div>
+
+      <footer>NewVistas User Manual · Nurse · Shift Handoff</footer>
+    </main>
+  </div>
+</body>
+</html>

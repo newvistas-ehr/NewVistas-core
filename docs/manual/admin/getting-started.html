@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Getting Started — Administrator Manual — NewVistas</title>
+  <link rel="stylesheet" href="../assets/css/manual.css" />
+</head>
+<body>
+  <div class="topbar">
+    <div class="brand"><a href="../index.html">NewVistas</a> <span>· User Manual</span></div>
+    <div class="role-pill">⚙️ Administrator</div>
+  </div>
+
+  <div class="layout">
+    <nav class="sidebar">
+      <div class="section">Administrator Manual</div>
+      <a href="index.html">Overview</a>
+      <a href="getting-started.html" class="active">Getting Started</a>
+      <div class="section">Administration</div>
+      <a href="adt.html">ADT</a>
+      <a href="patient-merge.html">Patient Merge</a>
+      <a href="security-keys.html">Security Keys</a>
+      <a href="site-parameters.html">Site Parameters</a>
+      <div class="section">More (coming soon)</div>
+      <a href="#" style="opacity:.45;pointer-events:none">Registration</a>
+      <a href="#" style="opacity:.45;pointer-events:none">Means Test</a>
+      <a href="#" style="opacity:.45;pointer-events:none">Integrated Billing</a>
+      <a href="#" style="opacity:.45;pointer-events:none">Federation Dashboard</a>
+      <div class="section">&nbsp;</div>
+      <a href="../index.html">← All roles</a>
+    </nav>
+
+    <main class="content">
+      <div class="crumb"><a href="../index.html">Manual</a> › <a href="index.html">Administrator</a> › Getting Started</div>
+      <h1>Getting Started</h1>
+      <p class="lead">Sign in, find your way around the role-scoped menu, and pull up a patient.</p>
+
+      <h2>1. Sign in first</h2>
+      <p>
+        NewVistas is <strong>login-first</strong>: you cannot see any
+        screens — or even the menu of features — until you authenticate. Opening
+        any address takes you straight to the Sign-In screen.
+      </p>
+      <figure class="shot">
+        <img src="../assets/img/admin/login.png" alt="NewVistas Sign-In screen" />
+        <figcaption>The Sign-In screen — no sidebar, no feature list. This is all an unauthenticated visitor ever sees.</figcaption>
+      </figure>
+      <ol class="steps">
+        <li>Enter your <strong>Access Code</strong> (username), e.g. <code>ADMIN1</code>.</li>
+        <li>Enter your <strong>Verify Code</strong> (password).</li>
+        <li>Click <kbd>Sign In</kbd> (or press <kbd>Enter</kbd>).</li>
+      </ol>
+      <div class="callout note">
+        <span class="ct">VistA terms</span>
+        "Access Code" and "Verify Code" are VistA's names for username and
+        password — the labels long-time CPRS users expect.
+      </div>
+
+      <h2>2. Your menu is scoped to your role</h2>
+      <p>
+        After sign-in you land on the home screen. The left sidebar shows
+        <em>only</em> the areas your security keys grant. An administrator sees
+        <strong>Administrative</strong> (ADT, Patient Merge, Registration),
+        <strong>Financial</strong> (Means Test, Integrated Billing), and the
+        system-administration items (<strong>Security Keys</strong>,
+        <strong>Site Parameters</strong>), alongside <strong>Reference</strong>
+        and <strong>Dashboards</strong>. A provider would see the clinical areas
+        instead. You won't be shown features you can't use.
+      </p>
+      <figure class="shot">
+        <img src="../assets/img/admin/home.png" alt="Administrator home screen with role-scoped sidebar" />
+        <figcaption>Administrator home. Sidebar sections are driven by your security keys.</figcaption>
+      </figure>
+
+      <h2>3. Pull up a patient</h2>
+      <p>
+        Many administrative screens work on a selected patient. Use
+        <strong>Patient Lookup</strong> (top of the sidebar) to search, or type a
+        patient ID directly into the lookup bar on a page such as ADT.
+      </p>
+      <figure class="shot">
+        <img src="../assets/img/admin/patient-lookup.png" alt="Patient Lookup screen" />
+        <figcaption>Patient Lookup — search by ID or name.</figcaption>
+      </figure>
+      <ol class="steps">
+        <li>Click <kbd>Patient Lookup</kbd> in the sidebar.</li>
+        <li>Type the patient ID (e.g. <code>P9001</code>) or name.</li>
+        <li>Open the patient, or go straight to an administrative screen and enter the ID in its lookup bar, then click <kbd>Load</kbd>.</li>
+      </ol>
+      <div class="callout tip">
+        <span class="ct">Tip</span>
+        Once a patient is loaded, a context bar at the top of the content area
+        keeps their name and ID visible as you move between screens.
+      </div>
+
+      <footer>NewVistas User Manual · Administrator · Getting Started</footer>
+    </main>
+  </div>
+</body>
+</html>

@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>BCMA — Nurse Manual — NewVistas</title>
+  <link rel="stylesheet" href="../assets/css/manual.css" />
+</head>
+<body>
+  <div class="topbar">
+    <div class="brand"><a href="../index.html">NewVistas</a> <span>· User Manual</span></div>
+    <div class="role-pill">🩹 Nurse</div>
+  </div>
+
+  <div class="layout">
+    <nav class="sidebar">
+      <div class="section">Nurse Manual</div>
+      <a href="index.html">Overview</a>
+      <a href="getting-started.html">Getting Started</a>
+      <div class="section">Workflows</div>
+      <a href="vital-signs.html">Vital Signs</a>
+      <a href="nursing-assessment.html">Nursing Assessment</a>
+      <a href="shift-handoff.html">Shift Handoff</a>
+      <a href="bcma.html" class="active">BCMA</a>
+      <div class="section">More (coming soon)</div>
+      <a href="#" style="opacity:.45;pointer-events:none">Nursing Care Plan</a>
+      <a href="#" style="opacity:.45;pointer-events:none">Triage</a>
+      <a href="#" style="opacity:.45;pointer-events:none">Task Worklist</a>
+      <a href="#" style="opacity:.45;pointer-events:none">Pain Assessment</a>
+      <a href="#" style="opacity:.45;pointer-events:none">Clinical Notes</a>
+      <div class="section">&nbsp;</div>
+      <a href="../index.html">← All roles</a>
+    </nav>
+
+    <main class="content">
+      <div class="crumb"><a href="../index.html">Manual</a> › <a href="index.html">Nurse</a> › BCMA</div>
+      <h1>BCMA — Bar Code Medication Administration</h1>
+      <p class="lead">
+        Administer medications at the bedside against the patient's MAR, recording
+        each dose as Given, Held, or Refused, and document PRN reasons,
+        effectiveness, and witnesses for controlled substances. This is the
+        equivalent of the CPRS BCMA package.
+      </p>
+
+      <h2>Open the BCMA screen</h2>
+      <ol class="steps">
+        <li>In the sidebar, under <strong>Nursing</strong>, click <kbd>BCMA</kbd> (or go to <code>/bcma</code>).</li>
+        <li>In the <strong>Patient ID</strong> field, type the patient ID (e.g. <code>4</code>).</li>
+        <li>Click <kbd>Load</kbd>. The <strong>MAR</strong> tab becomes active and shows the patient's medication list.</li>
+      </ol>
+
+      <figure class="shot">
+        <img src="../assets/img/nurse/bcma.png" alt="BCMA screen showing the MAR for a loaded patient" />
+        <figcaption>The BCMA screen — the MAR tab with scheduled medications, plus the History and + Record tabs.</figcaption>
+      </figure>
+
+      <div class="callout safety">
+        <span class="ct">⚠ The five rights are a safety control, not a formality</span>
+        Bar-code scanning at the bedside exists to enforce the
+        <strong>five rights</strong> — the <em>right patient</em>, <em>right
+        drug</em>, <em>right dose</em>, <em>right route</em>, and <em>right
+        time</em> — before any dose is given. Scanning the patient's wristband and
+        the medication barcode is what catches a wrong-patient or wrong-drug error
+        <em>before</em> it reaches the patient. Treat a scan mismatch as a stop,
+        not a nuisance: verify rather than override.
+      </div>
+
+      <h2>Read the MAR</h2>
+      <p>
+        Each row on the <strong>MAR</strong> tab is a medication order — drug, dose,
+        route, and frequency (for example <em>Lisinopril 10mg PO DAILY</em>). The
+        Status column tells you what's due:
+      </p>
+      <ul>
+        <li><strong>DUE</strong> — a red badge, with the row highlighted; the dose is due now.</li>
+        <li><strong>ON SCHEDULE</strong> — a green badge; an active order that isn't due yet.</li>
+        <li><strong>INACTIVE</strong> — a gray badge; a discontinued order.</li>
+      </ul>
+      <p>
+        The MAR tab label carries a due count (e.g. "MAR&nbsp;3&nbsp;due") matching
+        the number of rows showing the red DUE badge, so you can see your pending
+        work without opening the tab.
+      </p>
+
+      <h2>Administer a medication</h2>
+      <ol class="steps">
+        <li>On the <strong>MAR</strong> tab, find the medication row and click <kbd>Administer</kbd>.</li>
+        <li>In the "Administer: <em>drug</em>" modal, set the <strong>Action Status</strong> — <code>GIVEN</code>, <code>HELD</code>, or <code>REFUSED</code>.</li>
+        <li>Leave the <strong>Administration Time</strong> as now, and enter <strong>Administered By</strong> (e.g. <code>THOMPSON,PATRICIA A</code>).</li>
+        <li>For an injection, record the <strong>Injection Site</strong> (leave blank for oral meds). Add <strong>Comments</strong>, and a <strong>Reason</strong> when the dose is Held or Refused.</li>
+        <li>Click <kbd>Confirm</kbd>.</li>
+      </ol>
+      <p>
+        A green banner reads "Administration recorded," the modal closes, and the
+        MAR reloads. The row's <strong>Last Given</strong> column shows the time and
+        action with your name (e.g. "GIVEN by THOMPSON,PATRICIA A"), and the count
+        increments. The dose also appears on the <strong>History</strong> tab with a
+        status badge — <strong>GIVEN</strong> (green), <strong>HELD</strong>
+        (orange), or <strong>REFUSED</strong> (red).
+      </p>
+      <div class="callout note">
+        <span class="ct">Held and Refused need a reason</span>
+        When you Hold a dose (e.g. "HR 52 bpm — below threshold of 60, held per
+        protocol, MD notified") or a patient Refuses it, record the reason in the
+        modal. That reason becomes part of the permanent MAR record and explains the
+        gap in administration.
+      </div>
+
+      <h2>PRN medications and controlled substances</h2>
+      <p>
+        For a PRN medication, document <em>why</em> you gave it and, later, how well
+        it worked. Controlled substances additionally require a second nurse as a
+        witness for dual verification. In the current Blazor UI, the reason can be
+        captured in the Comments field; the structured PRN reason, effectiveness
+        follow-up, and witness are recorded through the BCMA API:
+      </p>
+      <ul>
+        <li><strong>PRN reason</strong> — <code>POST /api/bcma/{patientId}/history/{bcmaId}/prn-reason</code></li>
+        <li><strong>Effectiveness</strong> (e.g. 30 minutes later) — <code>POST /api/bcma/{patientId}/history/{bcmaId}/effectiveness</code></li>
+        <li><strong>Witness</strong> (controlled substances) — <code>POST /api/bcma/{patientId}/history/{bcmaId}/witness</code></li>
+      </ul>
+      <div class="callout safety">
+        <span class="ct">⚠ Witness required for controlled substances</span>
+        A controlled-substance administration is verified by two nurses. Recording a
+        witness (their ID and name) confirms the dual check — the same control that
+        governs waste and override of any Schedule II–V medication.
+      </div>
+
+      <h2>Record a standalone administration</h2>
+      <p>
+        For a medication not linked to an inpatient order — off-formulary or
+        outpatient — use the <strong>+ Record</strong> tab.
+      </p>
+      <ol class="steps">
+        <li>Click the <kbd>+ Record</kbd> tab; the heading reads "Record Standalone Administration."</li>
+        <li>Enter the <strong>Drug Name</strong> (e.g. <code>Ondansetron ODT 4mg</code>), <strong>Dosage</strong>, and <strong>Route</strong>.</li>
+        <li>Set the <strong>Action Status</strong>, leave the time as now, and enter <strong>Administered By</strong>. Add an Injection Site, Prescription ID, or Comments as needed.</li>
+        <li>Click <kbd>Record</kbd>.</li>
+      </ol>
+      <p>
+        A green banner reads "Standalone administration recorded," the form clears,
+        and the dose appears on the <strong>History</strong> tab. The
+        <strong>Drug Name</strong> is required — recording with it blank returns the
+        error "Drug name is required" and saves nothing.
+      </p>
+
+      <footer>NewVistas User Manual · Nurse · BCMA</footer>
+    </main>
+  </div>
+</body>
+</html>

@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Drug Utilization Review — Pharmacist Manual — NewVistas</title>
+  <link rel="stylesheet" href="../assets/css/manual.css" />
+</head>
+<body>
+  <div class="topbar">
+    <div class="brand"><a href="../index.html">NewVistas</a> <span>· User Manual</span></div>
+    <div class="role-pill">💊 Pharmacist</div>
+  </div>
+
+  <div class="layout">
+    <nav class="sidebar">
+      <div class="section">Pharmacist Manual</div>
+      <a href="index.html">Overview</a>
+      <a href="getting-started.html">Getting Started</a>
+      <div class="section">Workflows</div>
+      <a href="verify-fill.html">Verify &amp; Fill</a>
+      <a href="drug-utilization-review.html" class="active">Drug Utilization Review</a>
+      <a href="epcs.html">EPCS</a>
+      <a href="pos-claims.html">POS Claims</a>
+      <div class="section">More (coming soon)</div>
+      <a href="#" style="opacity:.45;pointer-events:none">Interaction Screening</a>
+      <a href="#" style="opacity:.45;pointer-events:none">Controlled Substances</a>
+      <a href="#" style="opacity:.45;pointer-events:none">Drug Accountability</a>
+      <a href="#" style="opacity:.45;pointer-events:none">IV Admixture</a>
+      <a href="#" style="opacity:.45;pointer-events:none">CMOP</a>
+      <a href="#" style="opacity:.45;pointer-events:none">Auto-Refill</a>
+      <div class="section">&nbsp;</div>
+      <a href="../index.html">← All roles</a>
+    </nav>
+
+    <main class="content">
+      <div class="crumb"><a href="../index.html">Manual</a> › <a href="index.html">Pharmacist</a> › Drug Utilization Review</div>
+      <h1>Drug Utilization Review (DUR)</h1>
+      <p class="lead">
+        A DUR screens a prescription against the patient's chart before it's
+        dispensed — checking for duplicate therapy, drug-allergy
+        contraindications, excessive days supply or dose, controlled-substance
+        concerns, and renal/hepatic risk. It's the clinical safety net that runs
+        ahead of the fill.
+      </p>
+
+      <h2>Run a DUR assessment</h2>
+      <ol class="steps">
+        <li>In the sidebar, under <strong>Pharmacy</strong>, open <kbd>Drug Utilization Review</kbd> (or go to <code>/drug-utilization-review</code>).</li>
+        <li>Enter the <strong>Patient ID</strong> (e.g. <code>9</code>) and click <kbd>Load</kbd>.</li>
+        <li>Click <kbd>+ Perform DUR</kbd> to open the assessment form.</li>
+        <li>Fill in the drug details — prescription ID, drug name and ID, VA drug class, dosage, route, schedule, days supply and quantity (plus their maximums), controlled-substance flag, ingredient IENs, and max daily dose.</li>
+        <li>Enter <strong>Performed By</strong> (e.g. <code>PHARM1</code>) and click <kbd>Run DUR</kbd>.</li>
+      </ol>
+
+      <figure class="shot">
+        <img src="../assets/img/pharmacist/dur.png" alt="Drug Utilization Review assessment detail with check results" />
+        <figcaption>A DUR assessment detail — the overall outcome badge and the Check Results table, with Override on any failed row.</figcaption>
+      </figure>
+
+      <p>
+        On submit you get a success banner (<em>"DUR assessment completed:
+        DUR-XXXXXXXX"</em>) and the view switches to the <strong>Detail</strong>
+        tab. The header shows the overall outcome and the <strong>Check
+        Results</strong> table lists every check with its outcome.
+      </p>
+
+      <h2>What the checks mean</h2>
+      <ul>
+        <li><strong>Duplicate Drug</strong> — flags an existing active prescription for the same drug; the Conflict column names it.</li>
+        <li><strong>Drug-Allergy Contraindication</strong> — matches the drug against the patient's documented allergies (including cross-reactivity, e.g. penicillin ↔ amoxicillin). A critical safety check.</li>
+        <li><strong>Days Supply Exceeded</strong> — days supply is over the configured maximum.</li>
+        <li><strong>Max Dose Exceeded</strong> — the daily dose is over the drug's maximum.</li>
+        <li><strong>Controlled Substance</strong> — surfaces DEA-schedule requirements; typically a Warning rather than a hard fail.</li>
+        <li><strong>Renal Adjustment</strong> — triggered by a low eGFR lab (&lt; 60); recommends dose reduction or discontinuation.</li>
+        <li><strong>Hepatic Adjustment</strong> — triggered by elevated liver enzymes (e.g. ALT &gt; 3× ULN); recommends holding hepatotoxic drugs.</li>
+      </ul>
+
+      <h3>Outcome badges</h3>
+      <ul>
+        <li><strong>Pass</strong> (green) — the check is satisfied.</li>
+        <li><strong>N/A</strong> — the check doesn't apply to this drug.</li>
+        <li><strong>Warning</strong> (yellow) — a concern that needs acknowledgment but isn't a hard stop.</li>
+        <li><strong>Fail</strong> (red) — a blocking issue. An <kbd>Override</kbd> button appears on the row.</li>
+        <li><strong>Override</strong> (gold/brown) — a failed check a pharmacist has overridden with a reason.</li>
+      </ul>
+      <div class="callout note">
+        <span class="ct">Color = meaning</span>
+        DUR badges use the system-wide scheme: green = good, yellow = caution,
+        red = blocking. The same colors appear on labs, vitals, and order
+        priorities.
+      </div>
+
+      <h2>Override a failed check</h2>
+      <p>
+        A pharmacist may override a failed check, but only with a recorded
+        clinical reason — the override is audited.
+      </p>
+      <ol class="steps">
+        <li>Open the failed assessment (from the <strong>All</strong> or <strong>Pending</strong> tab, click <kbd>View</kbd>).</li>
+        <li>On the failed check's row, click <kbd>Override</kbd>.</li>
+        <li>Enter your <strong>Pharmacist ID</strong> and a <strong>Clinical Reason</strong> (e.g. <em>"Provider aware of duplicate therapy. Dose titration in progress; old prescription to be discontinued."</em>).</li>
+        <li>Click <kbd>Submit Override</kbd>. The row's outcome becomes <strong>Override</strong> and shows who overrode it; the reason appears on hover.</li>
+      </ol>
+      <p>When every failed check is overridden, the assessment status becomes <strong>OverriddenByPharmacist</strong>.</p>
+      <div class="callout safety">
+        <span class="ct">⚠ Some flags warrant a call, not a click</span>
+        A drug-allergy contraindication (e.g. amoxicillin against a documented
+        penicillin allergy) is a critical safety check. Contact the prescriber
+        before overriding it — an override should reflect a clinical decision, not
+        clear a blocker.
+      </div>
+
+      <h2>Acknowledge the assessment</h2>
+      <ol class="steps">
+        <li>On a Passed or Overridden assessment's Detail tab, find the <strong>Acknowledge</strong> section.</li>
+        <li>Enter your <strong>Pharmacist ID</strong> and any notes.</li>
+        <li>Click <kbd>Acknowledge</kbd>. The status becomes <strong>Acknowledged</strong> (blue badge), the section records the date/time and your ID, and the assessment drops off the Pending tab.</li>
+      </ol>
+
+      <footer>NewVistas User Manual · Pharmacist · Drug Utilization Review</footer>
+    </main>
+  </div>
+</body>
+</html>

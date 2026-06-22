@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>EPCS — Pharmacist Manual — NewVistas</title>
+  <link rel="stylesheet" href="../assets/css/manual.css" />
+</head>
+<body>
+  <div class="topbar">
+    <div class="brand"><a href="../index.html">NewVistas</a> <span>· User Manual</span></div>
+    <div class="role-pill">💊 Pharmacist</div>
+  </div>
+
+  <div class="layout">
+    <nav class="sidebar">
+      <div class="section">Pharmacist Manual</div>
+      <a href="index.html">Overview</a>
+      <a href="getting-started.html">Getting Started</a>
+      <div class="section">Workflows</div>
+      <a href="verify-fill.html">Verify &amp; Fill</a>
+      <a href="drug-utilization-review.html">Drug Utilization Review</a>
+      <a href="epcs.html" class="active">EPCS</a>
+      <a href="pos-claims.html">POS Claims</a>
+      <div class="section">More (coming soon)</div>
+      <a href="#" style="opacity:.45;pointer-events:none">Interaction Screening</a>
+      <a href="#" style="opacity:.45;pointer-events:none">Controlled Substances</a>
+      <a href="#" style="opacity:.45;pointer-events:none">Drug Accountability</a>
+      <a href="#" style="opacity:.45;pointer-events:none">IV Admixture</a>
+      <a href="#" style="opacity:.45;pointer-events:none">CMOP</a>
+      <a href="#" style="opacity:.45;pointer-events:none">Auto-Refill</a>
+      <div class="section">&nbsp;</div>
+      <a href="../index.html">← All roles</a>
+    </nav>
+
+    <main class="content">
+      <div class="crumb"><a href="../index.html">Manual</a> › <a href="index.html">Pharmacist</a> › EPCS</div>
+      <h1>Electronic Prescribing of Controlled Substances (EPCS)</h1>
+      <p class="lead">
+        The EPCS screen is where controlled-substance e-prescriptions are
+        created, signed with two-factor authentication, transmitted, and
+        acknowledged — and where provider EPCS credentials are managed. It's the
+        DEA-compliant electronic pathway for Schedule II–V medications.
+      </p>
+
+      <h2>Receive a new EPCS prescription</h2>
+      <ol class="steps">
+        <li>In the sidebar, under <strong>Pharmacy</strong>, open <kbd>EPCS</kbd> (or go to <code>/epcs</code>).</li>
+        <li>Enter the <strong>Patient ID</strong> (e.g. <code>30</code>) and click <kbd>Load</kbd>.</li>
+        <li>Click <kbd>New e-Rx</kbd> to open the creation form.</li>
+        <li>Fill in the drug details — transaction type (<strong>NewRx</strong>), drug name, DEA schedule, NDC, quantity, days supply, refills authorized (zero for Schedule II), sig, and diagnosis code.</li>
+        <li>Fill in the prescriber details (NPI, DEA, name, credential ID) and the pharmacy details (NCPDP ID, name, address).</li>
+        <li>Click <kbd>Create e-Prescription</kbd>.</li>
+      </ol>
+
+      <figure class="shot">
+        <img src="../assets/img/pharmacist/epcs.png" alt="EPCS e-Prescriptions list, creation form, and provider credentials tabs" />
+        <figcaption>The EPCS screen — the E-Prescriptions list with Status and Signed badges, the New e-Rx form, and the Provider Credentials tab.</figcaption>
+      </figure>
+
+      <p>
+        A new e-prescription enters the table with Status <strong>Draft</strong>
+        (gray badge) and Signed <strong>Unsigned</strong> (yellow badge). The
+        transaction type (NewRx) is a plain-text label, not a status. Each row
+        offers <kbd>View</kbd> and <kbd>Sign</kbd> actions.
+      </p>
+
+      <h2>View the prescription detail</h2>
+      <p>
+        Click <kbd>View</kbd> to switch to the <strong>Prescription Detail</strong>
+        tab. It lays out the full record in card sections — Drug Information,
+        Prescriber Information, Pharmacy Information, Status Information, and the
+        <strong>2FA Verification Record</strong> (empty until the prescription is
+        signed).
+      </p>
+
+      <h2>Sign with two-factor authentication</h2>
+      <ol class="steps">
+        <li>On the <strong>E-Prescriptions</strong> tab, click <kbd>Sign</kbd> on a Draft/Unsigned prescription.</li>
+        <li>Choose a <strong>2FA Method</strong> — None, Hardware Token, Biometric, One-Time Password, Smart Card, or Mobile Authenticator.</li>
+        <li>Enter the <strong>Certificate Thumbprint</strong> and the <strong>Prescription Hash</strong>, and set <strong>Valid</strong> to Yes.</li>
+        <li>Click <kbd>Sign with 2FA</kbd>.</li>
+      </ol>
+      <p>
+        The row updates: Status becomes <strong>Signed</strong> (green badge), the
+        Signed column turns green, and the Sign button disappears. The signing
+        event populates the 2FA Verification Record on the detail view (method,
+        thumbprint, timestamp, validity).
+      </p>
+      <div class="callout note">
+        <span class="ct">Status flow &amp; colors</span>
+        Prescriptions progress through <strong>Draft</strong> (gray) →
+        <strong>Signed</strong> (green) → <strong>Transmitted</strong> (blue) →
+        <strong>Acknowledged</strong> (green); <strong>Error</strong> and
+        <strong>Cancelled</strong> are red. Use the status filter on the
+        E-Prescriptions tab to narrow the list. Cancelled prescriptions show no
+        Sign button.
+      </div>
+
+      <h2>Manage provider credentials</h2>
+      <p>
+        The <strong>Provider Credentials</strong> tab lists each provider's EPCS
+        credential — name, DEA number, NPI, credential level, 2FA method, and
+        Active/Suspended status. Suspending a credential prevents that provider
+        from signing EPCS prescriptions; reactivating it restores signing
+        capability.
+      </p>
+
+      <div class="callout safety">
+        <span class="ct">⚠ Controlled-substance safety gate</span>
+        Controlled-substance orders pass through a daily-dose safety gate
+        (daily dose = quantity ÷ days supply). A <strong>high but survivable</strong>
+        dose raises a Tier-2 confirmation that you must clear by typing the drug
+        name exactly <em>and</em> recording an audited reason. A dose in the
+        <strong>lethal range</strong> is blocked outright — a single user cannot
+        override it, and a co-signature is required. The gate is identical whether
+        an order is written by a prescriber or dispensed in pharmacy; it is enforced
+        by the system, not by a differently-colored button. See the prescriber-side
+        detail in
+        <a href="../doctor/prescribing.html">Prescribing &amp; the Safety Gate</a>.
+      </div>
+
+      <footer>NewVistas User Manual · Pharmacist · EPCS</footer>
+    </main>
+  </div>
+</body>
+</html>

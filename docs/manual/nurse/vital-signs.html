@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Vital Signs — Nurse Manual — NewVistas</title>
+  <link rel="stylesheet" href="../assets/css/manual.css" />
+</head>
+<body>
+  <div class="topbar">
+    <div class="brand"><a href="../index.html">NewVistas</a> <span>· User Manual</span></div>
+    <div class="role-pill">🩹 Nurse</div>
+  </div>
+
+  <div class="layout">
+    <nav class="sidebar">
+      <div class="section">Nurse Manual</div>
+      <a href="index.html">Overview</a>
+      <a href="getting-started.html">Getting Started</a>
+      <div class="section">Workflows</div>
+      <a href="vital-signs.html" class="active">Vital Signs</a>
+      <a href="nursing-assessment.html">Nursing Assessment</a>
+      <a href="shift-handoff.html">Shift Handoff</a>
+      <a href="bcma.html">BCMA</a>
+      <div class="section">More (coming soon)</div>
+      <a href="#" style="opacity:.45;pointer-events:none">Nursing Care Plan</a>
+      <a href="#" style="opacity:.45;pointer-events:none">Triage</a>
+      <a href="#" style="opacity:.45;pointer-events:none">Task Worklist</a>
+      <a href="#" style="opacity:.45;pointer-events:none">Pain Assessment</a>
+      <a href="#" style="opacity:.45;pointer-events:none">Clinical Notes</a>
+      <div class="section">&nbsp;</div>
+      <a href="../index.html">← All roles</a>
+    </nav>
+
+    <main class="content">
+      <div class="crumb"><a href="../index.html">Manual</a> › <a href="index.html">Nurse</a> › Vital Signs</div>
+      <h1>Vital Signs</h1>
+      <p class="lead">
+        Record up to eight vital types for a patient, see abnormal values flagged
+        in red automatically, and search the vital history by date or type. This
+        is the equivalent of the CPRS Vitals package.
+      </p>
+
+      <h2>Open the Vitals screen</h2>
+      <ol class="steps">
+        <li>In the sidebar, under <strong>Nursing</strong>, click <kbd>Vitals</kbd> (or go to <code>/vitals</code>).</li>
+        <li>In the <strong>Patient ID</strong> field, type the patient ID (e.g. <code>9</code>).</li>
+        <li>Click <kbd>Load</kbd>. If no vitals exist yet, the View Vitals tab shows "No vitals recorded."</li>
+      </ol>
+
+      <figure class="shot">
+        <img src="../assets/img/nurse/vitals.png" alt="Vitals screen for a loaded patient" />
+        <figcaption>The Vitals screen — the Record Vitals, View Vitals, and Vital History tabs.</figcaption>
+      </figure>
+
+      <h2>Record a set of vitals</h2>
+      <ol class="steps">
+        <li>Click the <kbd>Record Vitals</kbd> tab.</li>
+        <li>Fill in the header fields — <strong>Date/Time Taken</strong> (leave as now), <strong>Location</strong> (e.g. <code>Ward 3A</code>), and <strong>Entered By</strong> (e.g. <code>JOHNSON,MARY R</code>).</li>
+        <li>Fill in the Vital Measurements grid — Temperature&nbsp;(F), Pulse&nbsp;(bpm), Respiration&nbsp;(breaths/min), Blood Pressure&nbsp;(mmHg, e.g. <code>120/78</code>), Weight&nbsp;(lbs), Height&nbsp;(in), Pain&nbsp;(0–10), and Pulse Oximetry&nbsp;(%).</li>
+        <li>Click <kbd>Record Vitals</kbd>.</li>
+      </ol>
+      <p>
+        A green banner reads "Vitals recorded successfully" and the page switches
+        to the <strong>View Vitals</strong> tab, which shows one row per vital type
+        with its latest value and the date/time taken. A new recording replaces the
+        latest reading for each type you entered; types you left blank keep their
+        previous value.
+      </p>
+      <div class="callout note">
+        <span class="ct">You don't have to enter all eight</span>
+        Enter as many or as few vitals as you took — for example just Blood
+        Pressure and Pulse Oximetry. You must enter <strong>at least one</strong>
+        measurement, though: submitting with every field blank returns the error
+        "Enter at least one vital measurement" and saves nothing.
+      </div>
+
+      <h2>Reading the abnormal flags</h2>
+      <p>
+        The View Vitals tab flags out-of-range values automatically. A flagged
+        value appears in <strong>red, bold</strong> text (the <code>value.flagged</code>
+        style). The same red = danger color scheme runs through labs and the cover
+        sheet, so an abnormal vital is recognizable at a glance.
+      </p>
+      <ul>
+        <li><strong>Blood Pressure</strong> <code>180/110</code> — flagged (hypertension).</li>
+        <li><strong>Temperature</strong> <code>104.2</code> — flagged (high fever).</li>
+        <li><strong>Pulse</strong> <code>118</code> — flagged (tachycardia).</li>
+        <li><strong>Respiration</strong> <code>26</code> — flagged (tachypnea).</li>
+        <li><strong>Pulse Oximetry</strong> <code>89</code> — flagged (hypoxia).</li>
+      </ul>
+      <table style="border-collapse:collapse;font-size:.9rem;margin:.5rem 0">
+        <thead>
+          <tr>
+            <th style="text-align:left;border-bottom:2px solid #d4d9e0;padding:.4rem .8rem;color:#003f72">Vital</th>
+            <th style="text-align:left;border-bottom:2px solid #d4d9e0;padding:.4rem .8rem;color:#003f72">Normal range</th>
+            <th style="text-align:left;border-bottom:2px solid #d4d9e0;padding:.4rem .8rem;color:#003f72">Abnormal</th>
+            <th style="text-align:left;border-bottom:2px solid #d4d9e0;padding:.4rem .8rem;color:#003f72">Critical</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td style="padding:.35rem .8rem;border-bottom:1px solid #eee">Temperature</td><td style="padding:.35rem .8rem;border-bottom:1px solid #eee">97.0–99.5 F</td><td style="padding:.35rem .8rem;border-bottom:1px solid #eee">100.4 F (fever)</td><td style="padding:.35rem .8rem;border-bottom:1px solid #eee">104.2 F</td></tr>
+          <tr><td style="padding:.35rem .8rem;border-bottom:1px solid #eee">Pulse</td><td style="padding:.35rem .8rem;border-bottom:1px solid #eee">60–100 bpm</td><td style="padding:.35rem .8rem;border-bottom:1px solid #eee">110 bpm (tachy)</td><td style="padding:.35rem .8rem;border-bottom:1px solid #eee">40 bpm (brady)</td></tr>
+          <tr><td style="padding:.35rem .8rem;border-bottom:1px solid #eee">Respiration</td><td style="padding:.35rem .8rem;border-bottom:1px solid #eee">12–20 br/min</td><td style="padding:.35rem .8rem;border-bottom:1px solid #eee">24 br/min</td><td style="padding:.35rem .8rem;border-bottom:1px solid #eee">8 br/min</td></tr>
+          <tr><td style="padding:.35rem .8rem;border-bottom:1px solid #eee">Blood Pressure</td><td style="padding:.35rem .8rem;border-bottom:1px solid #eee">90/60–140/90</td><td style="padding:.35rem .8rem;border-bottom:1px solid #eee">180/110 (HTN)</td><td style="padding:.35rem .8rem;border-bottom:1px solid #eee">80/40 (shock)</td></tr>
+          <tr><td style="padding:.35rem .8rem;border-bottom:1px solid #eee">Pain</td><td style="padding:.35rem .8rem;border-bottom:1px solid #eee">0</td><td style="padding:.35rem .8rem;border-bottom:1px solid #eee">4–6 (moderate)</td><td style="padding:.35rem .8rem;border-bottom:1px solid #eee">7–10 (severe)</td></tr>
+          <tr><td style="padding:.35rem .8rem;border-bottom:1px solid #eee">Pulse Oximetry</td><td style="padding:.35rem .8rem;border-bottom:1px solid #eee">95–100%</td><td style="padding:.35rem .8rem;border-bottom:1px solid #eee">92% (hypoxia)</td><td style="padding:.35rem .8rem;border-bottom:1px solid #eee">85% (critical)</td></tr>
+        </tbody>
+      </table>
+
+      <div class="callout safety">
+        <span class="ct">⚠ Pain &gt; 0 requires follow-up</span>
+        Whenever you record a pain score above 0, nursing protocol requires a
+        formal structured pain assessment within one hour. After saving, go to
+        <code>/pain-assessment</code> to document it.
+      </div>
+
+      <h2>Search the vital history</h2>
+      <ol class="steps">
+        <li>Click the <kbd>Vital History</kbd> tab.</li>
+        <li>Set the <strong>From</strong> and <strong>To</strong> dates (e.g. the last 30 days), choose a <strong>Vital Type</strong> (<code>ALL</code> or a single type such as <code>BLOOD PRESSURE</code>), and a <strong>Max Results</strong> limit.</li>
+        <li>Click <kbd>Search</kbd>.</li>
+      </ol>
+      <p>
+        The results table shows each entry's vital type, value, units, flag, and
+        date/time, sorted newest first, with a result count above the table (e.g.
+        "12 result(s)"). Filtering by a single vital type shows only that type's
+        readings.
+      </p>
+
+      <footer>NewVistas User Manual · Nurse · Vital Signs</footer>
+    </main>
+  </div>
+</body>
+</html>

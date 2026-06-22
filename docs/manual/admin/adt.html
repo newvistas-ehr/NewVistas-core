@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>ADT — Administrator Manual — NewVistas</title>
+  <link rel="stylesheet" href="../assets/css/manual.css" />
+</head>
+<body>
+  <div class="topbar">
+    <div class="brand"><a href="../index.html">NewVistas</a> <span>· User Manual</span></div>
+    <div class="role-pill">⚙️ Administrator</div>
+  </div>
+
+  <div class="layout">
+    <nav class="sidebar">
+      <div class="section">Administrator Manual</div>
+      <a href="index.html">Overview</a>
+      <a href="getting-started.html">Getting Started</a>
+      <div class="section">Administration</div>
+      <a href="adt.html" class="active">ADT</a>
+      <a href="patient-merge.html">Patient Merge</a>
+      <a href="security-keys.html">Security Keys</a>
+      <a href="site-parameters.html">Site Parameters</a>
+      <div class="section">More (coming soon)</div>
+      <a href="#" style="opacity:.45;pointer-events:none">Registration</a>
+      <a href="#" style="opacity:.45;pointer-events:none">Means Test</a>
+      <a href="#" style="opacity:.45;pointer-events:none">Integrated Billing</a>
+      <a href="#" style="opacity:.45;pointer-events:none">Federation Dashboard</a>
+      <div class="section">&nbsp;</div>
+      <a href="../index.html">← All roles</a>
+    </nav>
+
+    <main class="content">
+      <div class="crumb"><a href="../index.html">Manual</a> › <a href="index.html">Administrator</a> › ADT</div>
+      <h1>ADT — Admit / Discharge / Transfer</h1>
+      <p class="lead">
+        ADT tracks a patient's movements through the facility — admission to a
+        ward, transfer between wards, and discharge — and gives you a live
+        per-ward census and a directory of all wards. It's the equivalent of
+        VistA's ADT (PIMS) movement tracking.
+      </p>
+
+      <h2>Open ADT and load a patient</h2>
+      <ol class="steps">
+        <li>In the sidebar, under <strong>Administrative</strong>, click <kbd>ADT</kbd> (or go to <code>/adt</code>).</li>
+        <li>In the <strong>Patient ID</strong> field, type the patient ID (e.g. <code>P9001</code>).</li>
+        <li>Click <kbd>Load</kbd> (or press <kbd>Enter</kbd>) to list that patient's movements.</li>
+      </ol>
+
+      <figure class="shot">
+        <img src="../assets/img/admin/adt.png" alt="ADT screen with patient movements, census, and ward directory tabs" />
+        <figcaption>The ADT screen — the lookup bar, the three tabs (Patient Movements, Ward Census, Ward Directory), and the movements table.</figcaption>
+      </figure>
+
+      <h2>The three tabs</h2>
+      <p>Across the top, three tabs switch between the views:</p>
+      <ul>
+        <li><strong>Patient Movements</strong> — every admit, transfer, and discharge for the loaded patient, with their status.</li>
+        <li><strong>Ward Census</strong> — who is currently on a ward you pick.</li>
+        <li><strong>Ward Directory</strong> — the searchable list of all wards, their type, division, and bed capacity.</li>
+      </ul>
+
+      <h2>Admit a patient</h2>
+      <ol class="steps">
+        <li>Load the patient, then click <kbd>+ Admit Patient</kbd> to open the admission form.</li>
+        <li>Set the <strong>Admission Date/Time</strong> (required).</li>
+        <li>Pick the <strong>Ward</strong> from the dropdown and enter the <strong>Room-Bed</strong> (e.g. <code>301-A</code>).</li>
+        <li>Optionally add treating specialty, attending physician, admission diagnosis, and comments.</li>
+        <li>Click <kbd>Admit</kbd>. The new movement appears in the table with an <strong>ADMITTED</strong> badge.</li>
+      </ol>
+      <div class="callout note">
+        <span class="ct">Color = status</span>
+        Movement status badges follow the system-wide scheme: amber for
+        <strong>ADMITTED</strong> (in-house), blue for <strong>TRANSFERRED</strong>,
+        and green for <strong>DISCHARGED</strong>.
+      </div>
+
+      <h2>Transfer or discharge</h2>
+      <p>
+        Each row that is currently <strong>ADMITTED</strong> shows two actions in
+        the last column:
+      </p>
+      <ol class="steps">
+        <li>Click <kbd>Transfer</kbd> to open the transfer form, choose the destination ward and room-bed, optionally update specialty/attending, then click <kbd>Transfer</kbd>.</li>
+        <li>Click <kbd>Discharge</kbd> to record a regular discharge as of now.</li>
+      </ol>
+
+      <h2>Ward Census</h2>
+      <ol class="steps">
+        <li>Click the <kbd>Ward Census</kbd> tab.</li>
+        <li>Pick a ward from the <strong>Select Ward</strong> dropdown.</li>
+        <li>The table lists every patient currently on that ward — ID, name, room-bed, specialty, attending, admit date, and last movement.</li>
+      </ol>
+      <div class="callout tip">
+        <span class="ct">Tip</span>
+        Need to seed a movement history quickly for a demo? Load a patient and
+        click <kbd>Demo Load</kbd> — it records a sample admission and a transfer
+        so the tabs have data to show.
+      </div>
+
+      <footer>NewVistas User Manual · Administrator · ADT</footer>
+    </main>
+  </div>
+</body>
+</html>
