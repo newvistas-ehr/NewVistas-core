@@ -32,6 +32,9 @@ public enum MenuArea
     /// <summary>Mental Health — Screening instruments, assessments.</summary>
     MentalHealth,
 
+    /// <summary>Nursing — assessments, shift handoff, care plans, triage, task worklist, pain.</summary>
+    Nursing,
+
     /// <summary>Registration / Scheduling — ADT, appointments, eligibility.</summary>
     Registration,
 
@@ -99,6 +102,15 @@ public static class MenuAccessMap
         SecurityKeys.PROVIDER,
     ];
 
+    private static readonly HashSet<string> NursingKeys =
+    [
+        // Nursing workflows — nurses (order-entry-else, vitals, allergy, problem)
+        // plus the providers who supervise/review them.
+        SecurityKeys.ORELSE, SecurityKeys.GMRV_VITALS,
+        SecurityKeys.GMRA_ALLERGY, SecurityKeys.GMPL_PROBLEM,
+        SecurityKeys.PROVIDER, SecurityKeys.ORES,
+    ];
+
     private static readonly HashSet<string> RegistrationKeys =
     [
         SecurityKeys.SD_SCHEDULING, SecurityKeys.DG_ADMIT,
@@ -130,6 +142,7 @@ public static class MenuAccessMap
         MenuArea.Radiology => RadiologyKeys,
         MenuArea.Surgery => SurgeryKeys,
         MenuArea.MentalHealth => MentalHealthKeys,
+        MenuArea.Nursing => NursingKeys,
         MenuArea.Registration => RegistrationKeys,
         MenuArea.Financial => FinancialKeys,
         MenuArea.SystemAdmin => SystemAdminKeys,
