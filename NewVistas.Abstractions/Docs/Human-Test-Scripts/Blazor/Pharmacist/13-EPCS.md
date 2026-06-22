@@ -46,7 +46,7 @@
 - The e-Prescription table shows the new entry:
   - Drug: OXYCODONE 5MG TAB
   - Schedule: II
-  - Type: **NewRx** badge (blue)
+  - Type: **NewRx** (plain text -- transaction type is a label, not a status badge)
   - Status: **Draft** badge
   - Prescriber: DR. JANE SMITH
   - Signed: **Unsigned** (yellow badge)
