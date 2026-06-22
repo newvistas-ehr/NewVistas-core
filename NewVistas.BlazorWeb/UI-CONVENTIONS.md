@@ -176,5 +176,14 @@ Bootstrap idiom. That makes migration **batchable by feature area**, not scatter
    reason + reserved styling + audit); **lethal class requires co-sign**.
 6. Rollout = **shared components + pilot**, then migrate by cluster; add a CI guard against drift.
 7. **Status / severity badges** = canonical `.badge` + `.badge-danger/.warning/.info/.success/.neutral` (and `.row-danger/.row-warning` table tints) in app.css — replaces Bootstrap `badge bg-*`. Use ONLY for clinically-meaningful at-a-glance cues (ESI acuity, pain score, order/task priority); keep rare so the color stays meaningful. (A patient-safety signal — don't drop these in a migration.)
+8. **No danger/warning button variant.** Buttons are only `btn btn-primary` (navy) and `btn btn-secondary` (grey). Destructive/cautionary actions (Discontinue, Stop, Revoke, Merge, Hold, Override, Remove) use `btn btn-primary` — patient-safety friction is enforced by the `<SafetyConfirm>` Tier-2 gate (§8), not by button color.
 
 Scope: the **two modern UIs only** (Blazor-main, WPF-main). CharUI and WpfDelphiUI stay faithful throwbacks.
+
+## Enforcement — CI drift guard
+
+`scripts/check-ui-conventions.sh` scans `NewVistas.BlazorWeb/Components/Pages/*.razor` and fails (exit 1) if any off-convention marker reappears: `tab-btn`, `nav-link`/`nav-tabs`, `btn-success`/`btn-outline`/`btn-danger`/`btn-warning`/`btn-info`, standalone `btn-primary`, `alert-danger`, `form-control`/`form-select`, Bootstrap `table table-*`, `badge bg-*`, and dark-theme residue (`#1a1a2e`/`#16213e`/`#0d1117`/`#0f1419`). It runs on every push/PR via `.github/workflows/ui-conventions.yml`.
+
+- **Out of scope (not scanned):** `PatientPortal.razor` (patient-facing UI, its own treatment) and `Login.razor` (pre-auth). The WPF CharUI / WpfDelphiUI families are separate projects (deliberate VistA/CPRS throwbacks).
+- **Nested sub-tabs** are named `.sub-tab` (not `.sub-tab-btn`); compact tables use `.data-table-compact` on top of `.data-table` — both stay clear of the guard's patterns.
+- For a deliberate, reviewed exception, add the file to `EXEMPT` in the script.

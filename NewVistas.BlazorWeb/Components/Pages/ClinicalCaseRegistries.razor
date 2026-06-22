@@ -283,8 +283,8 @@ else
        badge, badge-*, empty-state) are defined once in app.css per UI-CONVENTIONS.md.
        Only page-specific styles (sub-tabs, forms, detail panel) live here. */
     .sub-tabs { display: flex; gap: 4px; margin: 16px 0 8px; }
-    .sub-tab-btn { padding: 5px 12px; border: 1px solid #d4d9e0; background: #f4f6f9; color: #333; cursor: pointer; border-radius: 4px; }
-    .sub-tab-btn.active { background: #003f72; color: #fff; border-color: #003f72; }
+    .sub-tab { padding: 5px 12px; border: 1px solid #d4d9e0; background: #f4f6f9; color: #333; cursor: pointer; border-radius: 4px; }
+    .sub-tab.active { background: #003f72; color: #fff; border-color: #003f72; }
     .toolbar { display: flex; gap: 12px; align-items: center; margin-bottom: 12px; }
     .selected-row { background: #eaf2fb !important; }
     .empty { color: #555; font-style: italic; }
@@ -335,7 +335,7 @@ else
     protected override async Task OnInitializedAsync() => await LoadCurrentRegistry();
 
     private string TabClass(int tab) => $"tab{(activeTab == tab ? " active" : "")}";
-    private string SubTabClass(int tab) => $"sub-tab-btn{(activeSubTab == tab ? " active" : "")}";
+    private string SubTabClass(int tab) => $"sub-tab{(activeSubTab == tab ? " active" : "")}";
     private string BadgeClass(CCREnrollmentStatus s) => s switch
     {
         CCREnrollmentStatus.Active => "badge-success",

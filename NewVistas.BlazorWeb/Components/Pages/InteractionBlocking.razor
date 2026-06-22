@@ -182,7 +182,7 @@
                                 <td>
                                     @if (f.IsBlocking && !f.IsOverridden)
                                     {
-                                        <button class="btn btn-sm btn-warning" @onclick="() => ShowOverrideForm(idx)">Override</button>
+                                        <button class="btn btn-sm btn-primary" @onclick="() => ShowOverrideForm(idx)">Override</button>
                                     }
                                 </td>
                             </tr>
@@ -210,7 +210,7 @@
                         </div>
                     </div>
                     <div class="form-actions">
-                        <button class="btn btn-warning" @onclick="SubmitOverride" disabled="@saving">
+                        <button class="btn btn-primary" @onclick="SubmitOverride" disabled="@saving">
                             @(saving ? "Saving..." : "Submit Override")
                         </button>
                         <button class="btn btn-secondary" @onclick="() => showOverrideForm = false">Cancel</button>
@@ -365,46 +365,32 @@
 }
 
 <style>
-    .lookup-bar { display: flex; gap: .5rem; align-items: center; margin-bottom: 1rem; flex-wrap: wrap; }
-    .lookup-bar input { padding: .4rem .6rem; border: 1px solid #555; border-radius: 4px; background: #1e1e1e; color: #ddd; min-width: 220px; }
-    .alert { padding: .6rem 1rem; border-radius: 4px; margin-bottom: .75rem; }
-    .alert-error { background: #3c1111; border: 1px solid #e74c3c; color: #e74c3c; }
-    .alert-success { background: #0f2e0f; border: 1px solid #27ae60; color: #27ae60; }
-    .btn { padding: .4rem .8rem; border: 1px solid #555; border-radius: 4px; cursor: pointer; background: #2d2d2d; color: #ddd; }
-    .btn:disabled { opacity: .5; cursor: not-allowed; }
-    .btn-primary { background: #1a5276; border-color: #2980b9; }
-    .btn-secondary { background: #333; }
-    .btn-warning { background: #7d6608; border-color: #f1c40f; }
-    .btn-sm { padding: .2rem .5rem; font-size: .85rem; }
-    .tab-bar { display: flex; gap: 2px; margin-bottom: 1rem; border-bottom: 2px solid #444; }
-    .tab { padding: .5rem 1rem; background: #1e1e1e; border: 1px solid #444; border-bottom: none; border-radius: 4px 4px 0 0; cursor: pointer; color: #aaa; }
-    .tab-active { background: #2d2d2d; color: #fff; border-color: #2980b9; }
-    .data-table { width: 100%; border-collapse: collapse; margin-bottom: 1rem; }
-    .data-table th { background: #1a1a2e; padding: .5rem; text-align: left; border-bottom: 2px solid #444; font-size: .85rem; color: #aaa; }
-    .data-table td { padding: .4rem .5rem; border-bottom: 1px solid #333; font-size: .85rem; }
-    .data-table tr:hover { background: #2a2a3e; }
-    .row-alert { background: #3c1111 !important; }
-    .row-warning { background: #3c3211 !important; }
-    .row-override { background: #2a2a0a !important; }
-    .text-danger { color: #e74c3c; font-weight: bold; }
+    /* Canonical classes (lookup-bar, alert, alert-*, btn, btn-primary, btn-secondary,
+       btn-sm, tab, tab-bar, data-table, data-table tr.row-danger/.row-warning) live in
+       app.css. Page-specific layout and the clinical status/severity badges live here. */
+    .lookup-bar input { padding: .4rem .6rem; border: 1px solid #d4d9e0; border-radius: 4px; background: #f9fafb; color: #333; min-width: 220px; }
+    .tab-active { background: #fff; color: #003f72; border-color: #003f72; font-weight: 600; }
+    .row-alert { background: #fef2f2 !important; }
+    .row-override { background: #fffbeb !important; }
+    .text-danger { color: #b91c1c; font-weight: bold; }
     .status-badge { padding: .15rem .4rem; border-radius: 3px; font-size: .8rem; font-weight: 600; }
-    .status-badge.status-notscreened { background: #555; color: #ccc; }
-    .status-badge.status-cleared { background: #1e6e3e; color: #fff; }
-    .status-badge.status-blockedpendingoverride { background: #8b1a1a; color: #fff; }
-    .status-badge.status-overriddenbypharmacist { background: #6e4b1e; color: #fff; }
+    .status-badge.status-notscreened { background: #e5e7eb; color: #374151; }
+    .status-badge.status-cleared { background: #dcfce7; color: #166534; }
+    .status-badge.status-blockedpendingoverride { background: #fde8e8; color: #b91c1c; }
+    .status-badge.status-overriddenbypharmacist { background: #fef3c7; color: #92400e; }
     .severity-badge { padding: .15rem .4rem; border-radius: 3px; font-size: .8rem; font-weight: 600; }
-    .severity-badge.severity-minor { background: #2a4a2a; color: #8f8; }
-    .severity-badge.severity-moderate { background: #4a4a1a; color: #ff8; }
-    .severity-badge.severity-significant { background: #6e3a1a; color: #fa8; }
-    .severity-badge.severity-contraindicated { background: #6e1a1a; color: #f88; }
-    .entry-form { background: #1e1e2e; border: 1px solid #444; border-radius: 6px; padding: 1rem; margin-bottom: 1rem; }
+    .severity-badge.severity-minor { background: #dcfce7; color: #166534; }
+    .severity-badge.severity-moderate { background: #fef3c7; color: #92400e; }
+    .severity-badge.severity-significant { background: #ffedd5; color: #9a3412; }
+    .severity-badge.severity-contraindicated { background: #fde8e8; color: #b91c1c; }
+    .entry-form { background: #f4f6f9; border: 1px solid #d4d9e0; border-radius: 6px; padding: 1rem; margin-bottom: 1rem; }
     .form-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: .75rem; }
-    .form-field label { display: block; font-size: .8rem; color: #aaa; margin-bottom: .2rem; }
-    .form-field input, .form-field select, .form-field textarea { width: 100%; padding: .35rem .5rem; background: #1a1a1a; border: 1px solid #555; border-radius: 4px; color: #ddd; }
+    .form-field label { display: block; font-size: .8rem; color: #555; margin-bottom: .2rem; }
+    .form-field input, .form-field select, .form-field textarea { width: 100%; padding: .35rem .5rem; background: #f9fafb; border: 1px solid #d4d9e0; border-radius: 4px; color: #333; }
     .form-field.full-width { grid-column: 1 / -1; }
     .form-actions { display: flex; gap: .5rem; margin-top: .75rem; }
-    .detail-panel { background: #1e1e2e; border: 1px solid #444; border-radius: 6px; padding: 1rem; }
-    .detail-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: .4rem; margin-bottom: 1rem; }
-    .notes-section pre { background: #1a1a1a; padding: .75rem; border-radius: 4px; white-space: pre-wrap; color: #ccc; }
-    .empty-state { color: #888; font-style: italic; padding: 2rem; text-align: center; }
+    .detail-panel { background: #f9fafb; border: 1px solid #d4d9e0; border-radius: 6px; padding: 1rem; }
+    .detail-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: .4rem; margin-bottom: 1rem; color: #333; }
+    .notes-section pre { background: #f4f6f9; padding: .75rem; border-radius: 4px; white-space: pre-wrap; color: #333; }
+    .empty-state { color: #555; font-style: italic; padding: 2rem; text-align: center; }
 </style>

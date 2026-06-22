@@ -39,7 +39,7 @@
         @if (userState.HasActiveSession)
         {
             <span class="session-detail">Since @userState.SessionStartTime?.ToString("MM/dd/yyyy HH:mm") | Device: @(userState.ClientDevice ?? "—") | IP: @(userState.ClientIpAddress ?? "—") | Timeout: @userState.SessionTimeoutMinutes min</span>
-            <button @onclick="ForceEndSession" class="btn btn-danger btn-sm">End Session</button>
+            <button @onclick="ForceEndSession" class="btn btn-primary btn-sm">End Session</button>
         }
     </div>
 
@@ -65,7 +65,7 @@
                             <td class="code">@key</td>
                             <td>@(def?.Category ?? "—")</td>
                             <td>
-                                <button @onclick="() => RevokeKey(key)" class="btn btn-danger btn-sm" disabled="@revoking">Revoke</button>
+                                <button @onclick="() => RevokeKey(key)" class="btn btn-primary btn-sm" disabled="@revoking">Revoke</button>
                             </td>
                         </tr>
                     }
@@ -285,7 +285,6 @@
     .btn-primary { background: #003f72; color: white; }
     .btn-primary:disabled { background: #999; cursor: not-allowed; }
     .btn-secondary { background: #6b7280; color: white; }
-    .btn-danger { background: #b91c1c; color: white; }
     .btn-sm { padding: 0.25rem 0.75rem; font-size: 0.75rem; }
     .alert { padding: 0.75rem 1rem; border-radius: 4px; margin-bottom: 1rem; }
     .alert-error { background: #fde8e8; color: #b91c1c; border: 1px solid #f5c6c6; }

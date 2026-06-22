@@ -81,7 +81,7 @@
                             <td>
                                 @if (m.IsActive)
                                 {
-                                    <button class="btn-sm btn-danger" @onclick="() => RemoveMember(m.ProviderId)">Remove</button>
+                                    <button class="btn btn-primary" @onclick="() => RemoveMember(m.ProviderId)">Remove</button>
                                 }
                             </td>
                         </tr>
@@ -318,6 +318,5 @@
     .form-row input, .form-row select { flex: 1; padding: 6px 8px; }
     .detail-panel { background: #f8f9fa; padding: 12px; border-radius: 4px; margin: 12px 0; }
     .btn-sm { padding: 4px 8px; font-size: 0.8em; cursor: pointer; }
-    .btn-danger { background: #dc3545; color: #fff; border: none; border-radius: 3px; }
     .btn-demo { background: #6c757d; color: #fff; border: none; border-radius: 4px; }
 </style>

@@ -165,8 +165,8 @@
             }
             @if (detailOrder.Status == "ACTIVE" || detailOrder.Status == "PENDING")
             {
-                <button @onclick="ShowDiscontinue" disabled="@isActing" class="btn-danger">Discontinue</button>
-                <button @onclick="HoldOrder" disabled="@isActing" class="btn-warning">Hold</button>
+                <button @onclick="ShowDiscontinue" disabled="@isActing" class="btn btn-primary">Discontinue</button>
+                <button @onclick="HoldOrder" disabled="@isActing" class="btn btn-primary">Hold</button>
             }
             @if (detailOrder.Status == "HOLD")
             {
@@ -190,7 +190,7 @@
         {
             <div class="input-row">
                 <input @bind="discontinueReason" placeholder="Discontinue reason" class="input-field" />
-                <button @onclick="ConfirmDiscontinue" class="btn-danger">Confirm D/C</button>
+                <button @onclick="ConfirmDiscontinue" class="btn btn-primary">Confirm D/C</button>
                 <button @onclick="() => showDiscontinueInput = false" class="btn-secondary">Cancel</button>
             </div>
         }
@@ -219,13 +219,8 @@
     .search-bar { display: flex; gap: 8px; align-items: center; margin-bottom: 16px; flex-wrap: wrap; }
     .input-field { padding: 6px 10px; border: 1px solid #ccc; border-radius: 4px; min-width: 240px; }
     .input-field.short { min-width: 100px; }
-    .btn-primary { padding: 6px 14px; background: #0078d4; color: white; border: none; border-radius: 4px; cursor: pointer; }
-    .btn-primary:hover { background: #005a9e; }
-    .btn-secondary { padding: 6px 14px; background: #f3f3f3; color: #333; border: 1px solid #ccc; border-radius: 4px; cursor: pointer; }
     .btn-action { padding: 5px 12px; background: #107c41; color: white; border: none; border-radius: 4px; cursor: pointer; margin-right: 4px; }
     .btn-action:hover { background: #0b5c30; }
-    .btn-danger { padding: 5px 12px; background: #d13438; color: white; border: none; border-radius: 4px; cursor: pointer; margin-right: 4px; }
-    .btn-warning { padding: 5px 12px; background: #ca5010; color: white; border: none; border-radius: 4px; cursor: pointer; margin-right: 4px; }
     .error-banner { background: #fde7e9; border: 1px solid #d13438; color: #a4262c; padding: 8px 12px; border-radius: 4px; margin-bottom: 12px; }
     .profile-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
     .legend { font-size: 0.85em; color: #555; }

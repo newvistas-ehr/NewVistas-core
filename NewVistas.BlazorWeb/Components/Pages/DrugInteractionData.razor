@@ -37,7 +37,7 @@
     <div class="toolbar">
         <button @onclick="LoadStatus" disabled="@loading">Refresh Status</button>
         <button @onclick="LoadDemo" disabled="@loading" class="btn-demo">Load Demo Dataset</button>
-        <button @onclick="ClearDataset" disabled="@loading" class="btn-danger">Clear Dataset</button>
+        <button @onclick="ClearDataset" disabled="@loading" class="btn btn-primary">Clear Dataset</button>
     </div>
 
     @if (loading) { <p class="loading-msg">Loading...</p> }
@@ -397,54 +397,50 @@
 }
 
 <style>
-    .subtitle { color: #888; margin-top: -8px; font-size: 0.9em; }
-    .tabs { display: flex; gap: 4px; margin: 16px 0 12px; }
+    /* Canonical classes (tab, tab-bar, data-table, badge, badge-*, btn, btn-primary,
+       btn-secondary, alert) live in app.css. Page-specific layout and the clinical
+       severity badges (badge-minor/moderate/significant/contraindicated) live here. */
+    .subtitle { color: #555; margin-top: -8px; font-size: 0.9em; }
     .toolbar { display: flex; gap: 8px; margin: 12px 0; align-items: center; }
-    .input-id { padding: 6px; border: 1px solid #555; border-radius: 4px; width: 200px; background: #1a1a2e; color: #eee; }
-    button { padding: 6px 14px; border: 1px solid #555; border-radius: 4px; cursor: pointer; background: #2a2a3e; color: #eee; }
-    button:hover:not(:disabled) { background: #3a3a5e; }
-    button:disabled { opacity: .5; cursor: not-allowed; }
-    .btn-demo { background: #1a3a5a; }
-    .btn-danger { background: #4a1a1a; color: #faa; }
-    .btn-sm { padding: 2px 7px; font-size: 0.78em; }
-    .btn-remove { background: #4a1a1a; color: #faa; }
-    .loading-msg { color: #aaa; }
-    .error { color: #f66; margin: 8px 0; padding: 8px; background: #3a1a1a; border-radius: 4px; }
-    .success { color: #6f6; margin: 8px 0; padding: 8px; background: #1a3a1a; border-radius: 4px; }
-    .detail-panel { margin-top: 16px; padding: 16px; background: #1a1a2e; border: 1px solid #444; border-radius: 6px; }
+    .input-id { padding: 6px; border: 1px solid #d4d9e0; border-radius: 4px; width: 200px; background: #f9fafb; color: #333; }
+    .toolbar > button { padding: 6px 14px; border: 1px solid #d4d9e0; border-radius: 4px; cursor: pointer; background: #f4f6f9; color: #333; }
+    .toolbar > button:hover:not(:disabled) { background: #eaf2fb; }
+    .toolbar > button:disabled { opacity: .5; cursor: not-allowed; }
+    .btn-demo { background: #dbeafe; color: #1e40af; }
+    .error { color: #b91c1c; margin: 8px 0; padding: 8px; background: #fef2f2; border: 1px solid #b91c1c; border-radius: 4px; }
+    .success { color: #166534; margin: 8px 0; padding: 8px; background: #f0fdf4; border: 1px solid #166534; border-radius: 4px; }
+    .badge-minor { background: #dcfce7; color: #166534; }
+    .badge-moderate { background: #fef3c7; color: #92400e; }
+    .badge-significant { background: #fde8e8; color: #b91c1c; }
+    .badge-contraindicated { background: #fde8e8; color: #b91c1c; font-size: 0.72em; }
+    .badge-unknown { background: #e5e7eb; color: #374151; }
+    .form-panel { padding: 16px; background: #f4f6f9; border: 1px solid #d4d9e0; border-radius: 6px; max-width: 600px; }
+    .form-panel h3 { color: #003f72; margin-top: 0; }
+    .ingredient-row button { padding: 4px 8px; border: 1px solid #d4d9e0; border-radius: 4px; cursor: pointer; background: #f4f6f9; color: #333; }
+    .ingredient-actions button { padding: 6px 14px; border: 1px solid #d4d9e0; border-radius: 4px; cursor: pointer; background: #f4f6f9; color: #333; }
+    .loading-msg { color: #555; }
+    .detail-panel { margin-top: 16px; padding: 16px; background: #f9fafb; border: 1px solid #d4d9e0; border-radius: 6px; }
     .status-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 12px; }
-    .status-card { padding: 12px; background: #1e1e38; border: 1px solid #444; border-radius: 6px; text-align: center; }
-    .status-label { color: #999; font-size: 0.85em; margin-bottom: 4px; }
-    .status-value { color: #fff; font-size: 1.2em; font-weight: bold; }
-    .status-loaded { border-left: 3px solid #4a4; }
-    .status-empty { border-left: 3px solid #c44; }
-    .cache-info { color: #aaa; margin-top: 12px; }
+    .status-card { padding: 12px; background: #f4f6f9; border: 1px solid #d4d9e0; border-radius: 6px; text-align: center; }
+    .status-label { color: #555; font-size: 0.85em; margin-bottom: 4px; }
+    .status-value { color: #003f72; font-size: 1.2em; font-weight: bold; }
+    .status-loaded { border-left: 3px solid #166534; }
+    .status-empty { border-left: 3px solid #b91c1c; }
+    .cache-info { color: #555; margin-top: 12px; }
     .info-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 8px; margin-bottom: 8px; }
-    .info-item { padding: 4px 0; color: #ccc; }
-    .info-item .label { color: #888; font-weight: bold; }
+    .info-item { padding: 4px 0; color: #333; }
+    .info-item .label { color: #555; font-weight: bold; }
     .interaction-detail { display: flex; flex-direction: column; gap: 6px; }
-    .data-table { width: 100%; border-collapse: collapse; font-size: 0.88em; margin-top: 10px; }
-    .data-table th { background: #2a2a4e; color: #ddd; padding: 6px 10px; text-align: left; }
-    .data-table td { padding: 5px 10px; border-bottom: 1px solid #333; color: #ccc; }
-    .data-table tr:hover { background: #252540; cursor: pointer; }
     .desc-cell { max-width: 400px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    .ien { color: #777; font-size: 0.8em; }
-    .count-label { color: #888; font-size: 0.85em; margin-top: 4px; }
-    .badge { padding: 2px 8px; border-radius: 10px; font-size: 0.78em; font-weight: bold; }
-    .badge-minor { background: #4a4; color: #fff; }
-    .badge-moderate { background: #d80; color: #fff; }
-    .badge-significant { background: #c44; color: #fff; }
-    .badge-contraindicated { background: #a00; color: #fff; font-size: 0.72em; }
-    .badge-unknown { background: #666; color: #fff; }
-    .form-panel { padding: 16px; background: #1a1a2e; border: 1px solid #444; border-radius: 6px; max-width: 600px; }
-    .form-panel h3 { color: #ddd; margin-top: 0; }
-    .hint { color: #888; font-size: 0.85em; margin-bottom: 12px; }
+    .ien { color: #666; font-size: 0.8em; }
+    .count-label { color: #555; font-size: 0.85em; margin-top: 4px; }
+    .hint { color: #555; font-size: 0.85em; margin-bottom: 12px; }
     .ingredient-row { display: flex; gap: 8px; margin-bottom: 6px; align-items: center; }
-    .ingredient-row input { padding: 4px; border: 1px solid #555; border-radius: 3px; background: #12122a; color: #eee; flex: 1; }
+    .ingredient-row input { padding: 4px; border: 1px solid #d4d9e0; border-radius: 3px; background: #f9fafb; color: #333; flex: 1; }
     .ingredient-actions { display: flex; gap: 8px; margin-top: 12px; }
     .result-panel { padding: 12px; border-radius: 6px; margin-top: 16px; }
-    .result-ok { background: #1a3a1a; color: #6f6; border: 1px solid #4a4; }
-    .result-alert { background: #3a1a1a; color: #f66; border: 1px solid #c44; }
+    .result-ok { background: #f0fdf4; color: #166534; border: 1px solid #166534; }
+    .result-alert { background: #fef2f2; color: #b91c1c; border: 1px solid #b91c1c; }
     .interaction-card { margin-top: 8px; }
-    .interaction-header { display: flex; gap: 8px; align-items: center; margin-bottom: 8px; color: #eee; }
+    .interaction-header { display: flex; gap: 8px; align-items: center; margin-bottom: 8px; color: #333; }
 </style>

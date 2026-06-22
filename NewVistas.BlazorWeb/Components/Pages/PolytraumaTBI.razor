@@ -381,8 +381,8 @@
        badge, badge-*, empty-state) are defined once in app.css per UI-CONVENTIONS.md.
        Only page-specific styles (sub-tabs, forms, detail panel) live here. */
     .sub-tabs { display: flex; gap: 4px; margin: 12px 0; }
-    .sub-tab-btn { padding: 5px 12px; border: 1px solid #d4d9e0; background: #f4f6f9; color: #333; cursor: pointer; border-radius: 4px; }
-    .sub-tab-btn.active { background: #003f72; color: #fff; border-color: #003f72; }
+    .sub-tab { padding: 5px 12px; border: 1px solid #d4d9e0; background: #f4f6f9; color: #333; cursor: pointer; border-radius: 4px; }
+    .sub-tab.active { background: #003f72; color: #fff; border-color: #003f72; }
     .toolbar { display: flex; gap: 12px; align-items: center; margin-bottom: 12px; }
     .search-bar { display: flex; gap: 8px; margin-bottom: 12px; }
     .selected-row { background: #eaf2fb !important; }
@@ -440,7 +440,7 @@
     protected override async Task OnInitializedAsync() => await LoadRegistry();
 
     private string TabClass(int tab) => $"tab{(activeTab == tab ? " active" : "")}";
-    private string SubTabClass(int tab) => $"sub-tab-btn{(activeSubTab == tab ? " active" : "")}";
+    private string SubTabClass(int tab) => $"sub-tab{(activeSubTab == tab ? " active" : "")}";
     private string ResultClass(TBIScreeningResult r) => r switch
     {
         TBIScreeningResult.Negative => "badge-success",

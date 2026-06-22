@@ -242,7 +242,7 @@
                 @if (selectedWorkOrder.LaborEntries.Count > 0)
                 {
                     <h4>Labor (@selectedWorkOrder.LaborEntries.Count entries, @selectedWorkOrder.ActualHours.ToString("F1") hrs total)</h4>
-                    <table class="data-table data-table-sm">
+                    <table class="data-table data-table-compact">
                         <thead><tr><th>Technician</th><th>Date</th><th>Hours</th><th>Notes</th></tr></thead>
                         <tbody>
                             @foreach (WoLaborEntry labor in selectedWorkOrder.LaborEntries)
@@ -262,7 +262,7 @@
                 @if (selectedWorkOrder.PartsEntries.Count > 0)
                 {
                     <h4>Parts Used</h4>
-                    <table class="data-table data-table-sm">
+                    <table class="data-table data-table-compact">
                         <thead><tr><th>Part #</th><th>Description</th><th>Qty</th><th>Unit Cost</th><th>Total</th></tr></thead>
                         <tbody>
                             @foreach (WoPartEntry part in selectedWorkOrder.PartsEntries)
@@ -554,7 +554,7 @@
 
     .filter-bar { display: flex; gap: 0.5rem; margin-bottom: 1rem; flex-wrap: wrap; align-items: center; }
 
-    .data-table-sm td, .data-table-sm th { padding: 0.25rem 0.5rem; font-size: 0.8rem; }
+    .data-table-compact td, .data-table-compact th { padding: 0.25rem 0.5rem; font-size: 0.8rem; }
     .data-table tr.priority-emergency { background-color: #fff1f2; }
     .data-table tr.priority-urgent { background-color: #fffbeb; }
 
