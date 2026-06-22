@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Prescribing &amp; Safety Gate — Physician Manual — NewVistas</title>
+  <link rel="stylesheet" href="../assets/css/manual.css" />
+</head>
+<body>
+  <div class="topbar">
+    <div class="brand"><a href="../index.html">NewVistas</a> <span>· User Manual</span></div>
+    <div class="role-pill">🩺 Physician</div>
+  </div>
+
+  <div class="layout">
+    <nav class="sidebar">
+      <div class="section">Physician Manual</div>
+      <a href="index.html">Overview</a>
+      <a href="getting-started.html">Getting Started</a>
+      <div class="section">Chart &amp; Workflows</div>
+      <a href="cover-sheet.html">Cover Sheet</a>
+      <a href="problem-list.html">Problem List</a>
+      <a href="prescribing.html" class="active">Prescribing &amp; Safety Gate</a>
+      <div class="section">&nbsp;</div>
+      <a href="../index.html">← All roles</a>
+    </nav>
+
+    <main class="content">
+      <div class="crumb"><a href="../index.html">Manual</a> › <a href="index.html">Physician</a> › Prescribing &amp; Safety Gate</div>
+      <h1>Prescribing &amp; the Safety Gate</h1>
+      <p class="lead">
+        Electronic Prescribing of Controlled Substances (EPCS), and the patient-safety
+        confirmation that stops a dangerous order before it's written.
+      </p>
+
+      <h2>Write an e-Prescription</h2>
+      <ol class="steps">
+        <li>In the sidebar, open <kbd>EPCS</kbd> (or go to <code>/epcs</code>).</li>
+        <li>Enter the patient ID and click <kbd>Load</kbd>.</li>
+        <li>Click <kbd>New e-Rx</kbd> to open the prescription form.</li>
+        <li>Fill in the drug, DEA schedule, quantity, days supply, sig, and prescriber details.</li>
+        <li>Click <kbd>Create e-Prescription</kbd>. For a normal order it's written immediately and appears in the list.</li>
+      </ol>
+      <figure class="shot">
+        <img src="../assets/img/doctor/prescribing-epcs.png" alt="EPCS prescribing screen" />
+        <figcaption>The EPCS screen — e-Prescriptions list, the New e-Rx form, and provider credentials.</figcaption>
+      </figure>
+
+      <h2>The controlled-substance safety gate</h2>
+      <p>
+        When an order's daily dose is dangerously high for its DEA schedule, the
+        system <strong>will not let it through on a single click</strong>. Instead
+        it raises a Tier-2 confirmation that is deliberately designed to defeat
+        muscle-memory: the safe choice (Cancel) is the primary, right-most button,
+        and the override is secondary, on the left, and disabled until you prove
+        you read the warning.
+      </p>
+
+      <h3>High dose — type-to-confirm</h3>
+      <p>
+        For a high-but-survivable dose, you may override — but only after typing
+        the drug name exactly and recording an audited reason.
+      </p>
+      <figure class="shot">
+        <img src="../assets/img/doctor/prescribing-safety-warn.png" alt="Safety confirmation requiring type-to-confirm and a reason" />
+        <figcaption>Warn-range order: the Override button stays disabled until you type the drug name exactly <em>and</em> enter a reason. The reason is appended to the order's Sig for audit.</figcaption>
+      </figure>
+
+      <h3>Lethal dose — co-signature required</h3>
+      <p>
+        For an order in the lethal range (for example, 100 tablets per day of a
+        Schedule II opioid), a single prescriber <strong>cannot override it at
+        all</strong>. The Override button is disabled and the order requires a
+        pharmacist or attending co-signature.
+      </p>
+      <figure class="shot">
+        <img src="../assets/img/doctor/prescribing-safety-lethal.png" alt="Lethal-range order blocked, requiring co-signature" />
+        <figcaption>Lethal-range order: Override is disabled outright; the only single-user action is "Cancel / Modify order." A co-signature is required to proceed.</figcaption>
+      </figure>
+
+      <div class="callout safety">
+        <span class="ct">⚠ Why this exists</span>
+        A prescription for 100 Nucynta per day should never be approvable by a
+        reflexive click. The gate forces you to stop and read. Patient-safety
+        friction here is intentional — it is enforced by the system, not left to
+        a differently-colored button you might learn to ignore.
+      </div>
+
+      <h3>Thresholds</h3>
+      <table style="border-collapse:collapse;font-size:.9rem;margin:.5rem 0">
+        <thead>
+          <tr>
+            <th style="text-align:left;border-bottom:2px solid #d4d9e0;padding:.4rem .8rem;color:#003f72">DEA Schedule</th>
+            <th style="text-align:left;border-bottom:2px solid #d4d9e0;padding:.4rem .8rem;color:#003f72">Warn (type-to-confirm)</th>
+            <th style="text-align:left;border-bottom:2px solid #d4d9e0;padding:.4rem .8rem;color:#003f72">Lethal (co-sign)</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td style="padding:.35rem .8rem;border-bottom:1px solid #eee">Schedule II</td><td style="padding:.35rem .8rem;border-bottom:1px solid #eee">over 12 / day</td><td style="padding:.35rem .8rem;border-bottom:1px solid #eee">24 / day or more</td></tr>
+          <tr><td style="padding:.35rem .8rem;border-bottom:1px solid #eee">Schedule III–V</td><td style="padding:.35rem .8rem;border-bottom:1px solid #eee">over 24 / day</td><td style="padding:.35rem .8rem;border-bottom:1px solid #eee">48 / day or more</td></tr>
+        </tbody>
+      </table>
+      <p style="color:#555;font-size:.88rem">Daily dose = quantity ÷ days supply. The same gate guards dispensing at Pharmacy Point of Sale.</p>
+
+      <div class="callout note">
+        <span class="ct">Normal prescribing is unaffected</span>
+        Routine orders (e.g. Oxycodone 5&nbsp;mg every 6 hours = 4/day) never see
+        the gate — it only appears for genuinely dangerous daily doses.
+      </div>
+
+      <footer>NewVistas User Manual · Physician · Prescribing &amp; Safety Gate</footer>
+    </main>
+  </div>
+</body>
+</html>

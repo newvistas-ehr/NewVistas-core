@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Cover Sheet — Physician Manual — NewVistas</title>
+  <link rel="stylesheet" href="../assets/css/manual.css" />
+</head>
+<body>
+  <div class="topbar">
+    <div class="brand"><a href="../index.html">NewVistas</a> <span>· User Manual</span></div>
+    <div class="role-pill">🩺 Physician</div>
+  </div>
+
+  <div class="layout">
+    <nav class="sidebar">
+      <div class="section">Physician Manual</div>
+      <a href="index.html">Overview</a>
+      <a href="getting-started.html">Getting Started</a>
+      <div class="section">Chart &amp; Workflows</div>
+      <a href="cover-sheet.html" class="active">Cover Sheet</a>
+      <a href="problem-list.html">Problem List</a>
+      <a href="prescribing.html">Prescribing &amp; Safety Gate</a>
+      <div class="section">&nbsp;</div>
+      <a href="../index.html">← All roles</a>
+    </nav>
+
+    <main class="content">
+      <div class="crumb"><a href="../index.html">Manual</a> › <a href="index.html">Physician</a> › Cover Sheet</div>
+      <h1>Cover Sheet</h1>
+      <p class="lead">
+        The Cover Sheet is the one-screen summary of a patient — problems,
+        allergies, medications, reminders, recent labs and vitals, appointments,
+        and active orders — plus quick actions to start new work. It's the
+        equivalent of the CPRS Cover Sheet tab.
+      </p>
+
+      <h2>Open the Cover Sheet</h2>
+      <ol class="steps">
+        <li>In the sidebar, under <strong>Clinical</strong>, click <kbd>Cover Sheet</kbd> (or go to <code>/cover-sheet</code>).</li>
+        <li>In the <strong>Patient ID</strong> field, type the patient ID (e.g. <code>P9001</code>).</li>
+        <li>Click <kbd>Load</kbd> (or press <kbd>Enter</kbd>).</li>
+      </ol>
+
+      <figure class="shot">
+        <img src="../assets/img/doctor/cover-sheet.png" alt="Cover Sheet for a loaded patient" />
+        <figcaption>The Cover Sheet — patient banner, quick-action bar, and summary panels.</figcaption>
+      </figure>
+
+      <h2>What you see</h2>
+      <h3>Patient banner</h3>
+      <p>At the top, the patient banner shows identity and at-a-glance flags:</p>
+      <ul>
+        <li>Name (bold, navy), sex, and age.</li>
+        <li>If admitted — an <strong>amber</strong> badge with the room/bed.</li>
+        <li>If service-connected — a <strong>green</strong> badge showing the SC percent.</li>
+        <li>If CWAD flags exist (Crisis / Warning / Allergy / Directive) — a <strong>red</strong> badge.</li>
+      </ul>
+      <div class="callout note">
+        <span class="ct">Color = meaning</span>
+        Badge colors are consistent across the whole system: red = danger/alert,
+        amber = caution, green = good/active. The same scheme appears on labs,
+        vitals, and order priorities.
+      </div>
+
+      <h3>Quick-action bar</h3>
+      <p>Below the banner, four shortcuts start common work for this patient:</p>
+      <ul>
+        <li><strong>New Order</strong>, <strong>New Medication</strong>, <strong>New Lab Order</strong>, <strong>New Consult</strong>.</li>
+      </ul>
+
+      <h3>Summary panels</h3>
+      <p>The body is a grid of bordered cards, each a live summary:</p>
+      <ul>
+        <li><strong>Active Problems</strong> — code, diagnosis, onset.</li>
+        <li><strong>Allergies</strong> — allergen, severity, reactions (always shown in full).</li>
+        <li><strong>Active Medications</strong> — drug, sig, status.</li>
+        <li><strong>Clinical Reminders</strong> — name, status, due date.</li>
+        <li><strong>Recent Labs</strong> — flagged (abnormal) values appear in red.</li>
+        <li><strong>Recent Vitals</strong> — abnormal values flagged in red.</li>
+        <li><strong>Appointments</strong> — clinic, date/time, status (with a + Follow-Up button).</li>
+        <li><strong>Active Orders</strong> — order text, status, start date.</li>
+      </ul>
+      <div class="callout tip">
+        <span class="ct">Tip</span>
+        Empty panels say so in italics ("No active problems", "No Known
+        Allergies") rather than showing a blank box — so you can tell "none" from
+        "not loaded."
+      </div>
+
+      <footer>NewVistas User Manual · Physician · Cover Sheet</footer>
+    </main>
+  </div>
+</body>
+</html>

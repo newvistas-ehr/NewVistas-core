@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Problem List — Physician Manual — NewVistas</title>
+  <link rel="stylesheet" href="../assets/css/manual.css" />
+</head>
+<body>
+  <div class="topbar">
+    <div class="brand"><a href="../index.html">NewVistas</a> <span>· User Manual</span></div>
+    <div class="role-pill">🩺 Physician</div>
+  </div>
+
+  <div class="layout">
+    <nav class="sidebar">
+      <div class="section">Physician Manual</div>
+      <a href="index.html">Overview</a>
+      <a href="getting-started.html">Getting Started</a>
+      <div class="section">Chart &amp; Workflows</div>
+      <a href="cover-sheet.html">Cover Sheet</a>
+      <a href="problem-list.html" class="active">Problem List</a>
+      <a href="prescribing.html">Prescribing &amp; Safety Gate</a>
+      <div class="section">&nbsp;</div>
+      <a href="../index.html">← All roles</a>
+    </nav>
+
+    <main class="content">
+      <div class="crumb"><a href="../index.html">Manual</a> › <a href="index.html">Physician</a> › Problem List</div>
+      <h1>Problem List</h1>
+      <p class="lead">
+        Review and maintain the patient's active and inactive problems. Each
+        problem can carry an ICD-10 code, onset date, and status.
+      </p>
+
+      <h2>Open the Problem List</h2>
+      <ol class="steps">
+        <li>In the sidebar, under <strong>Clinical</strong>, click <kbd>Problems</kbd> (or go to <code>/problems</code>).</li>
+        <li>Enter the patient ID in the lookup bar and click <kbd>Load</kbd>.</li>
+        <li>The <strong>Problems</strong> tab lists active problems; switch tabs to record a new one.</li>
+      </ol>
+
+      <figure class="shot">
+        <img src="../assets/img/doctor/problems.png" alt="Problem List for a loaded patient" />
+        <figcaption>The Problem List — a patient bar, tabs, and the canonical data table shared across the system.</figcaption>
+      </figure>
+
+      <h2>Add a problem</h2>
+      <ol class="steps">
+        <li>Click the <kbd>Record Problem</kbd> tab.</li>
+        <li>Enter the <strong>problem text</strong> (e.g. <code>Type 2 diabetes mellitus</code>).</li>
+        <li>Add the <strong>ICD-10 code</strong> if known (you can look it up under Reference › ICD-10 Codes).</li>
+        <li>Set the <strong>onset date</strong> and status (Active / Inactive).</li>
+        <li>Click <kbd>Save</kbd>. A green confirmation appears and the new problem shows in the list.</li>
+      </ol>
+
+      <div class="callout tip">
+        <span class="ct">Consistent forms</span>
+        Every data-entry screen in NewVistas uses the same form layout, the same
+        navy primary button, and the same green success / red error banners — so
+        once you've learned one screen, you've learned them all.
+      </div>
+
+      <div class="callout note">
+        <span class="ct">Where it shows up</span>
+        Active problems also appear in the <a href="cover-sheet.html">Cover Sheet</a>
+        summary and feed clinical reminders and the diabetes registry.
+      </div>
+
+      <footer>NewVistas User Manual · Physician · Problem List</footer>
+    </main>
+  </div>
+</body>
+</html>
