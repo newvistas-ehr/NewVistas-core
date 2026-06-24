@@ -33,8 +33,12 @@ public static class SharedCluster
                 var builder = new TestClusterBuilder(1);
                 builder.AddSiloBuilderConfigurator<AllStoresConfigurator>();
                 builder.AddClientBuilderConfigurator<TransactionClientConfigurator>();
-                _cluster = builder.Build();
-                _cluster.Deploy();
+                // Publish the singleton only once fully deployed — assigning _cluster
+                // before Deploy() completes lets the lock-free fast path hand another
+                // fixture a non-deployed cluster under ParallelScope.Fixtures.
+                var cluster = builder.Build();
+                cluster.Deploy();
+                _cluster = cluster;
                 return _cluster;
             }
         }

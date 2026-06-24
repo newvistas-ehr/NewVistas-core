@@ -3,6 +3,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 using System.Text;
+using Orleans;
 using NewVistas.Abstractions.GrainStates;
 
 namespace NewVistas.Abstractions.Services;
@@ -35,11 +36,23 @@ public interface IClinicalNarrativeService
     Task<NarrativeResult> ComposeAsync(ClinicalSummaryContext context, CancellationToken cancellationToken = default);
 }
 
-/// <summary>Output of a narrative composition: the prose and its constituent claims.</summary>
+/// <summary>
+/// Output of a narrative composition: the prose, its constituent claims, and the
+/// provider that produced it. Serializable because it crosses the worker-grain
+/// boundary back to the per-patient summary grain.
+/// </summary>
+[GenerateSerializer]
 public sealed class NarrativeResult
 {
-    public string Narrative { get; init; } = string.Empty;
-    public List<SummaryClaim> Claims { get; init; } = new();
+    [Id(0)]
+    public string Narrative { get; set; } = string.Empty;
+
+    [Id(1)]
+    public List<SummaryClaim> Claims { get; set; } = new();
+
+    /// <summary>Provider that produced this result (e.g., "offline-template", "claude").</summary>
+    [Id(2)]
+    public string ProviderName { get; set; } = string.Empty;
 }
 
 /// <summary>
@@ -83,6 +96,7 @@ public sealed class TemplateClinicalNarrativeService : IClinicalNarrativeService
         {
             Narrative = narrative.ToString(),
             Claims = claims,
+            ProviderName = ProviderName,
         });
     }
 

@@ -1,0 +1,41 @@
+// Copyright 2026 Merrimack Valley Software Works, LLC. All rights reserved.
+// This Source Code Form is subject to the terms of the Mozilla Public
+// License, v. 2.0. If a copy of the MPL was not distributed with this
+// file, You can obtain one at https://mozilla.org/MPL/2.0/.
+using Microsoft.Extensions.DependencyInjection;
+using NewVistas.Abstractions.Services;
+
+namespace NewVistas.AI;
+
+/// <summary>
+/// Registers the live clinical-narrative model behind the seam. When disabled (the
+/// default) this is a no-op and the offline <see cref="TemplateClinicalNarrativeService"/>
+/// registered by the host remains the active <see cref="IClinicalNarrativeService"/>.
+/// </summary>
+public static class ClinicalNarrativeServiceCollectionExtensions
+{
+    /// <summary>
+    /// Wires the live narrative provider when <paramref name="options"/> is enabled.
+    /// The live client is wrapped in <see cref="ResilientClinicalNarrativeService"/> so a
+    /// model failure degrades to the grounded template rather than breaking the summary.
+    /// Call this BEFORE the host registers the template default (a plain AddSingleton here
+    /// wins over the host's TryAddSingleton fallback).
+    /// </summary>
+    public static IServiceCollection AddClinicalNarrativeAi(
+        this IServiceCollection services, ClinicalNarrativeOptions options)
+    {
+        if (!options.Enabled)
+            return services;
+
+        if (!string.Equals(options.Provider, "claude", StringComparison.OrdinalIgnoreCase))
+            throw new NotSupportedException($"Clinical narrative provider '{options.Provider}' is not implemented.");
+
+        services.AddSingleton(options);
+        services.AddSingleton<IClinicalNarrativeService>(_ =>
+            new ResilientClinicalNarrativeService(
+                new ClaudeClinicalNarrativeService(options),
+                new TemplateClinicalNarrativeService()));
+
+        return services;
+    }
+}

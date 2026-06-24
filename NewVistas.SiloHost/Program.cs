@@ -3,6 +3,7 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using NewVistas.AI;
 using NewVistas.Abstractions.Services;
 using NewVistas.SiloHost.Infrastructure;
 using NewVistas.SiloHost.Infrastructure.Cdc;
@@ -27,8 +28,15 @@ builder.Services.AddSingleton<IPatientIndexSnapshotService, PatientIndexSnapshot
 builder.Services.AddSingleton<IRouteValidationService, RouteValidationService>();
 builder.Services.TryAddSingleton<IRxNavDoseFormClient, NullRxNavDoseFormClient>();
 
-// Clinical-summary narrative seam. Offline default composes grounded summaries with
-// no model/network; a live Azure OpenAI / Claude client can replace it via config.
+// Clinical-summary narrative seam. When the "ClinicalNarrative" config section is
+// Enabled, a live Claude client (Anthropic SDK), wrapped in a resilient fallback, is
+// registered. Otherwise the offline template below composes grounded summaries with no
+// model or network access. The live registration (plain AddSingleton) wins over the
+// TryAddSingleton template fallback when present.
+ClinicalNarrativeOptions narrativeOptions = builder.Configuration
+    .GetSection(ClinicalNarrativeOptions.SectionName)
+    .Get<ClinicalNarrativeOptions>() ?? new ClinicalNarrativeOptions();
+builder.Services.AddClinicalNarrativeAi(narrativeOptions);
 builder.Services.TryAddSingleton<IClinicalNarrativeService, TemplateClinicalNarrativeService>();
 
 // Legacy flag still consulted directly by the database-init step below.

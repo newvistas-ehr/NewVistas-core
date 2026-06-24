@@ -87,6 +87,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "NewVistas.AppHost", "NewVis
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "NewVistas.ServiceDefaults", "NewVistas.ServiceDefaults\NewVistas.ServiceDefaults.csproj", "{0F2AF83A-EBD1-41CD-B06B-F3EEA5B48E55}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "NewVistas.AI", "NewVistas.AI\NewVistas.AI.csproj", "{7FCBD1C5-15EF-4920-BF42-3D9483D230EB}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -325,6 +327,18 @@ Global
 		{0F2AF83A-EBD1-41CD-B06B-F3EEA5B48E55}.Release|x64.Build.0 = Release|Any CPU
 		{0F2AF83A-EBD1-41CD-B06B-F3EEA5B48E55}.Release|x86.ActiveCfg = Release|Any CPU
 		{0F2AF83A-EBD1-41CD-B06B-F3EEA5B48E55}.Release|x86.Build.0 = Release|Any CPU
+		{7FCBD1C5-15EF-4920-BF42-3D9483D230EB}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{7FCBD1C5-15EF-4920-BF42-3D9483D230EB}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{7FCBD1C5-15EF-4920-BF42-3D9483D230EB}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{7FCBD1C5-15EF-4920-BF42-3D9483D230EB}.Debug|x64.Build.0 = Debug|Any CPU
+		{7FCBD1C5-15EF-4920-BF42-3D9483D230EB}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{7FCBD1C5-15EF-4920-BF42-3D9483D230EB}.Debug|x86.Build.0 = Debug|Any CPU
+		{7FCBD1C5-15EF-4920-BF42-3D9483D230EB}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{7FCBD1C5-15EF-4920-BF42-3D9483D230EB}.Release|Any CPU.Build.0 = Release|Any CPU
+		{7FCBD1C5-15EF-4920-BF42-3D9483D230EB}.Release|x64.ActiveCfg = Release|Any CPU
+		{7FCBD1C5-15EF-4920-BF42-3D9483D230EB}.Release|x64.Build.0 = Release|Any CPU
+		{7FCBD1C5-15EF-4920-BF42-3D9483D230EB}.Release|x86.ActiveCfg = Release|Any CPU
+		{7FCBD1C5-15EF-4920-BF42-3D9483D230EB}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

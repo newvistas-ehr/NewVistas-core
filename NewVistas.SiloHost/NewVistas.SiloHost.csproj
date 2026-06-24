@@ -21,6 +21,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\NewVistas.Abstractions\NewVistas.Abstractions.csproj" />
+    <ProjectReference Include="..\NewVistas.AI\NewVistas.AI.csproj" />
     <ProjectReference Include="..\NewVistas.PT\NewVistas.PT.csproj" />
     <ProjectReference Include="..\NewVistas.ServiceDefaults\NewVistas.ServiceDefaults.csproj" />
   </ItemGroup>

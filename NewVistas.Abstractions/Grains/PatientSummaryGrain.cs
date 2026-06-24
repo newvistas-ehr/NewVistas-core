@@ -18,15 +18,12 @@ namespace NewVistas.Abstractions.Grains;
 public class PatientSummaryGrain : Grain, IPatientSummaryGrain
 {
     private readonly IPersistentState<PatientSummaryState> _state;
-    private readonly IClinicalNarrativeService _narrative;
 
     public PatientSummaryGrain(
         [PersistentState("patientSummaryState", "patientSummaryStore")]
-        IPersistentState<PatientSummaryState> state,
-        IClinicalNarrativeService narrative)
+        IPersistentState<PatientSummaryState> state)
     {
         _state = state;
-        _narrative = narrative;
     }
 
     private IPatientWorkflowGrain Workflow() =>
@@ -39,9 +36,12 @@ public class PatientSummaryGrain : Grain, IPatientSummaryGrain
         // 1. RETRIEVE + GROUND: pull discrete facts from the chart, each with provenance.
         ClinicalSummaryContext context = await BuildContextAsync(patientId, purpose);
 
-        // 2. NARRATE: the model composes prose from the supplied facts (it is not the
-        //    source of any fact). The provider is swappable behind the seam.
-        NarrativeResult result = await _narrative.ComposeAsync(context);
+        // 2. NARRATE: composition runs in a stateless-worker grain so a slow/external
+        //    model call doesn't pin this per-patient grain. The provider is swappable
+        //    behind the seam; the model composes prose from the supplied facts only.
+        NarrativeResult result = await GrainFactory
+            .GetGrain<IClinicalNarrativeWorkerGrain>(ClinicalNarrativeWorkerGrain.Key)
+            .ComposeAsync(context);
 
         // 3. VERIFY: no claim is trusted unless it traces back to a real source fact.
         int flagged = ClinicalSummaryVerifier.Verify(context, result.Claims);
@@ -54,7 +54,7 @@ public class PatientSummaryGrain : Grain, IPatientSummaryGrain
             Narrative = result.Narrative,
             Claims = result.Claims,
             GroundingFacts = context.Facts,
-            ModelProvider = _narrative.ProviderName,
+            ModelProvider = result.ProviderName,
             Status = SummaryStatus.DraftPendingSignoff,
             GeneratedDate = DateTime.UtcNow,
             UnverifiedClaimCount = flagged,
