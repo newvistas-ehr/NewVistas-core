@@ -38,6 +38,7 @@ ClinicalNarrativeOptions narrativeOptions = builder.Configuration
     .Get<ClinicalNarrativeOptions>() ?? new ClinicalNarrativeOptions();
 builder.Services.AddClinicalNarrativeAi(narrativeOptions);
 builder.Services.TryAddSingleton<IClinicalNarrativeService, TemplateClinicalNarrativeService>();
+builder.Services.TryAddSingleton<IRadiologyFindingExtractor, HeuristicRadiologyFindingExtractor>();
 
 // Legacy flag still consulted directly by the database-init step below.
 // SiteProfileResolver consults the same flag independently for silo configuration.
@@ -333,6 +334,6 @@ static partial class Program
         "providerUnavailabilityStore",
         "drugSafetyAdvisoryStore", "drugSafetyAdvisoryIndexStore", "patientSafetyAdvisoryStore",
         "drugClassCohortStore", "patientDrugClassIndexStore",
-        "patientSummaryStore"
+        "patientSummaryStore", "radiologyFindingStore"
     ];
 }

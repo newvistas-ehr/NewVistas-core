@@ -35,6 +35,10 @@ public static class ClinicalNarrativeServiceCollectionExtensions
             new ResilientClinicalNarrativeService(
                 new ClaudeClinicalNarrativeService(options),
                 new TemplateClinicalNarrativeService()));
+        services.AddSingleton<IRadiologyFindingExtractor>(_ =>
+            new ResilientRadiologyFindingExtractor(
+                new ClaudeRadiologyFindingExtractor(options),
+                new HeuristicRadiologyFindingExtractor()));
 
         return services;
     }

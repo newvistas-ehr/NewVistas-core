@@ -78,6 +78,7 @@ public static class SharedCluster
             siloBuilder.Services.AddSingleton<IRouteValidationService, RouteValidationService>();
             siloBuilder.Services.AddSingleton<IRxNavDoseFormClient, NullRxNavDoseFormClient>();
             siloBuilder.Services.AddSingleton<IClinicalNarrativeService, TemplateClinicalNarrativeService>();
+            siloBuilder.Services.AddSingleton<IRadiologyFindingExtractor, HeuristicRadiologyFindingExtractor>();
 
             // Federation seam — default no-op sink so the stream grain's constructor
             // dependency resolves in the test cluster.
@@ -519,6 +520,7 @@ public static class SharedCluster
             siloBuilder.AddMemoryGrainStorage("drugClassCohortStore");
             siloBuilder.AddMemoryGrainStorage("patientDrugClassIndexStore");
             siloBuilder.AddMemoryGrainStorage("patientSummaryStore");
+            siloBuilder.AddMemoryGrainStorage("radiologyFindingStore");
         }
     }
 }
