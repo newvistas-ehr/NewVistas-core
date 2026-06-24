@@ -31,6 +31,45 @@ public static class ClinicalNarrativeJson
         + "Every claim's factIds must reference FactIds from the input. Output JSON only.";
 
     /// <summary>
+    /// JSON Schema the live model is constrained to via structured outputs. Guaranteeing a
+    /// schema-valid response (no code fences, no surrounding prose) turns the tolerant parser
+    /// into a safety net rather than the first line of defence. <c>additionalProperties:false</c>
+    /// on every object and no unsupported keyword constraints (minLength, etc.) so the API accepts it.
+    /// </summary>
+    public const string ResponseSchemaJson = """
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "narrative": { "type": "string" },
+            "claims": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "text": { "type": "string" },
+                  "factIds": { "type": "array", "items": { "type": "string" } }
+                },
+                "required": ["text", "factIds"]
+              }
+            }
+          },
+          "required": ["narrative", "claims"]
+        }
+        """;
+
+    /// <summary>
+    /// The response schema as the top-level property map the Anthropic structured-outputs API
+    /// expects (output_config.format.schema). Elements are cloned so they outlive the parse.
+    /// </summary>
+    public static Dictionary<string, JsonElement> BuildResponseSchema()
+    {
+        using JsonDocument doc = JsonDocument.Parse(ResponseSchemaJson);
+        return doc.RootElement.EnumerateObject().ToDictionary(p => p.Name, p => p.Value.Clone());
+    }
+
+    /// <summary>
     /// Renders the grounded context into the user message: the purpose plus the FactId-tagged
     /// fact list the model must summarize from.
     /// </summary>

@@ -125,4 +125,29 @@ public class ClinicalNarrativeAiTests
         Assert.That(prompt, Does.Contain("F2"));
         Assert.That(prompt, Does.Contain("LISINOPRIL 10MG"));
     }
+
+    // ── Structured-output schema constrains the live response shape ─────────
+
+    [Test]
+    public void ResponseSchema_IsValid_AndDescribesNarrativeAndCitedClaims()
+    {
+        Dictionary<string, System.Text.Json.JsonElement> schema = ClinicalNarrativeJson.BuildResponseSchema();
+
+        Assert.That(schema["type"].GetString(), Is.EqualTo("object"));
+        Assert.That(schema["additionalProperties"].GetBoolean(), Is.False);
+
+        System.Text.Json.JsonElement props = schema["properties"];
+        Assert.That(props.TryGetProperty("narrative", out _), Is.True);
+        Assert.That(props.TryGetProperty("claims", out _), Is.True);
+
+        List<string?> required = schema["required"].EnumerateArray().Select(e => e.GetString()).ToList();
+        Assert.That(required, Does.Contain("narrative"));
+        Assert.That(required, Does.Contain("claims"));
+
+        // A schema-valid response (what the API now guarantees) parses cleanly.
+        const string conforming =
+            "{\"narrative\":\"S.\",\"claims\":[{\"text\":\"x\",\"factIds\":[\"F1\"]}]}";
+        NarrativeResult result = ClinicalNarrativeJson.Parse(conforming, "claude");
+        Assert.That(result.Claims[0].SupportingFactIds, Does.Contain("F1"));
+    }
 }

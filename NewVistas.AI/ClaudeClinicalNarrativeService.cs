@@ -47,6 +47,12 @@ public sealed class ClaudeClinicalNarrativeService : IClinicalNarrativeService
             MaxTokens = _options.MaxTokens,
             System = ClinicalNarrativeJson.SystemPrompt,
             Thinking = new ThinkingConfigAdaptive(),
+            // Structured outputs: constrain the response to the summary schema so it is
+            // schema-valid JSON by construction. The tolerant parser remains as a safety net.
+            OutputConfig = new OutputConfig
+            {
+                Format = new JsonOutputFormat { Schema = ClinicalNarrativeJson.BuildResponseSchema() },
+            },
             Messages = [new() { Role = Role.User, Content = ClinicalNarrativeJson.BuildUserPrompt(context) }],
         });
 
