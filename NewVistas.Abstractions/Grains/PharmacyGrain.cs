@@ -57,15 +57,22 @@ public class PharmacyGrain : Grain, IPharmacyGrain
     /// drug-interaction screening read the index, not PatientState's capped
     /// recent-window ID list.
     /// </summary>
-    private Task SyncPrescriptionIndexAsync()
+    private async Task SyncPrescriptionIndexAsync()
     {
         if (string.IsNullOrEmpty(_state.State.PatientId))
-            return Task.CompletedTask;
+            return;
 
         IPatientPrescriptionIndexGrain index = GrainFactory
             .GetGrain<IPatientPrescriptionIndexGrain>($"PSO-INDEX:{_state.State.PatientId}");
 
-        return index.AddOrUpdateEntryAsync(BuildIndexEntry(_state.State));
+        await index.AddOrUpdateEntryAsync(BuildIndexEntry(_state.State));
+
+        // Keep the class→patient reverse index live: recompute this patient's active
+        // drug-class membership from the just-updated PSO index. Powers safety-advisory
+        // cohort resolution ("which of my patients are on a PPI?").
+        await GrainFactory
+            .GetGrain<IPatientDrugClassIndexGrain>(_state.State.PatientId)
+            .RefreshAsync();
     }
 
     internal static PrescriptionIndexEntry BuildIndexEntry(PharmacyState state) => new()

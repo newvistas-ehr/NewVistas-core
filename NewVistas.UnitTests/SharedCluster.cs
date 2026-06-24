@@ -517,6 +517,8 @@ public static class SharedCluster
             siloBuilder.AddMemoryGrainStorage("drugSafetyAdvisoryStore");
             siloBuilder.AddMemoryGrainStorage("drugSafetyAdvisoryIndexStore");
             siloBuilder.AddMemoryGrainStorage("patientSafetyAdvisoryStore");
+            siloBuilder.AddMemoryGrainStorage("drugClassCohortStore");
+            siloBuilder.AddMemoryGrainStorage("patientDrugClassIndexStore");
         }
     }
 }

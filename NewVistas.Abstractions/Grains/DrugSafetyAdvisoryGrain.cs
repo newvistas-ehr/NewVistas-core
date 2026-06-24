@@ -130,6 +130,36 @@ public class DrugSafetyAdvisoryGrain : Grain, IDrugSafetyAdvisoryGrain
     public Task<bool> HasReachedAsync(string patientId) =>
         Task.FromResult(_state.State.DispatchedPatientIds.Contains(patientId));
 
+    public async Task<List<string>> GetAffectedPatientsAsync(string? providerId, bool excludeAlreadyReached = true)
+    {
+        // Union of patients across every target class, from the reverse index.
+        HashSet<string> affected = new();
+        foreach (string classCode in _state.State.TargetDrugClassCodes)
+        {
+            if (string.IsNullOrWhiteSpace(classCode))
+                continue;
+
+            List<string> patients = await GrainFactory
+                .GetGrain<IDrugClassCohortIndexGrain>(classCode.ToUpperInvariant())
+                .GetPatientsAsync();
+            affected.UnionWith(patients);
+        }
+
+        // Narrow to the provider's panel when a provider is given.
+        if (!string.IsNullOrWhiteSpace(providerId))
+        {
+            var panel = await GrainFactory
+                .GetGrain<IProviderPatientIndexGrain>($"PROV-PAT-IDX:{providerId}")
+                .GetActivePatientsAsync();
+            affected.IntersectWith(panel.Select(p => p.PatientId));
+        }
+
+        if (excludeAlreadyReached)
+            affected.ExceptWith(_state.State.DispatchedPatientIds);
+
+        return affected.OrderBy(p => p).ToList();
+    }
+
     private Task SyncIndexAsync() =>
         Index().UpsertAsync(new DrugSafetyAdvisorySummary
         {

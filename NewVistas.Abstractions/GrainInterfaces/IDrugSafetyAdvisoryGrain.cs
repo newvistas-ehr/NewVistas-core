@@ -41,4 +41,14 @@ public interface IDrugSafetyAdvisoryGrain : IGrainWithStringKey
 
     /// <summary>True if this advisory has already been dispatched to the patient.</summary>
     Task<bool> HasReachedAsync(string patientId);
+
+    /// <summary>
+    /// Resolves the affected-patient cohort for this advisory: the union of patients
+    /// across its target VA drug classes (from the class→patient reverse index). When
+    /// <paramref name="providerId"/> is supplied, the result is intersected with that
+    /// provider's active patient panel — i.e., "this provider's patients on a PPI".
+    /// Patients already reached by a prior dispatch are excluded by default so the
+    /// list shows only those still needing to be warned.
+    /// </summary>
+    Task<List<string>> GetAffectedPatientsAsync(string? providerId, bool excludeAlreadyReached = true);
 }

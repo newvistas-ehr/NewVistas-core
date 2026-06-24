@@ -187,6 +187,32 @@ public class DrugSafetyAdvisoryController : ControllerBase
         }
     }
 
+    // ─── Affected-patient cohort (provider) ─────────────────────────────────────
+
+    /// <summary>
+    /// Resolves the affected-patient cohort for an advisory from the class→patient
+    /// reverse index. Pass <c>providerId</c> to get just that provider's patients
+    /// (the "my patients on a PPI" list). Excludes patients already reached by default.
+    /// This is the list the provider reviews before dispatching.
+    /// </summary>
+    [HttpGet("{advisoryId}/affected-patients")]
+    [ProducesResponseType(typeof(List<string>), StatusCodes.Status200OK)]
+    public async Task<ActionResult<List<string>>> GetAffectedPatients(
+        string advisoryId,
+        [FromQuery] string? providerId = null,
+        [FromQuery] bool excludeAlreadyReached = true)
+    {
+        try
+        {
+            return Ok(await Advisory(advisoryId).GetAffectedPatientsAsync(providerId, excludeAlreadyReached));
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error resolving affected patients for advisory {AdvisoryId}", advisoryId);
+            return StatusCode(500, "An error occurred while resolving affected patients.");
+        }
+    }
+
     // ─── Dispatch (provider) ────────────────────────────────────────────────────
 
     /// <summary>

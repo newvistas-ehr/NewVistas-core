@@ -319,6 +319,7 @@ static partial class Program
         "physTherapyReferralIndexStore",
         "providerAvailabilityStore",
         "providerUnavailabilityStore",
-        "drugSafetyAdvisoryStore", "drugSafetyAdvisoryIndexStore", "patientSafetyAdvisoryStore"
+        "drugSafetyAdvisoryStore", "drugSafetyAdvisoryIndexStore", "patientSafetyAdvisoryStore",
+        "drugClassCohortStore", "patientDrugClassIndexStore"
     ];
 }
