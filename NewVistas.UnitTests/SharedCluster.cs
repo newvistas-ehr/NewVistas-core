@@ -86,6 +86,7 @@ public static class SharedCluster
             // InpatientOrderGrain). RxNav client defaults to the offline no-op.
             siloBuilder.Services.AddSingleton<IRouteValidationService, RouteValidationService>();
             siloBuilder.Services.AddSingleton<IRxNavDoseFormClient, NullRxNavDoseFormClient>();
+            siloBuilder.Services.AddSingleton<IClinicalNarrativeService, TemplateClinicalNarrativeService>();
 
             // Silo-local caches for the StatelessWorker reader grains
             // (drug-interaction checker, patient search).
@@ -519,6 +520,7 @@ public static class SharedCluster
             siloBuilder.AddMemoryGrainStorage("patientSafetyAdvisoryStore");
             siloBuilder.AddMemoryGrainStorage("drugClassCohortStore");
             siloBuilder.AddMemoryGrainStorage("patientDrugClassIndexStore");
+            siloBuilder.AddMemoryGrainStorage("patientSummaryStore");
         }
     }
 }

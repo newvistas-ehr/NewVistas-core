@@ -27,6 +27,10 @@ builder.Services.AddSingleton<IPatientIndexSnapshotService, PatientIndexSnapshot
 builder.Services.AddSingleton<IRouteValidationService, RouteValidationService>();
 builder.Services.TryAddSingleton<IRxNavDoseFormClient, NullRxNavDoseFormClient>();
 
+// Clinical-summary narrative seam. Offline default composes grounded summaries with
+// no model/network; a live Azure OpenAI / Claude client can replace it via config.
+builder.Services.TryAddSingleton<IClinicalNarrativeService, TemplateClinicalNarrativeService>();
+
 // Legacy flag still consulted directly by the database-init step below.
 // SiteProfileResolver consults the same flag independently for silo configuration.
 bool useSqlExpress = SiteProfileResolver.UsesSqlExpressFlag(args);
@@ -320,6 +324,7 @@ static partial class Program
         "providerAvailabilityStore",
         "providerUnavailabilityStore",
         "drugSafetyAdvisoryStore", "drugSafetyAdvisoryIndexStore", "patientSafetyAdvisoryStore",
-        "drugClassCohortStore", "patientDrugClassIndexStore"
+        "drugClassCohortStore", "patientDrugClassIndexStore",
+        "patientSummaryStore"
     ];
 }
