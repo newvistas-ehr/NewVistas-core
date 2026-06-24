@@ -1235,7 +1235,8 @@ public partial class PatientWorkflowGrain
                 Sig = state.Sig,
                 Status = state.Status ?? "",
                 FillDate = state.FillDate,
-                RefillsRemaining = state.RefillsRemaining
+                RefillsRemaining = state.RefillsRemaining,
+                DrugId = state.DrugId
             })
             .ToList();
     }
@@ -1269,7 +1270,8 @@ public partial class PatientWorkflowGrain
                 Sig = state.Sig,
                 Status = state.Status ?? "",
                 FillDate = state.FillDate,
-                RefillsRemaining = state.RefillsRemaining
+                RefillsRemaining = state.RefillsRemaining,
+                DrugId = state.DrugId
             })
             .ToList();
     }

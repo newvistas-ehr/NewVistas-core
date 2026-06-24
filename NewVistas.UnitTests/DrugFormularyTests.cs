@@ -566,5 +566,102 @@ public class DrugClassIndexGrainTests
     }
 }
 
-// ─── Test Silo Configurator ───────────────────────────────────────────────────
+// ─── DrugGrain Multi-Class Tests ──────────────────────────────────────────────
+
+[TestFixture]
+public class DrugGrainMultiClassTests
+{
+    private TestCluster _cluster = default!;
+
+    [OneTimeSetUp]
+    public void OneTimeSetup()
+    {
+        _cluster = SharedCluster.Instance;
+    }
+
+    [Test]
+    public async Task SaveDrug_RoundTripsSecondaryDrugClassCodes()
+    {
+        IDrugGrain grain = _cluster.GrainFactory.GetGrain<IDrugGrain>("DRUG-MC-1");
+
+        await grain.SaveDrugAsync(new DrugState
+        {
+            LocalName = "ASPIRIN/CAFFEINE TAB",
+            PrimaryDrugClassCode = "CN103",
+            PrimaryDrugClassName = "NONOPIOID ANALGESICS",
+            SecondaryDrugClassCodes = ["CN309", "BL117"]
+        });
+
+        DrugState state = await grain.GetDrugAsync();
+        Assert.That(state.PrimaryDrugClassCode, Is.EqualTo("CN103"));
+        Assert.That(state.SecondaryDrugClassCodes, Has.Count.EqualTo(2));
+        Assert.That(state.SecondaryDrugClassCodes, Does.Contain("CN309"));
+        Assert.That(state.SecondaryDrugClassCodes, Does.Contain("BL117"));
+    }
+
+    [Test]
+    public async Task GetDrugClass_ReturnsPrimaryAndSecondaryClasses()
+    {
+        IDrugGrain grain = _cluster.GrainFactory.GetGrain<IDrugGrain>("DRUG-MC-2");
+
+        await grain.SaveDrugAsync(new DrugState
+        {
+            LocalName = "WARFARIN/MULTI TAB",
+            PrimaryDrugClassCode = "BL110",
+            PrimaryDrugClassName = "ANTICOAGULANTS",
+            SecondaryDrugClassCodes = ["CV000"]
+        });
+
+        DrugClassInfo info = await grain.GetDrugClassAsync();
+        Assert.That(info.PrimaryDrugClassCode, Is.EqualTo("BL110"));
+        Assert.That(info.PrimaryDrugClassName, Is.EqualTo("ANTICOAGULANTS"));
+        Assert.That(info.SecondaryDrugClassCodes, Does.Contain("CV000"));
+
+        // AllClassCodes is the union (primary first, then distinct secondaries).
+        Assert.That(info.AllClassCodes, Has.Count.EqualTo(2));
+        Assert.That(info.AllClassCodes[0], Is.EqualTo("BL110"));
+        Assert.That(info.AllClassCodes, Does.Contain("CV000"));
+    }
+
+    [Test]
+    public async Task GetDrugClass_DeduplicatesPrimaryAndEmptyCodes()
+    {
+        IDrugGrain grain = _cluster.GrainFactory.GetGrain<IDrugGrain>("DRUG-MC-3");
+
+        await grain.SaveDrugAsync(new DrugState
+        {
+            LocalName = "DUP CLASS TAB",
+            PrimaryDrugClassCode = "GA301",
+            PrimaryDrugClassName = "PROTON PUMP INHIBITORS",
+            // Includes a duplicate of the primary and a blank entry which must be filtered.
+            SecondaryDrugClassCodes = ["GA301", "", "GA309"]
+        });
+
+        DrugClassInfo info = await grain.GetDrugClassAsync();
+        Assert.That(info.AllClassCodes, Has.Count.EqualTo(2));
+        Assert.That(info.AllClassCodes, Does.Contain("GA301"));
+        Assert.That(info.AllClassCodes, Does.Contain("GA309"));
+        Assert.That(info.AllClassCodes, Does.Not.Contain(string.Empty));
+    }
+
+    [Test]
+    public async Task GetDrugClass_SingleClassDrug_ReturnsOnlyPrimary()
+    {
+        IDrugGrain grain = _cluster.GrainFactory.GetGrain<IDrugGrain>("DRUG-MC-4");
+
+        await grain.SaveDrugAsync(new DrugState
+        {
+            LocalName = "SINGLE CLASS TAB",
+            PrimaryDrugClassCode = "CV200",
+            PrimaryDrugClassName = "ANTIHYPERTENSIVE AGENTS"
+        });
+
+        DrugClassInfo info = await grain.GetDrugClassAsync();
+        Assert.That(info.SecondaryDrugClassCodes, Is.Empty);
+        Assert.That(info.AllClassCodes, Has.Count.EqualTo(1));
+        Assert.That(info.AllClassCodes[0], Is.EqualTo("CV200"));
+    }
+}
+
+// ─── Test Silo Configurator ──────────────────────────────────────────────────
 

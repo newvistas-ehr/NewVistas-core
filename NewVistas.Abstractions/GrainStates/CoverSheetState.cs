@@ -177,6 +177,15 @@ public class MedicationSummary
 
     [Id(5)]
     public int? RefillsRemaining { get; set; }
+
+    /// <summary>
+    /// Facility drug IEN (File #50) this prescription was written for, when known.
+    /// Lets class-based DUR checks (duplicate therapy) resolve the drug's full VA
+    /// therapeutic class set via <c>IDrugGrain.GetDrugClassAsync</c>. Null for
+    /// free-text or legacy prescriptions with no linked drug-file entry.
+    /// </summary>
+    [Id(6)]
+    public string? DrugId { get; set; }
 }
 
 [GenerateSerializer]

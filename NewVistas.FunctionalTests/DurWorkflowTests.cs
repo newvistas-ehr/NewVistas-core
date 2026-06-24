@@ -117,6 +117,92 @@ public class DurWorkflowTests
         Assert.That(dupCheck.CheckType, Is.EqualTo(DurCheckType.DuplicateDrug));
     }
 
+    // ─── Duplicate Therapy / Drug Class (multi-class) ───────────────────────
+
+    [Test]
+    public async Task PerformDur_DuplicateTherapy_SharedSecondaryClass_Detected()
+    {
+        string patientId = $"PATIENT-{Guid.NewGuid()}";
+        IPatientWorkflowGrain wf = Workflow(patientId);
+
+        // Active medication: a multi-class facility drug — primary CN103, secondary CV000.
+        string activeDrugIen = $"DRUG-{Guid.NewGuid()}";
+        await _cluster.GrainFactory.GetGrain<IDrugGrain>(activeDrugIen).SaveDrugAsync(new DrugState
+        {
+            LocalName = "ASPIRIN 325MG",
+            PrimaryDrugClassCode = "CN103",
+            PrimaryDrugClassName = "NONOPIOID ANALGESICS",
+            SecondaryDrugClassCodes = ["CV000"]
+        });
+
+        IPharmacyGrain rx = _cluster.GrainFactory.GetGrain<IPharmacyGrain>($"RX-{Guid.NewGuid()}");
+        await rx.CreatePrescriptionAsync(
+            patientId, "ASPIRIN 325MG", activeDrugIen, "325mg", "ORAL", "QD", "Take once daily",
+            30, 30, 3, null, null, null, null, null, null);
+
+        // New drug: different PRIMARY class (BL110) but it shares the SECONDARY class
+        // CV000. A primary-only check would miss this; multi-class matching must catch it.
+        string newDrugIen = $"DRUG-{Guid.NewGuid()}";
+        await _cluster.GrainFactory.GetGrain<IDrugGrain>(newDrugIen).SaveDrugAsync(new DrugState
+        {
+            LocalName = "WARFARIN 5MG",
+            PrimaryDrugClassCode = "BL110",
+            PrimaryDrugClassName = "ANTICOAGULANTS",
+            SecondaryDrugClassCodes = ["CV000"]
+        });
+
+        string assessmentId = await wf.PerformDurAsync(
+            $"RX-{Guid.NewGuid()}", "WARFARIN 5MG", newDrugIen, "BL110",
+            "5mg", "ORAL", "QD", 30, 30, null, null,
+            false, null, "PHARM-001");
+
+        DurAssessmentState state = await wf.GetDurAssessmentAsync(assessmentId);
+        DurCheckResult dupTherapy = state.Checks.First(c => c.CheckType == DurCheckType.DuplicateTherapy);
+
+        Assert.That(dupTherapy.Outcome, Is.EqualTo(DurOutcome.Fail));
+        Assert.That(dupTherapy.ConflictingEntityName, Is.EqualTo("ASPIRIN 325MG"));
+        Assert.That(dupTherapy.Details, Does.Contain("CV000"));
+    }
+
+    [Test]
+    public async Task PerformDur_NoSharedDrugClass_Passes()
+    {
+        string patientId = $"PATIENT-{Guid.NewGuid()}";
+        IPatientWorkflowGrain wf = Workflow(patientId);
+
+        string activeDrugIen = $"DRUG-{Guid.NewGuid()}";
+        await _cluster.GrainFactory.GetGrain<IDrugGrain>(activeDrugIen).SaveDrugAsync(new DrugState
+        {
+            LocalName = "METFORMIN 500MG",
+            PrimaryDrugClassCode = "HS502",
+            PrimaryDrugClassName = "ORAL HYPOGLYCEMIC AGENTS"
+        });
+
+        IPharmacyGrain rx = _cluster.GrainFactory.GetGrain<IPharmacyGrain>($"RX-{Guid.NewGuid()}");
+        await rx.CreatePrescriptionAsync(
+            patientId, "METFORMIN 500MG", activeDrugIen, "500mg", "ORAL", "BID", "Take twice daily",
+            30, 60, 3, null, null, null, null, null, null);
+
+        // New drug shares no class with the active metformin → no duplicate therapy.
+        string newDrugIen = $"DRUG-{Guid.NewGuid()}";
+        await _cluster.GrainFactory.GetGrain<IDrugGrain>(newDrugIen).SaveDrugAsync(new DrugState
+        {
+            LocalName = "AMLODIPINE 5MG",
+            PrimaryDrugClassCode = "CV200",
+            PrimaryDrugClassName = "ANTIHYPERTENSIVE AGENTS"
+        });
+
+        string assessmentId = await wf.PerformDurAsync(
+            $"RX-{Guid.NewGuid()}", "AMLODIPINE 5MG", newDrugIen, "CV200",
+            "5mg", "ORAL", "QD", 30, 30, null, null,
+            false, null, "PHARM-001");
+
+        DurAssessmentState state = await wf.GetDurAssessmentAsync(assessmentId);
+        DurCheckResult dupTherapy = state.Checks.First(c => c.CheckType == DurCheckType.DuplicateTherapy);
+
+        Assert.That(dupTherapy.Outcome, Is.EqualTo(DurOutcome.Pass));
+    }
+
     // ─── Drug-Allergy Contraindication ──────────────────────────────────────
 
     [Test]

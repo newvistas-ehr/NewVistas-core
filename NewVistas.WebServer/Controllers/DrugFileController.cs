@@ -149,6 +149,7 @@ public class DrugFileController : ControllerBase
                 VaGenericName = request.VaGenericName ?? string.Empty,
                 PrimaryDrugClassCode = request.PrimaryDrugClassCode ?? string.Empty,
                 PrimaryDrugClassName = request.PrimaryDrugClassName ?? string.Empty,
+                SecondaryDrugClassCodes = request.SecondaryDrugClassCodes ?? new List<string>(),
                 PharmacyType = request.PharmacyType,
                 IsActive = true,
                 IsNationalFormulary = request.IsNationalFormulary,
@@ -166,6 +167,7 @@ public class DrugFileController : ControllerBase
                 VaGenericIen = request.VaGenericIen ?? string.Empty,
                 VaGenericName = request.VaGenericName ?? string.Empty,
                 PrimaryDrugClassCode = request.PrimaryDrugClassCode ?? string.Empty,
+                SecondaryDrugClassCodes = request.SecondaryDrugClassCodes ?? new List<string>(),
                 PharmacyType = request.PharmacyType,
                 IsActive = true,
                 IsNationalFormulary = request.IsNationalFormulary
@@ -456,6 +458,7 @@ public class DrugFileController : ControllerBase
                     VaGenericIen = entry.VaGenericIen,
                     VaGenericName = entry.VaGenericName,
                     PrimaryDrugClassCode = entry.PrimaryDrugClassCode,
+                    SecondaryDrugClassCodes = new List<string>(entry.SecondaryDrugClassCodes),
                     PharmacyType = entry.PharmacyType,
                     IsActive = entry.IsActive,
                     IsNationalFormulary = entry.IsNationalFormulary
@@ -557,7 +560,8 @@ public record SaveDrugRequest(
     string? PrimaryDrugClassName,
     PharmacyType PharmacyType,
     bool IsNationalFormulary,
-    bool IsLocalNonFormulary);
+    bool IsLocalNonFormulary,
+    List<string>? SecondaryDrugClassCodes = null);
 
 /// <summary>Lightweight orderable item summary for list/search results.</summary>
 public record OiSummaryDto(

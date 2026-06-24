@@ -57,4 +57,12 @@ public interface IDrugGrain : IGrainWithStringKey
     /// ingredients without activating the full NDF VA Product grain.
     /// </summary>
     Task<List<DrugIngredient>> GetIngredientsAsync();
+
+    /// <summary>
+    /// Returns this drug's VA therapeutic classification(s) — the primary class
+    /// plus any secondary classes (File #50.605) — without transferring the full
+    /// drug state. Used by class-based safety filtering so multi-class drugs are
+    /// matched against every class they belong to.
+    /// </summary>
+    Task<DrugClassInfo> GetDrugClassAsync();
 }

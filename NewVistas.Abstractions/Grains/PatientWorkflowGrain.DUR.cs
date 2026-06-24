@@ -29,6 +29,34 @@ public partial class PatientWorkflowGrain
     private IDurAssessmentIndexGrain DurIndex()
         => GrainFactory.GetGrain<IDurAssessmentIndexGrain>($"DUR-IDX:{PatientId}");
 
+    private IDrugGrain Drug(string ien)
+        => GrainFactory.GetGrain<IDrugGrain>(ien);
+
+    /// <summary>
+    /// Resolves every VA therapeutic class a drug belongs to (primary + secondary).
+    /// When a facility drug IEN (File #50) is supplied, the full multi-class set is
+    /// pulled from the drug grain; the caller-supplied single class is always folded
+    /// in as a fallback so free-text prescriptions without a linked drug still match.
+    /// Comparison is case-insensitive; blank codes are dropped.
+    /// </summary>
+    private async Task<HashSet<string>> ResolveDrugClassesAsync(string? drugId, string? fallbackClass)
+    {
+        HashSet<string> classes = new(StringComparer.OrdinalIgnoreCase);
+
+        if (!string.IsNullOrWhiteSpace(drugId))
+        {
+            DrugClassInfo info = await Drug(drugId).GetDrugClassAsync();
+            foreach (string code in info.AllClassCodes)
+                if (!string.IsNullOrWhiteSpace(code))
+                    classes.Add(code);
+        }
+
+        if (!string.IsNullOrWhiteSpace(fallbackClass))
+            classes.Add(fallbackClass);
+
+        return classes;
+    }
+
     // ─── DUR Workflow Methods ────────────────────────────────────────────────
 
     public async Task<string> PerformDurAsync(
@@ -74,30 +102,65 @@ public partial class PatientWorkflowGrain
         });
 
         // ── 2. Duplicate Therapy / Drug Class Check (PSODRDU2.m) ────────────
-        if (!string.IsNullOrEmpty(drugClass))
-        {
-            // Check prescriptions for same drug class (first 4 chars per VistA convention)
-            string classPrefix = drugClass.Length >= 4 ? drugClass[..4] : drugClass;
+        // Resolve every VA therapeutic class the new drug belongs to (primary +
+        // secondary), then compare against the class set of each active medication.
+        // Multi-class drugs match on ANY shared class so a duplicate therapy that
+        // overlaps only on a secondary class is not missed.
+        HashSet<string> newDrugClasses = await ResolveDrugClassesAsync(drugId, drugClass);
 
-            // Get prescription details to check drug class
-            // For simplicity, compare drug class against known active meds
-            // In a full implementation, each prescription would have drugClass stored
-            checks.Add(new DurCheckResult
-            {
-                CheckType = DurCheckType.DuplicateTherapy,
-                Outcome = DurOutcome.Pass,
-                Severity = "None",
-                Message = $"Drug class {drugClass} checked — no duplicate therapy detected.",
-            });
-        }
-        else
+        if (newDrugClasses.Count == 0)
         {
             checks.Add(new DurCheckResult
             {
                 CheckType = DurCheckType.DuplicateTherapy,
                 Outcome = DurOutcome.NotApplicable,
                 Severity = "None",
-                Message = "Drug class not provided — duplicate therapy check skipped.",
+                Message = "Drug class not available — duplicate therapy check skipped.",
+            });
+        }
+        else
+        {
+            // Only active meds linked to a facility drug (File #50) can be class-matched.
+            List<MedicationSummary> classCandidates = activeMeds
+                .Where(m => m.PrescriptionId != prescriptionId
+                            && m.Status == "ACTIVE"
+                            && !string.IsNullOrWhiteSpace(m.DrugId))
+                .ToList();
+
+            DrugClassInfo[] candidateClasses = await Task.WhenAll(
+                classCandidates.Select(m => Drug(m.DrugId!).GetDrugClassAsync()));
+
+            MedicationSummary? conflictMed = null;
+            List<string> sharedClasses = new();
+            for (int i = 0; i < classCandidates.Count; i++)
+            {
+                List<string> shared = candidateClasses[i].AllClassCodes
+                    .Where(newDrugClasses.Contains)
+                    .Distinct(StringComparer.OrdinalIgnoreCase)
+                    .ToList();
+
+                if (shared.Count > 0)
+                {
+                    conflictMed = classCandidates[i];
+                    sharedClasses = shared;
+                    break;
+                }
+            }
+
+            checks.Add(new DurCheckResult
+            {
+                CheckType = DurCheckType.DuplicateTherapy,
+                Outcome = conflictMed is not null ? DurOutcome.Fail : DurOutcome.Pass,
+                Severity = conflictMed is not null ? "Moderate" : "None",
+                Message = conflictMed is not null
+                    ? $"Duplicate therapy: {drugName} shares VA drug class "
+                        + $"{string.Join(", ", sharedClasses)} with active medication {conflictMed.DrugName}."
+                    : $"No duplicate therapy detected across {classCandidates.Count} class-matched active medication(s).",
+                ConflictingEntityId = conflictMed?.PrescriptionId,
+                ConflictingEntityName = conflictMed?.DrugName,
+                Details = conflictMed is not null
+                    ? $"Shared VA drug class(es): {string.Join(", ", sharedClasses)}"
+                    : null,
             });
         }
 

@@ -82,4 +82,27 @@ public class DrugGrain : Grain, IDrugGrain
 
     public Task<List<DrugIngredient>> GetIngredientsAsync() =>
         Task.FromResult(_state.State.Ingredients);
+
+    public Task<DrugClassInfo> GetDrugClassAsync()
+    {
+        DrugState s = _state.State;
+
+        List<string> all = new();
+        if (!string.IsNullOrEmpty(s.PrimaryDrugClassCode))
+            all.Add(s.PrimaryDrugClassCode);
+
+        foreach (string code in s.SecondaryDrugClassCodes)
+        {
+            if (!string.IsNullOrEmpty(code) && !all.Contains(code))
+                all.Add(code);
+        }
+
+        return Task.FromResult(new DrugClassInfo
+        {
+            PrimaryDrugClassCode = s.PrimaryDrugClassCode,
+            PrimaryDrugClassName = s.PrimaryDrugClassName,
+            SecondaryDrugClassCodes = new List<string>(s.SecondaryDrugClassCodes),
+            AllClassCodes = all
+        });
+    }
 }

@@ -119,6 +119,10 @@
                 <div><label>VA Product:</label> @selectedDrug.Drug.VaProductName</div>
                 <div><label>VA Generic:</label> @selectedDrug.Drug.VaGenericName</div>
                 <div><label>Drug Class:</label> @selectedDrug.Drug.PrimaryDrugClassName (@selectedDrug.Drug.PrimaryDrugClassCode)</div>
+                @if (selectedDrug.Drug.SecondaryDrugClassCodes.Count > 0)
+                {
+                    <div><label>Secondary Classes:</label> @string.Join(", ", selectedDrug.Drug.SecondaryDrugClassCodes)</div>
+                }
                 <div><label>Pharmacy Type:</label> @selectedDrug.Drug.PharmacyType</div>
                 <div><label>Status:</label> @(selectedDrug.Drug.IsActive ? "Active" : "Inactive")</div>
                 <div><label>National Formulary:</label> @(selectedDrug.Drug.IsNationalFormulary ? "Yes" : "No")</div>
@@ -477,7 +481,8 @@
             DrugState state = await grain.GetDrugAsync();
             selectedDrug = new DrugDetailResult(new DrugStateResult(
                 state.Ien, state.LocalName, state.VaProductName, state.VaGenericName,
-                state.PrimaryDrugClassCode, state.PrimaryDrugClassName, state.PharmacyType.ToString(),
+                state.PrimaryDrugClassCode, state.PrimaryDrugClassName,
+                new List<string>(state.SecondaryDrugClassCodes), state.PharmacyType.ToString(),
                 state.IsActive, state.InactivationDate, state.MaxDaysSupply,
                 state.Message, state.LocalMessage, state.CmopDispense,
                 state.ControlledSubstanceSchedule, state.NdcCode, state.DispenseUnit,
@@ -601,7 +606,8 @@
 
     private record DrugStateResult(
         string Ien, string LocalName, string VaProductName, string VaGenericName,
-        string PrimaryDrugClassCode, string PrimaryDrugClassName, string PharmacyType,
+        string PrimaryDrugClassCode, string PrimaryDrugClassName,
+        List<string> SecondaryDrugClassCodes, string PharmacyType,
         bool IsActive, DateTime? InactivationDate, int? MaxDaysSupply,
         string? Message, string? LocalMessage, int CmopDispense,
         string? ControlledSubstanceSchedule, string? NdcCode, string? DispenseUnit,

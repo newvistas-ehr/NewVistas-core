@@ -252,6 +252,15 @@ public class DrugState
     /// <summary>Date this drug entry was last modified.</summary>
     [Id(25)]
     public DateTime LastModifiedDate { get; set; } = DateTime.UtcNow;
+
+    /// <summary>
+    /// Secondary/additional VA drug class codes for this drug (File #50.605).
+    /// A drug may belong to more than one therapeutic class; the primary class
+    /// is held in <see cref="PrimaryDrugClassCode"/> and the remainder here.
+    /// Mirrors the national product model (<c>VaProductState.SecondaryDrugClassCodes</c>).
+    /// </summary>
+    [Id(26)]
+    public List<string> SecondaryDrugClassCodes { get; set; } = new();
 }
 
 /// <summary>
@@ -300,6 +309,42 @@ public class DrugIndexEntry
     /// <summary>Local synonym names for alternate-name search.</summary>
     [Id(9)]
     public List<string> Synonyms { get; set; } = new();
+
+    /// <summary>Secondary/additional VA drug class codes for class-based filtering.</summary>
+    [Id(10)]
+    public List<string> SecondaryDrugClassCodes { get; set; } = new();
+}
+
+/// <summary>
+/// Lightweight result describing a drug's VA therapeutic classification(s).
+/// Returned by <c>IDrugGrain.GetDrugClassAsync</c> so callers can perform
+/// class-based filtering without activating or transferring the full drug state.
+///
+/// A drug may belong to more than one class; <see cref="AllClassCodes"/> exposes
+/// the primary plus any secondary codes as a single set for matching.
+/// </summary>
+[GenerateSerializer]
+public class DrugClassInfo
+{
+    /// <summary>Primary VA drug class code (File #50.605), e.g., "GA301".</summary>
+    [Id(0)]
+    public string PrimaryDrugClassCode { get; set; } = string.Empty;
+
+    /// <summary>Denormalized primary VA drug class name.</summary>
+    [Id(1)]
+    public string PrimaryDrugClassName { get; set; } = string.Empty;
+
+    /// <summary>Secondary/additional VA drug class codes for this drug.</summary>
+    [Id(2)]
+    public List<string> SecondaryDrugClassCodes { get; set; } = new();
+
+    /// <summary>
+    /// Convenience set of every class this drug belongs to: the primary code
+    /// (when present) followed by all distinct secondary codes. Use this for
+    /// class-based safety matching so multi-class drugs are not missed.
+    /// </summary>
+    [Id(3)]
+    public List<string> AllClassCodes { get; set; } = new();
 }
 
 /// <summary>

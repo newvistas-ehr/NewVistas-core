@@ -894,6 +894,7 @@ static async Task SeedReferenceDataAsync(IGrainFactory grainFactory, ILogger log
                     VaGenericIen = entry.VaGenericIen,
                     VaGenericName = entry.VaGenericName,
                     PrimaryDrugClassCode = entry.PrimaryDrugClassCode,
+                    SecondaryDrugClassCodes = new List<string>(entry.SecondaryDrugClassCodes),
                     PharmacyType = entry.PharmacyType,
                     IsActive = entry.IsActive,
                     IsNationalFormulary = entry.IsNationalFormulary
