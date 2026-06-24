@@ -508,6 +508,9 @@ public static class SharedCluster
             siloBuilder.AddMemoryGrainStorage("provisioningTokenStore");
             siloBuilder.AddMemoryGrainStorage("provisioningTokenIndexStore");
             siloBuilder.AddMemoryGrainStorage("revocationRegistryStore");
+            siloBuilder.AddMemoryGrainStorage("drugSafetyAdvisoryStore");
+            siloBuilder.AddMemoryGrainStorage("drugSafetyAdvisoryIndexStore");
+            siloBuilder.AddMemoryGrainStorage("patientSafetyAdvisoryStore");
         }
     }
 }

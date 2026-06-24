@@ -99,6 +99,11 @@ builder.Services.AddAuthorizationBuilder()
 builder.Services.AddControllers();
 builder.Services.AddOpenApi();
 
+// Drug safety advisory ingestion seam. The offline default returns a curated seed
+// (incl. the 2010 PPI/fracture DSC); a live openFDA/DailyMed client can replace it.
+builder.Services.AddSingleton<NewVistas.Abstractions.Services.IFdaDrugWarningSource,
+                              NewVistas.Abstractions.Services.StaticFdaDrugWarningSource>();
+
 // MPI inbound handler — applied by FederationInboundApplier for Domain=="MPI"
 // envelopes (patient registered, patient merged). DefaultMpiInboundHandler is
 // the standard implementation; deployments needing additional MPI event types
