@@ -37,6 +37,14 @@ public sealed class RadiologyExtractionResult
 
     [Id(1)]
     public string ProviderName { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Non-null when a setup notice should be surfaced — e.g., live AI is enabled but no API
+    /// key is configured, so this is the offline heuristic fallback and the text explains how
+    /// to supply a key. Null in the normal case.
+    /// </summary>
+    [Id(2)]
+    public string? ConfigurationNotice { get; set; }
 }
 
 /// <summary>

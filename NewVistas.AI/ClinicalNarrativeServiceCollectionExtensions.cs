@@ -31,6 +31,19 @@ public static class ClinicalNarrativeServiceCollectionExtensions
             throw new NotSupportedException($"Clinical narrative provider '{options.Provider}' is not implemented.");
 
         services.AddSingleton(options);
+
+        // Enabled but no key (neither ClinicalNarrative:ApiKey nor the ANTHROPIC_API_KEY env
+        // var): do NOT construct a live client — that path needs a key and would fail. Register
+        // graceful wrappers that serve the offline grounded output and carry a setup notice the
+        // UI shows. This is how someone who turns AI on without a key is taught to supply their
+        // own, instead of getting a crash.
+        if (string.IsNullOrWhiteSpace(options.ResolveApiKey()))
+        {
+            services.AddSingleton<IClinicalNarrativeService>(_ => new MisconfiguredClinicalNarrativeService());
+            services.AddSingleton<IRadiologyFindingExtractor>(_ => new MisconfiguredRadiologyFindingExtractor());
+            return services;
+        }
+
         services.AddSingleton<IClinicalNarrativeService>(_ =>
             new ResilientClinicalNarrativeService(
                 new ClaudeClinicalNarrativeService(options),

@@ -58,6 +58,7 @@ public class PatientSummaryGrain : Grain, IPatientSummaryGrain
             Status = SummaryStatus.DraftPendingSignoff,
             GeneratedDate = DateTime.UtcNow,
             UnverifiedClaimCount = flagged,
+            ConfigurationNotice = result.ConfigurationNotice,
         };
 
         _state.State.PatientId = patientId;

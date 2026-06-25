@@ -27,4 +27,26 @@ public sealed class ClinicalNarrativeOptions
 
     /// <summary>Output cap. A grounded summary is small; keep this modest.</summary>
     public int MaxTokens { get; set; } = 2000;
+
+    /// <summary>
+    /// The key actually in effect: the configured <see cref="ApiKey"/> if set, otherwise the
+    /// ANTHROPIC_API_KEY environment variable (which the SDK also reads). Null/empty when
+    /// neither is present — callers degrade gracefully instead of calling the API.
+    /// </summary>
+    public string? ResolveApiKey() =>
+        string.IsNullOrWhiteSpace(ApiKey)
+            ? Environment.GetEnvironmentVariable("ANTHROPIC_API_KEY")
+            : ApiKey;
+
+    /// <summary>
+    /// Shown in the UI when live AI is enabled but no key is configured, so anyone who turns
+    /// the feature on is told how to supply their OWN key — and never sees a crash.
+    /// </summary>
+    public const string ApiKeyHelpText =
+        "Live AI is turned on, but no Anthropic API key was found — so this is the offline, " +
+        "fully-grounded summary. To use live AI, supply your own Anthropic API key:\n" +
+        "1. Get a key — sign in at https://console.anthropic.com/settings/keys and create one (starts with \"sk-ant-\").\n" +
+        "2. Provide it — set an environment variable:  setx ANTHROPIC_API_KEY \"sk-ant-...\"\n" +
+        "   (or, per project:  dotnet user-secrets set \"ClinicalNarrative:ApiKey\" \"sk-ant-...\"  in NewVistas.SiloHost).\n" +
+        "3. Restart the silo. Your key stays on your machine — never commit it to source control.";
 }

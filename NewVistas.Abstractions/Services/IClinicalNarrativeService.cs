@@ -53,6 +53,14 @@ public sealed class NarrativeResult
     /// <summary>Provider that produced this result (e.g., "offline-template", "claude").</summary>
     [Id(2)]
     public string ProviderName { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Non-null when the result needs a setup notice surfaced to the user — e.g., live AI is
+    /// enabled but no API key is configured, so this is the offline fallback and the text
+    /// explains how to supply a key. Null in the normal case.
+    /// </summary>
+    [Id(3)]
+    public string? ConfigurationNotice { get; set; }
 }
 
 /// <summary>

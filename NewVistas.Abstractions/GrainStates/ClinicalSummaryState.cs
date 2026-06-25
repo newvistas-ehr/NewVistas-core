@@ -142,6 +142,13 @@ public class ClinicalSummaryDraft
 
     [Id(10)]
     public DateTime? SignedDate { get; set; }
+
+    /// <summary>
+    /// Setup notice to surface to the clinician (e.g., live AI enabled but no API key, so this
+    /// is the offline summary and the text says how to configure a key). Null in the normal case.
+    /// </summary>
+    [Id(11)]
+    public string? ConfigurationNotice { get; set; }
 }
 
 /// <summary>
