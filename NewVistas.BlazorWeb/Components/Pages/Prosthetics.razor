@@ -9,6 +9,7 @@
 @using NewVistas.Abstractions.GrainInterfaces
 @using NewVistas.Abstractions.GrainStates
 @inject OrleansGrainService Grains
+@inject PatientContextService PatientContext
 
 <PageTitle>Prosthetics</PageTitle>
 <h1>Prosthetics &amp; Orthotics</h1>
@@ -272,7 +273,12 @@
     private DateTime sm_date = DateTime.Today.AddMonths(6); private string sm_notes = "";
     private string mr_type = "", mr_tech = "", mr_notes = ""; private decimal? mr_cost;
 
-    protected override async Task OnParametersSetAsync() { if (!string.IsNullOrWhiteSpace(patientId)) await Load(); }
+    protected override async Task OnParametersSetAsync()
+    {
+        if (string.IsNullOrWhiteSpace(patientId) && !string.IsNullOrWhiteSpace(PatientContext.PatientId))
+            patientId = PatientContext.PatientId;
+        if (!string.IsNullOrWhiteSpace(patientId)) await Load();
+    }
     private async Task HandleKeyDown(KeyboardEventArgs e) { if (e.Key == "Enter") await Load(); }
     private void SetTab(string tab) { activeTab = tab; success = null; }
     private void ShowForm() { showNew = true; success = null; f_desc = ""; f_hcpcs = ""; f_category = "PROSTHETIC"; f_provider = ""; f_location = ""; f_sc = "false"; f_comments = ""; f_date = DateTime.Today; f_qty = 1; f_cost = null; }
@@ -285,6 +291,7 @@
         {
             var workflow = Grains.GetGrain<IPatientWorkflowGrain>(patientId.Trim());
             List<ProstheticsSummary> summaries = await workflow.GetProstheticsAsync();
+            PatientContext.SetPatient(patientId.Trim());
             items = summaries.Select(s => new ProsthListDto
             {
                 ProstheticsId = s.ProstheticsId, ItemDescription = s.ItemDescription,

@@ -10,6 +10,7 @@
 @using NewVistas.Abstractions.GrainInterfaces
 @using NewVistas.Abstractions.GrainStates
 @inject OrleansGrainService Grains
+@inject PatientContextService PatientContext
 
 <PageTitle>Drug Utilization Review</PageTitle>
 <h1>Drug Utilization Review</h1>
@@ -383,6 +384,8 @@
 
     protected override async Task OnParametersSetAsync()
     {
+        if (string.IsNullOrWhiteSpace(patientId) && !string.IsNullOrWhiteSpace(PatientContext.PatientId))
+            patientId = PatientContext.PatientId;
         if (!string.IsNullOrWhiteSpace(patientId))
             await Load();
     }
@@ -404,6 +407,7 @@
             allAssessments = await workflow.GetDurAssessmentsAsync();
             pendingReviews = allAssessments.Where(a =>
                 a.Status == DurAssessmentStatus.Pending || a.Status == DurAssessmentStatus.Failed).ToList();
+            PatientContext.SetPatient(patientId.Trim());
         }
         catch (Exception ex)
         {

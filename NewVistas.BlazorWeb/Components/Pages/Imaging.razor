@@ -11,6 +11,7 @@
 @using NewVistas.Abstractions.GrainStates
 @using NewVistas.ImageStorage
 @inject OrleansGrainService Grains
+@inject PatientContextService PatientContext
 @inject IImageIngestionService Ingestion
 @inject IImageBlobStorageService Blobs
 
@@ -353,7 +354,12 @@
 
     private IPatientWorkflowGrain GetWorkflow() => Grains.GetGrain<IPatientWorkflowGrain>(patientId!.Trim());
 
-    protected override async Task OnParametersSetAsync() { if (!string.IsNullOrWhiteSpace(patientId)) await Load(); }
+    protected override async Task OnParametersSetAsync()
+    {
+        if (string.IsNullOrWhiteSpace(patientId) && !string.IsNullOrWhiteSpace(PatientContext.PatientId))
+            patientId = PatientContext.PatientId;
+        if (!string.IsNullOrWhiteSpace(patientId)) await Load();
+    }
     private async Task HandleKeyDown(KeyboardEventArgs e) { if (e.Key == "Enter") await Load(); }
     private void SetTab(string tab) { activeTab = tab; success = null; }
     private void ShowForm() { showNew = true; success = null; f_type = "XRAY"; f_desc = ""; f_capturedBy = ""; f_location = ""; f_comments = ""; selectedFile = null; }
@@ -367,6 +373,7 @@
         try
         {
             var summaries = await GetWorkflow().GetImagesAsync(100);
+            PatientContext.SetPatient(patientId.Trim());
             var listItems = new List<ImgListDto>();
             foreach (var s in summaries)
             {

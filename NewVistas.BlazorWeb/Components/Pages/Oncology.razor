@@ -9,6 +9,7 @@
 @using NewVistas.Abstractions.GrainInterfaces
 @using NewVistas.Abstractions.GrainStates
 @inject OrleansGrainService Grains
+@inject PatientContextService PatientContext
 
 <PageTitle>Oncology / Tumor Registry</PageTitle>
 
@@ -532,7 +533,7 @@
 </style>
 
 @code {
-    string patientId = string.Empty;
+    [SupplyParameterFromQuery] public string? patientId { get; set; }
     string activeTab = "registry";
     bool loading;
     bool registerLoading;
@@ -581,6 +582,14 @@
     DateTime regDxDate = DateTime.Today;
     string regDxBasis = "HistologyOfPrimary";
     string regOncologistName = string.Empty;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (string.IsNullOrWhiteSpace(patientId) && !string.IsNullOrWhiteSpace(PatientContext.PatientId))
+            patientId = PatientContext.PatientId;
+        if (!string.IsNullOrWhiteSpace(patientId))
+            await LoadAll();
+    }
 
     string TabClass(string tab) => activeTab == tab ? "active" : string.Empty;
 
@@ -633,6 +642,7 @@
         {
             var workflow = Grains.GetGrain<IPatientWorkflowGrain>(patientId.Trim());
             var tumorEntries = await workflow.GetOncologyTumorsAsync();
+            PatientContext.SetPatient(patientId.Trim());
             tumors = tumorEntries.Select(e => new OncologyTumorSummary(
                 e.TumorId, e.PrimarySite, e.PrimarySiteText, e.Histology, e.HistologyText,
                 e.DateOfDiagnosis, e.Status.ToString(), e.StageGroup, e.SequenceNumber, e.OncologistName)).ToList();
@@ -654,7 +664,7 @@
         CloseAllPanels();
         try
         {
-            var workflow = Grains.GetGrain<IPatientWorkflowGrain>(patientId.Trim());
+            var workflow = Grains.GetGrain<IPatientWorkflowGrain>(patientId!.Trim());
             var s = await workflow.GetOncologyTumorAsync(tumorId);
             selectedTumor = new OncologyTumorDetail(
                 s.TumorId, s.PatientId, s.PrimarySite, s.PrimarySiteText,
@@ -678,7 +688,7 @@
         CloseAllPanels();
         try
         {
-            var workflow = Grains.GetGrain<IPatientWorkflowGrain>(patientId.Trim());
+            var workflow = Grains.GetGrain<IPatientWorkflowGrain>(patientId!.Trim());
             var s = await workflow.GetOncologyTreatmentAsync(treatmentId);
             selectedTreatment = new OncologyTreatmentDetail(
                 s.TreatmentId, s.TumorId, s.PatientId,
@@ -698,7 +708,7 @@
         if (selectedTumorId == null) return;
         try
         {
-            var workflow = Grains.GetGrain<IPatientWorkflowGrain>(patientId.Trim());
+            var workflow = Grains.GetGrain<IPatientWorkflowGrain>(patientId!.Trim());
             await workflow.RecordOncologyStagingAsync(selectedTumorId,
                 stagingClinicalT, stagingClinicalN, stagingClinicalM,
                 stagingPathologicT, stagingPathologicN, stagingPathologicM,
@@ -713,7 +723,7 @@
         if (selectedTumorId == null) return;
         try
         {
-            var workflow = Grains.GetGrain<IPatientWorkflowGrain>(patientId.Trim());
+            var workflow = Grains.GetGrain<IPatientWorkflowGrain>(patientId!.Trim());
             await workflow.UpdateOncologyStatusAsync(selectedTumorId,
                 Enum.Parse<OncologyStatus>(statusValue), statusDate, statusNotes);
             successMsg = "Status updated."; CloseAllPanels(); await SelectTumor(selectedTumorId); await LoadAll();
@@ -726,7 +736,7 @@
         if (selectedTumorId == null) return;
         try
         {
-            var workflow = Grains.GetGrain<IPatientWorkflowGrain>(patientId.Trim());
+            var workflow = Grains.GetGrain<IPatientWorkflowGrain>(patientId!.Trim());
             await workflow.RecordOncologyRecurrenceAsync(selectedTumorId, recurrenceDate, recurrenceSite, recurrenceNotes);
             successMsg = "Recurrence recorded."; CloseAllPanels(); await SelectTumor(selectedTumorId); await LoadAll();
         }
@@ -738,7 +748,7 @@
         if (string.IsNullOrWhiteSpace(newTxTumorId) || string.IsNullOrWhiteSpace(newTxAgent)) return;
         try
         {
-            var workflow = Grains.GetGrain<IPatientWorkflowGrain>(patientId.Trim());
+            var workflow = Grains.GetGrain<IPatientWorkflowGrain>(patientId!.Trim());
             await workflow.CreateOncologyTreatmentAsync(newTxTumorId,
                 Enum.Parse<OncologyTreatmentType>(newTxType), newTxAgent,
                 newTxDose, null, newTxProvider, newTxFacility, newTxNotes);
@@ -752,7 +762,7 @@
         if (selectedTreatmentId == null) return;
         try
         {
-            var workflow = Grains.GetGrain<IPatientWorkflowGrain>(patientId.Trim());
+            var workflow = Grains.GetGrain<IPatientWorkflowGrain>(patientId!.Trim());
             await workflow.StartOncologyTreatmentAsync(selectedTreatmentId, txStartDate);
             successMsg = "Treatment started."; CloseAllPanels(); await SelectTreatment(selectedTreatmentId); await LoadAll();
         }
@@ -764,7 +774,7 @@
         if (selectedTreatmentId == null) return;
         try
         {
-            var workflow = Grains.GetGrain<IPatientWorkflowGrain>(patientId.Trim());
+            var workflow = Grains.GetGrain<IPatientWorkflowGrain>(patientId!.Trim());
             await workflow.CompleteOncologyTreatmentAsync(selectedTreatmentId, txEndDate,
                 Enum.Parse<TreatmentResponseAssessment>(txResponse), txResponseNotes);
             successMsg = "Treatment completed."; CloseAllPanels(); await SelectTreatment(selectedTreatmentId); await LoadAll();
@@ -777,7 +787,7 @@
         if (selectedTreatmentId == null || string.IsNullOrWhiteSpace(txDiscontinueReason)) return;
         try
         {
-            var workflow = Grains.GetGrain<IPatientWorkflowGrain>(patientId.Trim());
+            var workflow = Grains.GetGrain<IPatientWorkflowGrain>(patientId!.Trim());
             await workflow.DiscontinueOncologyTreatmentAsync(selectedTreatmentId, txEndDate, txDiscontinueReason, txResponseNotes);
             successMsg = "Treatment discontinued."; CloseAllPanels(); await SelectTreatment(selectedTreatmentId); await LoadAll();
         }
@@ -789,7 +799,7 @@
         if (selectedTreatmentId == null) return;
         try
         {
-            var workflow = Grains.GetGrain<IPatientWorkflowGrain>(patientId.Trim());
+            var workflow = Grains.GetGrain<IPatientWorkflowGrain>(patientId!.Trim());
             await workflow.RecordOncologyResponseAsync(selectedTreatmentId,
                 Enum.Parse<TreatmentResponseAssessment>(txResponse), txResponseDate, txResponseNotes);
             successMsg = "Response recorded."; CloseAllPanels(); await SelectTreatment(selectedTreatmentId);
@@ -802,7 +812,7 @@
         if (selectedTreatmentId == null) return;
         try
         {
-            var workflow = Grains.GetGrain<IPatientWorkflowGrain>(patientId.Trim());
+            var workflow = Grains.GetGrain<IPatientWorkflowGrain>(patientId!.Trim());
             await workflow.UpdateOncologyCyclesAsync(selectedTreatmentId, txCycles);
             successMsg = $"Cycles updated to {txCycles}."; CloseAllPanels(); await SelectTreatment(selectedTreatmentId);
         }

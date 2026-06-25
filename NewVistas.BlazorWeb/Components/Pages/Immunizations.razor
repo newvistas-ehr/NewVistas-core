@@ -9,6 +9,7 @@
 @using NewVistas.Abstractions.GrainInterfaces
 @using NewVistas.Abstractions.GrainStates
 @inject OrleansGrainService Grains
+@inject PatientContextService PatientContext
 
 <PageTitle>Immunizations</PageTitle>
 <h1>Immunizations</h1>
@@ -295,7 +296,12 @@
 
     private IPatientWorkflowGrain GetWorkflow() => Grains.GetGrain<IPatientWorkflowGrain>(patientId!.Trim());
 
-    protected override async Task OnParametersSetAsync() { if (!string.IsNullOrWhiteSpace(patientId)) await Load(); }
+    protected override async Task OnParametersSetAsync()
+    {
+        if (string.IsNullOrWhiteSpace(patientId) && !string.IsNullOrWhiteSpace(PatientContext.PatientId))
+            patientId = PatientContext.PatientId;
+        if (!string.IsNullOrWhiteSpace(patientId)) await Load();
+    }
     private async Task HandleKeyDown(KeyboardEventArgs e) { if (e.Key == "Enter") await Load(); }
     private void SetTab(string tab) { activeTab = tab; success = null; }
     private void ShowForm() { showNew = true; success = null; f_name = ""; f_cvx = ""; f_series = ""; f_lot = ""; f_mfr = ""; f_nurse = ""; f_site = ""; f_route = "IM"; f_dose = ""; f_location = ""; f_comments = ""; f_date = DateTime.Now; }
@@ -308,6 +314,7 @@
         try
         {
             var summaries = await GetWorkflow().GetImmunizationsAsync();
+            PatientContext.SetPatient(patientId.Trim());
             items = summaries.Select(s => new ImmListDto
             {
                 ImmunizationId = s.ImmunizationId, ImmunizationName = s.ImmunizationName,

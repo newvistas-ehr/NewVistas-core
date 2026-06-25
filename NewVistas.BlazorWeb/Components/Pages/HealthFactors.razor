@@ -9,6 +9,7 @@
 @using NewVistas.Abstractions.GrainInterfaces
 @using NewVistas.Abstractions.GrainStates
 @inject OrleansGrainService Grains
+@inject PatientContextService PatientContext
 
 <PageTitle>Health Factors</PageTitle>
 <h1>Health Factors</h1>
@@ -215,7 +216,12 @@
 
     private IPatientWorkflowGrain GetWorkflow() => Grains.GetGrain<IPatientWorkflowGrain>(patientId!.Trim());
 
-    protected override async Task OnParametersSetAsync() { if (!string.IsNullOrWhiteSpace(patientId)) await Load(); }
+    protected override async Task OnParametersSetAsync()
+    {
+        if (string.IsNullOrWhiteSpace(patientId) && !string.IsNullOrWhiteSpace(PatientContext.PatientId))
+            patientId = PatientContext.PatientId;
+        if (!string.IsNullOrWhiteSpace(patientId)) await Load();
+    }
     private async Task HandleKeyDown(KeyboardEventArgs e) { if (e.Key == "Enter") await Load(); }
     private void SetTab(string tab) { activeTab = tab; success = null; }
     private void ShowForm() { showNew = true; success = null; f_name = ""; f_category = ""; f_severity = ""; f_enteredBy = ""; f_location = ""; f_comments = ""; f_date = DateTime.Now; }
@@ -224,6 +230,7 @@
     private async Task Load()
     {
         if (string.IsNullOrWhiteSpace(patientId)) return;
+        PatientContext.SetPatient(patientId.Trim());
         loading = true; error = null;
         try
         {

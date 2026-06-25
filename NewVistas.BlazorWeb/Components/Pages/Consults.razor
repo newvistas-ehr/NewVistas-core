@@ -9,6 +9,7 @@
 @using NewVistas.Abstractions.GrainInterfaces
 @using NewVistas.Abstractions.GrainStates
 @inject OrleansGrainService Grains
+@inject PatientContextService PatientContext
 
 <PageTitle>Consults</PageTitle>
 <h1>Consults</h1>
@@ -387,6 +388,8 @@
 
     protected override async Task OnParametersSetAsync()
     {
+        if (string.IsNullOrWhiteSpace(patientId) && !string.IsNullOrWhiteSpace(PatientContext.PatientId))
+            patientId = PatientContext.PatientId;
         if (!string.IsNullOrWhiteSpace(patientId)) await LoadConsults();
     }
 
@@ -398,6 +401,7 @@
     private async Task LoadConsults()
     {
         if (string.IsNullOrWhiteSpace(patientId)) return;
+        PatientContext.SetPatient(patientId.Trim());
         loading = true; error = null; successMessage = null; selectedConsult = null;
         try
         {

@@ -9,6 +9,7 @@
 @using NewVistas.Abstractions.GrainInterfaces
 @using NewVistas.Abstractions.GrainStates
 @inject OrleansGrainService Grains
+@inject PatientContextService PatientContext
 
 <PageTitle>Reminders</PageTitle>
 <h1>⏰ Clinical Reminders</h1>
@@ -79,13 +80,20 @@
 
     private IPatientWorkflowGrain GetWorkflow() => Grains.GetGrain<IPatientWorkflowGrain>(patientId!.Trim());
 
-    protected override async Task OnParametersSetAsync() { if (!string.IsNullOrWhiteSpace(patientId)) await Load(); }
+    protected override async Task OnParametersSetAsync()
+    {
+        if (string.IsNullOrWhiteSpace(patientId) && !string.IsNullOrWhiteSpace(PatientContext.PatientId))
+            patientId = PatientContext.PatientId;
+        if (!string.IsNullOrWhiteSpace(patientId)) await Load();
+    }
     private async Task HandleKeyDown(KeyboardEventArgs e) { if (e.Key == "Enter") await Load(); }
     private void ShowForm() { showNew = true; success = null; f_name = ""; f_category = ""; f_priority = "NORMAL"; f_frequency = ""; f_dueDate = DateTime.Today; }
 
     private async Task Load()
     {
-        if (string.IsNullOrWhiteSpace(patientId)) return; loading = true; error = null;
+        if (string.IsNullOrWhiteSpace(patientId)) return;
+        PatientContext.SetPatient(patientId.Trim());
+        loading = true; error = null;
         try
         {
             var summaries = await GetWorkflow().GetRemindersAsync();

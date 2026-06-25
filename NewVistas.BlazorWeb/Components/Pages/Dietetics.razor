@@ -9,6 +9,7 @@
 @using NewVistas.Abstractions.GrainInterfaces
 @using NewVistas.Abstractions.GrainStates
 @inject OrleansGrainService Grains
+@inject PatientContextService PatientContext
 
 <PageTitle>Dietetics</PageTitle>
 <h1>Dietetics</h1>
@@ -306,7 +307,12 @@
 
     private IPatientWorkflowGrain GetWorkflow() => Grains.GetGrain<IPatientWorkflowGrain>(patientId!.Trim());
 
-    protected override async Task OnParametersSetAsync() { if (!string.IsNullOrWhiteSpace(patientId)) await Load(); }
+    protected override async Task OnParametersSetAsync()
+    {
+        if (string.IsNullOrWhiteSpace(patientId) && !string.IsNullOrWhiteSpace(PatientContext.PatientId))
+            patientId = PatientContext.PatientId;
+        if (!string.IsNullOrWhiteSpace(patientId)) await Load();
+    }
     private async Task HandleKeyDown(KeyboardEventArgs e) { if (e.Key == "Enter") await Load(); }
     private void SetTab(string tab) { activeTab = tab; success = null; }
     private void ShowForm() { showNew = true; success = null; f_type = "REGULAR"; f_current = ""; f_texture = "REGULAR"; f_fluid = "THIN"; f_calories = ""; f_mods = ""; f_provider = ""; f_instructions = ""; }
@@ -318,6 +324,7 @@
         try
         {
             var summaries = await GetWorkflow().GetDietOrdersAsync();
+            PatientContext.SetPatient(patientId.Trim());
             items = summaries.Select(s => new DietListDto
             {
                 DietOrderId = s.DietOrderId, DietType = s.DietType, Status = s.Status

@@ -9,6 +9,7 @@
 @using NewVistas.Abstractions.GrainInterfaces
 @using NewVistas.Abstractions.GrainStates
 @inject OrleansGrainService Grains
+@inject PatientContextService PatientContext
 
 <PageTitle>BCMA — Medication Administration Record</PageTitle>
 <h1>BCMA — Bar Code Medication Administration</h1>
@@ -254,6 +255,8 @@
 
     protected override async Task OnParametersSetAsync()
     {
+        if (string.IsNullOrWhiteSpace(patientId) && !string.IsNullOrWhiteSpace(PatientContext.PatientId))
+            patientId = PatientContext.PatientId;
         if (!string.IsNullOrWhiteSpace(patientId)) await Load();
     }
 
@@ -265,6 +268,7 @@
     private async Task Load()
     {
         if (string.IsNullOrWhiteSpace(patientId)) return;
+        PatientContext.SetPatient(patientId.Trim());
         loading = true; error = null;
         try
         {

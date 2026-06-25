@@ -9,6 +9,7 @@
 @using NewVistas.Abstractions.GrainInterfaces
 @using NewVistas.Abstractions.GrainStates
 @inject OrleansGrainService Grains
+@inject PatientContextService PatientContext
 
 <PageTitle>Immunization Forecast</PageTitle>
 
@@ -107,7 +108,7 @@ else if (featureChecked && !featureEnabled)
 }
 
 @code {
-    private string? patientId;
+    [SupplyParameterFromQuery] public string? patientId { get; set; }
     private bool loading = true;
     private bool generating;
     private bool featureEnabled;
@@ -119,6 +120,10 @@ else if (featureChecked && !featureEnabled)
     protected override async Task OnInitializedAsync()
     {
         await CheckFeatureStatus();
+        if (string.IsNullOrWhiteSpace(patientId) && !string.IsNullOrWhiteSpace(PatientContext.PatientId))
+            patientId = PatientContext.PatientId;
+        if (!string.IsNullOrWhiteSpace(patientId))
+            await GenerateForecast();
     }
 
     private async Task CheckFeatureStatus()
@@ -141,6 +146,7 @@ else if (featureChecked && !featureEnabled)
         {
             var grain = Grains.GetGrain<IImmunizationForecastGrain>($"IMM-FORECAST:{patientId.Trim()}");
             var result = await grain.GenerateForecastAsync(DateTime.Today.AddYears(-40), new List<ImmunizationEntry>());
+            PatientContext.SetPatient(patientId.Trim());
             forecastResult = new ForecastResultDto
             {
                 Success = result.Success,

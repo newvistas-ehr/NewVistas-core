@@ -9,6 +9,7 @@
 @using NewVistas.Abstractions.GrainInterfaces
 @using NewVistas.Abstractions.GrainStates
 @inject OrleansGrainService Grains
+@inject PatientContextService PatientContext
 
 <PageTitle>Surgery</PageTitle>
 <h1>Surgery</h1>
@@ -318,7 +319,12 @@
     // Specimen form
     private string sp_type = "", sp_site = "", sp_accession = "";
 
-    protected override async Task OnParametersSetAsync() { if (!string.IsNullOrWhiteSpace(patientId)) await Load(); }
+    protected override async Task OnParametersSetAsync()
+    {
+        if (string.IsNullOrWhiteSpace(patientId) && !string.IsNullOrWhiteSpace(PatientContext.PatientId))
+            patientId = PatientContext.PatientId;
+        if (!string.IsNullOrWhiteSpace(patientId)) await Load();
+    }
     private async Task HandleKeyDown(KeyboardEventArgs e) { if (e.Key == "Enter") await Load(); }
     private void SetTab(string tab) { activeTab = tab; success = null; }
     private void ShowForm() { showNew = true; success = null; f_procedure = ""; f_cpt = ""; f_surgeon = ""; f_specialty = ""; f_preop = ""; f_location = ""; f_comments = ""; f_anesthesia = ""; f_date = DateTime.Now.AddDays(7); }
@@ -333,6 +339,7 @@
         {
             var grain = Grains.GetGrain<IPatientWorkflowGrain>(patientId.Trim());
             items = await grain.GetSurgeriesAsync(100);
+            PatientContext.SetPatient(patientId.Trim());
         }
         catch (Exception ex) { error = ex.Message; } finally { loading = false; }
     }

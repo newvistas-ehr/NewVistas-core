@@ -9,6 +9,7 @@
 @using NewVistas.Abstractions.GrainInterfaces
 @using NewVistas.Abstractions.GrainStates
 @inject OrleansGrainService Grains
+@inject PatientContextService PatientContext
 
 <PageTitle>Mental Health Screening</PageTitle>
 <h1>Mental Health Screening</h1>
@@ -269,7 +270,12 @@
 
     private IPatientWorkflowGrain GetWorkflow() => Grains.GetGrain<IPatientWorkflowGrain>(patientId!.Trim());
 
-    protected override async Task OnParametersSetAsync() { if (!string.IsNullOrWhiteSpace(patientId)) await Load(); }
+    protected override async Task OnParametersSetAsync()
+    {
+        if (string.IsNullOrWhiteSpace(patientId) && !string.IsNullOrWhiteSpace(PatientContext.PatientId))
+            patientId = PatientContext.PatientId;
+        if (!string.IsNullOrWhiteSpace(patientId)) await Load();
+    }
     private async Task HandleKeyDown(KeyboardEventArgs e) { if (e.Key == "Enter") await Load(); }
     private void SetTab(string tab) { activeTab = tab; success = null; }
     private void CloseDetail() { detail = null; activeTab = "list"; }
@@ -280,6 +286,7 @@
         try
         {
             var summaries = await GetWorkflow().GetMentalHealthScreensAsync();
+            PatientContext.SetPatient(patientId.Trim());
             items = summaries.Select(s => new MhListDto
             {
                 InstrumentId = s.InstrumentId, InstrumentName = s.InstrumentName,

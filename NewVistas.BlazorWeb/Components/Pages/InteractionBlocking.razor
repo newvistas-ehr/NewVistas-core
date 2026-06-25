@@ -10,6 +10,7 @@
 @using NewVistas.Abstractions.GrainInterfaces
 @using NewVistas.Abstractions.GrainStates
 @inject OrleansGrainService Grains
+@inject PatientContextService PatientContext
 
 <PageTitle>Drug Interaction Blocking</PageTitle>
 <h1>Drug Interaction Blocking</h1>
@@ -251,6 +252,8 @@
 
     protected override async Task OnParametersSetAsync()
     {
+        if (string.IsNullOrWhiteSpace(patientId) && !string.IsNullOrWhiteSpace(PatientContext.PatientId))
+            patientId = PatientContext.PatientId;
         if (!string.IsNullOrWhiteSpace(patientId)) await Load();
     }
 
@@ -268,6 +271,7 @@
             IPatientWorkflowGrain wf = Grains.GetGrain<IPatientWorkflowGrain>(patientId.Trim());
             allScreenings = await wf.GetInteractionScreeningsAsync();
             blockedScreenings = allScreenings.Where(s => s.Status == InteractionScreeningStatus.BlockedPendingOverride).ToList();
+            PatientContext.SetPatient(patientId.Trim());
         }
         catch (Exception ex) { error = ex.Message; }
         finally { loading = false; }

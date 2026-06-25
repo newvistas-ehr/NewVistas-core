@@ -9,6 +9,7 @@
 @using NewVistas.Abstractions.GrainInterfaces
 @using NewVistas.Abstractions.GrainStates
 @inject OrleansGrainService Grains
+@inject PatientContextService PatientContext
 
 <PageTitle>External Referral Tracking</PageTitle>
 
@@ -285,7 +286,7 @@ else if (featureChecked && !featureEnabled)
     private string? error;
 
     // Tab 0: Patient Referrals
-    private string? patientId;
+    [SupplyParameterFromQuery] public string? patientId { get; set; }
     private bool loadingReferrals;
     private List<ReferralIndexDto>? patientReferrals;
     private bool showNewForm;
@@ -312,6 +313,10 @@ else if (featureChecked && !featureEnabled)
     protected override async Task OnInitializedAsync()
     {
         await CheckFeatureStatus();
+        if (string.IsNullOrWhiteSpace(patientId) && !string.IsNullOrWhiteSpace(PatientContext.PatientId))
+            patientId = PatientContext.PatientId;
+        if (!string.IsNullOrWhiteSpace(patientId))
+            await LoadPatientReferrals();
     }
 
     private async Task CheckFeatureStatus()
@@ -334,6 +339,7 @@ else if (featureChecked && !featureEnabled)
         {
             var indexGrain = Grains.GetGrain<IExternalReferralIndexGrain>("EXT-REF-IDX");
             var entries = await indexGrain.GetByPatientAsync(patientId.Trim());
+            PatientContext.SetPatient(patientId.Trim());
             patientReferrals = entries.Select(e => new ReferralIndexDto
             {
                 ReferralId = e.ReferralId, PatientId = e.PatientId, PatientName = e.PatientName,

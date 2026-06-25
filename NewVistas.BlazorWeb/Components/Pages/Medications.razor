@@ -9,6 +9,7 @@
 @using NewVistas.Abstractions.GrainInterfaces
 @using NewVistas.Abstractions.GrainStates
 @inject OrleansGrainService Grains
+@inject PatientContextService PatientContext
 
 <PageTitle>Medications</PageTitle>
 
@@ -58,7 +59,12 @@
     private bool loading;
     private string? error;
 
-    protected override async Task OnParametersSetAsync() { if (!string.IsNullOrWhiteSpace(patientId)) await Load(); }
+    protected override async Task OnParametersSetAsync()
+    {
+        if (string.IsNullOrWhiteSpace(patientId) && !string.IsNullOrWhiteSpace(PatientContext.PatientId))
+            patientId = PatientContext.PatientId;
+        if (!string.IsNullOrWhiteSpace(patientId)) await Load();
+    }
     private async Task HandleKeyDown(KeyboardEventArgs e) { if (e.Key == "Enter") await Load(); }
 
     private async Task Load()
@@ -69,6 +75,7 @@
         {
             var grain = Grains.GetGrain<IPatientWorkflowGrain>(patientId.Trim());
             items = await grain.GetActiveMedicationsAsync();
+            PatientContext.SetPatient(patientId.Trim());
         }
         catch (Exception ex) { error = $"Error loading medications: {ex.Message}"; }
         finally { loading = false; }

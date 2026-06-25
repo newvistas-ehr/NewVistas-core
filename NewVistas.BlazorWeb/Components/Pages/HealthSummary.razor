@@ -9,6 +9,7 @@
 @using NewVistas.Abstractions.GrainInterfaces
 @using NewVistas.Abstractions.GrainStates
 @inject OrleansGrainService Grains
+@inject PatientContextService PatientContext
 
 <PageTitle>Health Summary — NewVistas</PageTitle>
 
@@ -407,7 +408,7 @@
         ServiceConnectedConditions = 15, MentalHealth = 16, Dietetics = 17
     }
 
-    private string patientId = string.Empty;
+    [SupplyParameterFromQuery] public string? patientId { get; set; }
     private string activeTab = "generate";
     private bool loading;
     private bool generating;
@@ -445,7 +446,11 @@
 
     protected override async Task OnInitializedAsync()
     {
+        if (string.IsNullOrWhiteSpace(patientId) && !string.IsNullOrWhiteSpace(PatientContext.PatientId))
+            patientId = PatientContext.PatientId;
         await LoadTypes();
+        if (!string.IsNullOrWhiteSpace(patientId))
+            await LoadPatientData();
     }
 
     private async Task LoadTypes()
@@ -477,6 +482,7 @@
         {
             var workflow = Grains.GetGrain<IPatientWorkflowGrain>(patientId.Trim());
             var entries = await workflow.GetHealthSummaryListAsync();
+            PatientContext.SetPatient(patientId.Trim());
             historyEntries = entries.Select(MapIndexEntry).ToList();
             viewedReport = null;
             currentReport = null;
@@ -530,6 +536,7 @@
 
     private async Task ViewReport(string reportId)
     {
+        if (string.IsNullOrWhiteSpace(patientId)) return;
         try
         {
             var workflow = Grains.GetGrain<IPatientWorkflowGrain>(patientId.Trim());

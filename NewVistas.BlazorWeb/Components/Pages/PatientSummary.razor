@@ -9,6 +9,7 @@
 @using NewVistas.Abstractions.GrainInterfaces
 @using NewVistas.Abstractions.GrainStates
 @inject OrleansGrainService Grains
+@inject PatientContextService PatientContext
 
 <PageTitle>Clinical Summary</PageTitle>
 
@@ -155,7 +156,7 @@
 </style>
 
 @code {
-    private string patientId = string.Empty;
+    [SupplyParameterFromQuery] public string? patientId { get; set; }
     private string purpose = "Pre-op review";
     private string clinicianId = string.Empty;
     private ClinicalSummaryDraft? draft;
@@ -163,7 +164,15 @@
     private string? error;
 
     private IPatientSummaryGrain Summary() =>
-        Grains.GetGrain<IPatientSummaryGrain>(patientId.Trim());
+        Grains.GetGrain<IPatientSummaryGrain>(patientId!.Trim());
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (string.IsNullOrWhiteSpace(patientId) && !string.IsNullOrWhiteSpace(PatientContext.PatientId))
+            patientId = PatientContext.PatientId;
+        if (!string.IsNullOrWhiteSpace(patientId))
+            await LoadCurrent();
+    }
 
     private async Task Generate()
     {
@@ -191,6 +200,7 @@
         try
         {
             draft = await Summary().GetCurrentDraftAsync();
+            PatientContext.SetPatient(patientId!.Trim());
             if (draft is null)
                 error = "No summary on file for this patient yet — generate one.";
         }
