@@ -10,6 +10,7 @@
 @inject NavigationManager Navigation
 @inject PatientContextService PatientContext
 @inject UserSecurityContext SecurityContext
+@inject OrleansGrainService Grains
 @using NewVistas.Abstractions.Security
 
 <div class="app-container">
@@ -408,9 +409,31 @@
 </div>
 
 @code {
-    protected override void OnInitialized()
+    protected override async Task OnInitializedAsync()
     {
         PatientContext.OnChanged += StateHasChanged;
+
+        // Self-heal the per-circuit security context. It is normally populated by the login
+        // page, but if that didn't run for this circuit (fresh circuit, reconnect) the menu
+        // would collapse to General-only for the whole session. Load it here — straight from
+        // the silo's AccessControl grain, like every other internal page — so the navigation
+        // reflects the user's actual access.
+        if (!SecurityContext.IsInitialized)
+        {
+            var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+            if (authState.User.Identity?.IsAuthenticated == true)
+            {
+                string? userId =
+                    authState.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value
+                    ?? authState.User.FindFirst("http://schemas.xmlsoap.org/ws/2005/05/identity/claims/nameidentifier")?.Value;
+
+                if (userId is not null)
+                {
+                    await SecurityContext.InitializeAsync(Grains, userId);
+                    StateHasChanged();
+                }
+            }
+        }
     }
 
     private void Logout()

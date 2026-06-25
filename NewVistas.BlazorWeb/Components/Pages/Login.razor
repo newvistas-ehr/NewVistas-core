@@ -14,6 +14,7 @@
    grains directly. *@
 @inject HttpClient Http
 @inject UserSecurityContext SecurityContext
+@inject OrleansGrainService Grains
 
 <div class="login-container">
     <div class="login-card">
@@ -71,13 +72,14 @@
             LoginResult result = await AuthProvider.LoginAsync(userName, password);
             if (result.Success)
             {
-                // Load security keys once — cached for the session lifetime.
+                // Load security keys once — cached for the session lifetime — straight from
+                // the silo's AccessControl grain (not the WebServer; that's auth-only).
                 // All menu visibility checks are O(1) HashSet lookups from here on.
                 var authState = await AuthProvider.GetAuthenticationStateAsync();
                 string? userId = authState.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value
                     ?? authState.User.FindFirst("http://schemas.xmlsoap.org/ws/2005/05/identity/claims/nameidentifier")?.Value;
                 if (userId is not null)
-                    await SecurityContext.InitializeAsync(Http, userId);
+                    await SecurityContext.InitializeAsync(Grains, userId);
 
                 Navigation.NavigateTo("/", forceLoad: false);
             }

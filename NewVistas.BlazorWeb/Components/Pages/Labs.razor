@@ -9,6 +9,7 @@
 @using NewVistas.Abstractions.GrainInterfaces
 @using NewVistas.Abstractions.GrainStates
 @inject OrleansGrainService Grains
+@inject PatientContextService PatientContext
 
 <PageTitle>Laboratory — LR</PageTitle>
 
@@ -393,10 +394,28 @@
 
 @code {
     string activeTab = "results";
-    string patientId = string.Empty;
+    [SupplyParameterFromQuery] public string? patientId { get; set; }
+    string _loadedFor = string.Empty;
     bool loading;
     string? error;
     string? successMsg;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        // Carry the selected patient across pages (CPRS DFN-style): use the ?patientId=
+        // query param if present, else the session's current patient (the one shown in the
+        // patient bar). Auto-load so the user never re-types a patient they already picked —
+        // they shouldn't have to detour through the Cover Sheet to reach the Labs page.
+        if (string.IsNullOrWhiteSpace(patientId) && !string.IsNullOrWhiteSpace(PatientContext.PatientId))
+            patientId = PatientContext.PatientId;
+
+        if (!string.IsNullOrWhiteSpace(patientId)
+            && !string.Equals(_loadedFor, patientId, StringComparison.OrdinalIgnoreCase))
+        {
+            _loadedFor = patientId;
+            await LoadResults();
+        }
+    }
 
     // Tab 1 — Results
     List<LabResult>? results;
@@ -569,7 +588,7 @@
 
     async Task SubmitCollect()
     {
-        if (collectLabTestId is null) return;
+        if (collectLabTestId is null || string.IsNullOrWhiteSpace(patientId)) return;
         loading = true;
         try
         {
@@ -585,7 +604,7 @@
 
     async Task SubmitResult()
     {
-        if (resultLabTestId is null) return;
+        if (resultLabTestId is null || string.IsNullOrWhiteSpace(patientId)) return;
         loading = true;
         try
         {
@@ -608,7 +627,7 @@
 
     async Task SubmitVerify()
     {
-        if (verifyLabTestId is null) return;
+        if (verifyLabTestId is null || string.IsNullOrWhiteSpace(patientId)) return;
         loading = true;
         try
         {

@@ -2,6 +2,7 @@
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
+using NewVistas.Abstractions.GrainInterfaces;
 using NewVistas.Abstractions.Security;
 
 namespace NewVistas.BlazorWeb.Services;
@@ -24,29 +25,28 @@ public sealed class UserSecurityContext
     public bool IsInitialized { get; private set; }
 
     /// <summary>
-    /// Load the user's security keys from the API and precompute accessible menu areas.
-    /// Called once after successful login.
+    /// Load the user's security keys directly from the silo's AccessControl grain and
+    /// precompute accessible menu areas. Internal UIs talk to grains, not the WebServer —
+    /// the WebServer is only for authentication and external callers. The grain call is
+    /// authorized by the RequestContext that <see cref="OrleansGrainService"/> sets from
+    /// the user's JWT, so a user reads their own keys.
     /// </summary>
-    public async Task InitializeAsync(HttpClient http, string userId)
+    public async Task InitializeAsync(OrleansGrainService grains, string userId)
     {
         try
         {
-            var response = await http.GetFromJsonAsync<AclKeysResponse>(
-                $"api/accesscontrol/users/{Uri.EscapeDataString(userId)}/keys");
+            IAccessControlGrain acl = grains.GetGrain<IAccessControlGrain>($"ACL:{userId}");
+            IReadOnlySet<string> keys = await acl.GetKeysAsync();
 
-            if (response?.Keys is not null)
-            {
-                _keys = [.. response.Keys];
-                _accessibleAreas = MenuAccessMap.GetAccessibleAreas(_keys);
-            }
+            _keys = [.. keys];
+            _accessibleAreas = MenuAccessMap.GetAccessibleAreas(_keys);
+            IsInitialized = true;   // only mark initialized once keys actually load
         }
         catch
         {
-            // If key fetch fails, default to General-only access.
-            // The user can still log in but will only see general menu items.
+            // Leave IsInitialized=false on failure so the menu can retry (e.g., from
+            // MainLayout) rather than silently collapsing to General-only for the session.
         }
-
-        IsInitialized = true;
     }
 
     /// <summary>
@@ -62,12 +62,5 @@ public sealed class UserSecurityContext
         _keys = [];
         _accessibleAreas = [MenuArea.General];
         IsInitialized = false;
-    }
-
-    // DTO matching the API response shape
-    private sealed class AclKeysResponse
-    {
-        public string UserId { get; set; } = string.Empty;
-        public List<string> Keys { get; set; } = [];
     }
 }
