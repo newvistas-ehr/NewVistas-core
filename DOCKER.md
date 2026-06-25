@@ -10,7 +10,24 @@ run, so it needs **no external database or other services**.
 > which build one container per component against SQL Server. See
 > [AZURE_DEPLOY.md](AZURE_DEPLOY.md).
 
-## Build
+## Pull the published image (no build required)
+
+If a pre-built image has been published for your release, you can run it without a
+build toolchain or even the source:
+
+```bash
+docker pull ghcr.io/newvistas-ehr/newvistas:latest
+docker run --rm -p 8080:8080 -p 8081:8081 ghcr.io/newvistas-ehr/newvistas:latest
+```
+
+Pin a specific version instead of `latest` for reproducibility, e.g.
+`ghcr.io/newvistas-ehr/newvistas:1.0.0-beta.11`.
+
+> Published images are produced **per release at the maintainers' discretion**, not on
+> every commit, so the source on the public repository may be ahead of the newest
+> image. To run the exact current source, build it yourself below.
+
+## Build it yourself
 
 Build from the repository root (the build context spans several projects):
 
@@ -23,6 +40,9 @@ docker build -t newvistas .
 ```bash
 docker run --rm -p 8080:8080 -p 8081:8081 newvistas
 ```
+
+(If you pulled the published image above, use its full name —
+`ghcr.io/newvistas-ehr/newvistas:latest` — in place of `newvistas` here.)
 
 Then open:
 

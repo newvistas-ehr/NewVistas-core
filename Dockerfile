@@ -21,6 +21,7 @@ WORKDIR /src
 # Copy csproj files first for restore-layer caching — the union of project
 # dependencies across the silo, the WebServer, and the Blazor app.
 COPY NewVistas.Abstractions/NewVistas.Abstractions.csproj NewVistas.Abstractions/
+COPY NewVistas.AI/NewVistas.AI.csproj NewVistas.AI/
 COPY NewVistas.ImageStorage/NewVistas.ImageStorage.csproj NewVistas.ImageStorage/
 COPY NewVistas.PT/NewVistas.PT.csproj NewVistas.PT/
 COPY NewVistas.ServiceDefaults/NewVistas.ServiceDefaults.csproj NewVistas.ServiceDefaults/
@@ -34,6 +35,7 @@ RUN dotnet restore NewVistas.SiloHost/NewVistas.SiloHost.csproj \
 
 # Copy full source for the projects involved.
 COPY NewVistas.Abstractions/ NewVistas.Abstractions/
+COPY NewVistas.AI/ NewVistas.AI/
 COPY NewVistas.ImageStorage/ NewVistas.ImageStorage/
 COPY NewVistas.PT/ NewVistas.PT/
 COPY NewVistas.ServiceDefaults/ NewVistas.ServiceDefaults/
