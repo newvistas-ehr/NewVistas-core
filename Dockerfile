@@ -55,6 +55,12 @@ RUN dotnet publish NewVistas.SiloHost/NewVistas.SiloHost.csproj   -c Release -o 
 FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS runtime
 WORKDIR /app
 
+# Link this image to its source repository so GitHub attaches the published GHCR
+# package to newvistas-ehr/NewVistas-core (shows it in the repo's Packages sidebar).
+LABEL org.opencontainers.image.source="https://github.com/newvistas-ehr/NewVistas-core" \
+      org.opencontainers.image.description="NewVistas — all-in-one demo image (Orleans silo + REST API + Blazor Server UI; in-memory storage, demo data seeded on first run)" \
+      org.opencontainers.image.licenses="MPL-2.0"
+
 # Development environment selects the in-memory site profile (silo) + in-memory
 # Identity (WebServer), making the image self-contained. ApiBaseUrl points the
 # Blazor app at the co-hosted WebServer; NEWVISTAS_DATASET picks the seed size
