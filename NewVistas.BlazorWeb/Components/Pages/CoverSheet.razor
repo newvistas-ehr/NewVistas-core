@@ -16,14 +16,7 @@
 
 <h1>📋 Cover Sheet</h1>
 
-<div class="lookup-bar">
-    <input type="text" @bind="patientId" @bind:event="oninput"
-           @onkeydown="HandleKeyDown"
-           placeholder="Patient ID" class="lookup-input" />
-    <button @onclick="LoadCoverSheet" disabled="@(string.IsNullOrWhiteSpace(patientId) || loading)" class="btn btn-primary">
-        @if (loading) { <span>Loading...</span> } else { <span>Load</span> }
-    </button>
-</div>
+<PatientBar @bind-PatientId="patientId" Loading="loading" OnLoad="LoadCoverSheet" />
 
 @if (error != null)
 {
@@ -306,11 +299,6 @@
             await LoadCoverSheet();
     }
 
-    private async Task HandleKeyDown(KeyboardEventArgs e)
-    {
-        if (e.Key == "Enter")
-            await LoadCoverSheet();
-    }
 
     private async Task LoadCoverSheet()
     {

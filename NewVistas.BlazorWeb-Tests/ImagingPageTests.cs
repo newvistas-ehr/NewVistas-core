@@ -3,8 +3,6 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 using Bunit;
-using Microsoft.AspNetCore.Components;
-using Microsoft.Extensions.DependencyInjection;
 using NewVistas.Abstractions.GrainInterfaces;
 using NewVistas.Abstractions.GrainStates;
 using NewVistas.BlazorWeb.Components.Pages;
@@ -23,24 +21,22 @@ public class ImagingPageTests : BlazorTestBase
     }
 
     [Test]
-    public void Imaging_RendersLookupBar()
+    public void Imaging_PromptsToSelectPatientWhenNoneChosen()
     {
         var cut = Ctx.Render<Imaging>();
-        var input = cut.Find("input.lookup-input");
-        Assert.That(input, Is.Not.Null);
-        Assert.That(input.GetAttribute("placeholder"), Is.EqualTo("Patient ID"));
+        Assert.That(cut.Markup, Does.Contain("Select a patient"));
     }
 
     [Test]
-    public void Imaging_LoadButton_DisabledWhenEmpty()
+    public void Imaging_ShowsSelectedPatientInBar()
     {
+        SelectPatient("PATIENT-001", "SMITH, JOHN");
         var cut = Ctx.Render<Imaging>();
-        var button = cut.Find("button.btn-primary");
-        Assert.That(button.HasAttribute("disabled"), Is.True);
+        Assert.That(cut.Markup, Does.Contain("Change patient"));
     }
 
     [Test]
-    public async Task Imaging_LoadsDataFromGrain()
+    public void Imaging_LoadsDataFromGrain()
     {
         var images = new List<ImagingSummary>
         {
@@ -50,36 +46,32 @@ public class ImagingPageTests : BlazorTestBase
         };
         MockWorkflowGrain.GetImagesAsync(Arg.Any<int>()).Returns(images);
 
+        SelectPatient("PATIENT-001");
         var cut = Ctx.Render<Imaging>();
-        cut.Find("input.lookup-input").Input("PATIENT-001");
-        await cut.Find("button.btn-primary").ClickAsync(new Microsoft.AspNetCore.Components.Web.MouseEventArgs());
 
-        await MockWorkflowGrain.Received(1).GetImagesAsync(Arg.Any<int>());
         Assert.That(cut.Markup, Does.Contain("Chest X-Ray"));
         Assert.That(cut.Markup, Does.Contain("XRAY"));
     }
 
     [Test]
-    public async Task Imaging_ShowsEmptyState()
+    public void Imaging_ShowsEmptyState()
     {
         MockWorkflowGrain.GetImagesAsync(Arg.Any<int>()).Returns(new List<ImagingSummary>());
 
+        SelectPatient("PATIENT-002");
         var cut = Ctx.Render<Imaging>();
-        cut.Find("input.lookup-input").Input("PATIENT-002");
-        await cut.Find("button.btn-primary").ClickAsync(new Microsoft.AspNetCore.Components.Web.MouseEventArgs());
 
         Assert.That(cut.Markup, Does.Contain("No images found"));
     }
 
     [Test]
-    public async Task Imaging_ShowsErrorOnGrainFailure()
+    public void Imaging_ShowsErrorOnGrainFailure()
     {
         MockWorkflowGrain.GetImagesAsync(Arg.Any<int>()).Returns<List<ImagingSummary>>(
             _ => throw new Exception("PACS unavailable"));
 
+        SelectPatient("PATIENT-003");
         var cut = Ctx.Render<Imaging>();
-        cut.Find("input.lookup-input").Input("PATIENT-003");
-        await cut.Find("button.btn-primary").ClickAsync(new Microsoft.AspNetCore.Components.Web.MouseEventArgs());
 
         Assert.That(cut.Markup, Does.Contain("Error"));
         Assert.That(cut.Markup, Does.Contain("PACS unavailable"));

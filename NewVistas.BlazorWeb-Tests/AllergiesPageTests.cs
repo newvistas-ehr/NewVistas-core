@@ -24,26 +24,26 @@ public class AllergiesPageTests : BlazorTestBase
     }
 
     [Test]
-    public void Allergies_RendersLookupBar()
+    public void Allergies_PromptsToSelectPatientWhenNoneChosen()
     {
         var cut = Ctx.Render<Allergies>();
 
-        var input = cut.Find("input.lookup-input");
-        Assert.That(input, Is.Not.Null);
-        Assert.That(input.GetAttribute("placeholder"), Is.EqualTo("Patient ID"));
+        Assert.That(cut.Markup, Does.Contain("Select a patient"));
     }
 
     [Test]
-    public void Allergies_LoadButton_DisabledWhenEmpty()
+    public void Allergies_ShowsSelectedPatientInBar()
     {
+        MockWorkflowGrain.GetAllergiesAsync().Returns(new List<AllergySummary>());
+
+        SelectPatient("PATIENT-001", "SMITH, JOHN");
         var cut = Ctx.Render<Allergies>();
 
-        var button = cut.Find("button.btn-primary");
-        Assert.That(button.HasAttribute("disabled"), Is.True);
+        Assert.That(cut.Markup, Does.Contain("Change patient"));
     }
 
     [Test]
-    public async Task Allergies_LoadsAllergiesFromGrain()
+    public void Allergies_LoadsAllergiesFromGrain()
     {
         var allergies = new List<AllergySummary>
         {
@@ -54,16 +54,10 @@ public class AllergiesPageTests : BlazorTestBase
         };
         MockWorkflowGrain.GetAllergiesAsync().Returns(allergies);
 
+        // Patient was chosen in Patient Lookup; the page auto-loads on render.
+        SelectPatient("PATIENT-001");
         var cut = Ctx.Render<Allergies>();
 
-        // Type patient ID and click Load
-        cut.Find("input.lookup-input").Input("PATIENT-001");
-        await cut.Find("button.btn-primary").ClickAsync(new Microsoft.AspNetCore.Components.Web.MouseEventArgs());
-
-        // Verify grain was called
-        await MockWorkflowGrain.Received(1).GetAllergiesAsync();
-
-        // Verify allergies are displayed in table
         Assert.That(cut.Markup, Does.Contain("Penicillin"));
         Assert.That(cut.Markup, Does.Contain("Peanuts"));
         Assert.That(cut.Markup, Does.Contain("Severe"));
@@ -71,42 +65,36 @@ public class AllergiesPageTests : BlazorTestBase
     }
 
     [Test]
-    public async Task Allergies_ShowsNkaWhenEmpty()
+    public void Allergies_ShowsNkaWhenEmpty()
     {
         MockWorkflowGrain.GetAllergiesAsync().Returns(new List<AllergySummary>());
 
+        SelectPatient("PATIENT-002");
         var cut = Ctx.Render<Allergies>();
-
-        cut.Find("input.lookup-input").Input("PATIENT-002");
-        await cut.Find("button.btn-primary").ClickAsync(new Microsoft.AspNetCore.Components.Web.MouseEventArgs());
 
         Assert.That(cut.Markup, Does.Contain("No Known Allergies"));
     }
 
     [Test]
-    public async Task Allergies_ShowsErrorOnGrainFailure()
+    public void Allergies_ShowsErrorOnGrainFailure()
     {
         MockWorkflowGrain.GetAllergiesAsync().Returns<List<AllergySummary>>(
             _ => throw new Exception("Silo unreachable"));
 
+        SelectPatient("PATIENT-003");
         var cut = Ctx.Render<Allergies>();
-
-        cut.Find("input.lookup-input").Input("PATIENT-003");
-        await cut.Find("button.btn-primary").ClickAsync(new Microsoft.AspNetCore.Components.Web.MouseEventArgs());
 
         Assert.That(cut.Markup, Does.Contain("Error loading allergies"));
         Assert.That(cut.Markup, Does.Contain("Silo unreachable"));
     }
 
     [Test]
-    public async Task Allergies_RendersTabs()
+    public void Allergies_RendersTabs()
     {
         MockWorkflowGrain.GetAllergiesAsync().Returns(new List<AllergySummary>());
-        var cut = Ctx.Render<Allergies>();
 
-        // Use NavigationManager to set query parameter (SupplyParameterFromQuery)
-        var nav = Ctx.Services.GetRequiredService<NavigationManager>();
-        nav.NavigateTo(nav.GetUriWithQueryParameter("patientId", "PATIENT-001"));
+        SelectPatient("PATIENT-001");
+        var cut = Ctx.Render<Allergies>();
         cut.WaitForState(() => cut.FindAll("button.tab").Count > 0);
 
         var tabs = cut.FindAll("button.tab");
@@ -125,13 +113,11 @@ public class AllergiesPageTests : BlazorTestBase
             Arg.Any<string?>(), Arg.Any<string?>(), Arg.Any<string?>(),
             Arg.Any<string?>()).Returns("ALLERGY-001");
 
+        SelectPatient("PATIENT-001");
         var cut = Ctx.Render<Allergies>();
 
-        // Type patient ID and load
-        cut.Find("input.lookup-input").Input("PATIENT-001");
-        await cut.Find("button.btn-primary").ClickAsync(new Microsoft.AspNetCore.Components.Web.MouseEventArgs());
-
-        // Switch to record tab and wait for form to appear
+        // Switch to record tab and wait for the form to appear
+        cut.WaitForState(() => cut.FindAll("button.tab").Count > 1);
         cut.FindAll("button.tab")[1].Click();
         cut.WaitForState(() => cut.Markup.Contains("Record Allergy") && cut.FindAll("input.form-input").Count > 0);
 
@@ -141,7 +127,6 @@ public class AllergiesPageTests : BlazorTestBase
         // Submit
         await cut.Find(".form-actions button").ClickAsync(new Microsoft.AspNetCore.Components.Web.MouseEventArgs());
 
-        // Verify grain was called
         await MockWorkflowGrain.Received(1).RecordAllergyAsync(
             "Aspirin", Arg.Any<string>(), Arg.Any<string?>(),
             Arg.Any<string?>(), Arg.Any<List<string>?>(),

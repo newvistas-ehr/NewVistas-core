@@ -14,12 +14,9 @@
 <PageTitle>Consults</PageTitle>
 <h1>Consults</h1>
 
+<PatientBar @bind-PatientId="patientId" Loading="loading" OnLoad="LoadConsults" />
+
 <div class="lookup-bar">
-    <input type="text" @bind="patientId" @bind:event="oninput" @onkeydown="HandleKeyDown"
-           placeholder="Patient ID" class="lookup-input" />
-    <button @onclick="LoadConsults" disabled="@(string.IsNullOrWhiteSpace(patientId) || loading)" class="btn btn-primary">
-        @if (loading) { <span>Loading...</span> } else { <span>Load Consults</span> }
-    </button>
     <button @onclick="ShowNewConsultForm" disabled="@(string.IsNullOrWhiteSpace(patientId))" class="btn btn-secondary">
         + New Consult
     </button>
@@ -393,10 +390,6 @@
         if (!string.IsNullOrWhiteSpace(patientId)) await LoadConsults();
     }
 
-    private async Task HandleKeyDown(KeyboardEventArgs e)
-    {
-        if (e.Key == "Enter") await LoadConsults();
-    }
 
     private async Task LoadConsults()
     {

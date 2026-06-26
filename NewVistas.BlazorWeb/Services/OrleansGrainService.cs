@@ -33,6 +33,41 @@ public class OrleansGrainService
     }
 
     /// <summary>
+    /// The current user's id (NEW PERSON / login identity) parsed from the JWT,
+    /// or null if not signed in. This is the key suffix for the provider's own
+    /// data — e.g. the "PROV-PAT-IDX:{userId}" My Patients index.
+    /// </summary>
+    public string? CurrentUserId => ReadClaim(ClaimTypes.NameIdentifier,
+        "http://schemas.xmlsoap.org/ws/2005/05/identity/claims/nameidentifier");
+
+    /// <summary>The current user's display name parsed from the JWT, or null.</summary>
+    public string? CurrentUserName => ReadClaim("display_name", ClaimTypes.Name,
+        "http://schemas.xmlsoap.org/ws/2005/05/identity/claims/name");
+
+    private string? ReadClaim(params string[] claimTypes)
+    {
+        string? token = _authProvider.Token;
+        if (string.IsNullOrEmpty(token))
+            return null;
+
+        try
+        {
+            JwtSecurityToken jwt = new JwtSecurityTokenHandler().ReadJwtToken(token);
+            foreach (string type in claimTypes)
+            {
+                string? value = jwt.Claims.FirstOrDefault(c => c.Type == type)?.Value;
+                if (!string.IsNullOrEmpty(value))
+                    return value;
+            }
+        }
+        catch
+        {
+            // Token parsing failed — treat as not signed in.
+        }
+        return null;
+    }
+
+    /// <summary>
     /// Get a grain reference with RequestContext pre-populated from the current user's JWT.
     /// The context is set on the async-local before returning the grain reference, so any
     /// subsequent awaited calls on the reference carry the identity through to the silo.

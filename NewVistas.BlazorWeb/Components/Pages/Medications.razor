@@ -15,13 +15,7 @@
 
 <h1>💊 Active Medications</h1>
 
-<div class="lookup-bar">
-    <input type="text" @bind="patientId" @bind:event="oninput" @onkeydown="HandleKeyDown"
-           placeholder="Patient ID" class="lookup-input" />
-    <button @onclick="Load" disabled="@(string.IsNullOrWhiteSpace(patientId) || loading)" class="btn btn-primary">
-        @if (loading) { <span>Loading...</span> } else { <span>Load</span> }
-    </button>
-</div>
+<PatientBar @bind-PatientId="patientId" Loading="loading" OnLoad="Load" />
 
 @if (error != null) { <div class="alert alert-error">@error</div> }
 
@@ -65,7 +59,6 @@
             patientId = PatientContext.PatientId;
         if (!string.IsNullOrWhiteSpace(patientId)) await Load();
     }
-    private async Task HandleKeyDown(KeyboardEventArgs e) { if (e.Key == "Enter") await Load(); }
 
     private async Task Load()
     {

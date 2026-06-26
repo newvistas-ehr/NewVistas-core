@@ -22,26 +22,27 @@ public class CoverSheetPageTests : BlazorTestBase
     }
 
     [Test]
-    public void CoverSheet_RendersLookupBar()
+    public void CoverSheet_PromptsToSelectPatientWhenNoneChosen()
     {
         var cut = Ctx.Render<CoverSheet>();
 
-        var input = cut.Find("input.lookup-input");
-        Assert.That(input, Is.Not.Null);
-        Assert.That(input.GetAttribute("placeholder"), Is.EqualTo("Patient ID"));
+        // No patient in context — the shared PatientBar prompts the user to pick one.
+        Assert.That(cut.Markup, Does.Contain("Select a patient"));
     }
 
     [Test]
-    public void CoverSheet_LoadButton_DisabledWhenEmpty()
+    public void CoverSheet_ShowsSelectedPatientInBar()
     {
+        SelectPatient("PATIENT-001", "SMITH, JOHN");
+
         var cut = Ctx.Render<CoverSheet>();
 
-        var button = cut.Find("button.btn-primary");
-        Assert.That(button.HasAttribute("disabled"), Is.True);
+        Assert.That(cut.Markup, Does.Contain("Change patient"));
+        Assert.That(cut.Markup, Does.Contain("PATIENT-001"));
     }
 
     [Test]
-    public async Task CoverSheet_LoadsPatientDataFromGrain()
+    public void CoverSheet_LoadsPatientDataFromGrain()
     {
         var state = new CoverSheetState
         {
@@ -74,12 +75,9 @@ public class CoverSheetPageTests : BlazorTestBase
         };
         MockWorkflowGrain.GetCoverSheetAsync().Returns(state);
 
+        // Patient was chosen in Patient Lookup; the page auto-loads it on render.
+        SelectPatient("PATIENT-001", "SMITH, JOHN");
         var cut = Ctx.Render<CoverSheet>();
-
-        cut.Find("input.lookup-input").Input("PATIENT-001");
-        await cut.Find("button.btn-primary").ClickAsync(new Microsoft.AspNetCore.Components.Web.MouseEventArgs());
-
-        await MockWorkflowGrain.Received(1).GetCoverSheetAsync();
 
         // Patient banner
         Assert.That(cut.Markup, Does.Contain("SMITH, JOHN"));
@@ -106,7 +104,7 @@ public class CoverSheetPageTests : BlazorTestBase
     }
 
     [Test]
-    public async Task CoverSheet_ShowsEmptyPanelsWhenNoData()
+    public void CoverSheet_ShowsEmptyPanelsWhenNoData()
     {
         var state = new CoverSheetState
         {
@@ -115,10 +113,8 @@ public class CoverSheetPageTests : BlazorTestBase
         };
         MockWorkflowGrain.GetCoverSheetAsync().Returns(state);
 
+        SelectPatient("PATIENT-002", "DOE, JANE");
         var cut = Ctx.Render<CoverSheet>();
-
-        cut.Find("input.lookup-input").Input("PATIENT-002");
-        await cut.Find("button.btn-primary").ClickAsync(new Microsoft.AspNetCore.Components.Web.MouseEventArgs());
 
         Assert.That(cut.Markup, Does.Contain("DOE, JANE"));
         Assert.That(cut.Markup, Does.Contain("No active problems"));
@@ -128,22 +124,20 @@ public class CoverSheetPageTests : BlazorTestBase
     }
 
     [Test]
-    public async Task CoverSheet_ShowsErrorOnGrainFailure()
+    public void CoverSheet_ShowsErrorOnGrainFailure()
     {
         MockWorkflowGrain.GetCoverSheetAsync().Returns<CoverSheetState>(
             _ => throw new Exception("Connection refused"));
 
+        SelectPatient("PATIENT-003");
         var cut = Ctx.Render<CoverSheet>();
-
-        cut.Find("input.lookup-input").Input("PATIENT-003");
-        await cut.Find("button.btn-primary").ClickAsync(new Microsoft.AspNetCore.Components.Web.MouseEventArgs());
 
         Assert.That(cut.Markup, Does.Contain("Error loading cover sheet"));
         Assert.That(cut.Markup, Does.Contain("Connection refused"));
     }
 
     [Test]
-    public async Task CoverSheet_ShowsAdmittedBadge()
+    public void CoverSheet_ShowsAdmittedBadge()
     {
         var state = new CoverSheetState
         {
@@ -156,17 +150,15 @@ public class CoverSheetPageTests : BlazorTestBase
         };
         MockWorkflowGrain.GetCoverSheetAsync().Returns(state);
 
+        SelectPatient("PATIENT-004", "VETERAN, BOB");
         var cut = Ctx.Render<CoverSheet>();
-
-        cut.Find("input.lookup-input").Input("PATIENT-004");
-        await cut.Find("button.btn-primary").ClickAsync(new Microsoft.AspNetCore.Components.Web.MouseEventArgs());
 
         Assert.That(cut.Markup, Does.Contain("Admitted"));
         Assert.That(cut.Markup, Does.Contain("3B-12"));
     }
 
     [Test]
-    public async Task CoverSheet_ShowsCwadAllFlags()
+    public void CoverSheet_ShowsCwadAllFlags()
     {
         var state = new CoverSheetState
         {
@@ -180,16 +172,14 @@ public class CoverSheetPageTests : BlazorTestBase
         };
         MockWorkflowGrain.GetCoverSheetAsync().Returns(state);
 
+        SelectPatient("PATIENT-005", "FLAGS, ALL");
         var cut = Ctx.Render<CoverSheet>();
-
-        cut.Find("input.lookup-input").Input("PATIENT-005");
-        await cut.Find("button.btn-primary").ClickAsync(new Microsoft.AspNetCore.Components.Web.MouseEventArgs());
 
         Assert.That(cut.Markup, Does.Contain("CWAD"));
     }
 
     [Test]
-    public async Task CoverSheet_DisplaysAllPanels()
+    public void CoverSheet_DisplaysAllPanels()
     {
         var state = new CoverSheetState
         {
@@ -208,10 +198,8 @@ public class CoverSheetPageTests : BlazorTestBase
         };
         MockWorkflowGrain.GetCoverSheetAsync().Returns(state);
 
+        SelectPatient("PATIENT-006", "FULL, CHART");
         var cut = Ctx.Render<CoverSheet>();
-
-        cut.Find("input.lookup-input").Input("PATIENT-006");
-        await cut.Find("button.btn-primary").ClickAsync(new Microsoft.AspNetCore.Components.Web.MouseEventArgs());
 
         Assert.That(cut.Markup, Does.Contain("CHF"));
         Assert.That(cut.Markup, Does.Contain("Sulfa"));

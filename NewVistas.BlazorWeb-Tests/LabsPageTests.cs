@@ -3,8 +3,6 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 using Bunit;
-using Microsoft.AspNetCore.Components;
-using Microsoft.Extensions.DependencyInjection;
 using NewVistas.Abstractions.GrainInterfaces;
 using NewVistas.Abstractions.GrainStates;
 using NewVistas.BlazorWeb.Components.Pages;
@@ -24,29 +22,26 @@ public class LabsPageTests : BlazorTestBase
     }
 
     [Test]
-    public void Labs_RendersLookupBar()
+    public void Labs_PromptsToSelectPatientWhenNoneChosen()
     {
         var cut = Ctx.Render<Labs>();
 
-        var input = cut.Find("input.lookup-input");
-        Assert.That(input, Is.Not.Null);
-        Assert.That(input.GetAttribute("placeholder"), Is.EqualTo("Patient ID"));
+        Assert.That(cut.Markup, Does.Contain("Select a patient"));
     }
 
     [Test]
-    public void Labs_LoadButton_DisabledWhenEmpty()
+    public void Labs_ShowsSelectedPatientInBar()
     {
+        MockWorkflowGrain.GetLabResultsAsync().Returns(new List<LabResultSummary>());
+
+        SelectPatient("PATIENT-001", "SMITH, JOHN");
         var cut = Ctx.Render<Labs>();
 
-        // The Load Results button - find buttons and check the first action button
-        var buttons = cut.FindAll("button");
-        var loadButton = buttons.First(b => b.TextContent.Contains("Load Results"));
-        // The button is not disabled when the input is empty — it only disables when loading
-        Assert.That(loadButton, Is.Not.Null);
+        Assert.That(cut.Markup, Does.Contain("Change patient"));
     }
 
     [Test]
-    public async Task Labs_LoadsDataFromGrain()
+    public void Labs_LoadsDataFromGrain()
     {
         var results = new List<LabResultSummary>
         {
@@ -56,43 +51,33 @@ public class LabsPageTests : BlazorTestBase
         };
         MockWorkflowGrain.GetLabResultsAsync().Returns(results);
 
+        // Patient chosen in Patient Lookup; the Results tab auto-loads on render.
+        SelectPatient("PATIENT-001");
         var cut = Ctx.Render<Labs>();
-
-        cut.Find("input.lookup-input").Change("PATIENT-001");
-        var loadButton = cut.FindAll("button").First(b => b.TextContent.Contains("Load Results"));
-        await loadButton.ClickAsync(new Microsoft.AspNetCore.Components.Web.MouseEventArgs());
-
-        await MockWorkflowGrain.Received(1).GetLabResultsAsync();
 
         Assert.That(cut.Markup, Does.Contain("CBC"));
         Assert.That(cut.Markup, Does.Contain("7.5"));
     }
 
     [Test]
-    public async Task Labs_ShowsEmptyState()
+    public void Labs_ShowsEmptyState()
     {
         MockWorkflowGrain.GetLabResultsAsync().Returns(new List<LabResultSummary>());
 
+        SelectPatient("PATIENT-002");
         var cut = Ctx.Render<Labs>();
-
-        cut.Find("input.lookup-input").Change("PATIENT-002");
-        var loadButton = cut.FindAll("button").First(b => b.TextContent.Contains("Load Results"));
-        await loadButton.ClickAsync(new Microsoft.AspNetCore.Components.Web.MouseEventArgs());
 
         Assert.That(cut.Markup, Does.Contain("No lab orders found"));
     }
 
     [Test]
-    public async Task Labs_ShowsErrorOnGrainFailure()
+    public void Labs_ShowsErrorOnGrainFailure()
     {
         MockWorkflowGrain.GetLabResultsAsync().Returns<List<LabResultSummary>>(
             _ => throw new Exception("Silo unreachable"));
 
+        SelectPatient("PATIENT-003");
         var cut = Ctx.Render<Labs>();
-
-        cut.Find("input.lookup-input").Change("PATIENT-003");
-        var loadButton = cut.FindAll("button").First(b => b.TextContent.Contains("Load Results"));
-        await loadButton.ClickAsync(new Microsoft.AspNetCore.Components.Web.MouseEventArgs());
 
         Assert.That(cut.Markup, Does.Contain("Silo unreachable"));
     }

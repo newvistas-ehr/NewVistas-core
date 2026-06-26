@@ -24,22 +24,22 @@ public class ProblemsPageTests : BlazorTestBase
     }
 
     [Test]
-    public void Problems_RendersLookupBar()
+    public void Problems_PromptsToSelectPatientWhenNoneChosen()
     {
         var cut = Ctx.Render<Problems>();
 
-        var input = cut.Find("input.lookup-input");
-        Assert.That(input, Is.Not.Null);
-        Assert.That(input.GetAttribute("placeholder"), Is.EqualTo("Patient ID"));
+        Assert.That(cut.Markup, Does.Contain("Select a patient"));
     }
 
     [Test]
-    public void Problems_LoadButton_DisabledWhenEmpty()
+    public void Problems_ShowsSelectedPatientInBar()
     {
+        MockWorkflowGrain.GetActiveProblemsAsync().Returns(new List<ProblemSummary>());
+
+        SelectPatient("PATIENT-001", "SMITH, JOHN");
         var cut = Ctx.Render<Problems>();
 
-        var button = cut.Find("button.btn-primary");
-        Assert.That(button.HasAttribute("disabled"), Is.True);
+        Assert.That(cut.Markup, Does.Contain("Change patient"));
     }
 
     [Test]
@@ -54,10 +54,8 @@ public class ProblemsPageTests : BlazorTestBase
         };
         MockWorkflowGrain.GetActiveProblemsAsync().Returns(problems);
 
+        SelectPatient("PATIENT-001");
         var cut = Ctx.Render<Problems>();
-
-        cut.Find("input.lookup-input").Input("PATIENT-001");
-        await cut.Find("button.btn-primary").ClickAsync(new Microsoft.AspNetCore.Components.Web.MouseEventArgs());
 
         // activeOnly defaults to true, so GetActiveProblemsAsync should be called
         await MockWorkflowGrain.Received(1).GetActiveProblemsAsync();
@@ -70,41 +68,36 @@ public class ProblemsPageTests : BlazorTestBase
     }
 
     [Test]
-    public async Task Problems_ShowsEmptyStateWhenNoProblems()
+    public void Problems_ShowsEmptyStateWhenNoProblems()
     {
         MockWorkflowGrain.GetActiveProblemsAsync().Returns(new List<ProblemSummary>());
 
+        SelectPatient("PATIENT-002");
         var cut = Ctx.Render<Problems>();
-
-        cut.Find("input.lookup-input").Input("PATIENT-002");
-        await cut.Find("button.btn-primary").ClickAsync(new Microsoft.AspNetCore.Components.Web.MouseEventArgs());
 
         Assert.That(cut.Markup, Does.Contain("No problems found"));
     }
 
     [Test]
-    public async Task Problems_ShowsErrorOnGrainFailure()
+    public void Problems_ShowsErrorOnGrainFailure()
     {
         MockWorkflowGrain.GetActiveProblemsAsync().Returns<List<ProblemSummary>>(
             _ => throw new Exception("Grain timeout"));
 
+        SelectPatient("PATIENT-003");
         var cut = Ctx.Render<Problems>();
-
-        cut.Find("input.lookup-input").Input("PATIENT-003");
-        await cut.Find("button.btn-primary").ClickAsync(new Microsoft.AspNetCore.Components.Web.MouseEventArgs());
 
         Assert.That(cut.Markup, Does.Contain("Error loading problems"));
         Assert.That(cut.Markup, Does.Contain("Grain timeout"));
     }
 
     [Test]
-    public async Task Problems_RendersTabs()
+    public void Problems_RendersTabs()
     {
         MockWorkflowGrain.GetActiveProblemsAsync().Returns(new List<ProblemSummary>());
-        var cut = Ctx.Render<Problems>();
 
-        var nav = Ctx.Services.GetRequiredService<NavigationManager>();
-        nav.NavigateTo(nav.GetUriWithQueryParameter("patientId", "PATIENT-001"));
+        SelectPatient("PATIENT-001");
+        var cut = Ctx.Render<Problems>();
         cut.WaitForState(() => cut.FindAll("button.tab").Count > 0);
 
         var tabs = cut.FindAll("button.tab");
@@ -124,13 +117,11 @@ public class ProblemsPageTests : BlazorTestBase
             Arg.Any<string?>(), Arg.Any<string?>(),
             Arg.Any<bool>(), Arg.Any<string?>()).Returns("PROBLEM-001");
 
+        SelectPatient("PATIENT-001");
         var cut = Ctx.Render<Problems>();
 
-        // Load patient first
-        cut.Find("input.lookup-input").Input("PATIENT-001");
-        await cut.Find("button.btn-primary").ClickAsync(new Microsoft.AspNetCore.Components.Web.MouseEventArgs());
-
-        // Switch to Add Problem tab and wait for form to appear
+        // Switch to Add Problem tab and wait for the form to appear
+        cut.WaitForState(() => cut.FindAll("button.tab").Count > 1);
         cut.FindAll("button.tab")[1].Click();
         cut.WaitForState(() => cut.FindAll("input.form-input").Count > 0);
 
@@ -140,7 +131,6 @@ public class ProblemsPageTests : BlazorTestBase
         // Submit
         await cut.Find(".form-actions button").ClickAsync(new Microsoft.AspNetCore.Components.Web.MouseEventArgs());
 
-        // Verify grain was called
         await MockWorkflowGrain.Received(1).AddProblemAsync(
             "Low Back Pain", Arg.Any<string?>(), Arg.Any<string?>(),
             Arg.Any<string?>(), Arg.Any<DateTime?>(),
@@ -150,7 +140,7 @@ public class ProblemsPageTests : BlazorTestBase
     }
 
     [Test]
-    public async Task Problems_ServiceConnectedFlagDisplays()
+    public void Problems_ServiceConnectedFlagDisplays()
     {
         var problems = new List<ProblemSummary>
         {
@@ -159,10 +149,8 @@ public class ProblemsPageTests : BlazorTestBase
         };
         MockWorkflowGrain.GetActiveProblemsAsync().Returns(problems);
 
+        SelectPatient("PATIENT-001");
         var cut = Ctx.Render<Problems>();
-
-        cut.Find("input.lookup-input").Input("PATIENT-001");
-        await cut.Find("button.btn-primary").ClickAsync(new Microsoft.AspNetCore.Components.Web.MouseEventArgs());
 
         Assert.That(cut.Markup, Does.Contain("PTSD"));
         Assert.That(cut.Markup, Does.Contain("Yes")); // SC column

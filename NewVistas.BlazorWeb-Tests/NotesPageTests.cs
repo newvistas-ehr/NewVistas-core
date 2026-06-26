@@ -3,8 +3,6 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 using Bunit;
-using Microsoft.AspNetCore.Components;
-using Microsoft.Extensions.DependencyInjection;
 using NewVistas.Abstractions.GrainInterfaces;
 using NewVistas.Abstractions.GrainStates;
 using NewVistas.BlazorWeb.Components.Pages;
@@ -24,26 +22,25 @@ public class NotesPageTests : BlazorTestBase
     }
 
     [Test]
-    public void Notes_RendersLookupBar()
+    public void Notes_PromptsToSelectPatientWhenNoneChosen()
     {
         var cut = Ctx.Render<Notes>();
 
-        var input = cut.Find("input.lookup-input");
-        Assert.That(input, Is.Not.Null);
-        Assert.That(input.GetAttribute("placeholder"), Is.EqualTo("Patient ID"));
+        Assert.That(cut.Markup, Does.Contain("Select a patient"));
     }
 
     [Test]
-    public void Notes_LoadButton_DisabledWhenEmpty()
+    public void Notes_ShowsSelectedPatientInBar()
     {
+        SelectPatient("PATIENT-001", "SMITH, JOHN");
+
         var cut = Ctx.Render<Notes>();
 
-        var button = cut.Find("button.btn-primary");
-        Assert.That(button.HasAttribute("disabled"), Is.True);
+        Assert.That(cut.Markup, Does.Contain("Change patient"));
     }
 
     [Test]
-    public async Task Notes_LoadsDataFromGrain()
+    public void Notes_LoadsDataFromGrain()
     {
         var notes = new List<TiuNoteSummary>
         {
@@ -54,40 +51,32 @@ public class NotesPageTests : BlazorTestBase
         };
         MockWorkflowGrain.GetNotesAsync(null, 100).Returns(notes);
 
+        SelectPatient("PATIENT-001");
         var cut = Ctx.Render<Notes>();
-
-        cut.Find("input.lookup-input").Input("PATIENT-001");
-        await cut.Find("button.btn-primary").ClickAsync(new Microsoft.AspNetCore.Components.Web.MouseEventArgs());
-
-        await MockWorkflowGrain.Received(1).GetNotesAsync(null, 100);
 
         Assert.That(cut.Markup, Does.Contain("Follow-up visit"));
         Assert.That(cut.Markup, Does.Contain("Discharge"));
     }
 
     [Test]
-    public async Task Notes_ShowsEmptyState()
+    public void Notes_ShowsEmptyState()
     {
         MockWorkflowGrain.GetNotesAsync(null, 100).Returns(new List<TiuNoteSummary>());
 
+        SelectPatient("PATIENT-002");
         var cut = Ctx.Render<Notes>();
-
-        cut.Find("input.lookup-input").Input("PATIENT-002");
-        await cut.Find("button.btn-primary").ClickAsync(new Microsoft.AspNetCore.Components.Web.MouseEventArgs());
 
         Assert.That(cut.Markup, Does.Contain("No notes found"));
     }
 
     [Test]
-    public async Task Notes_ShowsErrorOnGrainFailure()
+    public void Notes_ShowsErrorOnGrainFailure()
     {
         MockWorkflowGrain.GetNotesAsync(null, 100).Returns<List<TiuNoteSummary>>(
             _ => throw new Exception("Silo unreachable"));
 
+        SelectPatient("PATIENT-003");
         var cut = Ctx.Render<Notes>();
-
-        cut.Find("input.lookup-input").Input("PATIENT-003");
-        await cut.Find("button.btn-primary").ClickAsync(new Microsoft.AspNetCore.Components.Web.MouseEventArgs());
 
         Assert.That(cut.Markup, Does.Contain("Error loading notes"));
         Assert.That(cut.Markup, Does.Contain("Silo unreachable"));

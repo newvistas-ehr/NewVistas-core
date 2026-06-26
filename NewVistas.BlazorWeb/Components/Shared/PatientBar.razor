@@ -2,17 +2,31 @@
 @* This Source Code Form is subject to the terms of the Mozilla Public *@
 @* License, v. 2.0. If a copy of the MPL was not distributed with this *@
 @* file, You can obtain one at https://mozilla.org/MPL/2.0/.            *@
-@* Canonical patient bar (UI-CONVENTIONS.md §1): one ID input + Load button + *@
-@* Enter-to-load, used on every patient-scoped page. *@
+@* Canonical patient bar (UI-CONVENTIONS.md §1): shows the patient currently *@
+@* selected in this circuit and auto-loads it. There is no ID box here — the   *@
+@* clinician picks (or switches) the patient once in Patient Lookup, and it    *@
+@* carries across every clinical page via PatientContextService.               *@
 @using NewVistas.BlazorWeb.Services
+@implements IDisposable
 @inject PatientContextService PatientContext
 
-<div class="lookup-bar">
-    <input type="text" value="@PatientId" @oninput="OnInput" @onkeydown="HandleKeyDown"
-           placeholder="Patient ID" class="lookup-input" />
-    <button @onclick="OnLoad" disabled="@(string.IsNullOrWhiteSpace(PatientId) || Loading)" class="btn btn-primary">
-        @(Loading ? "Loading..." : LoadText)
-    </button>
+<div class="patient-bar">
+    @if (!string.IsNullOrWhiteSpace(PatientId))
+    {
+        <span class="pb-icon" aria-hidden="true">👤</span>
+        <span class="pb-name">@DisplayName</span>
+        <span class="pb-id">@PatientId</span>
+        @if (Loading)
+        {
+            <span class="pb-loading">loading…</span>
+        }
+        <a class="pb-change" href="/patient-lookup">Change patient</a>
+    }
+    else
+    {
+        <span class="pb-none">No patient selected.</span>
+        <a class="pb-change" href="/patient-lookup">Select a patient</a>
+    }
 </div>
 
 @code {
@@ -20,16 +34,27 @@
     [Parameter] public EventCallback<string?> PatientIdChanged { get; set; }
     [Parameter] public bool Loading { get; set; }
     [Parameter] public EventCallback OnLoad { get; set; }
+
+    // Retained for source compatibility with call sites that pass a custom button
+    // label; the bar no longer renders a Load button, so this is unused.
     [Parameter] public string LoadText { get; set; } = "Load";
 
     private bool _adopted;
 
+    // Only trust the cached name when it belongs to the patient we're showing.
+    private string DisplayName =>
+        (PatientContext.PatientId == PatientId && !string.IsNullOrWhiteSpace(PatientContext.PatientName))
+            ? PatientContext.PatientName!
+            : (PatientId ?? string.Empty);
+
+    protected override void OnInitialized()
+        => PatientContext.OnChanged += HandleContextChanged;
+
     protected override async Task OnParametersSetAsync()
     {
-        // Carry the current patient across pages. If this page opened without a patient
-        // (no ?patientId= and nothing typed), adopt the session's selected patient and load
-        // it — so the doctor never re-types an ID they already chose. To switch patients they
-        // use Patient Lookup, which sets a new current patient. Runs once per bar instance.
+        // Adopt the session's selected patient and load it once per bar instance,
+        // so a clinician who picked a patient in Patient Lookup never re-enters the
+        // ID. If the page already has a patient (e.g. ?patientId= query), keep it.
         if (!_adopted && string.IsNullOrWhiteSpace(PatientId) && !string.IsNullOrWhiteSpace(PatientContext.PatientId))
         {
             _adopted = true;
@@ -39,14 +64,25 @@
         }
     }
 
-    private async Task OnInput(ChangeEventArgs e)
-    {
-        PatientId = e.Value?.ToString();
-        await PatientIdChanged.InvokeAsync(PatientId);
-    }
+    private void HandleContextChanged() => InvokeAsync(StateHasChanged);
 
-    private async Task HandleKeyDown(KeyboardEventArgs e)
-    {
-        if (e.Key == "Enter") await OnLoad.InvokeAsync();
-    }
+    public void Dispose() => PatientContext.OnChanged -= HandleContextChanged;
 }
+
+<style>
+    .patient-bar {
+        display: flex; align-items: center; gap: 0.6rem;
+        background: #eef3f9; border: 1px solid #c5d3e3; border-radius: 6px;
+        padding: 0.5rem 0.85rem; margin-bottom: 1rem; font-size: 0.9rem;
+    }
+    .patient-bar .pb-icon { font-size: 1.05rem; }
+    .patient-bar .pb-name { font-weight: 700; color: #003f72; }
+    .patient-bar .pb-id { color: #607089; font-size: 0.82rem; }
+    .patient-bar .pb-loading { color: #888; font-style: italic; }
+    .patient-bar .pb-none { color: #8a5a00; font-weight: 600; }
+    .patient-bar .pb-change {
+        margin-left: auto; color: #003f72; text-decoration: none; font-weight: 600;
+        font-size: 0.82rem; border: 1px solid #003f72; border-radius: 4px; padding: 0.25rem 0.7rem;
+    }
+    .patient-bar .pb-change:hover { background: #dbe4f0; }
+</style>

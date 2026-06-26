@@ -26,6 +26,20 @@ public abstract class BlazorTestBase
     protected IGrainFactory MockGrainFactory { get; private set; } = null!;
     protected IPatientWorkflowGrain MockWorkflowGrain { get; private set; } = null!;
 
+    /// <summary>
+    /// The shared patient context for the circuit. Patient-scoped pages now show the
+    /// patient selected here (via the &lt;PatientBar&gt;) and auto-load it on render —
+    /// there is no per-page ID box. Call <see cref="SelectPatient"/> before rendering.
+    /// </summary>
+    protected PatientContextService PatientContext { get; private set; } = null!;
+
+    /// <summary>
+    /// Select the active patient before rendering a page, mimicking a prior visit to
+    /// Patient Lookup. The page's &lt;PatientBar&gt; adopts this patient and auto-loads it.
+    /// </summary>
+    protected void SelectPatient(string patientId, string patientName = "TEST,PATIENT")
+        => PatientContext.SetPatient(patientId, patientName);
+
     [SetUp]
     public virtual void Setup()
     {
@@ -47,9 +61,10 @@ public abstract class BlazorTestBase
         var grainService = new OrleansGrainService(MockGrainFactory, authProvider);
 
         // Register services — must happen before first Render
+        PatientContext = new PatientContextService();
         Ctx.Services.AddSingleton(grainService);
         Ctx.Services.AddSingleton(httpClient);
-        Ctx.Services.AddSingleton(new PatientContextService());
+        Ctx.Services.AddSingleton(PatientContext);
         Ctx.Services.AddSingleton(Substitute.For<IImageBlobStorageService>());
         Ctx.Services.AddSingleton(Substitute.For<IImageIngestionService>());
 

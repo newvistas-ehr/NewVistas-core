@@ -3,8 +3,6 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 using Bunit;
-using Microsoft.AspNetCore.Components;
-using Microsoft.Extensions.DependencyInjection;
 using NewVistas.Abstractions.GrainInterfaces;
 using NewVistas.Abstractions.GrainStates;
 using NewVistas.BlazorWeb.Components.Pages;
@@ -24,26 +22,25 @@ public class VitalsPageTests : BlazorTestBase
     }
 
     [Test]
-    public void Vitals_RendersLookupBar()
+    public void Vitals_PromptsToSelectPatientWhenNoneChosen()
     {
         var cut = Ctx.Render<Vitals>();
 
-        var input = cut.Find("input.lookup-input");
-        Assert.That(input, Is.Not.Null);
-        Assert.That(input.GetAttribute("placeholder"), Is.EqualTo("Patient ID"));
+        Assert.That(cut.Markup, Does.Contain("Select a patient"));
     }
 
     [Test]
-    public void Vitals_LoadButton_DisabledWhenEmpty()
+    public void Vitals_ShowsSelectedPatientInBar()
     {
+        SelectPatient("PATIENT-001", "SMITH, JOHN");
+
         var cut = Ctx.Render<Vitals>();
 
-        var button = cut.Find("button.btn-primary");
-        Assert.That(button.HasAttribute("disabled"), Is.True);
+        Assert.That(cut.Markup, Does.Contain("Change patient"));
     }
 
     [Test]
-    public async Task Vitals_LoadsDataFromGrain()
+    public void Vitals_LoadsDataFromGrain()
     {
         var vitals = new List<VitalSummary>
         {
@@ -52,12 +49,8 @@ public class VitalsPageTests : BlazorTestBase
         };
         MockWorkflowGrain.GetLatestVitalsAsync().Returns(vitals);
 
+        SelectPatient("PATIENT-001");
         var cut = Ctx.Render<Vitals>();
-
-        cut.Find("input.lookup-input").Input("PATIENT-001");
-        await cut.Find("button.btn-primary").ClickAsync(new Microsoft.AspNetCore.Components.Web.MouseEventArgs());
-
-        await MockWorkflowGrain.Received(1).GetLatestVitalsAsync();
 
         Assert.That(cut.Markup, Does.Contain("TEMPERATURE"));
         Assert.That(cut.Markup, Does.Contain("98.6"));
@@ -65,28 +58,24 @@ public class VitalsPageTests : BlazorTestBase
     }
 
     [Test]
-    public async Task Vitals_ShowsEmptyState()
+    public void Vitals_ShowsEmptyState()
     {
         MockWorkflowGrain.GetLatestVitalsAsync().Returns(new List<VitalSummary>());
 
+        SelectPatient("PATIENT-002");
         var cut = Ctx.Render<Vitals>();
-
-        cut.Find("input.lookup-input").Input("PATIENT-002");
-        await cut.Find("button.btn-primary").ClickAsync(new Microsoft.AspNetCore.Components.Web.MouseEventArgs());
 
         Assert.That(cut.Markup, Does.Contain("No vitals recorded"));
     }
 
     [Test]
-    public async Task Vitals_ShowsErrorOnGrainFailure()
+    public void Vitals_ShowsErrorOnGrainFailure()
     {
         MockWorkflowGrain.GetLatestVitalsAsync().Returns<List<VitalSummary>>(
             _ => throw new Exception("Silo unreachable"));
 
+        SelectPatient("PATIENT-003");
         var cut = Ctx.Render<Vitals>();
-
-        cut.Find("input.lookup-input").Input("PATIENT-003");
-        await cut.Find("button.btn-primary").ClickAsync(new Microsoft.AspNetCore.Components.Web.MouseEventArgs());
 
         Assert.That(cut.Markup, Does.Contain("Error loading vitals"));
         Assert.That(cut.Markup, Does.Contain("Silo unreachable"));

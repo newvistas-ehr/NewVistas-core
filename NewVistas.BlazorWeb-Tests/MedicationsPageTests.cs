@@ -3,8 +3,6 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 using Bunit;
-using Microsoft.AspNetCore.Components;
-using Microsoft.Extensions.DependencyInjection;
 using NewVistas.Abstractions.GrainInterfaces;
 using NewVistas.Abstractions.GrainStates;
 using NewVistas.BlazorWeb.Components.Pages;
@@ -24,26 +22,25 @@ public class MedicationsPageTests : BlazorTestBase
     }
 
     [Test]
-    public void Medications_RendersLookupBar()
+    public void Medications_PromptsToSelectPatientWhenNoneChosen()
     {
         var cut = Ctx.Render<Medications>();
 
-        var input = cut.Find("input.lookup-input");
-        Assert.That(input, Is.Not.Null);
-        Assert.That(input.GetAttribute("placeholder"), Is.EqualTo("Patient ID"));
+        Assert.That(cut.Markup, Does.Contain("Select a patient"));
     }
 
     [Test]
-    public void Medications_LoadButton_DisabledWhenEmpty()
+    public void Medications_ShowsSelectedPatientInBar()
     {
+        SelectPatient("PATIENT-001", "SMITH, JOHN");
+
         var cut = Ctx.Render<Medications>();
 
-        var button = cut.Find("button.btn-primary");
-        Assert.That(button.HasAttribute("disabled"), Is.True);
+        Assert.That(cut.Markup, Does.Contain("Change patient"));
     }
 
     [Test]
-    public async Task Medications_LoadsDataFromGrain()
+    public void Medications_LoadsDataFromGrain()
     {
         var meds = new List<MedicationSummary>
         {
@@ -54,40 +51,32 @@ public class MedicationsPageTests : BlazorTestBase
         };
         MockWorkflowGrain.GetActiveMedicationsAsync().Returns(meds);
 
+        SelectPatient("PATIENT-001");
         var cut = Ctx.Render<Medications>();
-
-        cut.Find("input.lookup-input").Input("PATIENT-001");
-        await cut.Find("button.btn-primary").ClickAsync(new Microsoft.AspNetCore.Components.Web.MouseEventArgs());
-
-        await MockWorkflowGrain.Received(1).GetActiveMedicationsAsync();
 
         Assert.That(cut.Markup, Does.Contain("Lisinopril 10mg"));
         Assert.That(cut.Markup, Does.Contain("Metformin 500mg"));
     }
 
     [Test]
-    public async Task Medications_ShowsEmptyState()
+    public void Medications_ShowsEmptyState()
     {
         MockWorkflowGrain.GetActiveMedicationsAsync().Returns(new List<MedicationSummary>());
 
+        SelectPatient("PATIENT-002");
         var cut = Ctx.Render<Medications>();
-
-        cut.Find("input.lookup-input").Input("PATIENT-002");
-        await cut.Find("button.btn-primary").ClickAsync(new Microsoft.AspNetCore.Components.Web.MouseEventArgs());
 
         Assert.That(cut.Markup, Does.Contain("No active medications"));
     }
 
     [Test]
-    public async Task Medications_ShowsErrorOnGrainFailure()
+    public void Medications_ShowsErrorOnGrainFailure()
     {
         MockWorkflowGrain.GetActiveMedicationsAsync().Returns<List<MedicationSummary>>(
             _ => throw new Exception("Silo unreachable"));
 
+        SelectPatient("PATIENT-003");
         var cut = Ctx.Render<Medications>();
-
-        cut.Find("input.lookup-input").Input("PATIENT-003");
-        await cut.Find("button.btn-primary").ClickAsync(new Microsoft.AspNetCore.Components.Web.MouseEventArgs());
 
         Assert.That(cut.Markup, Does.Contain("Error loading medications"));
         Assert.That(cut.Markup, Does.Contain("Silo unreachable"));

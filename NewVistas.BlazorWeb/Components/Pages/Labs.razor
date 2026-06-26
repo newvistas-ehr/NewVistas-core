@@ -16,6 +16,8 @@
 <h2>Laboratory Information System (LR)</h2>
 <p class="subtitle">VistA File #63 — lab orders, results, and panels</p>
 
+<PatientBar @bind-PatientId="patientId" Loading="loading" />
+
 <div class="tab-bar">
     <button class="@TabClass("results")" @onclick='() => SetTab("results")'>Results</button>
     <button class="@TabClass("summary")" @onclick='() => SetTab("summary")'>Current Summary</button>
@@ -36,8 +38,6 @@
 @if (activeTab == "results")
 {
     <div class="lookup-bar">
-        <input @bind="patientId" placeholder="Patient ID" class="lookup-input" />
-        <button class="btn btn-primary" @onclick="LoadResults" disabled="@loading">Load Results</button>
         <button class="btn btn-secondary" @onclick="LoadDemo" disabled="@loading">Load Demo</button>
     </div>
 
@@ -194,11 +194,6 @@
 @* ── Tab 2: Current Summary ──────────────────────────────────── *@
 @if (activeTab == "summary")
 {
-    <div class="lookup-bar">
-        <input @bind="patientId" placeholder="Patient ID" class="lookup-input" />
-        <button class="btn btn-primary" @onclick="LoadSummary" disabled="@loading">Load Summary</button>
-    </div>
-
     @if (loading) { <p class="loading-msg">Loading…</p> }
 
     @if (summary is not null)
@@ -258,13 +253,6 @@
 @* ── Tab 3: Order / Submit ───────────────────────────────────── *@
 @if (activeTab == "order")
 {
-    <div class="form-section">
-        <div class="form-row">
-            <label>Patient ID</label>
-            <input @bind="patientId" placeholder="Patient ID" class="input-id" />
-        </div>
-    </div>
-
     <div class="form-card">
         <h3>Order New Lab Test</h3>
         <div class="form-grid">
@@ -466,11 +454,16 @@
 
     string TabClass(string tab) => activeTab == tab ? "tab active" : "tab";
 
-    void SetTab(string tab)
+    async Task SetTab(string tab)
     {
         activeTab = tab;
         error = null;
         successMsg = null;
+        // The patient bar auto-loads Results; load the other tabs on demand so the
+        // current patient's data appears without a manual Load button.
+        if (string.IsNullOrWhiteSpace(patientId)) return;
+        if (tab == "summary" && summary is null) await LoadSummary();
+        else if (tab == "results" && results is null) await LoadResults();
     }
 
     void ClearMessages() { error = null; successMsg = null; }

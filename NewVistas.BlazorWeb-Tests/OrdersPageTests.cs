@@ -3,8 +3,6 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 using Bunit;
-using Microsoft.AspNetCore.Components;
-using Microsoft.Extensions.DependencyInjection;
 using NewVistas.Abstractions.GrainInterfaces;
 using NewVistas.Abstractions.GrainStates;
 using NewVistas.BlazorWeb.Components.Pages;
@@ -24,26 +22,25 @@ public class OrdersPageTests : BlazorTestBase
     }
 
     [Test]
-    public void Orders_RendersLookupBar()
+    public void Orders_PromptsToSelectPatientWhenNoneChosen()
     {
         var cut = Ctx.Render<Orders>();
 
-        var input = cut.Find("input.lookup-input");
-        Assert.That(input, Is.Not.Null);
-        Assert.That(input.GetAttribute("placeholder"), Is.EqualTo("Patient ID"));
+        Assert.That(cut.Markup, Does.Contain("Select a patient"));
     }
 
     [Test]
-    public void Orders_LoadButton_DisabledWhenEmpty()
+    public void Orders_ShowsSelectedPatientInBar()
     {
+        SelectPatient("PATIENT-001", "SMITH, JOHN");
+
         var cut = Ctx.Render<Orders>();
 
-        var button = cut.Find("button.btn-primary");
-        Assert.That(button.HasAttribute("disabled"), Is.True);
+        Assert.That(cut.Markup, Does.Contain("Change patient"));
     }
 
     [Test]
-    public async Task Orders_LoadsDataFromGrain()
+    public void Orders_LoadsDataFromGrain()
     {
         var orders = new List<OrderSummary>
         {
@@ -54,40 +51,32 @@ public class OrdersPageTests : BlazorTestBase
         };
         MockWorkflowGrain.GetOrdersByFilterAsync(2).Returns(orders);
 
+        SelectPatient("PATIENT-001");
         var cut = Ctx.Render<Orders>();
-
-        cut.Find("input.lookup-input").Input("PATIENT-001");
-        await cut.Find("button.btn-primary").ClickAsync(new Microsoft.AspNetCore.Components.Web.MouseEventArgs());
-
-        await MockWorkflowGrain.Received(1).GetOrdersByFilterAsync(2);
 
         Assert.That(cut.Markup, Does.Contain("CBC WITH DIFFERENTIAL"));
         Assert.That(cut.Markup, Does.Contain("LISINOPRIL 10MG"));
     }
 
     [Test]
-    public async Task Orders_ShowsEmptyState()
+    public void Orders_ShowsEmptyState()
     {
         MockWorkflowGrain.GetOrdersByFilterAsync(2).Returns(new List<OrderSummary>());
 
+        SelectPatient("PATIENT-002");
         var cut = Ctx.Render<Orders>();
-
-        cut.Find("input.lookup-input").Input("PATIENT-002");
-        await cut.Find("button.btn-primary").ClickAsync(new Microsoft.AspNetCore.Components.Web.MouseEventArgs());
 
         Assert.That(cut.Markup, Does.Contain("No orders found"));
     }
 
     [Test]
-    public async Task Orders_ShowsErrorOnGrainFailure()
+    public void Orders_ShowsErrorOnGrainFailure()
     {
         MockWorkflowGrain.GetOrdersByFilterAsync(2).Returns<List<OrderSummary>>(
             _ => throw new Exception("Silo unreachable"));
 
+        SelectPatient("PATIENT-003");
         var cut = Ctx.Render<Orders>();
-
-        cut.Find("input.lookup-input").Input("PATIENT-003");
-        await cut.Find("button.btn-primary").ClickAsync(new Microsoft.AspNetCore.Components.Web.MouseEventArgs());
 
         Assert.That(cut.Markup, Does.Contain("Error loading orders"));
         Assert.That(cut.Markup, Does.Contain("Silo unreachable"));

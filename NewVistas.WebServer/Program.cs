@@ -308,7 +308,7 @@ using (var scope = app.Services.CreateScope())
             string dataset = datasetOverride
                 ?? app.Configuration["Dataset"]
                 ?? Environment.GetEnvironmentVariable("NEWVISTAS_DATASET")
-                ?? "fifty";
+                ?? "fivehundred";
 
             string datasetDir = dataset.ToLowerInvariant() switch
             {
@@ -960,27 +960,32 @@ static async Task SeedDemoCareTeamsAsync(IServiceProvider services, ILogger logg
         return;
     }
 
-    // Care team assignments: (patientId, userName, role, specialty)
-    var assignments = new (string PatientId, string UserName, string Role, string? Specialty, bool IsPcp)[]
-    {
-        // DOCTOR1 as PCP for P1 and P2
-        ("P1", "DOCTOR1", "PRIMARY CARE PROVIDER", "Internal Medicine", true),
-        ("P2", "DOCTOR1", "PRIMARY CARE PROVIDER", "Internal Medicine", true),
+    // Care team assignments: (patientId, userName, role, specialty, isPcp).
+    // Built so several providers have realistic panels backing the "My Patients"
+    // list in Patient Lookup. The demo previously assigned only P1–P3, leaving
+    // every panel nearly empty. Patient ids P1–P500 are seeded by the FiveHundred
+    // dataset; assignments to patients that don't exist are skipped below.
+    var assignments = new List<(string PatientId, string UserName, string Role, string? Specialty, bool IsPcp)>();
 
-        // NP1 as NURSE_PRACTITIONER for P1 and P3
-        ("P1", "NP1", "NURSE PRACTITIONER", "Family Practice", false),
-        ("P3", "NP1", "NURSE PRACTITIONER", "Family Practice", false),
+    // DOCTOR1 — internal-medicine PCP panel: P1–P20.
+    for (int i = 1; i <= 20; i++)
+        assignments.Add(($"P{i}", "DOCTOR1", "PRIMARY CARE PROVIDER", "Internal Medicine", true));
 
-        // NP2 as NURSE_PRACTITIONER for P2
-        ("P2", "NP2", "NURSE PRACTITIONER", "Cardiology", false),
+    // NP1 — family-practice nurse-practitioner panel: P21–P35.
+    for (int i = 21; i <= 35; i++)
+        assignments.Add(($"P{i}", "NP1", "NURSE PRACTITIONER", "Family Practice", false));
 
-        // NURSE1 as NURSE for P1 and P2 (she is on WARD-MED-3A)
-        ("P1", "NURSE1", "NURSE", "Medical-Surgical", false),
-        ("P2", "NURSE1", "NURSE", "Medical-Surgical", false),
+    // NP2 — cardiology nurse practitioner, smaller consult panel.
+    foreach (int i in new[] { 2, 5, 8 })
+        assignments.Add(($"P{i}", "NP2", "NURSE PRACTITIONER", "Cardiology", false));
 
-        // NURSE2 as NURSE for P3 (she is on WARD-ICU-1)
-        ("P3", "NURSE2", "NURSE", "ICU", false),
-    };
+    // NURSE1 — Med-Surg ward (WARD-MED-3A): P1–P15.
+    for (int i = 1; i <= 15; i++)
+        assignments.Add(($"P{i}", "NURSE1", "NURSE", "Medical-Surgical", false));
+
+    // NURSE2 — ICU (WARD-ICU-1): P16–P30.
+    for (int i = 16; i <= 30; i++)
+        assignments.Add(($"P{i}", "NURSE2", "NURSE", "ICU", false));
 
     var saved = DemoSeedHelper.SetSystemContext();
     try

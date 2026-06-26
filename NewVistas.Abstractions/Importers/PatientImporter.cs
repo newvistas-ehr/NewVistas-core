@@ -4,6 +4,7 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 using Microsoft.Extensions.Logging;
 using NewVistas.Abstractions.GrainInterfaces;
+using NewVistas.Abstractions.GrainStates;
 using NewVistas.Abstractions.Helpers;
 
 namespace NewVistas.Abstractions.Importers;
@@ -132,6 +133,15 @@ public class PatientImporter
                 // Set VistA DFN (the IEN is the DFN in PATIENT file #2)
                 await grain.SetDfnAsync(ien.ToString());
 
+                // Register in the searchable PATIENT-INDEX (ORWPT "B"/"BS5"/IEN
+                // cross-references). PatientImporter writes IPatientGrain directly
+                // rather than through IPatientWorkflowGrain, so — unlike the normal
+                // registration path — it must populate the index itself, or name /
+                // SSN-last-4 / DFN lookup can never see imported patients.
+                PatientState state = await grain.GetPatientAsync();
+                await _grainFactory.GetGrain<IPatientIndexGrain>("PATIENT-INDEX")
+                    .AddOrUpdateAsync(BuildIndexEntry(state));
+
                 result.RecordSuccess("Patient");
                 if (++count % 50 == 0)
                     _logger.LogInformation("Imported {Count} patients so far", count);
@@ -142,5 +152,33 @@ public class PatientImporter
                 _logger.LogError(ex, "Failed to import patient IEN {Ien}", group.Key);
             }
         }
+    }
+
+    /// <summary>
+    /// Builds the lightweight index entry from full patient state. Mirrors
+    /// PatientWorkflowGrain.BuildIndexEntry so imported patients are indexed
+    /// identically to those registered through the workflow grain.
+    /// </summary>
+    private static PatientIndexEntry BuildIndexEntry(PatientState state)
+    {
+        string ssnLast4 = string.Empty;
+        if (!string.IsNullOrEmpty(state.SocialSecurityNumber))
+        {
+            string ssn = state.SocialSecurityNumber.Replace("-", string.Empty);
+            if (ssn.Length >= 4 && ssn.All(char.IsDigit))
+                ssnLast4 = ssn[^4..];
+        }
+
+        return new PatientIndexEntry
+        {
+            PatientId   = state.PatientId,
+            Name        = state.Name,
+            DateOfBirth = state.DateOfBirth,
+            Sex         = state.Sex,
+            SsnLast4    = ssnLast4,
+            Dfn         = state.Dfn,
+            Icn         = state.Icn,
+            IsActive    = state.IsActive
+        };
     }
 }

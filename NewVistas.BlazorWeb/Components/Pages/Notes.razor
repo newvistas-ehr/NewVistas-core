@@ -15,12 +15,9 @@
 
 <h1>Progress Notes</h1>
 
+<PatientBar @bind-PatientId="patientId" Loading="loading" OnLoad="LoadNotes" />
+
 <div class="lookup-bar">
-    <input type="text" @bind="patientId" @bind:event="oninput" @onkeydown="HandleKeyDown"
-           placeholder="Patient ID" class="lookup-input" />
-    <button @onclick="LoadNotes" disabled="@(string.IsNullOrWhiteSpace(patientId) || loading)" class="btn btn-primary">
-        @if (loading) { <span>Loading...</span> } else { <span>Load Notes</span> }
-    </button>
     <button @onclick="ShowNewNoteForm" disabled="@(string.IsNullOrWhiteSpace(patientId))" class="btn btn-primary">
         + New Note
     </button>
@@ -280,10 +277,6 @@
         if (!string.IsNullOrWhiteSpace(patientId)) await LoadNotes();
     }
 
-    private async Task HandleKeyDown(KeyboardEventArgs e)
-    {
-        if (e.Key == "Enter") await LoadNotes();
-    }
 
     private async Task HandleEsigKeyDown(KeyboardEventArgs e)
     {

@@ -3,8 +3,6 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 using Bunit;
-using Microsoft.AspNetCore.Components;
-using Microsoft.Extensions.DependencyInjection;
 using NewVistas.Abstractions.GrainInterfaces;
 using NewVistas.Abstractions.GrainStates;
 using NewVistas.BlazorWeb.Components.Pages;
@@ -24,26 +22,25 @@ public class ConsultsPageTests : BlazorTestBase
     }
 
     [Test]
-    public void Consults_RendersLookupBar()
+    public void Consults_PromptsToSelectPatientWhenNoneChosen()
     {
         var cut = Ctx.Render<Consults>();
 
-        var input = cut.Find("input.lookup-input");
-        Assert.That(input, Is.Not.Null);
-        Assert.That(input.GetAttribute("placeholder"), Is.EqualTo("Patient ID"));
+        Assert.That(cut.Markup, Does.Contain("Select a patient"));
     }
 
     [Test]
-    public void Consults_LoadButton_DisabledWhenEmpty()
+    public void Consults_ShowsSelectedPatientInBar()
     {
+        SelectPatient("PATIENT-001", "SMITH, JOHN");
+
         var cut = Ctx.Render<Consults>();
 
-        var button = cut.Find("button.btn-primary");
-        Assert.That(button.HasAttribute("disabled"), Is.True);
+        Assert.That(cut.Markup, Does.Contain("Change patient"));
     }
 
     [Test]
-    public async Task Consults_LoadsDataFromGrain()
+    public void Consults_LoadsDataFromGrain()
     {
         var consults = new List<ConsultSummary>
         {
@@ -54,40 +51,32 @@ public class ConsultsPageTests : BlazorTestBase
         };
         MockWorkflowGrain.GetConsultsAsync(null, 100).Returns(consults);
 
+        SelectPatient("PATIENT-001");
         var cut = Ctx.Render<Consults>();
-
-        cut.Find("input.lookup-input").Input("PATIENT-001");
-        await cut.Find("button.btn-primary").ClickAsync(new Microsoft.AspNetCore.Components.Web.MouseEventArgs());
-
-        await MockWorkflowGrain.Received(1).GetConsultsAsync(null, 100);
 
         Assert.That(cut.Markup, Does.Contain("Cardiology"));
         Assert.That(cut.Markup, Does.Contain("Orthopedics"));
     }
 
     [Test]
-    public async Task Consults_ShowsEmptyState()
+    public void Consults_ShowsEmptyState()
     {
         MockWorkflowGrain.GetConsultsAsync(null, 100).Returns(new List<ConsultSummary>());
 
+        SelectPatient("PATIENT-002");
         var cut = Ctx.Render<Consults>();
-
-        cut.Find("input.lookup-input").Input("PATIENT-002");
-        await cut.Find("button.btn-primary").ClickAsync(new Microsoft.AspNetCore.Components.Web.MouseEventArgs());
 
         Assert.That(cut.Markup, Does.Contain("No consults found"));
     }
 
     [Test]
-    public async Task Consults_ShowsErrorOnGrainFailure()
+    public void Consults_ShowsErrorOnGrainFailure()
     {
         MockWorkflowGrain.GetConsultsAsync(null, 100).Returns<List<ConsultSummary>>(
             _ => throw new Exception("Silo unreachable"));
 
+        SelectPatient("PATIENT-003");
         var cut = Ctx.Render<Consults>();
-
-        cut.Find("input.lookup-input").Input("PATIENT-003");
-        await cut.Find("button.btn-primary").ClickAsync(new Microsoft.AspNetCore.Components.Web.MouseEventArgs());
 
         Assert.That(cut.Markup, Does.Contain("Error loading consults"));
         Assert.That(cut.Markup, Does.Contain("Silo unreachable"));

@@ -7,25 +7,83 @@
 @rendermode InteractiveServer
 @using NewVistas.BlazorWeb.Services
 @using NewVistas.Abstractions.GrainInterfaces
+@using NewVistas.Abstractions.GrainStates
 @inject OrleansGrainService Grains
 @inject PatientContextService PatientContext
 
 <PageTitle>Patient Lookup</PageTitle>
 
 <h1>🔍 Patient Lookup</h1>
+<p class="subtitle">Pick a patient once — they stay selected as you move between clinical pages.</p>
 
-<div class="lookup-bar">
-    <input type="text" @bind="patientId" @bind:event="oninput"
-           @onkeydown="HandleKeyDown"
-           placeholder="Enter Patient ID (e.g., PATIENT-001)" class="lookup-input" />
-    <button @onclick="LookupPatient" disabled="@(string.IsNullOrWhiteSpace(patientId) || loading)" class="btn btn-primary">
-        @if (loading) { <span>Loading...</span> } else { <span>Look Up</span> }
-    </button>
+<div class="lookup-panels">
+    <div class="lookup-card">
+        <label class="lookup-label">I know the Patient ID</label>
+        <div class="lookup-row">
+            <input type="text" @bind="patientId" @bind:event="oninput" @onkeydown="HandleIdKey"
+                   placeholder="e.g., P1 or P9001" class="lookup-input" />
+            <button @onclick="OpenById" disabled="@(string.IsNullOrWhiteSpace(patientId) || loading)" class="btn btn-primary">Open</button>
+        </div>
+    </div>
+
+    <div class="lookup-card">
+        <label class="lookup-label">Search by name</label>
+        <div class="lookup-row">
+            <input type="text" @bind="nameQuery" @bind:event="oninput" @onkeydown="HandleNameKey"
+                   placeholder="First letters of last name, e.g. SMI" class="lookup-input" />
+            <button @onclick="SearchByName" disabled="@(string.IsNullOrWhiteSpace(nameQuery) || loading)" class="btn btn-primary">Search</button>
+        </div>
+        <span class="lookup-hint">Last-name prefix, or "LAST,FIRST". A 4-digit number matches SSN last-4.</span>
+    </div>
+
+    <div class="lookup-card">
+        <label class="lookup-label">My panel</label>
+        <div class="lookup-row">
+            <button @onclick="LoadMyPatients" disabled="@loading" class="btn btn-secondary">Show My Patients</button>
+        </div>
+        <span class="lookup-hint">Patients on your care team, in alphabetical order.</span>
+    </div>
 </div>
+
+@if (loading)
+{
+    <p class="loading-msg">Loading…</p>
+}
 
 @if (error != null)
 {
     <div class="alert alert-error">@error</div>
+}
+
+@if (results != null)
+{
+    <div class="results">
+        <h3>@resultsTitle</h3>
+        @if (results.Count == 0)
+        {
+            <p class="empty-msg">No patients found.</p>
+        }
+        else
+        {
+            <table class="result-table">
+                <thead>
+                    <tr><th>Name</th><th>DOB</th><th>SSN</th><th>@resultsExtraHeader</th><th></th></tr>
+                </thead>
+                <tbody>
+                    @foreach (ResultRow r in results)
+                    {
+                        <tr class="result-row" @onclick="() => SelectPatient(r.PatientId)">
+                            <td class="rt-name">@r.Name</td>
+                            <td>@(r.Dob?.ToString("MM/dd/yyyy") ?? "—")</td>
+                            <td>@(string.IsNullOrEmpty(r.Ssn4) ? "—" : $"***-**-{r.Ssn4}")</td>
+                            <td>@(string.IsNullOrEmpty(r.Extra) ? "—" : r.Extra)</td>
+                            <td class="rt-open">Open ›</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        }
+    </div>
 }
 
 @if (patient != null)
@@ -48,6 +106,7 @@
                 <span class="badge badge-inactive">Inactive</span>
             }
         </div>
+        <div class="banner-confirm">✓ Selected — this patient now carries across clinical pages.</div>
     </div>
 
     <div class="patient-sections">
@@ -85,45 +144,104 @@
     </div>
 
     <div class="patient-actions">
-        <a href="/patient-edit?patientId=@patientId">Edit Patient</a>
         <a href="/cover-sheet?patientId=@patientId">View Cover Sheet</a>
+        <a href="/patient-edit?patientId=@patientId">Edit Patient</a>
         <a href="/labs?patientId=@patientId">View Labs</a>
     </div>
 }
 
 @code {
     private string patientId = "";
+    private string nameQuery = "";
     private PatientResponse? patient;
     private bool loading;
     private string? error;
 
-    private async Task HandleKeyDown(KeyboardEventArgs e)
+    private List<ResultRow>? results;
+    private string resultsTitle = "";
+    private string resultsExtraHeader = "";
+
+    private async Task HandleIdKey(KeyboardEventArgs e)
     {
-        if (e.Key == "Enter")
-            await LookupPatient();
+        if (e.Key == "Enter") await OpenById();
     }
 
-    private async Task LookupPatient()
+    private async Task HandleNameKey(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter") await SearchByName();
+    }
+
+    // ── Option 1: open directly by known Patient ID ──────────────────────────
+    private async Task OpenById()
     {
         if (string.IsNullOrWhiteSpace(patientId)) return;
+        await SelectPatient(patientId.Trim());
+    }
 
-        loading = true;
-        error = null;
-        patient = null;
-
+    // ── Option 2: name / SSN-last-4 prefix search (ORWPT LOOKUP heuristic) ────
+    private async Task SearchByName()
+    {
+        if (string.IsNullOrWhiteSpace(nameQuery)) return;
+        loading = true; error = null; patient = null;
         try
         {
-            // Use direct Orleans grain access — no HTTP API authorization needed
-            var workflow = Grains.GetGrain<IPatientWorkflowGrain>(patientId.Trim());
-            var state = await workflow.GetPatientAsync();
+            IPatientSearchGrain search = Grains.GetGrain<IPatientSearchGrain>("PATIENT-SEARCH");
+            List<PatientIndexEntry> hits = await search.SearchAsync(nameQuery.Trim(), 50);
+            results = hits
+                .Select(h => new ResultRow(h.PatientId, h.Name, h.DateOfBirth, h.SsnLast4, h.Sex))
+                .ToList();
+            resultsTitle = $"Search results ({results.Count})";
+            resultsExtraHeader = "Sex";
+        }
+        catch (Exception ex) { error = $"Search failed: {ex.Message}"; }
+        finally { loading = false; }
+    }
+
+    // ── Option 3: the signed-in provider's own panel, alphabetical ───────────
+    private async Task LoadMyPatients()
+    {
+        string? userId = Grains.CurrentUserId;
+        if (string.IsNullOrWhiteSpace(userId))
+        {
+            error = "You must be signed in to view your patients.";
+            return;
+        }
+
+        loading = true; error = null; patient = null;
+        try
+        {
+            IProviderPatientIndexGrain idx = Grains.GetGrain<IProviderPatientIndexGrain>($"PROV-PAT-IDX:{userId}");
+            List<ProviderPatientEntry> mine = await idx.GetActivePatientsAsync();
+            results = mine
+                .Select(p => new ResultRow(p.PatientId, p.PatientName, p.DateOfBirth, p.SsnLast4, p.Relationship))
+                .ToList();
+            resultsTitle = $"My Patients ({results.Count})";
+            resultsExtraHeader = "Relationship";
+        }
+        catch (Exception ex) { error = $"Could not load your patients: {ex.Message}"; }
+        finally { loading = false; }
+    }
+
+    // ── Select a patient (from a result row, or a direct ID open) ────────────
+    private async Task SelectPatient(string id)
+    {
+        if (string.IsNullOrWhiteSpace(id)) return;
+
+        loading = true; error = null; patient = null;
+        try
+        {
+            // Direct Orleans grain access — no HTTP API authorization needed.
+            IPatientWorkflowGrain workflow = Grains.GetGrain<IPatientWorkflowGrain>(id.Trim());
+            PatientState state = await workflow.GetPatientAsync();
 
             if (string.IsNullOrEmpty(state.Name))
             {
-                error = $"Patient '{patientId}' not found.";
+                error = $"Patient '{id}' not found.";
             }
             else
             {
-                PatientContext.SetPatient(patientId.Trim(), state.Name);
+                patientId = state.PatientId;
+                PatientContext.SetPatient(state.PatientId, state.Name);
                 patient = new PatientResponse
                 {
                     PatientId = state.PatientId,
@@ -168,6 +286,8 @@
         return string.IsNullOrEmpty(result) ? "—" : result;
     }
 
+    private record ResultRow(string PatientId, string Name, DateTime? Dob, string? Ssn4, string Extra);
+
     private class PatientResponse
     {
         public string PatientId { get; set; } = "";
@@ -195,18 +315,41 @@
 }
 
 <style>
-    .lookup-bar { display: flex; gap: 0.5rem; margin-bottom: 1.5rem; }
-    .lookup-input {
-        flex: 1; max-width: 400px; padding: 0.5rem 0.75rem;
-        border: 1px solid #ccc; border-radius: 4px; font-size: 0.9rem;
+    .subtitle { color: #555; margin-top: -0.5rem; margin-bottom: 1.25rem; }
+    .loading-msg { color: #555; font-style: italic; }
+
+    .lookup-panels { display: flex; flex-wrap: wrap; gap: 1rem; margin-bottom: 1.5rem; }
+    .lookup-card {
+        flex: 1; min-width: 260px; background: #f7f9fc; border: 1px solid #d6deea;
+        border-radius: 6px; padding: 0.9rem 1rem;
     }
-    .btn { padding: 0.5rem 1.25rem; border: none; border-radius: 4px; cursor: pointer; font-size: 0.85rem; }
+    .lookup-label { display: block; font-weight: 600; color: #003f72; margin-bottom: 0.5rem; font-size: 0.9rem; }
+    .lookup-row { display: flex; gap: 0.5rem; align-items: center; }
+    .lookup-input {
+        flex: 1; padding: 0.5rem 0.75rem; border: 1px solid #ccc; border-radius: 4px; font-size: 0.9rem;
+    }
+    .lookup-hint { display: block; margin-top: 0.4rem; color: #777; font-size: 0.75rem; }
+
+    .btn { padding: 0.5rem 1.1rem; border: none; border-radius: 4px; cursor: pointer; font-size: 0.85rem; white-space: nowrap; }
     .btn-primary { background: #003f72; color: white; }
     .btn-primary:hover { background: #002a4e; }
     .btn-primary:disabled { background: #999; cursor: not-allowed; }
+    .btn-secondary { background: #e8edf4; color: #003f72; border: 1px solid #b9c7da; }
+    .btn-secondary:hover { background: #dbe4f0; }
+    .btn-secondary:disabled { color: #999; cursor: not-allowed; }
 
     .alert { padding: 0.75rem 1rem; border-radius: 4px; margin-bottom: 1rem; }
     .alert-error { background: #fde8e8; color: #b91c1c; border: 1px solid #f5c6c6; }
+
+    .results { margin-bottom: 1.5rem; }
+    .empty-msg { color: #666; font-style: italic; }
+    .result-table { width: 100%; border-collapse: collapse; font-size: 0.88rem; }
+    .result-table th, .result-table td { padding: 0.45rem 0.6rem; border-bottom: 1px solid #e6e6e6; text-align: left; }
+    .result-table th { background: #f3f5f8; color: #444; font-weight: 600; }
+    .result-row { cursor: pointer; }
+    .result-row:hover { background: #eef3f9; }
+    .rt-name { font-weight: 600; color: #003f72; }
+    .rt-open { color: #003f72; text-align: right; font-weight: 600; }
 
     .patient-banner {
         background: #eef3f9; border: 1px solid #c5d3e3; border-radius: 6px;
@@ -214,6 +357,7 @@
     }
     .banner-name { font-size: 1.3rem; font-weight: 700; color: #003f72; }
     .banner-details { display: flex; flex-wrap: wrap; gap: 1rem; margin-top: 0.5rem; font-size: 0.85rem; color: #555; }
+    .banner-confirm { margin-top: 0.5rem; color: #166534; font-size: 0.8rem; font-weight: 600; }
     .badge { padding: 2px 8px; border-radius: 3px; font-size: 0.75rem; font-weight: 600; }
     .badge-vet { background: #dcfce7; color: #166534; }
     .badge-inactive { background: #fde8e8; color: #b91c1c; }

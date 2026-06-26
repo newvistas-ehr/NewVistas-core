@@ -18,11 +18,9 @@
 <PageTitle>Imaging</PageTitle>
 <h1>Imaging</h1>
 
+<PatientBar @bind-PatientId="patientId" Loading="loading" OnLoad="Load" />
+
 <div class="lookup-bar">
-    <input type="text" @bind="patientId" @bind:event="oninput" @onkeydown="HandleKeyDown" placeholder="Patient ID" class="lookup-input" />
-    <button @onclick="Load" disabled="@(string.IsNullOrWhiteSpace(patientId) || loading)" class="btn btn-primary">
-        @if (loading) { <span>Loading...</span> } else { <span>Load</span> }
-    </button>
     <button @onclick="ShowForm" disabled="@(string.IsNullOrWhiteSpace(patientId))" class="btn btn-primary">+ Capture Image</button>
 </div>
 
@@ -360,7 +358,6 @@
             patientId = PatientContext.PatientId;
         if (!string.IsNullOrWhiteSpace(patientId)) await Load();
     }
-    private async Task HandleKeyDown(KeyboardEventArgs e) { if (e.Key == "Enter") await Load(); }
     private void SetTab(string tab) { activeTab = tab; success = null; }
     private void ShowForm() { showNew = true; success = null; f_type = "XRAY"; f_desc = ""; f_capturedBy = ""; f_location = ""; f_comments = ""; selectedFile = null; }
 
