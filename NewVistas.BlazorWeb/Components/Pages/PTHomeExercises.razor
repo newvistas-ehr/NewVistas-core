@@ -149,7 +149,7 @@
                 </div>
                 <div class="form-row">
                     <label>Prescribed By</label>
-                    <input type="text" @bind="rxPrescribedBy" placeholder="Therapist name" class="form-input" />
+                    <ProviderPicker @bind-ProviderName="rxPrescribedBy" Label="" DefaultToSelf="true" />
                 </div>
                 <div class="form-row">
                     <label>Notes</label>

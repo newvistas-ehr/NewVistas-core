@@ -319,11 +319,8 @@
                         <option value="3">Wastage</option>
                     </select>
 
-                    <label>Prescriber ID:</label>
-                    <input @bind="dispPrescriberId" class="form-input" />
-
-                    <label>Prescriber Name:</label>
-                    <input @bind="dispPrescriberName" class="form-input" />
+                    <label>Prescriber:</label>
+                    <ProviderPicker @bind-ProviderId="dispPrescriberId" @bind-ProviderName="dispPrescriberName" Label="" DefaultToSelf="false" />
 
                     <label>Prescriber DEA #:</label>
                     <input @bind="dispPrescriberDEA" class="form-input" placeholder="Optional" />

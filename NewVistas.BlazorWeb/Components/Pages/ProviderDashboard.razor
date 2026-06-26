@@ -16,7 +16,7 @@
 <p class="subtitle">PCMM — My Schedule and My Patients</p>
 
 <div class="pd-toolbar">
-    <input @bind="providerId" @onkeydown="HandleEnterKey" placeholder="Provider ID" class="input-id" />
+    <ProviderPicker @bind-ProviderId="providerId" Label="Provider ID" DefaultToSelf="true" />
     <button @onclick="HandleProviderLoad" disabled="@loading">Load</button>
 </div>
 

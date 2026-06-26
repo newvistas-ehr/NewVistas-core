@@ -242,7 +242,7 @@
             <h4>Notes</h4>
             <div class="entry-form compact">
                 <div class="form-grid">
-                    <div class="form-row"><label>Author *</label><input type="text" @bind="nt_author" /></div>
+                    <div class="form-row"><label>Author *</label><ProviderPicker @bind-ProviderName="nt_author" Label="" DefaultToSelf="true" /></div>
                     <div class="form-row full"><label>Note *</label><textarea @bind="nt_text" rows="2"></textarea></div>
                 </div>
                 <div class="form-actions">

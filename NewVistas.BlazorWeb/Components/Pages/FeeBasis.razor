@@ -162,8 +162,7 @@
                     </div>
                     <div class="fb-form-row">
                         <input type="number" class="form-input" placeholder="Authorized Amount" @bind="newAuth.AuthorizedAmount" />
-                        <input class="form-input" placeholder="Authorized By User ID" @bind="newAuth.AuthorizedByUserId" />
-                        <input class="form-input" placeholder="Authorized By Name" @bind="newAuth.AuthorizedByUserName" />
+                        <ProviderPicker @bind-ProviderId="newAuth.AuthorizedByUserId" @bind-ProviderName="newAuth.AuthorizedByUserName" Label="Authorized By" DefaultToSelf="true" />
                     </div>
                     <div class="fb-form-row">
                         <input class="form-input" placeholder="Service Description" @bind="newAuth.ServiceDescription" />

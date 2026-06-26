@@ -117,7 +117,7 @@
                 <input @bind="orderIndication" placeholder="Clinical indication" />
 
                 <label>Provider</label>
-                <input @bind="orderProvider" placeholder="Provider name" />
+                <ProviderPicker @bind-ProviderName="orderProvider" Label="" DefaultToSelf="true" />
 
                 <label>Location</label>
                 <input @bind="orderLocation" placeholder="Location" />

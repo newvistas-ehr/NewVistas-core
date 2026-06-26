@@ -141,8 +141,7 @@
         <label>Service ID: <input @bind="newServiceId" placeholder="e.g. SVC-NEWSERVICE" /></label>
         <label>Service Name: <input @bind="newServiceName" /></label>
         <label>Specialty: <input @bind="newSpecialty" placeholder="(optional)" /></label>
-        <label>Default Provider ID: <input @bind="newProviderId" placeholder="(optional)" /></label>
-        <label>Default Provider Name: <input @bind="newProviderName" placeholder="(optional)" /></label>
+        <ProviderPicker @bind-ProviderId="newProviderId" @bind-ProviderName="newProviderName" Label="Default Provider" DefaultToSelf="false" />
         <label>Location ID: <input @bind="newLocationId" placeholder="(optional)" /></label>
         <label>Location Name: <input @bind="newLocationName" placeholder="(optional)" /></label>
         <label>

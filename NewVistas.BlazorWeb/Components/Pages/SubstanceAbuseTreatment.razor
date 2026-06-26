@@ -87,7 +87,7 @@
                 </div>
                 <div class="col-md-3">
                     <label>Provider Name</label>
-                    <input type="text" class="form-input" @bind="newEpisode.ProviderName" />
+                    <ProviderPicker @bind-ProviderName="newEpisode.ProviderName" Label="" DefaultToSelf="true" />
                 </div>
                 <div class="col-md-3">
                     <label>Location</label>
@@ -185,7 +185,7 @@
                             </select>
                         </div>
                         <div class="col-md-2"><label>Duration (min)</label><input type="number" class="form-input" @bind="newVisit.DurationMinutes" /></div>
-                        <div class="col-md-2"><label>Provider</label><input type="text" class="form-input" @bind="newVisit.ProviderName" /></div>
+                        <div class="col-md-2"><label>Provider</label><ProviderPicker @bind-ProviderName="newVisit.ProviderName" Label="" DefaultToSelf="true" /></div>
                         <div class="col-md-2"><label>Craving (0-10)</label><input type="number" min="0" max="10" class="form-input" @bind="newVisit.CravingLevel" /></div>
                     </div>
                     <div class="row g-2 mt-2">
@@ -281,7 +281,7 @@
                             </div>
                             <div class="col-md-2"><label>Dosage</label><input type="text" class="form-input" @bind="newMAT.Dosage" /></div>
                             <div class="col-md-2"><label>Start Date *</label><input type="date" class="form-input" @bind="newMAT.StartDate" /></div>
-                            <div class="col-md-2"><label>Prescriber</label><input type="text" class="form-input" @bind="newMAT.PrescriberName" /></div>
+                            <div class="col-md-2"><label>Prescriber</label><ProviderPicker @bind-ProviderName="newMAT.PrescriberName" Label="" DefaultToSelf="true" /></div>
                             <div class="col-md-3"><label>Notes</label><input type="text" class="form-input" @bind="newMAT.Notes" /></div>
                         </div>
                         <button class="btn btn-primary mt-2" @onclick="SubmitMAT">Add MAT</button>

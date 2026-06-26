@@ -46,7 +46,7 @@
             <div class="form-row"><label>Imaging Type</label>
                 <select @bind="f_type"><option value="">--</option><option>GENERAL RADIOLOGY</option><option>CT SCAN</option><option>MRI</option><option>ULTRASOUND</option><option>NUCLEAR MEDICINE</option><option>MAMMOGRAPHY</option></select>
             </div>
-            <div class="form-row"><label>Requesting Provider</label><input type="text" @bind="f_provider" /></div>
+            <div class="form-row"><label>Requesting Provider</label><ProviderPicker @bind-ProviderName="f_provider" Label="" DefaultToSelf="true" /></div>
             <div class="form-row"><label>Urgency</label>
                 <select @bind="f_urgency"><option>ROUTINE</option><option>URGENT</option><option>STAT</option></select>
             </div>
@@ -218,7 +218,7 @@
                 {
                     <div class="entry-form compact">
                         <div class="form-grid">
-                            <div class="form-row"><label>Notified To *</label><input type="text" @bind="cn_to" placeholder="Provider name" /></div>
+                            <div class="form-row"><label>Notified To *</label><ProviderPicker @bind-ProviderName="cn_to" Label="" DefaultToSelf="false" /></div>
                         </div>
                         <div class="form-actions">
                             <button @onclick="SubmitCriticalNotification" disabled="@saving" class="btn btn-primary">Record Notification</button>
@@ -229,7 +229,7 @@
                 {
                     <div class="entry-form compact">
                         <div class="form-grid">
-                            <div class="form-row"><label>Acknowledged By *</label><input type="text" @bind="cn_ack" placeholder="Acknowledging provider" /></div>
+                            <div class="form-row"><label>Acknowledged By *</label><ProviderPicker @bind-ProviderName="cn_ack" Label="" DefaultToSelf="true" /></div>
                         </div>
                         <div class="form-actions">
                             <button @onclick="SubmitAcknowledgeCritical" disabled="@saving" class="btn btn-primary">Acknowledge</button>

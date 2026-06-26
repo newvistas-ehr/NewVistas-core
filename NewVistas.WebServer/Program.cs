@@ -295,6 +295,14 @@ using (var scope = app.Services.CreateScope())
     var contentRoot = app.Environment.ContentRootPath;
     await SeedReferenceDataAsync(grainFactory, seedLogger, contentRoot);
 
+    // Seed the marquee demo patient (SICK,EXTREME LEE / P9001) and put him on a demo
+    // provider's panel FIRST — before the slow bulk import below. The app is already
+    // serving (app.StartAsync above), so a clinician who logs straight in can Open P9001,
+    // find him by name, and see him in "My Patients" within seconds, while the P1..P500
+    // cohort streams in behind. Both calls are idempotent.
+    await ExtremeLeeSickSeed.SeedAsync(grainFactory, seedLogger);
+    await SeedDemoCareTeamsAsync(app.Services, seedLogger);   // assigns P9001 now; P1..P30 skipped until imported
+
     // Auto-import demo patients if none exist
     var patientCheck = grainFactory.GetGrain<IPatientGrain>("PATIENT-check");
     var checkState = await patientCheck.GetPatientAsync();
@@ -342,16 +350,10 @@ using (var scope = app.Services.CreateScope())
         }
     }
 
-    // Seed the rich narrative demo patient (SICK,EXTREME LEE / P9001) FIRST, so the
-    // care-team seeding below can place him on a demo provider's panel. Idempotent.
-    await ExtremeLeeSickSeed.SeedAsync(grainFactory, seedLogger);
-
-    // Seed care team assignments for demo patients regardless of import status.
-    // Idempotent — AddCareTeamMemberAsync updates if the member already exists.
+    // Now the imported cohort exists — (re)apply the care-team panels (idempotent; this
+    // fills the P1..P30 assignments that were skipped before the import) and seed the
+    // per-patient clinical demo data (scheduling, vitals, problems, allergies).
     await SeedDemoCareTeamsAsync(app.Services, seedLogger);
-
-    // Auto-seed clinical demo data (scheduling, vitals, problems, allergies).
-    // Idempotent — skips patients that already have clinical data.
     await SeedDemoClinicalDataAsync(grainFactory, seedLogger);
 }
 

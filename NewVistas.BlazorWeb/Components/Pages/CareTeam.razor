@@ -103,12 +103,8 @@
     <div class="form-panel">
         <h3>Add Care Team Member</h3>
         <div class="form-row">
-            <label>Provider ID</label>
-            <input @bind="newProviderId" placeholder="Provider ID" />
-        </div>
-        <div class="form-row">
-            <label>Provider Name</label>
-            <input @bind="newProviderName" placeholder="LAST,FIRST MI" />
+            <label>Provider</label>
+            <ProviderPicker @bind-ProviderId="newProviderId" @bind-ProviderName="newProviderName" Label="" DefaultToSelf="false" />
         </div>
         <div class="form-row">
             <label>Role</label>
@@ -174,12 +170,8 @@
     <div class="form-panel">
         <h3>Set PCP</h3>
         <div class="form-row">
-            <label>Provider ID</label>
-            <input @bind="pcpProviderId" placeholder="Provider ID" />
-        </div>
-        <div class="form-row">
-            <label>Provider Name</label>
-            <input @bind="pcpProviderName" placeholder="LAST,FIRST MI" />
+            <label>Provider</label>
+            <ProviderPicker @bind-ProviderId="pcpProviderId" @bind-ProviderName="pcpProviderName" Label="" DefaultToSelf="false" />
         </div>
         <div class="form-row">
             <label>Specialty</label>

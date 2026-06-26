@@ -110,7 +110,7 @@
         @if (draft.Status != SummaryStatus.Signed)
         {
             <div class="ps-sign">
-                <input @bind="clinicianId" placeholder="Your clinician ID" />
+                <ProviderPicker @bind-ProviderId="clinicianId" Label="Clinician" DefaultToSelf="true" />
                 <button class="ps-btn primary" @onclick="SignOff"
                         disabled="@(busy || string.IsNullOrWhiteSpace(clinicianId))">
                     Review complete — sign off

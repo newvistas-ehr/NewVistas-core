@@ -273,7 +273,7 @@
                 {
                     <div class="form-card" style="margin-top:.5rem;">
                         <h5 style="margin-top:0;">Sign DBQ</h5>
-                        <input @bind="signedBy" placeholder="Examiner name / credentials" style="width:100%;margin-bottom:.5rem;" />
+                        <ProviderPicker @bind-ProviderName="signedBy" Label="Signed By" DefaultToSelf="true" />
                         <button class="btn btn-primary" @onclick="SignDbq">Sign &amp; Complete</button>
                         <button class="btn btn-secondary" @onclick="()=>signDbqId=null" style="margin-left:.5rem;">Back</button>
                     </div>

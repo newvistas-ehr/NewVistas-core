@@ -51,7 +51,7 @@
             </div>
             <div class="form-row"><label>Calorie Level</label><input type="text" @bind="f_calories" placeholder="e.g. 2000 kcal" /></div>
             <div class="form-row"><label>Modifications (comma-sep.)</label><input type="text" @bind="f_mods" placeholder="e.g. LOW SODIUM, LOW FAT" /></div>
-            <div class="form-row"><label>Provider</label><input type="text" @bind="f_provider" /></div>
+            <div class="form-row"><label>Provider</label><ProviderPicker @bind-ProviderName="f_provider" Label="" DefaultToSelf="true" /></div>
             <div class="form-row full"><label>Special Instructions</label><textarea @bind="f_instructions" rows="2"></textarea></div>
         </div>
         <div class="form-actions">

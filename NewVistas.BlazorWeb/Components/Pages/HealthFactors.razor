@@ -47,7 +47,7 @@
             <div class="form-row"><label>Level/Severity</label>
                 <select @bind="f_severity"><option value="">--</option><option>NONE</option><option>LIGHT</option><option>MODERATE</option><option>HEAVY/SEVERE</option></select>
             </div>
-            <div class="form-row"><label>Entered By</label><input type="text" @bind="f_enteredBy" /></div>
+            <div class="form-row"><label>Entered By</label><ProviderPicker @bind-ProviderName="f_enteredBy" Label="" DefaultToSelf="true" /></div>
             <div class="form-row"><label>Location</label><input type="text" @bind="f_location" /></div>
             <div class="form-row full"><label>Comments</label><textarea @bind="f_comments" rows="3" placeholder="Additional details..."></textarea></div>
         </div>
@@ -183,7 +183,7 @@
                 <div class="form-grid">
                     <div class="form-row"><label>Value *</label><input type="text" @bind="hist_value" /></div>
                     <div class="form-row"><label>Severity</label><input type="text" @bind="hist_severity" /></div>
-                    <div class="form-row"><label>Recorded By</label><input type="text" @bind="hist_recordedBy" /></div>
+                    <div class="form-row"><label>Recorded By</label><ProviderPicker @bind-ProviderName="hist_recordedBy" Label="" DefaultToSelf="true" /></div>
                     <div class="form-row full"><label>Comment</label><textarea @bind="hist_comment" rows="2"></textarea></div>
                 </div>
                 <div class="form-actions">

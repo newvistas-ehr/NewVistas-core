@@ -442,7 +442,7 @@
         </div>
         <div class="form-row">
             <label>Referring Provider</label>
-            <input @bind="newProviderName" placeholder="Provider name" />
+            <ProviderPicker @bind-ProviderName="newProviderName" Label="" DefaultToSelf="true" />
         </div>
         <div class="form-row">
             <label>Collection Location</label>

@@ -83,7 +83,7 @@ else if (featureChecked && !featureEnabled)
                     </div>
                     <div class="form-row">
                         <label>Provider Name</label>
-                        <input type="text" class="form-input" @bind="newProviderName" placeholder="Referring provider" />
+                        <ProviderPicker @bind-ProviderName="newProviderName" Label="Referring Provider" DefaultToSelf="false" />
                     </div>
                     <div class="form-row">
                         <label>Purpose</label>

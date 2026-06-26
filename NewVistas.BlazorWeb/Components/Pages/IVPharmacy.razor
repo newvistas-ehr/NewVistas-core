@@ -247,11 +247,8 @@ else if (patientId != null)
             <label>Stop Date/Time:</label>
             <input type="datetime-local" @bind="form.StopDateTime" />
 
-            <label>Provider ID:</label>
-            <input @bind="form.ProviderId" />
-
-            <label>Provider Name:</label>
-            <input @bind="form.ProviderName" />
+            <label>Provider:</label>
+            <ProviderPicker @bind-ProviderId="form.ProviderId" @bind-ProviderName="form.ProviderName" Label="" DefaultToSelf="true" />
 
             <label>Notes:</label>
             <textarea @bind="form.Notes" rows="3"></textarea>

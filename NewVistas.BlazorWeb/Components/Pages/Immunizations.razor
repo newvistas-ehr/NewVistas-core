@@ -245,7 +245,7 @@
             }
             <div class="entry-form compact">
                 <div class="form-grid">
-                    <div class="form-row"><label>Author *</label><input type="text" @bind="cm_author" /></div>
+                    <div class="form-row"><label>Author *</label><ProviderPicker @bind-ProviderName="cm_author" Label="" DefaultToSelf="true" /></div>
                     <div class="form-row full"><label>Comment *</label><textarea @bind="cm_text" rows="2"></textarea></div>
                 </div>
                 <div class="form-actions">

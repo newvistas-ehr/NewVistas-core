@@ -178,7 +178,7 @@
                 <input type="number" @bind="encHighestStage" class="form-input" min="0" max="4" />
             </label>
             <label>Provider Name
-                <input type="text" @bind="encProviderName" class="form-input" />
+                <ProviderPicker @bind-ProviderName="encProviderName" Label="" DefaultToSelf="true" />
             </label>
             <label class="full-width">Notes
                 <textarea @bind="encNotes" class="form-input" rows="3"></textarea>
@@ -221,7 +221,7 @@
                     </select>
                 </label>
                 <label>Enrolling Provider Name
-                    <input type="text" @bind="enrollEnrollingProviderName" class="form-input" />
+                    <ProviderPicker @bind-ProviderName="enrollEnrollingProviderName" Label="" DefaultToSelf="true" />
                 </label>
             }
             <label>Neurological Level (e.g., C5)
@@ -268,7 +268,7 @@
                 </select>
             </label>
             <label>Primary Provider Name
-                <input type="text" @bind="enrollPrimaryProviderName" class="form-input" />
+                <ProviderPicker @bind-ProviderName="enrollPrimaryProviderName" Label="" DefaultToSelf="false" />
             </label>
             <label class="full-width">Notes
                 <textarea @bind="enrollNotes" class="form-input" rows="3"></textarea>

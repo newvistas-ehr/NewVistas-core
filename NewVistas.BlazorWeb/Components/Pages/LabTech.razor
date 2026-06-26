@@ -71,7 +71,7 @@
             <FormField Label="Specimen"><input class="form-input" @bind="nSpecType" placeholder="Blood" /></FormField>
             <FormField Label="Tube"><input class="form-input" @bind="nTube" placeholder="LAVENDER" /></FormField>
             <FormField Label="Section"><input class="form-input" @bind="nSection" placeholder="CHEM" /></FormField>
-            <FormField Label="Tech ID"><input class="form-input" @bind="nTechId" /></FormField>
+            <FormField Label="Tech ID"><ProviderPicker @bind-ProviderId="nTechId" Label="" DefaultToSelf="true" /></FormField>
             <div class="form-actions">
                 <button class="btn btn-primary" @onclick="Accession">Accession</button>
             </div>

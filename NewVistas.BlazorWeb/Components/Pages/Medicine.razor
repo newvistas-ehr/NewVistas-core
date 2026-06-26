@@ -333,7 +333,7 @@
                 <input @bind="orderDescription" placeholder="e.g. Routine ECG, 12-lead" class="input-sm" />
 
                 <label>Provider Name</label>
-                <input @bind="orderProviderName" placeholder="Provider name" class="input-sm" />
+                <ProviderPicker @bind-ProviderName="orderProviderName" Label="" DefaultToSelf="true" />
 
                 <label>Location</label>
                 <input @bind="orderLocationName" placeholder="Clinic / Ward" class="input-sm" />

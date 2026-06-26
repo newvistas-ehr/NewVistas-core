@@ -204,7 +204,7 @@
                 </table>
                 <div class="form-row" style="margin-top:0.75rem">
                     <label>Provider</label>
-                    <input type="text" @bind="setProviderName" placeholder="Provider name" />
+                    <ProviderPicker @bind-ProviderName="setProviderName" Label="" DefaultToSelf="true" />
                 </div>
                 <button class="btn btn-primary" @onclick="ExecuteSelectedSet"
                         disabled="@(string.IsNullOrWhiteSpace(patientId) || string.IsNullOrWhiteSpace(setProviderName) || executingSet)">

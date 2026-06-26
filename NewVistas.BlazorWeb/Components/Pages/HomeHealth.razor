@@ -177,8 +177,7 @@
                     <option value="PhoneContact">Phone Contact</option>
                 </select>
             </label>
-            <label>Clinician ID <input @bind="schedVisit.ClinicianId" placeholder="CLIN-001" /></label>
-            <label>Clinician Name <input @bind="schedVisit.ClinicianName" placeholder="Smith, RN" /></label>
+            <ProviderPicker @bind-ProviderId="schedVisit.ClinicianId" @bind-ProviderName="schedVisit.ClinicianName" Label="Clinician" DefaultToSelf="false" />
             <label>Notes <input @bind="schedVisit.Notes" placeholder="Visit notes..." /></label>
         </div>
         <button class="btn btn-primary" @onclick="ScheduleVisit" disabled="@scheduling">

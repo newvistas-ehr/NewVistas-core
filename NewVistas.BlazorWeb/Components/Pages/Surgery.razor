@@ -44,7 +44,7 @@
             <div class="form-row"><label>Principal Procedure *</label><input type="text" @bind="f_procedure" placeholder="e.g. Total Knee Replacement" /></div>
             <div class="form-row"><label>CPT Code</label><input type="text" @bind="f_cpt" placeholder="e.g. 27447" /></div>
             <div class="form-row"><label>Date of Operation *</label><input type="datetime-local" @bind="f_date" /></div>
-            <div class="form-row"><label>Surgeon Name</label><input type="text" @bind="f_surgeon" /></div>
+            <div class="form-row"><label>Surgeon Name</label><ProviderPicker @bind-ProviderName="f_surgeon" Label="" DefaultToSelf="true" /></div>
             <div class="form-row"><label>Anesthesia</label>
                 <select @bind="f_anesthesia"><option value="">--</option><option>GENERAL</option><option>SPINAL</option><option>REGIONAL</option><option>LOCAL</option><option>MAC</option></select>
             </div>
@@ -138,8 +138,7 @@
                 <div class="entry-form">
                     <div class="form-grid">
                         <div class="form-row"><label>ASA Classification (1-6) *</label><input type="number" @bind="po_asa" min="1" max="6" /></div>
-                        <div class="form-row"><label>Provider Name</label><input type="text" @bind="po_provider" /></div>
-                        <div class="form-row"><label>Provider ID</label><input type="text" @bind="po_providerId" /></div>
+                        <div class="form-row"><label>Provider</label><ProviderPicker @bind-ProviderId="po_providerId" @bind-ProviderName="po_provider" Label="" DefaultToSelf="true" /></div>
                         <div class="form-row full"><label>Assessment Notes</label><textarea @bind="po_notes" rows="3"></textarea></div>
                     </div>
                     <div class="form-actions">

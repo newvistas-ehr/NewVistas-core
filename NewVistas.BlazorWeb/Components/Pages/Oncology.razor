@@ -420,7 +420,7 @@
                     </div>
                     <div class="form-row">
                         <label>Dose / Schedule</label><input @bind="newTxDose" placeholder="e.g. 175 mg/m² q21d" />
-                        <label>Provider</label><input @bind="newTxProvider" placeholder="Provider name" />
+                        <label>Provider</label><ProviderPicker @bind-ProviderName="newTxProvider" Label="" DefaultToSelf="true" />
                     </div>
                     <div class="form-row">
                         <label>Facility</label><input @bind="newTxFacility" />

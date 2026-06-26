@@ -165,12 +165,8 @@
                             </select>
                         </div>
                         <div class="form-row">
-                            <label>Requested By (ID)</label>
-                            <input type="text" @bind="xmRequestedById" />
-                        </div>
-                        <div class="form-row">
-                            <label>Requested By (Name)</label>
-                            <input type="text" @bind="xmRequestedByName" />
+                            <label>Requested By</label>
+                            <ProviderPicker @bind-ProviderId="xmRequestedById" @bind-ProviderName="xmRequestedByName" Label="" DefaultToSelf="true" />
                         </div>
                         <div class="form-row full">
                             <label>Notes</label>
@@ -252,12 +248,8 @@
                             <input type="text" @bind="txAdminByName" />
                         </div>
                         <div class="form-row">
-                            <label>Ordered By (ID)</label>
-                            <input type="text" @bind="txOrderedById" />
-                        </div>
-                        <div class="form-row">
-                            <label>Ordered By (Name)</label>
-                            <input type="text" @bind="txOrderedByName" />
+                            <label>Ordered By</label>
+                            <ProviderPicker @bind-ProviderId="txOrderedById" @bind-ProviderName="txOrderedByName" Label="" DefaultToSelf="true" />
                         </div>
                         <div class="form-row">
                             <label>Infusion Site</label>

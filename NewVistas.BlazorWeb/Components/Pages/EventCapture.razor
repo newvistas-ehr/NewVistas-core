@@ -76,12 +76,8 @@
                             <input type="text" @bind="newClinicName" placeholder="Clinic" class="form-input" />
                         </div>
                         <div class="form-group">
-                            <label>Primary Provider ID *</label>
-                            <input type="text" @bind="newPrimaryProviderId" placeholder="PROVIDER-..." class="form-input" />
-                        </div>
-                        <div class="form-group">
-                            <label>Primary Provider Name *</label>
-                            <input type="text" @bind="newPrimaryProviderName" placeholder="Dr. ..." class="form-input" />
+                            <label>Primary Provider *</label>
+                            <ProviderPicker @bind-ProviderId="newPrimaryProviderId" @bind-ProviderName="newPrimaryProviderName" Label="" DefaultToSelf="true" />
                         </div>
                         <div class="form-group">
                             <label>Encounter Type</label>
@@ -227,12 +223,8 @@
                                                         <input type="number" @bind="addProcQuantity" min="1" class="form-input" />
                                                     </div>
                                                     <div class="form-group">
-                                                        <label>Provider ID *</label>
-                                                        <input type="text" @bind="addProcProviderId" class="form-input" />
-                                                    </div>
-                                                    <div class="form-group">
-                                                        <label>Provider Name *</label>
-                                                        <input type="text" @bind="addProcProviderName" class="form-input" />
+                                                        <label>Provider *</label>
+                                                        <ProviderPicker @bind-ProviderId="addProcProviderId" @bind-ProviderName="addProcProviderName" Label="" DefaultToSelf="true" />
                                                     </div>
                                                     <div class="form-group">
                                                         <label>Modifier</label>
@@ -410,7 +402,7 @@
             </div>
             <div class="form-group">
                 <label>Provider ID</label>
-                <input type="text" @bind="wlProviderId" placeholder="Optional filter" class="form-input" />
+                <ProviderPicker @bind-ProviderId="wlProviderId" Label="" DefaultToSelf="true" />
             </div>
             <div class="form-group">
                 <label>Status</label>

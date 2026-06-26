@@ -43,8 +43,7 @@ else if (featureChecked && !featureEnabled)
         <div class="form-section">
             <div class="form-row">
                 <label>Provider ID</label>
-                <input type="text" class="form-input" @bind="providerId" @bind:event="oninput"
-                       placeholder="Enter provider ID" />
+                <ProviderPicker @bind-ProviderId="providerId" Label="" DefaultToSelf="true" />
             </div>
             <div class="form-actions">
                 <button @onclick="GenerateDashboard"
@@ -120,8 +119,7 @@ else if (featureChecked && !featureEnabled)
         <div class="form-section">
             <div class="form-row">
                 <label>Provider ID</label>
-                <input type="text" class="form-input" @bind="providerId" @bind:event="oninput"
-                       placeholder="Enter provider ID" />
+                <ProviderPicker @bind-ProviderId="providerId" Label="" DefaultToSelf="true" />
             </div>
             <div class="form-actions">
                 <button @onclick="LoadPanel"
@@ -193,8 +191,7 @@ else if (featureChecked && !featureEnabled)
         <div class="form-section">
             <div class="form-row">
                 <label>Provider ID</label>
-                <input type="text" class="form-input" @bind="providerId" @bind:event="oninput"
-                       placeholder="Enter provider ID" />
+                <ProviderPicker @bind-ProviderId="providerId" Label="" DefaultToSelf="true" />
             </div>
             <div class="form-row">
                 <label>Patient ID</label>

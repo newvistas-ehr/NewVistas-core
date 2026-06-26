@@ -199,12 +199,8 @@
                         <input type="date" @bind="f_serviceDate" class="form-input" />
                     </div>
                     <div class="form-row">
-                        <label>Entered By (User ID)</label>
-                        <input @bind="f_enteredByUserId" class="form-input" />
-                    </div>
-                    <div class="form-row">
-                        <label>Entered By (Name)</label>
-                        <input @bind="f_enteredByUserName" class="form-input" />
+                        <label>Entered By</label>
+                        <ProviderPicker @bind-ProviderId="f_enteredByUserId" @bind-ProviderName="f_enteredByUserName" Label="" DefaultToSelf="true" />
                     </div>
                     <div class="form-actions">
                         <button class="btn btn-primary" @onclick="SaveAction" disabled="@saving">

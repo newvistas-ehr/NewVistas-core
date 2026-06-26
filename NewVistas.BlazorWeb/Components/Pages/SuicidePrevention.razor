@@ -95,8 +95,7 @@
                     <option value="Imminent">Imminent</option>
                 </select>
             </label>
-            <label>Provider ID:<input @bind="riskForm.ProviderId" /></label>
-            <label>Provider Name:<input @bind="riskForm.ProviderName" /></label>
+            <label>Provider:<ProviderPicker @bind-ProviderId="riskForm.ProviderId" @bind-ProviderName="riskForm.ProviderName" Label="" DefaultToSelf="true" /></label>
             <label>
                 <input type="checkbox" @bind="riskForm.HighRiskFlag" /> Set High-Risk Flag
             </label>
@@ -191,8 +190,7 @@
         <div class="form-grid">
             <label>Patient ID:<input @bind="newPlan.PatientId" /></label>
             <label>Patient Name:<input @bind="newPlan.PatientName" /></label>
-            <label>Provider ID:<input @bind="newPlan.ProviderId" /></label>
-            <label>Provider Name:<input @bind="newPlan.ProviderName" /></label>
+            <label>Provider:<ProviderPicker @bind-ProviderId="newPlan.ProviderId" @bind-ProviderName="newPlan.ProviderName" Label="" DefaultToSelf="true" /></label>
         </div>
         <button @onclick="CreatePlan">Create Plan</button>
         @if (planSubmitMsg != null) { <span class="submit-msg">@planSubmitMsg</span> }
@@ -259,7 +257,7 @@
                     <option value="Hospitalized">Hospitalized</option>
                 </select>
             </label>
-            <label>Provider Name:<input @bind="followUpForm.ProviderName" /></label>
+            <label>Provider Name:<ProviderPicker @bind-ProviderName="followUpForm.ProviderName" Label="" DefaultToSelf="true" /></label>
             <label>Notes:<textarea @bind="followUpForm.Notes"></textarea></label>
         </div>
         <button @onclick="AddFollowUp">Submit Follow-Up</button>

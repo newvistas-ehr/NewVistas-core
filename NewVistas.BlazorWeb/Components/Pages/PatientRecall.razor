@@ -76,7 +76,7 @@ else if (featureChecked && !featureEnabled)
                         </select>
                     </div>
                     <div class="form-row"><label>Recall Date</label><input type="date" class="form-input" @bind="newRecallDate" /></div>
-                    <div class="form-row"><label>Provider Name</label><input type="text" class="form-input" @bind="newProviderName" placeholder="Provider (optional)" /></div>
+                    <div class="form-row"><label>Provider Name</label><ProviderPicker @bind-ProviderName="newProviderName" Label="" DefaultToSelf="false" /></div>
                     <div class="form-row"><label>Diagnosis</label><input type="text" class="form-input" @bind="newDiagnosis" placeholder="Diagnosis (optional)" /></div>
                     <div class="form-row"><label>Instructions</label><input type="text" class="form-input" @bind="newInstructions" placeholder="Special instructions" /></div>
                     <div class="form-actions">

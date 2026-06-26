@@ -230,12 +230,8 @@
                             </select>
                         </div>
                         <div class="mb-2">
-                            <label class="form-label">Assigned By User ID</label>
-                            <input class="form-input" @bind="prfAssignedBy" placeholder="USER-1" />
-                        </div>
-                        <div class="mb-2">
-                            <label class="form-label">Assigned By Name</label>
-                            <input class="form-input" @bind="prfAssignedByName" placeholder="Dr. Smith" />
+                            <label class="form-label">Assigned By</label>
+                            <ProviderPicker @bind-ProviderId="prfAssignedBy" @bind-ProviderName="prfAssignedByName" Label="" DefaultToSelf="true" />
                         </div>
                         <div class="mb-2">
                             <label class="form-label">Narrative</label>

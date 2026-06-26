@@ -47,7 +47,7 @@
             <div class="form-row"><label>Date Issued</label><input type="date" @bind="f_date" /></div>
             <div class="form-row"><label>Quantity</label><input type="number" @bind="f_qty" min="1" /></div>
             <div class="form-row"><label>Cost ($)</label><input type="number" @bind="f_cost" step="0.01" min="0" /></div>
-            <div class="form-row"><label>Provider</label><input type="text" @bind="f_provider" /></div>
+            <div class="form-row"><label>Provider</label><ProviderPicker @bind-ProviderName="f_provider" Label="" DefaultToSelf="true" /></div>
             <div class="form-row"><label>Location</label><input type="text" @bind="f_location" /></div>
             <div class="form-row"><label>Service Connected?</label>
                 <select @bind="f_sc"><option value="false">No</option><option value="true">Yes</option></select>

@@ -169,7 +169,7 @@
         <h4>Add Authorized Provider</h4>
         <div class="form-row" style="max-width:400px;">
             <label>Provider ID</label>
-            <input type="text" @bind="newProviderId" placeholder="Provider ID" />
+            <ProviderPicker @bind-ProviderId="newProviderId" Label="" DefaultToSelf="false" />
         </div>
         <div class="form-actions">
             <button @onclick="AddProvider" disabled="@(string.IsNullOrWhiteSpace(newProviderId) || saving)" class="btn btn-primary">

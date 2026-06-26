@@ -200,8 +200,7 @@ else
         <div class="form-row"><label>Enrolled By Name</label><input @bind="enroll.EnrolledByName" /></div>
         <div class="form-row"><label>Site ID</label><input @bind="enroll.SiteId" /></div>
         <div class="form-row"><label>Site Name</label><input @bind="enroll.SiteName" /></div>
-        <div class="form-row"><label>Primary Provider ID</label><input @bind="enroll.PrimaryProviderId" /></div>
-        <div class="form-row"><label>Primary Provider Name</label><input @bind="enroll.PrimaryProviderName" /></div>
+        <div class="form-row"><label>Primary Provider</label><ProviderPicker @bind-ProviderId="enroll.PrimaryProviderId" @bind-ProviderName="enroll.PrimaryProviderName" Label="" DefaultToSelf="false" /></div>
         <div class="form-row"><label>Notes</label><textarea @bind="enroll.Notes" rows="2"></textarea></div>
         <button class="btn btn-primary" @onclick="SubmitEnroll" disabled="@submitting">Enroll Patient</button>
     </div>

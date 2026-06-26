@@ -19,7 +19,7 @@
 
 <div class="prov-selector">
     <label>Provider ID:</label>
-    <input type="text" @bind="providerId" style="width:200px" />
+    <ProviderPicker @bind-ProviderId="providerId" Label="" DefaultToSelf="true" />
     <button class="btn btn-primary" @onclick="LoadDeficiencies">Load</button>
     <button class="btn btn-demo" @onclick="LoadDemo">Load Demo</button>
 </div>

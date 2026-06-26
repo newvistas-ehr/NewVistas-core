@@ -46,8 +46,7 @@
                 </div>
                 <div class="form-row"><label>Room-Bed</label><input type="text" @bind="f_room" placeholder="e.g. 301-A" /></div>
                 <div class="form-row"><label>Treating Specialty</label><input type="text" @bind="f_specialty" placeholder="e.g. Internal Medicine" /></div>
-                <div class="form-row"><label>Attending Physician ID</label><input type="text" @bind="f_attendingId" /></div>
-                <div class="form-row"><label>Attending Physician Name</label><input type="text" @bind="f_attending" /></div>
+                <div class="form-row"><label>Attending Physician</label><ProviderPicker @bind-ProviderId="f_attendingId" @bind-ProviderName="f_attending" Label="" DefaultToSelf="false" /></div>
                 <div class="form-row full"><label>Admission Diagnosis</label><input type="text" @bind="f_diagnosis" /></div>
                 <div class="form-row full"><label>Comments</label><textarea @bind="f_comments" rows="2"></textarea></div>
             </div>
@@ -73,7 +72,7 @@
                 </div>
                 <div class="form-row"><label>Room-Bed</label><input type="text" @bind="f_toRoom" placeholder="e.g. ICU-5" /></div>
                 <div class="form-row"><label>Treating Specialty</label><input type="text" @bind="f_toSpecialty" /></div>
-                <div class="form-row"><label>Attending Physician</label><input type="text" @bind="f_toAttending" /></div>
+                <div class="form-row"><label>Attending Physician</label><ProviderPicker @bind-ProviderName="f_toAttending" Label="" DefaultToSelf="false" /></div>
                 <div class="form-row full"><label>Comments</label><textarea @bind="f_transferComments" rows="2"></textarea></div>
             </div>
             <div class="form-actions">

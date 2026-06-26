@@ -223,11 +223,8 @@
             <label>Stop Code</label>
             <input @bind="newStopCode" placeholder="DSS Stop Code (e.g. 323)" />
 
-            <label>Primary Provider ID</label>
-            <input @bind="newProviderId" placeholder="Provider DUZ" />
-
-            <label>Primary Provider Name</label>
-            <input @bind="newProviderName" placeholder="Provider name" />
+            <label>Primary Provider</label>
+            <ProviderPicker @bind-ProviderId="newProviderId" @bind-ProviderName="newProviderName" Label="" DefaultToSelf="true" />
 
             <label>Comments</label>
             <input @bind="newComments" placeholder="Free-text comments" />

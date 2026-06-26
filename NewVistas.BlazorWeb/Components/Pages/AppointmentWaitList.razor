@@ -92,7 +92,7 @@ else if (featureChecked && !featureEnabled)
                     </div>
                     <div class="form-row">
                         <label>Preferred Provider</label>
-                        <input type="text" class="form-input" @bind="newPreferredProvider" placeholder="Provider name (optional)" />
+                        <ProviderPicker @bind-ProviderName="newPreferredProvider" Label="Preferred Provider" DefaultToSelf="false" />
                     </div>
                     <div class="form-row">
                         <label>Desired Start</label>

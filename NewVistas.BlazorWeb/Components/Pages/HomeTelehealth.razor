@@ -477,12 +477,8 @@
                     <div class="modal-card">
                         <h4>@AlertActionTitle @FormatMeasType(alertActionTarget.MeasurementType) Alert</h4>
                         <div class="form-group">
-                            <label>Clinician ID</label>
-                            <input class="form-input" @bind="actionClinicianId" />
-                        </div>
-                        <div class="form-group">
-                            <label>Clinician Name</label>
-                            <input class="form-input" @bind="actionClinicianName" />
+                            <label>Clinician</label>
+                            <ProviderPicker @bind-ProviderId="actionClinicianId" @bind-ProviderName="actionClinicianName" Label="" DefaultToSelf="true" />
                         </div>
                         <div class="form-group">
                             <label>Clinical Response / Notes</label>
