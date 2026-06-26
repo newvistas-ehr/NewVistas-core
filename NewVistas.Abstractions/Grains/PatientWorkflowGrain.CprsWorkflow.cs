@@ -79,6 +79,11 @@ public partial class PatientWorkflowGrain
         };
         await GetPatientGrain().AddRecentOrderAsync(summary, displayCount);
 
+        // The ordering provider is now responsible for this patient — add them to the
+        // provider's panel (a nurse may have ordered on the physician's behalf, so this
+        // uses the order's providerId, not the signed-in user).
+        await EnsureProviderPanelAsync(providerId, "Ordering Provider");
+
         return orderId;
     }
 

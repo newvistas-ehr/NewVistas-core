@@ -47,6 +47,7 @@ public class DemoSeedSecurityTests
             siloBuilder.AddMemoryGrainStorage("labIndexStore");
             siloBuilder.AddMemoryGrainStorage("orderStore");
             siloBuilder.AddMemoryGrainStorage("newPersonStore");
+            siloBuilder.AddMemoryGrainStorage("providerDirectoryStore");
             siloBuilder.AddMemoryGrainStorage("siteParametersStore");
             siloBuilder.AddMemoryGrainStorage("patientOrderIndexStore");
             siloBuilder.AddMemoryGrainStorage("patientVitalIndexStore");

@@ -48,11 +48,11 @@
         </div>
         <div class="form-row">
             <label>Requesting Provider</label>
-            <input type="text" @bind="newRequestingProvider" placeholder="Provider name" />
+            <ProviderPicker @bind-ProviderId="newReqProviderId" @bind-ProviderName="newRequestingProvider" Label="" />
         </div>
         <div class="form-row">
             <label>Attention</label>
-            <input type="text" @bind="newAttentionProvider" placeholder="Specific provider requested (optional)" />
+            <ProviderPicker @bind-ProviderId="newAttnProviderId" @bind-ProviderName="newAttentionProvider" Label="" DefaultToSelf="false" />
         </div>
         <div class="form-row">
             <label>Provisional Diagnosis</label>
@@ -207,8 +207,7 @@
         <div class="phase4-section">
             <h4>Consulting Provider</h4>
             <div class="inline-form">
-                <input type="text" @bind="cp_id" placeholder="Provider ID" style="width:150px" />
-                <input type="text" @bind="cp_name" placeholder="Provider Name" style="width:200px" />
+                <ProviderPicker @bind-ProviderId="cp_id" @bind-ProviderName="cp_name" Label="" />
                 <button @onclick="SetConsultingProvider" disabled="@(saving || string.IsNullOrWhiteSpace(cp_name))" class="btn btn-primary">Set Provider</button>
             </div>
         </div>
@@ -245,8 +244,7 @@
             }
             <div class="entry-form compact">
                 <div class="form-grid">
-                    <div class="form-row"><label>Author ID</label><input type="text" @bind="tc_authorId" /></div>
-                    <div class="form-row"><label>Author Name *</label><input type="text" @bind="tc_authorName" /></div>
+                    <div class="form-row"><label>Author *</label><ProviderPicker @bind-ProviderId="tc_authorId" @bind-ProviderName="tc_authorName" Label="" /></div>
                     <div class="form-row"><label>Action Taken</label>
                         <select @bind="tc_action"><option value="">--</option><option>FORWARDED</option><option>UPDATED</option><option>ACCEPTED</option><option>SCHEDULED</option><option>REVIEWED</option></select>
                     </div>
@@ -296,7 +294,7 @@
         <h3>Complete Consult</h3>
         <div class="form-row">
             <label>Author</label>
-            <input type="text" @bind="completeAuthor" placeholder="Completing provider name" />
+            <ProviderPicker @bind-ProviderId="completeAuthorId" @bind-ProviderName="completeAuthor" Label="" />
         </div>
         <div class="form-row full">
             <label>Result Note</label>
@@ -366,11 +364,12 @@
     // New consult form
     private string newToService = "";
     private string? newFromService, newRequestingProvider, newAttentionProvider, newDiagnosis, newReason;
+    private string? newReqProviderId, newAttnProviderId;   // set by <ProviderPicker>
     private string newUrgency = "ROUTINE";
 
     // Complete consult form
     private string completingConsultId = "";
-    private string? completeAuthor, completeNoteText;
+    private string? completeAuthor, completeAuthorId, completeNoteText;
 
     // Phase 4 form fields
     private string ct_type = "";
@@ -438,6 +437,7 @@
     {
         newToService = ""; newFromService = null; newUrgency = "ROUTINE";
         newRequestingProvider = null; newAttentionProvider = null;
+        newReqProviderId = null; newAttnProviderId = null;
         newDiagnosis = null; newReason = null;
         showNewConsult = true; showCompleteForm = false;
         selectedConsult = null; successMessage = null;
@@ -452,7 +452,7 @@
             var grain = Grains.GetGrain<IPatientWorkflowGrain>(patientId!.Trim());
             await grain.RequestConsultAsync(
                 newToService, null, newFromService, null, newUrgency,
-                null, newRequestingProvider, null, newAttentionProvider,
+                newReqProviderId, newRequestingProvider, newAttnProviderId, newAttentionProvider,
                 newReason, newDiagnosis, null, null, null);
             showNewConsult = false;
             successMessage = "Consult requested successfully.";
@@ -465,7 +465,7 @@
     private void ShowCompleteForm(string consultId)
     {
         completingConsultId = consultId;
-        completeAuthor = null; completeNoteText = null;
+        completeAuthor = null; completeAuthorId = null; completeNoteText = null;
         showCompleteForm = true;
     }
 
@@ -475,7 +475,7 @@
         try
         {
             var grain = Grains.GetGrain<IPatientWorkflowGrain>(patientId!.Trim());
-            await grain.CompleteConsultAsync(completingConsultId, completeNoteText, null, completeAuthor);
+            await grain.CompleteConsultAsync(completingConsultId, completeNoteText, completeAuthorId, completeAuthor);
             showCompleteForm = false;
             successMessage = "Consult completed.";
             selectedConsult = null;

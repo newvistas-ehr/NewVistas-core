@@ -176,12 +176,8 @@
         <div class="action-panel">
             <h4>Verify Result</h4>
             <div class="form-row">
-                <label>Verifying Provider ID</label>
-                <input @bind="verifyProviderId" placeholder="Provider ID" />
-            </div>
-            <div class="form-row">
-                <label>Verifying Provider Name</label>
-                <input @bind="verifyProviderName" placeholder="Dr. Name" />
+                <label>Verifying Provider</label>
+                <ProviderPicker @bind-ProviderId="verifyProviderId" @bind-ProviderName="verifyProviderName" Label="" />
             </div>
             <div class="panel-actions">
                 <button @onclick="SubmitVerify" disabled="@loading" class="btn btn-primary">Verify</button>
@@ -288,7 +284,7 @@
             </select>
 
             <label>Ordering Provider</label>
-            <input @bind="newOrderingProvider" placeholder="Provider name" />
+            <ProviderPicker @bind-ProviderId="newOrderingProviderId" @bind-ProviderName="newOrderingProvider" Label="" />
         </div>
         <div class="form-actions">
             <button @onclick="SubmitOrder" disabled="@loading" class="btn btn-primary">Place Order</button>
@@ -438,6 +434,7 @@
     string newCategory = string.Empty;
     string newSpecimen = string.Empty;
     string newOrderingProvider = string.Empty;
+    string newOrderingProviderId = string.Empty;   // set by <ProviderPicker>
 
     // Tab 3 — Ingest form
     string ingestLoinc = string.Empty;
@@ -670,7 +667,7 @@
             await grain.OrderLabTestAsync(
                 $"LR-{newTestCode}", newTestName,
                 string.IsNullOrWhiteSpace(newTestCode) ? null : newTestCode,
-                null, null,
+                null, string.IsNullOrWhiteSpace(newOrderingProviderId) ? null : newOrderingProviderId,
                 string.IsNullOrWhiteSpace(newOrderingProvider) ? null : newOrderingProvider,
                 string.IsNullOrWhiteSpace(newSpecimen) ? null : newSpecimen,
                 string.IsNullOrWhiteSpace(newCategory) ? null : newCategory);

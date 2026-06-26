@@ -89,6 +89,57 @@ public class CareTeamWorkflowTests
         Assert.That(patients[0].PatientName, Is.EqualTo("TESTPATIENT,CARETEAM"));
     }
 
+    // ── Clinical action → panel auto-add (orders, notes, consults) ──────────
+
+    [Test]
+    public async Task PlaceOrder_AddsPatientToOrderingProviderPanel()
+    {
+        string patientId = $"PAT-ORD-{Guid.NewGuid()}";
+        string providerId = $"PROV-ORD-{Guid.NewGuid()}";
+        await SetupPatient(patientId, "ORDERPATIENT,PANEL");
+
+        IPatientWorkflowGrain workflow = GetWorkflow(patientId);
+        await workflow.PlaceOrderAsync("Lab", "CBC WITH DIFFERENTIAL", null,
+            providerId, "ORDERING,DOC MD", null, null, "ROUTINE", null, null);
+
+        List<ProviderPatientEntry> panel = await GetProviderPatientIndex(providerId).GetActivePatientsAsync();
+        Assert.That(panel.Select(p => p.PatientId), Contains.Item(patientId));
+        Assert.That(panel.First(p => p.PatientId == patientId).Relationship, Is.EqualTo("Ordering Provider"));
+    }
+
+    [Test]
+    public async Task CreateNote_AddsPatientToAuthorPanel()
+    {
+        string patientId = $"PAT-NOTE-{Guid.NewGuid()}";
+        string authorId = $"PROV-NOTE-{Guid.NewGuid()}";
+        await SetupPatient(patientId, "NOTEPATIENT,PANEL");
+
+        IPatientWorkflowGrain workflow = GetWorkflow(patientId);
+        await workflow.CreateNoteAsync("PROGRESS NOTE", null, "Seen today.", "Follow-up",
+            authorId, "AUTHOR,DOC MD", null, null, null, null, null, DateTime.UtcNow);
+
+        List<ProviderPatientEntry> panel = await GetProviderPatientIndex(authorId).GetActivePatientsAsync();
+        Assert.That(panel.Select(p => p.PatientId), Contains.Item(patientId));
+    }
+
+    [Test]
+    public async Task PlaceOrder_DoesNotOverwriteExistingPcpRelationship()
+    {
+        string patientId = $"PAT-PCP-{Guid.NewGuid()}";
+        string providerId = $"PROV-PCP-{Guid.NewGuid()}";
+        await SetupPatient(patientId, "PCPPATIENT,PANEL");
+
+        IPatientWorkflowGrain workflow = GetWorkflow(patientId);
+        await workflow.SetPcpAsync(providerId, "PCP,DOC MD", "Internal Medicine");
+        await workflow.PlaceOrderAsync("Lab", "BMP", null, providerId, "PCP,DOC MD",
+            null, null, "ROUTINE", null, null);
+
+        List<ProviderPatientEntry> panel = await GetProviderPatientIndex(providerId).GetActivePatientsAsync();
+        ProviderPatientEntry entry = panel.First(p => p.PatientId == patientId);
+        Assert.That(entry.Relationship, Is.EqualTo("PCP"),
+            "an order must not clobber the provider's existing PCP relationship label");
+    }
+
     [Test]
     public async Task ScheduleAppointment_WithProvider_AddsToProviderSchedule()
     {

@@ -68,7 +68,7 @@
             </div>
             <div class="form-row">
                 <label>Entered By</label>
-                <input type="text" @bind="form.EnteredByName" placeholder="Name of recorder" class="form-input" />
+                <ProviderPicker @bind-ProviderId="form.EnteredById" @bind-ProviderName="form.EnteredByName" Label="" />
             </div>
 
             <h3 class="vitals-subhead">Vital Measurements (leave blank to skip)</h3>
@@ -250,7 +250,7 @@
             var grain = Grains.GetGrain<IPatientWorkflowGrain>(patientId.Trim());
             await grain.RecordVitalsAsync(
                 null, form.LocationName,
-                null, form.EnteredByName,
+                form.EnteredById, form.EnteredByName,
                 form.DateTimeTaken,
                 vitals, null);
             successMessage = "Vitals recorded successfully.";
@@ -287,6 +287,7 @@
         public DateTime DateTimeTaken { get; set; } = DateTime.Now;
         public string? LocationName { get; set; }
         public string? EnteredByName { get; set; }
+        public string? EnteredById { get; set; }
         public string? Temperature { get; set; }
         public string? Pulse { get; set; }
         public string? Respiration { get; set; }

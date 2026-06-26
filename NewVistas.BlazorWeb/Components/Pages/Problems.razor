@@ -90,7 +90,7 @@
                 <input type="date" @bind="form.DateOfOnset" class="form-input" />
             </FormField>
             <FormField Label="Provider">
-                <input type="text" @bind="form.ProviderName" placeholder="Provider name" class="form-input" />
+                <ProviderPicker @bind-ProviderId="form.ProviderId" @bind-ProviderName="form.ProviderName" Label="" />
             </FormField>
             <FormField Label="Clinic">
                 <input type="text" @bind="form.ClinicName" placeholder="Clinic name" class="form-input" />
@@ -166,7 +166,7 @@
                 string.IsNullOrEmpty(form.Condition) ? null : form.Condition,
                 string.IsNullOrEmpty(form.Priority) ? null : form.Priority,
                 form.DateOfOnset,
-                null, form.ProviderName,
+                form.ProviderId, form.ProviderName,
                 null, form.ClinicName,
                 form.IsServiceConnected, form.Comments);
 
@@ -198,6 +198,7 @@
         public string? Priority { get; set; }
         public DateTime? DateOfOnset { get; set; }
         public string? ProviderName { get; set; }
+        public string? ProviderId { get; set; }
         public string? ClinicName { get; set; }
         public bool IsServiceConnected { get; set; }
         public string? Comments { get; set; }

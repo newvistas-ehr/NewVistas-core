@@ -141,7 +141,7 @@
         </div>
         <div class="form-row">
             <label>Author</label>
-            <input type="text" @bind="newNoteAuthor" placeholder="Provider name" />
+            <ProviderPicker @bind-ProviderId="newNoteAuthorId" @bind-ProviderName="newNoteAuthor" Label="" />
         </div>
         <div class="form-row">
             <label>Location</label>
@@ -250,6 +250,7 @@
     private string newNoteDocType = "PROGRESS NOTE";
     private string? newNoteSubject;
     private string? newNoteAuthor;
+    private string? newNoteAuthorId;   // set by <ProviderPicker>, defaults to the signed-in provider
     private string? newNoteLocation;
     private string newNoteText = "";
 
@@ -313,6 +314,7 @@
         newNoteDocType = "PROGRESS NOTE";
         newNoteSubject = null;
         newNoteAuthor = null;
+        newNoteAuthorId = null;
         newNoteLocation = null;
         newNoteText = "";
         showNewNote = true;
@@ -329,7 +331,7 @@
             var grain = Grains.GetGrain<IPatientWorkflowGrain>(patientId!.Trim());
             await grain.CreateNoteAsync(
                 newNoteDocType, null, newNoteText, newNoteSubject,
-                null, newNoteAuthor, null, null,
+                newNoteAuthorId, newNoteAuthor, null, null,
                 null, newNoteLocation, null, DateTime.UtcNow);
             showNewNote = false;
             successMessage = "Note created successfully.";

@@ -28,6 +28,7 @@ public class MentalHealthSecurityTests
             siloBuilder.AddMemoryGrainStorage("accessControlStore");
             siloBuilder.AddMemoryGrainStorage("mentalHealthStore");
             siloBuilder.AddMemoryGrainStorage("newPersonStore");
+            siloBuilder.AddMemoryGrainStorage("providerDirectoryStore");
             siloBuilder.AddMemoryGrainStorage("patientAccessStore");
             siloBuilder.AddMemoryGrainStorage("siteParametersStore");
             siloBuilder.AddIncomingGrainCallFilter<AuthorizationCallFilter>();

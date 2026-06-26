@@ -269,7 +269,7 @@
             <div class="entry-form compact">
                 <div class="form-grid">
                     <div class="form-row"><label>Type *</label><input type="text" @bind="an_type" placeholder="e.g. MEASUREMENT, TEXT, ARROW" /></div>
-                    <div class="form-row"><label>Author</label><input type="text" @bind="an_author" /></div>
+                    <div class="form-row"><label>Author</label><ProviderPicker @bind-ProviderName="an_author" Label="" /></div>
                     <div class="form-row full"><label>Content *</label><textarea @bind="an_content" rows="2"></textarea></div>
                 </div>
                 <div class="form-actions">

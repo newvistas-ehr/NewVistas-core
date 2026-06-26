@@ -134,8 +134,8 @@
             }
         </div>
         <div class="form-row">
-            <label>Provider</label>
-            <input type="text" @bind="newProviderName" placeholder="Provider name" />
+            <label>Ordering provider</label>
+            <ProviderPicker @bind-ProviderId="newProviderId" @bind-ProviderName="newProviderName" Label="" />
         </div>
 
         @if (orderChecks != null && orderChecks.Count > 0)
@@ -289,6 +289,7 @@
     private string newUrgency = "ROUTINE";
     private string? newInstructions;
     private string newProviderName = "";
+    private string newProviderId = "";   // defaults to the signed-in provider via <ProviderPicker>
     private string newClinicId = "";
     private List<ClinicEntry>? orderClinics;
     private List<OrderCheckResult>? orderChecks;
@@ -346,7 +347,8 @@
             var grain = Grains.GetGrain<IPatientWorkflowGrain>(patientId.Trim());
             string? clinicId = string.IsNullOrWhiteSpace(newClinicId) ? null : newClinicId;
             string? clinicName = clinicId != null ? orderClinics?.FirstOrDefault(c => c.ClinicId == clinicId)?.Name : null;
-            await grain.PlaceOrderAsync(newOrderType, newOrderText, null, "PROV-001", newProviderName, clinicId, clinicName, newUrgency, newInstructions, null);
+            string orderingProviderId = string.IsNullOrWhiteSpace(newProviderId) ? "PROV-001" : newProviderId.Trim();
+            await grain.PlaceOrderAsync(newOrderType, newOrderText, null, orderingProviderId, newProviderName, clinicId, clinicName, newUrgency, newInstructions, null);
             successMsg = $"Order placed: {newOrderText}";
             newOrderText = ""; newInstructions = null; orderChecks = null;
             await Load();

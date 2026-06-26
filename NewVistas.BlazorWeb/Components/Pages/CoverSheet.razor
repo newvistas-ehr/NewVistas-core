@@ -219,7 +219,7 @@
                     </div>
                     <div class="fu-row">
                         <label>Provider</label>
-                        <input @bind="fuProvider" placeholder="(optional)" style="flex:1;padding:0.3rem;" />
+                        <ProviderPicker @bind-ProviderId="fuProviderId" @bind-ProviderName="fuProvider" Label="" DefaultToSelf="false" />
                     </div>
                     <div class="fu-row">
                         <label>Purpose</label>
@@ -286,6 +286,7 @@
     private DateTime fuDateTime = DateTime.Now.Date.AddDays(7).AddHours(9);
     private int fuDuration = 30;
     private string? fuProvider;
+    private string? fuProviderId;   // set by <ProviderPicker>
     private string? fuPurpose;
     private bool fuLoading = false;
     private string? fuError;
@@ -361,7 +362,7 @@
             var workflow = Grains.GetGrain<IPatientWorkflowGrain>(patientId.Trim());
             await workflow.ScheduleAppointmentAsync(
                 fuClinicId, clinicName, fuDateTime.ToUniversalTime(),
-                fuDuration, null,
+                fuDuration, string.IsNullOrWhiteSpace(fuProviderId) ? null : fuProviderId,
                 string.IsNullOrWhiteSpace(fuProvider) ? null : fuProvider,
                 string.IsNullOrWhiteSpace(fuPurpose) ? null : fuPurpose,
                 "FOLLOW-UP");

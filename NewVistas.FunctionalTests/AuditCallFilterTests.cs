@@ -38,6 +38,7 @@ public class AuditCallFilterTests
             siloBuilder.AddMemoryGrainStorage("allergyStore");
             siloBuilder.AddMemoryGrainStorage("tiuDocumentStore");
             siloBuilder.AddMemoryGrainStorage("newPersonStore");
+            siloBuilder.AddMemoryGrainStorage("providerDirectoryStore");
             siloBuilder.AddMemoryGrainStorage("patientOrderIndexStore");
             siloBuilder.AddMemoryGrainStorage("patientNoteIndexStore");
             siloBuilder.AddMemoryGrainStorage("patientVitalIndexStore");

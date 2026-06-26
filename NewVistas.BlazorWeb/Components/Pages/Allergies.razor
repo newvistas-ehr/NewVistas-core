@@ -105,7 +105,7 @@
             </div>
             <div class="form-row">
                 <label>Originator</label>
-                <input type="text" @bind="form.OriginatorName" placeholder="Entering clinician name" class="form-input" />
+                <ProviderPicker @bind-ProviderId="form.OriginatorId" @bind-ProviderName="form.OriginatorName" Label="" />
             </div>
             <div class="form-row align-top">
                 <label>Comments</label>
@@ -173,7 +173,7 @@
                 form.Allergen, form.AllergenType, null,
                 form.ObservedHistorical, reactions,
                 string.IsNullOrEmpty(form.Severity) ? null : form.Severity,
-                null, form.OriginatorName, form.Comments);
+                form.OriginatorId, form.OriginatorName, form.Comments);
 
             successMessage = "Allergy recorded successfully.";
             form = new AllergyFormModel();
@@ -209,6 +209,7 @@
         public string? Severity { get; set; }
         public string ObservedHistorical { get; set; } = "O";
         public string? OriginatorName { get; set; }
+        public string? OriginatorId { get; set; }
         public string? Comments { get; set; }
     }
 }

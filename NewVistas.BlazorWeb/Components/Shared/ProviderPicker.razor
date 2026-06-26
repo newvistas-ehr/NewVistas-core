@@ -1,0 +1,170 @@
+@* Copyright 2026 Merrimack Valley Software Works, LLC. All rights reserved. *@
+@* This Source Code Form is subject to the terms of the Mozilla Public *@
+@* License, v. 2.0. If a copy of the MPL was not distributed with this *@
+@* file, You can obtain one at https://mozilla.org/MPL/2.0/.            *@
+@* Reusable provider selector. Defaults to the signed-in provider (so a doctor    *@
+@* entering their own order never types an ID); "Change" reveals a name search    *@
+@* against the provider directory for when a different provider is responsible     *@
+@* (e.g. a nurse entering an order for a physician).                               *@
+@using NewVistas.BlazorWeb.Services
+@using NewVistas.Abstractions.GrainInterfaces
+@inject OrleansGrainService Grains
+
+<div class="provider-picker">
+    @if (!string.IsNullOrWhiteSpace(Label))
+    {
+        <label class="pp-label">@Label</label>
+    }
+
+    @if (!searching)
+    {
+        <div class="pp-current">
+            <span class="pp-name">@(string.IsNullOrWhiteSpace(ProviderName) ? "(no provider)" : ProviderName)</span>
+            @if (IsSelf) { <span class="pp-you">you</span> }
+            <button type="button" class="btn btn-secondary pp-change" @onclick="StartSearch">Change</button>
+        </div>
+    }
+    else
+    {
+        <div class="pp-search">
+            <input type="text" class="lookup-input pp-input" placeholder="Provider name, e.g. SMI"
+                   @bind="query" @bind:event="oninput" @onkeydown="OnKey" />
+            <button type="button" class="btn btn-primary" @onclick="DoSearch" disabled="@(loading || string.IsNullOrWhiteSpace(query))">Search</button>
+            @if (CanResetToSelf)
+            {
+                <button type="button" class="btn btn-secondary" @onclick="ResetToSelf">Me</button>
+            }
+            <button type="button" class="btn btn-secondary" @onclick="Cancel">Cancel</button>
+        </div>
+
+        @if (results is not null)
+        {
+            @if (results.Count == 0)
+            {
+                <p class="pp-empty">No providers found.</p>
+            }
+            else
+            {
+                <ul class="pp-results">
+                    @foreach (var p in results)
+                    {
+                        <li class="pp-result" @onclick="() => Pick(p)">
+                            <span class="pp-rname">@p.Name</span>
+                            <span class="pp-rmeta">@p.Title@(string.IsNullOrEmpty(p.Specialty) ? "" : $" · {p.Specialty}")</span>
+                        </li>
+                    }
+                </ul>
+            }
+        }
+    }
+</div>
+
+@code {
+    [Parameter] public string? ProviderId { get; set; }
+    [Parameter] public EventCallback<string?> ProviderIdChanged { get; set; }
+    [Parameter] public string? ProviderName { get; set; }
+    [Parameter] public EventCallback<string?> ProviderNameChanged { get; set; }
+    [Parameter] public string Label { get; set; } = "Provider";
+
+    /// <summary>
+    /// When true (default), the field pre-fills with the signed-in provider — right for
+    /// "the provider doing this" (author, ordering, recording). Set false for fields that
+    /// name a *different* provider (e.g. the consult's attention/to provider, a cosigner),
+    /// which should start blank and be searched for.
+    /// </summary>
+    [Parameter] public bool DefaultToSelf { get; set; } = true;
+
+    private bool searching;
+    private bool loading;
+    private string query = string.Empty;
+    private List<NewVistas.Abstractions.GrainStates.ProviderDirectoryEntry>? results;
+    private string? _selfId;
+    private bool _defaulted;
+
+    private bool IsSelf => !string.IsNullOrWhiteSpace(ProviderId) && ProviderId == _selfId;
+    private bool CanResetToSelf => !string.IsNullOrWhiteSpace(_selfId) && ProviderId != _selfId;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        _selfId ??= Grains.CurrentUserId;
+
+        // Default the field to the signed-in provider once, when the caller hasn't
+        // pre-set one. The clinician can still "Change" to a different provider.
+        if (DefaultToSelf && !_defaulted && string.IsNullOrWhiteSpace(ProviderId) && !string.IsNullOrWhiteSpace(_selfId))
+        {
+            _defaulted = true;
+            await SetProvider(_selfId, Grains.CurrentUserName ?? _selfId);
+        }
+    }
+
+    private void StartSearch()
+    {
+        searching = true;
+        query = string.Empty;
+        results = null;
+    }
+
+    private void Cancel()
+    {
+        searching = false;
+        results = null;
+    }
+
+    private async Task OnKey(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter") await DoSearch();
+    }
+
+    private async Task DoSearch()
+    {
+        if (string.IsNullOrWhiteSpace(query)) return;
+        loading = true;
+        try
+        {
+            IProviderDirectoryGrain dir = Grains.GetGrain<IProviderDirectoryGrain>("PROVIDER-DIRECTORY");
+            results = await dir.SearchAsync(query.Trim(), 25);
+        }
+        finally { loading = false; }
+    }
+
+    private async Task Pick(NewVistas.Abstractions.GrainStates.ProviderDirectoryEntry p)
+    {
+        await SetProvider(p.UserId, p.Name);
+        searching = false;
+        results = null;
+    }
+
+    private async Task ResetToSelf()
+    {
+        if (!string.IsNullOrWhiteSpace(_selfId))
+            await SetProvider(_selfId, Grains.CurrentUserName ?? _selfId);
+        searching = false;
+        results = null;
+    }
+
+    private async Task SetProvider(string? id, string? name)
+    {
+        ProviderId = id;
+        ProviderName = name;
+        await ProviderIdChanged.InvokeAsync(id);
+        await ProviderNameChanged.InvokeAsync(name);
+    }
+}
+
+<style>
+    .provider-picker { margin-bottom: 0.25rem; }
+    .provider-picker .pp-label { display: block; font-weight: 600; color: #003f72; margin-bottom: 0.25rem; font-size: 0.85rem; }
+    .provider-picker .pp-current { display: flex; align-items: center; gap: 0.5rem; }
+    .provider-picker .pp-name { font-weight: 600; }
+    .provider-picker .pp-you { background: #dcfce7; color: #166534; font-size: 0.7rem; font-weight: 700; padding: 1px 6px; border-radius: 3px; }
+    .provider-picker .pp-change { padding: 0.2rem 0.6rem; font-size: 0.75rem; }
+    .provider-picker .pp-search { display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap; }
+    .provider-picker .pp-input { min-width: 200px; }
+    .provider-picker .pp-empty { color: #666; font-style: italic; font-size: 0.85rem; margin: 0.4rem 0; }
+    .provider-picker .pp-results { list-style: none; margin: 0.4rem 0 0; padding: 0; border: 1px solid #d6deea; border-radius: 4px; max-height: 220px; overflow-y: auto; }
+    .provider-picker .pp-result { padding: 0.4rem 0.6rem; cursor: pointer; border-bottom: 1px solid #eef1f5; display: flex; flex-direction: column; }
+    .provider-picker .pp-result:last-child { border-bottom: none; }
+    .provider-picker .pp-result:hover { background: #eef3f9; }
+    .provider-picker .pp-rname { font-weight: 600; color: #003f72; }
+    .provider-picker .pp-rmeta { color: #607089; font-size: 0.78rem; }
+</style>

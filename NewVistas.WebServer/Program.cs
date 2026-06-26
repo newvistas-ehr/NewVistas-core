@@ -342,6 +342,10 @@ using (var scope = app.Services.CreateScope())
         }
     }
 
+    // Seed the rich narrative demo patient (SICK,EXTREME LEE / P9001) FIRST, so the
+    // care-team seeding below can place him on a demo provider's panel. Idempotent.
+    await ExtremeLeeSickSeed.SeedAsync(grainFactory, seedLogger);
+
     // Seed care team assignments for demo patients regardless of import status.
     // Idempotent — AddCareTeamMemberAsync updates if the member already exists.
     await SeedDemoCareTeamsAsync(app.Services, seedLogger);
@@ -349,9 +353,6 @@ using (var scope = app.Services.CreateScope())
     // Auto-seed clinical demo data (scheduling, vitals, problems, allergies).
     // Idempotent — skips patients that already have clinical data.
     await SeedDemoClinicalDataAsync(grainFactory, seedLogger);
-
-    // Seed the rich narrative demo patient (SICK,EXTREME LEE / P9001). Idempotent.
-    await ExtremeLeeSickSeed.SeedAsync(grainFactory, seedLogger);
 }
 
 await app.WaitForShutdownAsync();
@@ -589,8 +590,18 @@ static async Task<Dictionary<int, string>> SeedDemoUsersAsync(IServiceProvider s
         var existingUser = await userManager.FindByNameAsync(u.UserName);
         if (existingUser != null)
         {
-            // Already exists — still record the mapping for IEN resolution
+            // Already exists — still record the mapping for IEN resolution, and re-sync
+            // the NEW PERSON staff record so the searchable provider directory is
+            // populated even on a persistent DB where the user isn't recreated each run.
             userIenMap[userIndex] = existingUser.Id;
+            var existingPerson = grainFactory.GetGrain<
+                NewVistas.Abstractions.GrainInterfaces.INewPersonGrain>($"USER:{existingUser.Id}");
+            await existingPerson.UpdateProfileAsync(
+                name: u.DisplayName, title: u.Title, degree: u.Degree,
+                serviceSection: u.ServiceSection, userClass: u.UserClass,
+                providerType: u.ProviderType, specialty: u.Specialty,
+                institutionId: "INST-500", institutionName: "VA MEDICAL CENTER",
+                divisionId: "DIV-500", divisionName: "MAIN DIVISION");
             continue;
         }
 
@@ -986,6 +997,12 @@ static async Task SeedDemoCareTeamsAsync(IServiceProvider services, ILogger logg
     // NURSE2 — ICU (WARD-ICU-1): P16–P30.
     for (int i = 16; i <= 30; i++)
         assignments.Add(($"P{i}", "NURSE2", "NURSE", "ICU", false));
+
+    // The rich narrative demo patient SICK,EXTREME LEE (P9001). His chart is attributed
+    // to pseudonymous specialists, so without this he is reachable only by direct ID
+    // lookup. Put him on DOCTOR1's panel (and a nurse's) so he appears in "My Patients".
+    assignments.Add(("P9001", "DOCTOR1", "PRIMARY CARE PROVIDER", "Internal Medicine", true));
+    assignments.Add(("P9001", "NURSE1", "NURSE", "Medical-Surgical", false));
 
     var saved = DemoSeedHelper.SetSystemContext();
     try

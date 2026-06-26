@@ -40,6 +40,21 @@ public class NewPersonGrain : Grain, INewPersonGrain
 
     // ─── Staff Directory ─────────────────────────────────────────────────
 
+    private IProviderDirectoryGrain Directory()
+        => GrainFactory.GetGrain<IProviderDirectoryGrain>("PROVIDER-DIRECTORY");
+
+    /// <summary>Push the current record into the searchable provider directory.</summary>
+    private Task SyncDirectoryAsync() => Directory().AddOrUpdateAsync(new ProviderDirectoryEntry
+    {
+        UserId = _state.State.UserId,
+        Name = _state.State.Name,
+        Title = _state.State.Title,
+        ProviderType = _state.State.ProviderType,
+        Specialty = _state.State.Specialty,
+        ServiceSection = _state.State.ServiceSection,
+        IsActive = _state.State.IsActive
+    });
+
     public Task<NewPersonState> GetPersonAsync() => Task.FromResult(_state.State);
 
     public async Task UpdateProfileAsync(
@@ -68,6 +83,7 @@ public class NewPersonGrain : Grain, INewPersonGrain
         _state.State.DivisionName = divisionName;
         _state.State.LastModifiedDate = DateTime.UtcNow;
         await _state.WriteStateAsync();
+        await SyncDirectoryAsync();
     }
 
     public async Task SetActiveStatusAsync(bool isActive, DateTime? terminationDate)
@@ -76,6 +92,7 @@ public class NewPersonGrain : Grain, INewPersonGrain
         _state.State.TerminationDate = terminationDate;
         _state.State.LastModifiedDate = DateTime.UtcNow;
         await _state.WriteStateAsync();
+        await Directory().SetActiveAsync(_state.State.UserId, isActive);
     }
 
     public Task<string> GetDisplayNameAsync() => Task.FromResult(_state.State.Name);

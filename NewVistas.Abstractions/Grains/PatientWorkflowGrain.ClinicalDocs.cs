@@ -88,6 +88,9 @@ public partial class PatientWorkflowGrain
         var state = await tiuGrain.GetDocumentAsync();
         await SyncNoteToIndexAndCacheAsync(documentId, state);
 
+        // The note author is now responsible for this patient — add to their panel.
+        await EnsureProviderPanelAsync(authorId, "Note Author");
+
         return documentId;
     }
 
@@ -240,6 +243,9 @@ public partial class PatientWorkflowGrain
             orderId, locationId, locationName);
 
         await AppendCappedIdAsync(PatientHistoryDomains.Consult, consultId, DateTime.UtcNow);
+
+        // The requesting provider is now responsible for this patient — add to their panel.
+        await EnsureProviderPanelAsync(requestingProviderId, "Consult Requester");
 
         return consultId;
     }
