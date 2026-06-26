@@ -25,7 +25,7 @@ public class OncologyPageTests : BlazorTestBase
     public void Oncology_RendersPatientInput()
     {
         var cut = Ctx.Render<Oncology>();
-        var input = cut.Find("input.patient-input");
+        var input = cut.Find("input.lookup-input");
         Assert.That(input, Is.Not.Null);
     }
 
@@ -43,8 +43,8 @@ public class OncologyPageTests : BlazorTestBase
         MockWorkflowGrain.GetOncologyTreatmentsAsync().Returns(new List<OncologyTreatmentIndexEntry>());
 
         var cut = Ctx.Render<Oncology>();
-        cut.Find("input.patient-input").Change("PAT-001");
-        await cut.Find("button.btn-load").ClickAsync(new Microsoft.AspNetCore.Components.Web.MouseEventArgs());
+        cut.Find("input.lookup-input").Change("PAT-001");
+        await cut.Find("button.btn-primary").ClickAsync(new Microsoft.AspNetCore.Components.Web.MouseEventArgs());
 
         Assert.That(cut.Markup, Does.Contain("Adenocarcinoma"));
         Assert.That(cut.Markup, Does.Contain("Upper lobe of lung"));
@@ -57,8 +57,8 @@ public class OncologyPageTests : BlazorTestBase
             _ => throw new Exception("Grain error"));
 
         var cut = Ctx.Render<Oncology>();
-        cut.Find("input.patient-input").Change("PAT-002");
-        await cut.Find("button.btn-load").ClickAsync(new Microsoft.AspNetCore.Components.Web.MouseEventArgs());
+        cut.Find("input.lookup-input").Change("PAT-002");
+        await cut.Find("button.btn-primary").ClickAsync(new Microsoft.AspNetCore.Components.Web.MouseEventArgs());
 
         Assert.That(cut.Markup, Does.Contain("Failed to load"));
     }

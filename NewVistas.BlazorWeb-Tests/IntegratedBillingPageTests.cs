@@ -25,7 +25,7 @@ public class IntegratedBillingPageTests : BlazorTestBase
     public void IntegratedBilling_RendersLookupBar()
     {
         var cut = Ctx.Render<IntegratedBilling>();
-        var input = cut.Find("input.form-control");
+        var input = cut.Find("input.lookup-input");
         Assert.That(input, Is.Not.Null);
         Assert.That(input.GetAttribute("placeholder"), Is.EqualTo("Patient ID"));
     }
@@ -38,7 +38,7 @@ public class IntegratedBillingPageTests : BlazorTestBase
         MockGrainFactory.GetGrain<IIBillingPatientGrain>(Arg.Any<string>(), Arg.Any<string?>()).Returns(mockPatient);
 
         var cut = Ctx.Render<IntegratedBilling>();
-        cut.Find("input.form-control").Input("PAT-001");
+        cut.Find("input.lookup-input").Input("PAT-001");
         await cut.Find("button.btn-primary").ClickAsync(new Microsoft.AspNetCore.Components.Web.MouseEventArgs());
 
         Assert.That(cut.Markup, Does.Contain("Grain failure"));

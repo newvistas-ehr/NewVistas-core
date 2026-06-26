@@ -44,7 +44,7 @@ public class HomeTelehealthPageTests : BlazorTestBase
         MockWorkflowGrain.GetHtPatientAsync().Returns(state);
 
         var cut = Ctx.Render<HomeTelehealth>();
-        cut.Find("input.form-control").Change("PAT-001");
+        cut.Find("input.lookup-input").Change("PAT-001");
         await cut.Find("button.btn-primary").ClickAsync(new Microsoft.AspNetCore.Components.Web.MouseEventArgs());
 
         Assert.That(cut.Markup, Does.Contain("ENROLLED"));
@@ -57,7 +57,7 @@ public class HomeTelehealthPageTests : BlazorTestBase
             _ => throw new Exception("Grain unavailable"));
 
         var cut = Ctx.Render<HomeTelehealth>();
-        cut.Find("input.form-control").Change("PAT-002");
+        cut.Find("input.lookup-input").Change("PAT-002");
         await cut.Find("button.btn-primary").ClickAsync(new Microsoft.AspNetCore.Components.Web.MouseEventArgs());
 
         Assert.That(cut.Markup, Does.Contain("Load failed"));

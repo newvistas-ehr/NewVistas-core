@@ -25,7 +25,7 @@ public class AccountsReceivablePageTests : BlazorTestBase
     public void AccountsReceivable_RendersPatientLookup()
     {
         var cut = Ctx.Render<AccountsReceivable>();
-        var input = cut.Find("input.form-control");
+        var input = cut.Find("input.lookup-input");
         Assert.That(input, Is.Not.Null);
     }
 
@@ -37,7 +37,7 @@ public class AccountsReceivablePageTests : BlazorTestBase
         MockGrainFactory.GetGrain<IARDebtorGrain>(Arg.Any<string>(), Arg.Any<string?>()).Returns(mockDebtor);
 
         var cut = Ctx.Render<AccountsReceivable>();
-        cut.Find("input.form-control").Change("PAT-001");
+        cut.Find("input.lookup-input").Change("PAT-001");
         await cut.Find("button.btn-primary").ClickAsync(new Microsoft.AspNetCore.Components.Web.MouseEventArgs());
 
         Assert.That(cut.Markup, Does.Contain("Error loading patient data"));

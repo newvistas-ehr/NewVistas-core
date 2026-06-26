@@ -39,7 +39,7 @@ public class PharmacyPosPageTests : BlazorTestBase
         MockWorkflowGrain.GetPosClaimsAsync().Returns(claims);
 
         var cut = Ctx.Render<PharmacyPos>();
-        cut.Find("input.form-control").Change("P-001");
+        cut.Find("input.lookup-input").Change("P-001");
         await cut.Find("button.btn-primary").ClickAsync(new Microsoft.AspNetCore.Components.Web.MouseEventArgs());
 
         Assert.That(cut.Markup, Does.Contain("Atorvastatin 20mg"));
@@ -52,7 +52,7 @@ public class PharmacyPosPageTests : BlazorTestBase
             _ => throw new Exception("Grain error"));
 
         var cut = Ctx.Render<PharmacyPos>();
-        cut.Find("input.form-control").Change("P-002");
+        cut.Find("input.lookup-input").Change("P-002");
         await cut.Find("button.btn-primary").ClickAsync(new Microsoft.AspNetCore.Components.Web.MouseEventArgs());
 
         Assert.That(cut.Markup, Does.Contain("Grain error"));

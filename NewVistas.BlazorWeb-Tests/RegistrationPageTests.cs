@@ -149,7 +149,7 @@ public class RegistrationPageTests : BlazorTestBase
         // Wait for enrollment to load, then click PRF tab
         cut.WaitForState(() => cut.Markup.Contains("Verified"), TimeSpan.FromSeconds(3));
 
-        var prfTab = cut.FindAll("button.nav-link").First(b => b.TextContent.Contains("PRF Flags"));
+        var prfTab = cut.FindAll("button.tab").First(b => b.TextContent.Contains("PRF Flags"));
         await prfTab.ClickAsync(new Microsoft.AspNetCore.Components.Web.MouseEventArgs());
 
         cut.WaitForState(() => cut.Markup.Contains("No active PRF flags"), TimeSpan.FromSeconds(3));

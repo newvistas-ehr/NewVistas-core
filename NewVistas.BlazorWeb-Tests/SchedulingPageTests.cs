@@ -28,7 +28,7 @@ public class SchedulingPageTests : BlazorTestBase
     {
         var cut = Ctx.Render<Scheduling>();
 
-        var input = cut.Find("input.input-id");
+        var input = cut.Find("input.lookup-input");
         Assert.That(input, Is.Not.Null);
         Assert.That(input.GetAttribute("placeholder"), Does.Contain("Patient ID"));
     }
@@ -40,7 +40,7 @@ public class SchedulingPageTests : BlazorTestBase
 
         // The "Load Schedule" button exists in the toolbar
         var buttons = cut.FindAll("button");
-        var loadBtn = buttons.First(b => b.TextContent.Contains("Load Schedule"));
+        var loadBtn = buttons.First(b => b.TextContent.Trim() == "Load");
         Assert.That(loadBtn, Is.Not.Null);
     }
 
@@ -57,8 +57,8 @@ public class SchedulingPageTests : BlazorTestBase
 
         var cut = Ctx.Render<Scheduling>();
 
-        cut.Find("input.input-id").Change("PATIENT-001");
-        await cut.FindAll("button").First(b => b.TextContent.Contains("Load Schedule"))
+        cut.Find("input.lookup-input").Change("PATIENT-001");
+        await cut.FindAll("button").First(b => b.TextContent.Trim() == "Load")
             .ClickAsync(new Microsoft.AspNetCore.Components.Web.MouseEventArgs());
 
         await MockWorkflowGrain.Received(1).GetAllAppointmentsAsync(Arg.Any<int>());
@@ -74,8 +74,8 @@ public class SchedulingPageTests : BlazorTestBase
 
         var cut = Ctx.Render<Scheduling>();
 
-        cut.Find("input.input-id").Change("PATIENT-002");
-        await cut.FindAll("button").First(b => b.TextContent.Contains("Load Schedule"))
+        cut.Find("input.lookup-input").Change("PATIENT-002");
+        await cut.FindAll("button").First(b => b.TextContent.Trim() == "Load")
             .ClickAsync(new Microsoft.AspNetCore.Components.Web.MouseEventArgs());
 
         Assert.That(cut.Markup, Does.Contain("No appointments found"));
@@ -89,8 +89,8 @@ public class SchedulingPageTests : BlazorTestBase
 
         var cut = Ctx.Render<Scheduling>();
 
-        cut.Find("input.input-id").Change("PATIENT-003");
-        await cut.FindAll("button").First(b => b.TextContent.Contains("Load Schedule"))
+        cut.Find("input.lookup-input").Change("PATIENT-003");
+        await cut.FindAll("button").First(b => b.TextContent.Trim() == "Load")
             .ClickAsync(new Microsoft.AspNetCore.Components.Web.MouseEventArgs());
 
         Assert.That(cut.Markup, Does.Contain("Connection lost"));

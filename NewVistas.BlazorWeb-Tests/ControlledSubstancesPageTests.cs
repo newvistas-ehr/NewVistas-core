@@ -47,7 +47,7 @@ public class ControlledSubstancesPageTests : BlazorTestBase
         _mockInspectionLog.GetAllInspectionsAsync().Returns(new List<CSInspectionSummaryEntry>());
 
         var cut = Ctx.Render<ControlledSubstances>();
-        cut.Find("input.input-field").Input("VAULT-1A");
+        cut.Find("input.lookup-input").Input("VAULT-1A");
         await cut.Find("button.btn-primary").ClickAsync(new Microsoft.AspNetCore.Components.Web.MouseEventArgs());
 
         Assert.That(cut.Markup, Does.Contain("Oxycodone 5mg"));
@@ -63,7 +63,7 @@ public class ControlledSubstancesPageTests : BlazorTestBase
             _ => throw new Exception("Timeout"));
 
         var cut = Ctx.Render<ControlledSubstances>();
-        cut.Find("input.input-field").Input("VAULT-1A");
+        cut.Find("input.lookup-input").Input("VAULT-1A");
         await cut.Find("button.btn-primary").ClickAsync(new Microsoft.AspNetCore.Components.Web.MouseEventArgs());
 
         Assert.That(cut.Markup, Does.Contain("Failed to load"));

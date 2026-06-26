@@ -28,7 +28,7 @@ public class MedicinePageTests : BlazorTestBase
     {
         var cut = Ctx.Render<Medicine>();
 
-        var input = cut.Find("input.patient-input");
+        var input = cut.Find("input.lookup-input");
         Assert.That(input, Is.Not.Null);
         Assert.That(input.GetAttribute("placeholder"), Is.EqualTo("Patient ID"));
     }
@@ -38,7 +38,7 @@ public class MedicinePageTests : BlazorTestBase
     {
         var cut = Ctx.Render<Medicine>();
 
-        var button = cut.Find("button.btn-load");
+        var button = cut.Find("button.btn-primary");
         Assert.That(button, Is.Not.Null);
     }
 
@@ -72,8 +72,8 @@ public class MedicinePageTests : BlazorTestBase
 
         var cut = Ctx.Render<Medicine>();
 
-        cut.Find("input.patient-input").Change("PAT-001");
-        await cut.Find("button.btn-load").ClickAsync(new Microsoft.AspNetCore.Components.Web.MouseEventArgs());
+        cut.Find("input.lookup-input").Change("PAT-001");
+        await cut.Find("button.btn-primary").ClickAsync(new Microsoft.AspNetCore.Components.Web.MouseEventArgs());
 
         await MockWorkflowGrain.Received(1).GetMedProceduresAsync();
         Assert.That(cut.Markup, Does.Contain("Dr. Cardio"));
@@ -87,8 +87,8 @@ public class MedicinePageTests : BlazorTestBase
 
         var cut = Ctx.Render<Medicine>();
 
-        cut.Find("input.patient-input").Change("PAT-002");
-        await cut.Find("button.btn-load").ClickAsync(new Microsoft.AspNetCore.Components.Web.MouseEventArgs());
+        cut.Find("input.lookup-input").Change("PAT-002");
+        await cut.Find("button.btn-primary").ClickAsync(new Microsoft.AspNetCore.Components.Web.MouseEventArgs());
 
         // When procedures is empty, the stat cards show 0
         Assert.That(cut.Markup, Does.Contain("0"));
@@ -102,8 +102,8 @@ public class MedicinePageTests : BlazorTestBase
 
         var cut = Ctx.Render<Medicine>();
 
-        cut.Find("input.patient-input").Change("PAT-003");
-        await cut.Find("button.btn-load").ClickAsync(new Microsoft.AspNetCore.Components.Web.MouseEventArgs());
+        cut.Find("input.lookup-input").Change("PAT-003");
+        await cut.Find("button.btn-primary").ClickAsync(new Microsoft.AspNetCore.Components.Web.MouseEventArgs());
 
         Assert.That(cut.Markup, Does.Contain("Grain timeout"));
     }

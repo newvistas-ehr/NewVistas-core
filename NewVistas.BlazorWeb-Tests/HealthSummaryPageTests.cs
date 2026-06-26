@@ -52,7 +52,7 @@ public class HealthSummaryPageTests : BlazorTestBase
         MockWorkflowGrain.GetHealthSummaryListAsync().Returns(entries);
 
         var cut = Ctx.Render<HealthSummary>();
-        cut.Find("input.patient-input").Change("PAT-001");
+        cut.Find("input.lookup-input").Change("PAT-001");
         await cut.Find("button.btn-primary").ClickAsync(new Microsoft.AspNetCore.Components.Web.MouseEventArgs());
 
         await MockWorkflowGrain.Received(1).GetHealthSummaryListAsync();
@@ -65,7 +65,7 @@ public class HealthSummaryPageTests : BlazorTestBase
             _ => throw new Exception("Connection refused"));
 
         var cut = Ctx.Render<HealthSummary>();
-        cut.Find("input.patient-input").Change("PAT-002");
+        cut.Find("input.lookup-input").Change("PAT-002");
         await cut.Find("button.btn-primary").ClickAsync(new Microsoft.AspNetCore.Components.Web.MouseEventArgs());
 
         Assert.That(cut.Markup, Does.Contain("Error loading data"));

@@ -39,7 +39,7 @@ public class EpcsPageTests : BlazorTestBase
         MockWorkflowGrain.GetEpcsPrescriptionsAsync().Returns(rxList);
 
         var cut = Ctx.Render<Epcs>();
-        cut.Find("input.form-control").Change("P-001");
+        cut.Find("input.lookup-input").Change("P-001");
         await cut.Find("button.btn-primary").ClickAsync(new Microsoft.AspNetCore.Components.Web.MouseEventArgs());
 
         Assert.That(cut.Markup, Does.Contain("Adderall 20mg"));
@@ -52,7 +52,7 @@ public class EpcsPageTests : BlazorTestBase
             _ => throw new Exception("Silo unavailable"));
 
         var cut = Ctx.Render<Epcs>();
-        cut.Find("input.form-control").Change("P-002");
+        cut.Find("input.lookup-input").Change("P-002");
         await cut.Find("button.btn-primary").ClickAsync(new Microsoft.AspNetCore.Components.Web.MouseEventArgs());
 
         Assert.That(cut.Markup, Does.Contain("Silo unavailable"));

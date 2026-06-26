@@ -36,7 +36,7 @@ public class FeeBasisPageTests : BlazorTestBase
         MockGrainFactory.GetGrain<IFeePatientGrain>(Arg.Any<string>(), Arg.Any<string?>()).Returns(mockFeePatient);
 
         var cut = Ctx.Render<FeeBasis>();
-        cut.Find("input.form-control").Change("PAT-001");
+        cut.Find("input.lookup-input").Change("PAT-001");
         await cut.Find("button.btn-primary").ClickAsync(new Microsoft.AspNetCore.Components.Web.MouseEventArgs());
 
         Assert.That(cut.Markup, Does.Contain("Error loading patient"));

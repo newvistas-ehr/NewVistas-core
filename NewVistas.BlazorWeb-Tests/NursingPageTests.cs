@@ -64,7 +64,7 @@ public class NursingPageTests : BlazorTestBase
             .Returns(mockUnitIndex);
 
         var cut = Ctx.Render<Nursing>();
-        cut.Find("input[placeholder='Patient ID']").Change("PATIENT-001");
+        cut.Find("input[placeholder='Patient ID']").Input("PATIENT-001");
         await cut.FindAll("button").First(b => b.TextContent.Contains("Load")).ClickAsync(
             new Microsoft.AspNetCore.Components.Web.MouseEventArgs());
 
@@ -87,7 +87,7 @@ public class NursingPageTests : BlazorTestBase
             .Returns(mockUnitIndex);
 
         var cut = Ctx.Render<Nursing>();
-        cut.Find("input[placeholder='Patient ID']").Change("PATIENT-002");
+        cut.Find("input[placeholder='Patient ID']").Input("PATIENT-002");
         await cut.FindAll("button").First(b => b.TextContent.Contains("Load")).ClickAsync(
             new Microsoft.AspNetCore.Components.Web.MouseEventArgs());
 
@@ -101,7 +101,7 @@ public class NursingPageTests : BlazorTestBase
             _ => throw new Exception("Cluster down"));
 
         var cut = Ctx.Render<Nursing>();
-        cut.Find("input[placeholder='Patient ID']").Change("PATIENT-003");
+        cut.Find("input[placeholder='Patient ID']").Input("PATIENT-003");
         await cut.FindAll("button").First(b => b.TextContent.Contains("Load")).ClickAsync(
             new Microsoft.AspNetCore.Components.Web.MouseEventArgs());
 

@@ -26,7 +26,7 @@ public class PcePageTests : BlazorTestBase
     public void Pce_RendersToolbar()
     {
         var cut = Ctx.Render<Pce>();
-        var input = cut.Find("input.input-id");
+        var input = cut.Find("input.lookup-input");
         Assert.That(input, Is.Not.Null);
         Assert.That(input.GetAttribute("placeholder"), Is.EqualTo("Patient ID"));
     }
@@ -36,7 +36,7 @@ public class PcePageTests : BlazorTestBase
     {
         var cut = Ctx.Render<Pce>();
         var buttons = cut.FindAll("button");
-        Assert.That(buttons.Any(b => b.TextContent.Contains("Load Encounters")), Is.True);
+        Assert.That(buttons.Any(b => b.TextContent.Trim() == "Load"), Is.True);
     }
 
     [Test]
@@ -52,8 +52,8 @@ public class PcePageTests : BlazorTestBase
         MockWorkflowGrain.GetEncounterListAsync(Arg.Any<int>()).Returns(visits);
 
         var cut = Ctx.Render<Pce>();
-        cut.Find("input.input-id").Change("PATIENT-001");
-        await cut.FindAll("button").First(b => b.TextContent.Contains("Load Encounters")).ClickAsync(
+        cut.Find("input.lookup-input").Change("PATIENT-001");
+        await cut.FindAll("button").First(b => b.TextContent.Trim() == "Load").ClickAsync(
             new Microsoft.AspNetCore.Components.Web.MouseEventArgs());
 
         await MockWorkflowGrain.Received(1).GetEncounterListAsync(Arg.Any<int>());
@@ -68,8 +68,8 @@ public class PcePageTests : BlazorTestBase
         MockWorkflowGrain.GetEncounterListAsync(Arg.Any<int>()).Returns(new List<PceVisitEntry>());
 
         var cut = Ctx.Render<Pce>();
-        cut.Find("input.input-id").Change("PATIENT-002");
-        await cut.FindAll("button").First(b => b.TextContent.Contains("Load Encounters")).ClickAsync(
+        cut.Find("input.lookup-input").Change("PATIENT-002");
+        await cut.FindAll("button").First(b => b.TextContent.Trim() == "Load").ClickAsync(
             new Microsoft.AspNetCore.Components.Web.MouseEventArgs());
 
         Assert.That(cut.Markup, Does.Contain("No encounters recorded"));
@@ -82,8 +82,8 @@ public class PcePageTests : BlazorTestBase
             _ => throw new Exception("Visit grain error"));
 
         var cut = Ctx.Render<Pce>();
-        cut.Find("input.input-id").Change("PATIENT-003");
-        await cut.FindAll("button").First(b => b.TextContent.Contains("Load Encounters")).ClickAsync(
+        cut.Find("input.lookup-input").Change("PATIENT-003");
+        await cut.FindAll("button").First(b => b.TextContent.Trim() == "Load").ClickAsync(
             new Microsoft.AspNetCore.Components.Web.MouseEventArgs());
 
         Assert.That(cut.Markup, Does.Contain("Error"));

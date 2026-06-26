@@ -28,7 +28,7 @@ public class LabsPageTests : BlazorTestBase
     {
         var cut = Ctx.Render<Labs>();
 
-        var input = cut.Find("input.input-id");
+        var input = cut.Find("input.lookup-input");
         Assert.That(input, Is.Not.Null);
         Assert.That(input.GetAttribute("placeholder"), Is.EqualTo("Patient ID"));
     }
@@ -58,7 +58,7 @@ public class LabsPageTests : BlazorTestBase
 
         var cut = Ctx.Render<Labs>();
 
-        cut.Find("input.input-id").Change("PATIENT-001");
+        cut.Find("input.lookup-input").Change("PATIENT-001");
         var loadButton = cut.FindAll("button").First(b => b.TextContent.Contains("Load Results"));
         await loadButton.ClickAsync(new Microsoft.AspNetCore.Components.Web.MouseEventArgs());
 
@@ -75,7 +75,7 @@ public class LabsPageTests : BlazorTestBase
 
         var cut = Ctx.Render<Labs>();
 
-        cut.Find("input.input-id").Change("PATIENT-002");
+        cut.Find("input.lookup-input").Change("PATIENT-002");
         var loadButton = cut.FindAll("button").First(b => b.TextContent.Contains("Load Results"));
         await loadButton.ClickAsync(new Microsoft.AspNetCore.Components.Web.MouseEventArgs());
 
@@ -90,7 +90,7 @@ public class LabsPageTests : BlazorTestBase
 
         var cut = Ctx.Render<Labs>();
 
-        cut.Find("input.input-id").Change("PATIENT-003");
+        cut.Find("input.lookup-input").Change("PATIENT-003");
         var loadButton = cut.FindAll("button").First(b => b.TextContent.Contains("Load Results"));
         await loadButton.ClickAsync(new Microsoft.AspNetCore.Components.Web.MouseEventArgs());
 

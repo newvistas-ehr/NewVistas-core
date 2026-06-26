@@ -37,7 +37,7 @@ public class AgentCashierPageTests : BlazorTestBase
         MockGrainFactory.GetGrain<ICashierReceiptIndexGrain>(Arg.Any<string>(), Arg.Any<string?>()).Returns(mockIndex);
 
         var cut = Ctx.Render<AgentCashier>();
-        cut.Find("input.form-control").Change("PAT-001");
+        cut.Find("input.lookup-input").Change("PAT-001");
         await cut.Find("button.btn-primary").ClickAsync(new Microsoft.AspNetCore.Components.Web.MouseEventArgs());
 
         Assert.That(cut.Markup, Does.Contain("Error loading receipts"));
