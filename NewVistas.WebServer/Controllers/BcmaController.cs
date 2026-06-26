@@ -146,11 +146,14 @@ public class BcmaController : ControllerBase
     // ─── History Endpoints ────────────────────────────────────────────────
 
     [HttpGet("history")]
-    public async Task<IActionResult> GetHistory(string patientId, [FromQuery] int max = 100)
+    public async Task<IActionResult> GetHistory(string patientId, [FromQuery] int offset = 0, [FromQuery] int max = 100)
     {
         try
         {
-            List<BcmaSummary> history = await Workflow(patientId).GetMedicationAdministrationsAsync(max);
+            // Full paged administration history from the patient history index — NOT the
+            // capped recent window (GetMedicationAdministrationsAsync), which only ever
+            // returns the most recent few and cannot page past them on a high-volume patient.
+            List<BcmaSummary> history = await Workflow(patientId).GetBcmaHistoryAsync(offset, max);
             return Ok(history);
         }
         catch (Exception ex)
