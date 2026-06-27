@@ -61,6 +61,25 @@ public class ClinicIndexGrain : Grain, IClinicIndexGrain
             new ClinicEntry { ClinicId = "SD-CLINIC-004", Name = "DERMATOLOGY",    Division = "MAIN",  StopCode = "313", AppointmentLength = 20, Status = "ACTIVE" },
             new ClinicEntry { ClinicId = "SD-CLINIC-005", Name = "ORTHOPEDICS",    Division = "NORTH", StopCode = "218", AppointmentLength = 45, Status = "ACTIVE" },
             new ClinicEntry { ClinicId = "SD-CLINIC-006", Name = "PHARMACY MTAC",  Division = "MAIN",  StopCode = "160", AppointmentLength = 30, Status = "ACTIVE" },
+            // RADIOLOGY = diagnostic imaging (X-ray/CT/MRI, File #75.1); RADIATION ONCOLOGY =
+            // therapeutic cancer radiation — kept as distinct clinics so an imaging order and a
+            // radiation-therapy referral each point at the right place.
+            new ClinicEntry { ClinicId = "SD-CLINIC-007", Name = "RADIOLOGY",           Division = "MAIN",  StopCode = "105", AppointmentLength = 30, Status = "ACTIVE" },
+            new ClinicEntry { ClinicId = "SD-CLINIC-008", Name = "RADIATION ONCOLOGY",  Division = "MAIN",  StopCode = "317", AppointmentLength = 30, Status = "ACTIVE" },
+            new ClinicEntry { ClinicId = "SD-CLINIC-009", Name = "HEMATOLOGY/ONCOLOGY", Division = "MAIN",  StopCode = "316", AppointmentLength = 45, Status = "ACTIVE" },
+            new ClinicEntry { ClinicId = "SD-CLINIC-010", Name = "LABORATORY",          Division = "MAIN",  StopCode = "108", AppointmentLength = 15, Status = "ACTIVE" },
+            new ClinicEntry { ClinicId = "SD-CLINIC-011", Name = "WOMEN'S HEALTH",      Division = "MAIN",  StopCode = "322", AppointmentLength = 30, Status = "ACTIVE" },
+            new ClinicEntry { ClinicId = "SD-CLINIC-012", Name = "NEUROLOGY",           Division = "MAIN",  StopCode = "315", AppointmentLength = 45, Status = "ACTIVE" },
+            new ClinicEntry { ClinicId = "SD-CLINIC-013", Name = "GASTROENTEROLOGY",    Division = "NORTH", StopCode = "307", AppointmentLength = 30, Status = "ACTIVE" },
+            new ClinicEntry { ClinicId = "SD-CLINIC-014", Name = "GENERAL SURGERY",     Division = "MAIN",  StopCode = "401", AppointmentLength = 30, Status = "ACTIVE" },
+            new ClinicEntry { ClinicId = "SD-CLINIC-015", Name = "UROLOGY",             Division = "NORTH", StopCode = "314", AppointmentLength = 30, Status = "ACTIVE" },
+            new ClinicEntry { ClinicId = "SD-CLINIC-016", Name = "PHYSICAL THERAPY",    Division = "SOUTH", StopCode = "205", AppointmentLength = 45, Status = "ACTIVE" },
+            new ClinicEntry { ClinicId = "SD-CLINIC-017", Name = "EYE CLINIC",          Division = "MAIN",  StopCode = "408", AppointmentLength = 30, Status = "ACTIVE" },
+            new ClinicEntry { ClinicId = "SD-CLINIC-018", Name = "ENT",                 Division = "NORTH", StopCode = "309", AppointmentLength = 30, Status = "ACTIVE" },
+            new ClinicEntry { ClinicId = "SD-CLINIC-019", Name = "PULMONARY",           Division = "MAIN",  StopCode = "312", AppointmentLength = 30, Status = "ACTIVE" },
+            new ClinicEntry { ClinicId = "SD-CLINIC-020", Name = "ENDOCRINOLOGY",       Division = "MAIN",  StopCode = "305", AppointmentLength = 30, Status = "ACTIVE" },
+            new ClinicEntry { ClinicId = "SD-CLINIC-021", Name = "EMERGENCY DEPARTMENT",Division = "MAIN",  StopCode = "130", AppointmentLength = 60, Status = "ACTIVE" },
+            new ClinicEntry { ClinicId = "SD-CLINIC-022", Name = "NUTRITION",           Division = "SOUTH", StopCode = "124", AppointmentLength = 30, Status = "ACTIVE" },
         });
 
         await _state.WriteStateAsync();
