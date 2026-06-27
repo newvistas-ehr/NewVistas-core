@@ -64,11 +64,39 @@
     @if (activeTab == "add")
     {
         <div class="form-section">
+            <FormField Label="Find diagnosis">
+                <div class="icd-search">
+                    <input type="text" @bind="icdSearchTerm" @bind:event="oninput" @onkeydown="IcdKeyDown"
+                           placeholder="Search by name or ICD-10 code, e.g. diabetes or E11" class="icd-input" />
+                    <button type="button" @onclick="SearchIcd10" disabled="@icdSearching" class="btn btn-secondary">
+                        @(icdSearching ? "..." : "Search")
+                    </button>
+                </div>
+                @if (icdResults != null)
+                {
+                    @if (icdResults.Count == 0)
+                    {
+                        <div class="icd-empty">No matching ICD-10 codes.</div>
+                    }
+                    else
+                    {
+                        <ul class="icd-results">
+                            @foreach (var r in icdResults)
+                            {
+                                <li @onclick="() => PickIcd10(r)">
+                                    <span class="code">@r.Code</span> @r.ShortDescription
+                                    @if (!r.IsBillable) { <span class="non-billable">(non-billable)</span> }
+                                </li>
+                            }
+                        </ul>
+                    }
+                }
+            </FormField>
             <FormField Label="Diagnosis" Required>
                 <input type="text" @bind="form.Diagnosis" placeholder="e.g. Type 2 Diabetes Mellitus" class="form-input" />
             </FormField>
             <FormField Label="ICD-10 Code">
-                <input type="text" @bind="form.DiagnosisCode" placeholder="e.g. E11.9" class="form-input" />
+                <input type="text" @bind="form.DiagnosisCode" placeholder="Pick from search, or type e.g. E11.9" class="form-input" />
             </FormField>
             <FormField Label="Condition">
                 <select @bind="form.Condition" class="form-input">
@@ -87,13 +115,22 @@
                 </select>
             </FormField>
             <FormField Label="Onset Date">
-                <input type="date" @bind="form.DateOfOnset" class="form-input" />
+                <input type="date" @bind="form.DateOfOnset" max="@todayIso" class="form-input" />
             </FormField>
             <FormField Label="Provider">
                 <ProviderPicker @bind-ProviderId="form.ProviderId" @bind-ProviderName="form.ProviderName" Label="" />
             </FormField>
             <FormField Label="Clinic">
-                <input type="text" @bind="form.ClinicName" placeholder="Clinic name" class="form-input" />
+                <select @bind="form.ClinicId" @bind:after="OnClinicChanged" class="form-input">
+                    <option value="">-- Select clinic --</option>
+                    @if (clinics != null)
+                    {
+                        @foreach (var c in clinics)
+                        {
+                            <option value="@c.ClinicId">@c.Name</option>
+                        }
+                    }
+                </select>
             </FormField>
             <FormField Label="Service Connected">
                 <label class="checkbox-label">
@@ -125,8 +162,53 @@
 
     private ProblemFormModel form = new();
 
+    // ICD-10 diagnosis search
+    private string icdSearchTerm = "";
+    private List<Icd10IndexEntry>? icdResults;
+    private bool icdSearching;
+
+    // Clinic dropdown (loaded once)
+    private List<ClinicEntry>? clinics;
+
+    // Onset cannot be in the future — cap the date picker at today.
+    private readonly string todayIso = DateTime.Today.ToString("yyyy-MM-dd");
+
+    protected override async Task OnInitializedAsync()
+    {
+        try { clinics = await Grains.GetGrain<IClinicIndexGrain>("SD-CLINIC-INDEX").GetAllClinicsAsync(); }
+        catch { clinics = new(); }
+    }
+
     protected override async Task OnParametersSetAsync() { if (!string.IsNullOrWhiteSpace(patientId)) await Load(); }
     private async Task HandleKeyDown(KeyboardEventArgs e) { if (e.Key == "Enter") await Load(); }
+
+    private async Task IcdKeyDown(KeyboardEventArgs e) { if (e.Key == "Enter") await SearchIcd10(); }
+
+    private async Task SearchIcd10()
+    {
+        if (string.IsNullOrWhiteSpace(icdSearchTerm)) { icdResults = null; return; }
+        icdSearching = true; error = null;
+        try
+        {
+            var index = Grains.GetGrain<IIcd10IndexGrain>("ICD10-INDEX");
+            icdResults = await index.SearchAsync(icdSearchTerm.Trim(), false, 20);
+        }
+        catch (Exception ex) { error = $"ICD-10 search failed: {ex.Message}"; }
+        finally { icdSearching = false; }
+    }
+
+    // Picking a code fills BOTH the description and the code, so they always agree
+    // (no more "broken arm" saved against a diabetes code).
+    private void PickIcd10(Icd10IndexEntry entry)
+    {
+        form.DiagnosisCode = entry.Code;
+        form.Diagnosis = entry.ShortDescription;
+        icdResults = null;
+        icdSearchTerm = "";
+    }
+
+    private void OnClinicChanged()
+        => form.ClinicName = clinics?.FirstOrDefault(c => c.ClinicId == form.ClinicId)?.Name;
 
     private async Task Load()
     {
@@ -156,6 +238,8 @@
     {
         if (string.IsNullOrWhiteSpace(patientId)) return;
         if (string.IsNullOrWhiteSpace(form.Diagnosis)) { error = "Diagnosis is required."; return; }
+        if (form.DateOfOnset.HasValue && form.DateOfOnset.Value.Date > DateTime.Today)
+        { error = "Onset date cannot be in the future."; return; }
 
         submitting = true; error = null; successMessage = null;
         try
@@ -167,7 +251,7 @@
                 string.IsNullOrEmpty(form.Priority) ? null : form.Priority,
                 form.DateOfOnset,
                 form.ProviderId, form.ProviderName,
-                null, form.ClinicName,
+                string.IsNullOrEmpty(form.ClinicId) ? null : form.ClinicId, form.ClinicName,
                 form.IsServiceConnected, form.Comments);
 
             successMessage = "Problem added successfully.";
@@ -199,6 +283,7 @@
         public DateTime? DateOfOnset { get; set; }
         public string? ProviderName { get; set; }
         public string? ProviderId { get; set; }
+        public string? ClinicId { get; set; }
         public string? ClinicName { get; set; }
         public bool IsServiceConnected { get; set; }
         public string? Comments { get; set; }
@@ -241,4 +326,15 @@
     .form-input { flex: 1; padding: 0.4rem 0.6rem; border: 1px solid #ccc; border-radius: 4px; font-size: 0.85rem; }
     textarea.form-input { resize: vertical; }
     .form-actions { margin-top: 1.25rem; }
+
+    .btn-secondary { background: #e8eef5; color: #003f72; border: 1px solid #b9c8da; }
+    .icd-search { display: flex; gap: 0.5rem; align-items: center; }
+    .icd-input { flex: 1; padding: 0.4rem 0.6rem; border: 1px solid #ccc; border-radius: 4px; font-size: 0.85rem; }
+    .icd-results { list-style: none; margin: 0.4rem 0 0; padding: 0; border: 1px solid #d4d9e0; border-radius: 4px; max-height: 220px; overflow-y: auto; font-size: 0.85rem; }
+    .icd-results li { padding: 0.35rem 0.6rem; cursor: pointer; border-bottom: 1px solid #f0f0f0; }
+    .icd-results li:last-child { border-bottom: none; }
+    .icd-results li:hover { background: #eef4fb; }
+    .icd-results .code { font-family: monospace; color: #003f72; margin-right: 0.4rem; }
+    .icd-results .non-billable { color: #b45309; font-size: 0.75rem; margin-left: 0.3rem; }
+    .icd-empty { color: #999; font-style: italic; font-size: 0.8rem; margin-top: 0.4rem; }
 </style>

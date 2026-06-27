@@ -252,6 +252,15 @@
     <div class="form-card">
         <h3>Order New Lab Test</h3>
         <div class="form-grid">
+            <label>Quick pick</label>
+            <select value="" @onchange="OnCommonTestSelected">
+                <option value="">— Common test (fills the fields below) —</option>
+                @foreach (var t in CommonTests)
+                {
+                    <option value="@t.Name">@t.Name</option>
+                }
+            </select>
+
             <label>Test Name</label>
             <input @bind="newTestName" placeholder="e.g. CBC, BMP, Creatinine" />
 
@@ -433,6 +442,36 @@
     string newTestCode = string.Empty;
     string newCategory = string.Empty;
     string newSpecimen = string.Empty;
+
+    // Common lab tests — picking one fills name + LOINC + category + specimen so the provider
+    // doesn't have to know LOINC codes. (The LOINC reference index isn't loaded in the demo, so
+    // a curated quick-pick is more useful here than a full code search.)
+    private record CommonTest(string Name, string Loinc, string Category, string Specimen);
+    private static readonly CommonTest[] CommonTests = new[]
+    {
+        new CommonTest("CBC with Differential", "58410-2", "HEMATOLOGY", "Blood"),
+        new CommonTest("Basic Metabolic Panel", "51990-0", "CHEMISTRY", "Serum"),
+        new CommonTest("Comprehensive Metabolic Panel", "24323-8", "CHEMISTRY", "Serum"),
+        new CommonTest("Lipid Panel", "57698-3", "CHEMISTRY", "Serum"),
+        new CommonTest("Hemoglobin A1c", "4548-4", "CHEMISTRY", "Blood"),
+        new CommonTest("TSH", "3016-3", "CHEMISTRY", "Serum"),
+        new CommonTest("Urinalysis, Complete", "24357-6", "URINALYSIS", "Urine"),
+        new CommonTest("PT / INR", "5902-2", "COAGULATION", "Blood"),
+        new CommonTest("PSA, Total", "2857-1", "CHEMISTRY", "Serum"),
+        new CommonTest("Creatinine", "2160-0", "CHEMISTRY", "Serum"),
+        new CommonTest("Vitamin D, 25-Hydroxy", "1989-3", "CHEMISTRY", "Serum"),
+        new CommonTest("Blood Culture", "600-7", "MICROBIOLOGY", "Blood"),
+    };
+
+    private void OnCommonTestSelected(ChangeEventArgs e)
+    {
+        CommonTest? t = CommonTests.FirstOrDefault(x => x.Name == e.Value?.ToString());
+        if (t is null) return;
+        newTestName = t.Name;
+        newTestCode = t.Loinc;
+        newCategory = t.Category;
+        newSpecimen = t.Specimen;
+    }
     string newOrderingProvider = string.Empty;
     string newOrderingProviderId = string.Empty;   // set by <ProviderPicker>
 
