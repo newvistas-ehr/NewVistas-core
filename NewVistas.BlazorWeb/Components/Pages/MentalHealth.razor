@@ -8,19 +8,32 @@
 @using NewVistas.BlazorWeb.Services
 @using NewVistas.Abstractions.GrainInterfaces
 @using NewVistas.Abstractions.GrainStates
+@using NewVistas.Abstractions.Security
 @inject OrleansGrainService Grains
 @inject PatientContextService PatientContext
+@inject UserSecurityContext SecurityContext
 
 <PageTitle>Mental Health Screening</PageTitle>
 <h1>Mental Health Screening</h1>
 
-<div class="lookup-bar">
-    <input type="text" @bind="patientId" @bind:event="oninput" @onkeydown="HandleKeyDown" placeholder="Patient ID" class="lookup-input" />
-    <button @onclick="Load" disabled="@(string.IsNullOrWhiteSpace(patientId) || loading)" class="btn btn-primary">@(loading ? "Loading..." : "Load")</button>
-</div>
+@if (accessDenied)
+{
+    <div class="access-denied">
+        <strong>🔒 Mental Health requires additional access</strong>
+        <p>Your account doesn't have the <code>YS MH INSTRUMENT</code> security key required to view or
+           record mental-health screenings. Ask your site administrator to grant it.</p>
+    </div>
+}
+else
+{
+    <div class="lookup-bar">
+        <input type="text" @bind="patientId" @bind:event="oninput" @onkeydown="HandleKeyDown" placeholder="Patient ID" class="lookup-input" />
+        <button @onclick="Load" disabled="@(string.IsNullOrWhiteSpace(patientId) || loading)" class="btn btn-primary">@(loading ? "Loading..." : "Load")</button>
+    </div>
 
-@if (error != null) { <div class="alert alert-error">@error</div> }
-@if (success != null) { <div class="alert alert-success">@success</div> }
+    @if (error != null) { <div class="alert alert-error">@error</div> }
+    @if (success != null) { <div class="alert alert-success">@success</div> }
+}
 
 @if (items != null || detail != null)
 {
@@ -246,6 +259,7 @@
     private MhDetailDto? detail;
     private decimal? scoreChange;
     private bool loading, saving;
+    private bool accessDenied;
     private string? error, success;
     private string activeTab = "list";
 
@@ -282,7 +296,14 @@
 
     private async Task Load()
     {
-        if (string.IsNullOrWhiteSpace(patientId)) return; loading = true; error = null;
+        if (string.IsNullOrWhiteSpace(patientId)) return;
+        // Mental Health is gated by the YS MH INSTRUMENT security key. If we already know the
+        // user lacks it, show the access notice rather than calling the grain (which throws).
+        if (SecurityContext.IsInitialized && !SecurityContext.HasKey(SecurityKeys.YS_MH_INSTRUMENT))
+        {
+            accessDenied = true; return;
+        }
+        loading = true; error = null;
         try
         {
             var summaries = await GetWorkflow().GetMentalHealthScreensAsync();
@@ -295,7 +316,12 @@
                 Status = s.Status
             }).ToList();
         }
-        catch (Exception ex) { error = $"Error: {ex.Message}"; } finally { loading = false; }
+        // Fallback for the edge case where the key context isn't loaded yet (e.g. landing
+        // straight on this URL on a fresh circuit) — the grain still enforces, we just present
+        // it kindly instead of crashing.
+        catch (UnauthorizedAccessException) { accessDenied = true; }
+        catch (Exception ex) { error = $"Error: {ex.Message}"; }
+        finally { loading = false; }
     }
 
     private async Task ViewDetail(string instrumentId)
@@ -483,4 +509,7 @@
     .section h4 { color: #003f72; margin-bottom: .75rem; font-size: .95rem; }
     .trend-up { color: #dc2626; font-weight: 600; }
     .trend-down { color: #16a34a; font-weight: 600; }
+    .access-denied { border: 1px solid #f0c36d; background: #fef9ec; color: #7a5b00; border-radius: 6px; padding: 1rem 1.25rem; margin-bottom: 1rem; max-width: 640px; }
+    .access-denied p { margin: 0.4rem 0 0; }
+    .access-denied code { background: #fbeec3; padding: 0.05rem 0.3rem; border-radius: 3px; font-size: 0.85em; }
 </style>

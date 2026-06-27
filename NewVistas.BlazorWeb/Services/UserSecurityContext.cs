@@ -55,6 +55,15 @@ public sealed class UserSecurityContext
     public bool HasAccess(MenuArea area) => _accessibleAreas.Contains(area);
 
     /// <summary>
+    /// Check if the user holds a specific security key (e.g. <c>YS MH INSTRUMENT</c>).
+    /// O(1) HashSet lookup. Lets pages gate a fine-grained, key-protected feature the
+    /// coarse <see cref="MenuArea"/> map can't express. Returns false until the context is
+    /// initialized — callers that must distinguish "no key" from "not loaded yet" should
+    /// also check <see cref="IsInitialized"/>.
+    /// </summary>
+    public bool HasKey(string key) => _keys.Contains(key);
+
+    /// <summary>
     /// Clear cached state on logout.
     /// </summary>
     public void Clear()

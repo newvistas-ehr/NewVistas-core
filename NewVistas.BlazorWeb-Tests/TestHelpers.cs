@@ -26,6 +26,15 @@ public abstract class BlazorTestBase
     protected IGrainFactory MockGrainFactory { get; private set; } = null!;
     protected IPatientWorkflowGrain MockWorkflowGrain { get; private set; } = null!;
 
+    /// <summary>Grain service wired to the mock factory — exposed so tests can initialize
+    /// <see cref="SecurityContext"/> from a mock ACL grain or call grains directly.</summary>
+    protected OrleansGrainService GrainService { get; private set; } = null!;
+
+    /// <summary>Per-circuit security context. Uninitialized by default (no keys, IsInitialized
+    /// false), so key-gated pages fall through to the grain as before; initialize it to test
+    /// key gating.</summary>
+    protected UserSecurityContext SecurityContext { get; private set; } = null!;
+
     /// <summary>
     /// The shared patient context for the circuit. Patient-scoped pages now show the
     /// patient selected here (via the &lt;PatientBar&gt;) and auto-load it on render —
@@ -59,12 +68,15 @@ public abstract class BlazorTestBase
         // Create auth provider and grain service with mock factory
         var authProvider = new JwtAuthenticationStateProvider(httpClient);
         var grainService = new OrleansGrainService(MockGrainFactory, authProvider);
+        GrainService = grainService;
 
         // Register services — must happen before first Render
         PatientContext = new PatientContextService();
+        SecurityContext = new UserSecurityContext();
         Ctx.Services.AddSingleton(grainService);
         Ctx.Services.AddSingleton(httpClient);
         Ctx.Services.AddSingleton(PatientContext);
+        Ctx.Services.AddSingleton(SecurityContext);
         Ctx.Services.AddSingleton(Substitute.For<IImageBlobStorageService>());
         Ctx.Services.AddSingleton(Substitute.For<IImageIngestionService>());
 

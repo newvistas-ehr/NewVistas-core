@@ -84,4 +84,37 @@ public class MentalHealthPageTests : BlazorTestBase
         Assert.That(cut.Markup, Does.Contain("Error"));
         Assert.That(cut.Markup, Does.Contain("Silo unreachable"));
     }
+
+    [Test]
+    public async Task MentalHealth_WhenContextKnowsUserLacksKey_ShowsNotice_AndSkipsGrain()
+    {
+        // Security context loaded for a user with NO keys.
+        var acl = Substitute.For<IAccessControlGrain>();
+        acl.GetKeysAsync().Returns((IReadOnlySet<string>)new HashSet<string>());
+        MockGrainFactory.GetGrain<IAccessControlGrain>(Arg.Any<string>(), Arg.Any<string?>()).Returns(acl);
+        await SecurityContext.InitializeAsync(GrainService, "USER-1");
+
+        SelectPatient("PATIENT-004"); // triggers auto-load via OnParametersSetAsync
+        var cut = Ctx.Render<MentalHealth>();
+
+        Assert.That(cut.Markup, Does.Contain("requires additional access"));
+        Assert.That(cut.Markup, Does.Contain("YS MH INSTRUMENT"));
+        // The page must NOT call the gated grain when we already know the key is missing.
+        await MockWorkflowGrain.DidNotReceive().GetMentalHealthScreensAsync();
+    }
+
+    [Test]
+    public async Task MentalHealth_WhenGrainThrowsUnauthorized_ShowsNotice_NotRawError()
+    {
+        // Fallback path: key context not loaded, the gated grain enforces and throws.
+        MockWorkflowGrain.GetMentalHealthScreensAsync().Returns<List<MentalHealthSummary>>(
+            _ => throw new UnauthorizedAccessException("Access denied: requires any of [YS MH INSTRUMENT]"));
+
+        var cut = Ctx.Render<MentalHealth>();
+        cut.Find("input.lookup-input").Input("PATIENT-005");
+        await cut.Find("button.btn-primary").ClickAsync(new Microsoft.AspNetCore.Components.Web.MouseEventArgs());
+
+        Assert.That(cut.Markup, Does.Contain("requires additional access"));
+        Assert.That(cut.Markup, Does.Not.Contain("Access denied:")); // raw exception text not shown
+    }
 }

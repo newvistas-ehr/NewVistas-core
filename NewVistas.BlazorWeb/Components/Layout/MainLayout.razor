@@ -117,10 +117,16 @@
                 <span class="nav-icon">💊</span>
                 <span class="nav-label">BCMA</span>
             </NavLink>
+            @* Mental Health needs the fine-grained YS MH INSTRUMENT key (not just Clinical
+               access), so gate the item on the key — otherwise a clinician without it lands
+               on a page that throws Access denied. *@
+            @if (SecurityContext.HasKey(SecurityKeys.YS_MH_INSTRUMENT))
+            {
             <NavLink class="nav-item" href="/mental-health">
                 <span class="nav-icon">🧠</span>
                 <span class="nav-label">Mental Health</span>
             </NavLink>
+            }
             <NavLink class="nav-item" href="/dietetics">
                 <span class="nav-icon">🥗</span>
                 <span class="nav-label">Dietetics</span>
