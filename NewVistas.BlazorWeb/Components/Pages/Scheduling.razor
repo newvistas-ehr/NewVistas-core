@@ -460,6 +460,7 @@
             conflictDetected = true;
             conflictMessage = ex.Message;
         }
+        catch (UnauthorizedAccessException ex) { error = SecurityKeyError.Describe(ex); }
         catch (Exception ex) { error = $"Error: {ex.Message}"; }
         finally { loading = false; }
     }

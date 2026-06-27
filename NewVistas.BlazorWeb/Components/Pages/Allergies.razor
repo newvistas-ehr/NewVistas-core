@@ -180,6 +180,7 @@
             activeTab = "view";
             await Load();
         }
+        catch (UnauthorizedAccessException ex) { error = SecurityKeyError.Describe(ex); }
         catch (Exception ex) { error = $"Error saving allergy: {ex.Message}"; }
         finally { submitting = false; }
     }

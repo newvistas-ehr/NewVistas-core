@@ -258,6 +258,7 @@
             activeTab = "view";
             await Load();
         }
+        catch (UnauthorizedAccessException ex) { error = SecurityKeyError.Describe(ex); }
         catch (Exception ex) { error = $"Error saving vitals: {ex.Message}"; }
         finally { submitting = false; }
     }

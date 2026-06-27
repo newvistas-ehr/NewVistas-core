@@ -363,6 +363,7 @@
             newOrderText = ""; newInstructions = null; orderChecks = null;
             await Load();
         }
+        catch (UnauthorizedAccessException ex) { error = SecurityKeyError.Describe(ex); }
         catch (Exception ex) { error = ex.Message; }
         finally { placingOrder = false; }
     }
@@ -406,6 +407,7 @@
             await action(grain);
             successMsg = $"Order {actionName} successful."; await Load();
         }
+        catch (UnauthorizedAccessException ex) { error = SecurityKeyError.Describe(ex); }
         catch (Exception ex) { error = ex.Message; }
     }
 

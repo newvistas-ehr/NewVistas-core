@@ -374,6 +374,7 @@
         {
             fuError = $"Conflict: {ex.Message} Use the Scheduling page to override.";
         }
+        catch (UnauthorizedAccessException ex) { fuError = SecurityKeyError.Describe(ex); }
         catch (Exception ex) { fuError = $"Error: {ex.Message}"; }
         finally { fuLoading = false; }
     }

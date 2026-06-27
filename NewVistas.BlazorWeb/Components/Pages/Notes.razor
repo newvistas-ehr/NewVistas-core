@@ -337,6 +337,7 @@
             successMessage = "Note created successfully.";
             await LoadNotes();
         }
+        catch (UnauthorizedAccessException ex) { error = SecurityKeyError.Describe(ex); }
         catch (Exception ex) { error = $"Error: {ex.Message}"; }
         finally { saving = false; }
     }
@@ -392,6 +393,7 @@
             await ViewNote(esigDocumentId);
             await LoadNotes();
         }
+        catch (UnauthorizedAccessException ex) { esigError = SecurityKeyError.Describe(ex); }
         catch (Exception ex) { esigError = $"Error: {ex.Message}"; }
         finally { esigSubmitting = false; }
     }

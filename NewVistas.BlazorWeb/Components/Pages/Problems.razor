@@ -260,6 +260,7 @@
             activeOnly = true;
             await Load();
         }
+        catch (UnauthorizedAccessException ex) { error = SecurityKeyError.Describe(ex); }
         catch (Exception ex) { error = $"Error saving problem: {ex.Message}"; }
         finally { submitting = false; }
     }

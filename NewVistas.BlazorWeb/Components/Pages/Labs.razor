@@ -627,6 +627,7 @@
             successMsg = "Specimen collection recorded.";
             await LoadResults();
         }
+        catch (UnauthorizedAccessException ex) { error = SecurityKeyError.Describe(ex); }
         catch (Exception ex) { error = ex.Message; }
         finally { loading = false; }
     }
@@ -650,6 +651,7 @@
             successMsg = "Lab result recorded.";
             await LoadResults();
         }
+        catch (UnauthorizedAccessException ex) { error = SecurityKeyError.Describe(ex); }
         catch (Exception ex) { error = ex.Message; }
         finally { loading = false; }
     }
@@ -666,6 +668,7 @@
             successMsg = "Lab result verified.";
             await LoadResults();
         }
+        catch (UnauthorizedAccessException ex) { error = SecurityKeyError.Describe(ex); }
         catch (Exception ex) { error = ex.Message; }
         finally { loading = false; }
     }
@@ -714,6 +717,7 @@
             newTestName = string.Empty;
             newTestCode = string.Empty;
         }
+        catch (UnauthorizedAccessException ex) { error = SecurityKeyError.Describe(ex); }
         catch (Exception ex) { error = ex.Message; }
         finally { loading = false; }
     }

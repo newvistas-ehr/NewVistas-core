@@ -5,6 +5,7 @@
 @inherits LayoutComponentBase
 @implements IDisposable
 @using Microsoft.AspNetCore.Components.Authorization
+@using Microsoft.AspNetCore.Components.Routing
 @using NewVistas.BlazorWeb.Services
 @inject AuthenticationStateProvider AuthStateProvider
 @inject NavigationManager Navigation
@@ -403,7 +404,30 @@
                     <span class="ctx-id">(ID: @PatientContext.PatientId)</span>
                 </div>
             }
-            @Body
+            @* App-wide safety net: a page that throws on load (e.g. a key-gated read for a user
+               without the key) shows a friendly card instead of tearing down the circuit. Most
+               pages also catch their own action errors; this covers the uncaught cases. *@
+            <ErrorBoundary @ref="_errorBoundary">
+                <ChildContent>
+                    @Body
+                </ChildContent>
+                <ErrorContent Context="ex">
+                    @if (ex is UnauthorizedAccessException)
+                    {
+                        <div class="page-error page-error-access">
+                            <h2>🔒 Additional access required</h2>
+                            <p>@SecurityKeyError.Describe(ex)</p>
+                        </div>
+                    }
+                    else
+                    {
+                        <div class="page-error">
+                            <h2>Something went wrong on this page</h2>
+                            <p>An unexpected error occurred. Try again, or choose another page from the menu.</p>
+                        </div>
+                    }
+                </ErrorContent>
+            </ErrorBoundary>
         </main>
     </div>
 </div>
@@ -415,9 +439,12 @@
 </div>
 
 @code {
+    private ErrorBoundary? _errorBoundary;
+
     protected override async Task OnInitializedAsync()
     {
         PatientContext.OnChanged += StateHasChanged;
+        Navigation.LocationChanged += OnLocationChanged;
 
         // Self-heal the per-circuit security context. It is normally populated by the login
         // page, but if that didn't run for this circuit (fresh circuit, reconnect) the menu
@@ -450,9 +477,13 @@
         Navigation.NavigateTo("/login", forceLoad: false);
     }
 
+    // Clear a caught page error when the user navigates away, so the next page renders fresh.
+    private void OnLocationChanged(object? sender, LocationChangedEventArgs e) => _errorBoundary?.Recover();
+
     public void Dispose()
     {
         PatientContext.OnChanged -= StateHasChanged;
+        Navigation.LocationChanged -= OnLocationChanged;
     }
 }
 
@@ -466,4 +497,9 @@
     .ctx-label { color: #666; }
     .ctx-value { font-weight: 600; color: #003f72; }
     .ctx-id { color: #888; font-size: 0.8rem; }
+    .page-error { border: 1px solid #f0c36d; background: #fef9ec; color: #7a5b00; border-radius: 6px; padding: 1.25rem 1.5rem; margin: 1rem 0; max-width: 680px; }
+    .page-error h2 { margin: 0 0 0.5rem; font-size: 1.1rem; color: #7a5b00; }
+    .page-error p { margin: 0; }
+    .page-error-access { border-color: #c5d3e3; background: #eef3f9; color: #003f72; }
+    .page-error-access h2 { color: #003f72; }
 </style>

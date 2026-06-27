@@ -277,6 +277,7 @@
                 NullIfEmpty(f_diagnosis), NullIfEmpty(f_comments));
             showAdmit = false; success = "Patient admitted."; await Load();
         }
+        catch (UnauthorizedAccessException ex) { error = SecurityKeyError.Describe(ex); }
         catch (Exception ex) { error = ex.Message; }
         finally { saving = false; }
     }
@@ -297,6 +298,7 @@
                 NullIfEmpty(f_transferComments));
             showTransfer = false; success = "Patient transferred."; await Load();
         }
+        catch (UnauthorizedAccessException ex) { error = SecurityKeyError.Describe(ex); }
         catch (Exception ex) { error = ex.Message; }
         finally { saving = false; }
     }
@@ -309,6 +311,7 @@
             await wf.RecordDischargeAsync(movementId, DateTime.UtcNow, null, "REGULAR", null);
             success = "Patient discharged."; await Load();
         }
+        catch (UnauthorizedAccessException ex) { error = SecurityKeyError.Describe(ex); }
         catch (Exception ex) { error = ex.Message; }
     }
 
