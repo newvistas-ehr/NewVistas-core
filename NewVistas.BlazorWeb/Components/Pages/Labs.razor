@@ -531,8 +531,8 @@
         {
             // Demo load requires specific lab orders to be placed — seed a few via grain calls
             var grain = Grains.GetGrain<IPatientWorkflowGrain>(patientId.Trim());
-            await grain.OrderLabTestAsync("LR-CBC", "CBC", "58410-2", null, null, "Demo Provider", "Blood", "HEMATOLOGY");
-            await grain.OrderLabTestAsync("LR-BMP", "Basic Metabolic Panel", "51990-0", null, null, "Demo Provider", "Serum", "CHEMISTRY");
+            await grain.PlaceLabOrderAsync("LR-CBC", "CBC", "58410-2", null, "Demo Provider", "Blood", "HEMATOLOGY");
+            await grain.PlaceLabOrderAsync("LR-BMP", "Basic Metabolic Panel", "51990-0", null, "Demo Provider", "Serum", "CHEMISTRY");
             successMsg = "Demo data loaded successfully.";
             await LoadResults();
         }
@@ -664,10 +664,10 @@
         try
         {
             var grain = Grains.GetGrain<IPatientWorkflowGrain>(patientId.Trim());
-            await grain.OrderLabTestAsync(
+            await grain.PlaceLabOrderAsync(
                 $"LR-{newTestCode}", newTestName,
                 string.IsNullOrWhiteSpace(newTestCode) ? null : newTestCode,
-                null, string.IsNullOrWhiteSpace(newOrderingProviderId) ? null : newOrderingProviderId,
+                string.IsNullOrWhiteSpace(newOrderingProviderId) ? null : newOrderingProviderId,
                 string.IsNullOrWhiteSpace(newOrderingProvider) ? null : newOrderingProvider,
                 string.IsNullOrWhiteSpace(newSpecimen) ? null : newSpecimen,
                 string.IsNullOrWhiteSpace(newCategory) ? null : newCategory);

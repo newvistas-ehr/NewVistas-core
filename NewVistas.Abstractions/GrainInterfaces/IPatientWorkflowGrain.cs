@@ -347,6 +347,20 @@ public interface IPatientWorkflowGrain : IGrainWithStringKey
         string testId, string testName, string? testCode,
         string? orderId, string? orderingProviderId,
         string? orderingProviderName, string? specimenType, string? category);
+
+    /// <summary>
+    /// Place a new lab order interactively (provider CPOE). Unlike <see cref="OrderLabTestAsync"/>
+    /// — which records a lab test in isolation (used for bulk historical imports) — this creates a
+    /// unified CPOE order (ORDER file #100) linked to the lab test, so the lab appears in the
+    /// patient's order list and order history just like any other order, and is marked complete
+    /// when its result is verified. Returns the lab-test id.
+    /// </summary>
+    [RequiresSecurityKey(SecurityKeys.ORES, SecurityKeys.ORELSE)]
+    [AuditAction("LABS", "CREATE", EntityType = "LAB_ORDER", IsClinicalWrite = true)]
+    Task<string> PlaceLabOrderAsync(
+        string testId, string testName, string? testCode,
+        string? orderingProviderId, string? orderingProviderName,
+        string? specimenType, string? category);
     Task<List<GrainStates.LabResultSummary>> GetLabResultsAsync();
 
     /// <summary>

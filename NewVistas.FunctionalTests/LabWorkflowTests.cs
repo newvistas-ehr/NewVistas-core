@@ -383,6 +383,56 @@ public class LabWorkflowTests
         Assert.That(state.Status, Is.EqualTo("Ordered"));
     }
 
+    // ── Lab/order unification ────────────────────────────────────────────────
+    [Test]
+    public async Task WorkflowGrain_PlaceLabOrder_AppearsAsUnifiedOrder_AndCompletesOnVerify()
+    {
+        // Arrange
+        string patientId = $"PAT-{Guid.NewGuid()}";
+        IPatientWorkflowGrain wf = GetWorkflow(patientId);
+
+        // Act — place a lab order through the interactive CPOE path.
+        string labTestId = await wf.PlaceLabOrderAsync(
+            "LR-CBC", "CBC", "58410-2", "PROV-001", "Dr. Smith", "Blood", "HEMATOLOGY");
+
+        // Assert — the lab now shows in the unified order list (filter 2 = Current) as a
+        // Laboratory order linked to its lab test. (This was the bug: lab orders placed via
+        // the Labs page never reached the order index, so the Orders page showed nothing.)
+        List<OrderSummary> current = await wf.GetOrdersByFilterAsync(2);
+        Assert.That(current, Has.Count.EqualTo(1));
+        Assert.That(current[0].OrderType, Is.EqualTo("Laboratory"));
+        Assert.That(current[0].OrderText, Is.EqualTo("CBC"));
+
+        LabTestState lab = await wf.GetLabTestAsync(labTestId);
+        Assert.That(lab.OrderId, Is.EqualTo(current[0].OrderId), "lab test links back to its order");
+
+        // Act — record then verify the result.
+        await wf.RecordLabResultAsync(labTestId, DateTime.UtcNow, "5.2", "K/uL", "4.5", "11.0", null);
+        await wf.VerifyLabResultAsync(labTestId, "PROV-002", "Dr. Verifier", DateTime.UtcNow);
+
+        // Assert — verifying completes the order: it leaves the active view and lands under
+        // Completed/Expired (filter 4).
+        List<OrderSummary> afterVerify = await wf.GetOrdersByFilterAsync(2);
+        Assert.That(afterVerify, Is.Empty, "verified lab order should leave the active (Current) view");
+        List<OrderSummary> completed = await wf.GetOrdersByFilterAsync(4);
+        Assert.That(completed.Any(o => o.OrderId == current[0].OrderId), Is.True,
+            "completed lab order should appear under Completed/Expired");
+    }
+
+    [Test]
+    public async Task WorkflowGrain_OrderLabTest_DoesNotCreateCpoeOrder()
+    {
+        // The bulk/import path (OrderLabTestAsync) records a lab in isolation and must NOT spawn
+        // a CPOE order — otherwise importing historical results would flood the order list.
+        string patientId = $"PAT-{Guid.NewGuid()}";
+        IPatientWorkflowGrain wf = GetWorkflow(patientId);
+
+        await wf.OrderLabTestAsync("LR-718-7", "HGB", "718-7", null, null, null, "Blood", "HEMATOLOGY");
+
+        List<OrderSummary> allOrders = await wf.GetOrdersByFilterAsync(1); // All
+        Assert.That(allOrders, Is.Empty);
+    }
+
     // ── 13 ───────────────────────────────────────────────────────────────────
     [Test]
     public async Task WorkflowGrain_GetLabResults_IncludesOrderedTests()

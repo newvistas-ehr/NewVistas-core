@@ -94,6 +94,38 @@ public partial class PatientWorkflowGrain
         return labTestId;
     }
 
+    public async Task<string> PlaceLabOrderAsync(
+        string testId, string testName, string? testCode,
+        string? orderingProviderId, string? orderingProviderName,
+        string? specimenType, string? category)
+    {
+        // A lab order IS a CPOE order (ORDER file #100) whose result is tracked by a LabTestGrain
+        // — the same way CPRS/Epic model it. Create the unified order first, pointing it at the
+        // lab test it fulfills (OrderableItemId), so the lab shows up in the patient's order list
+        // and order history; then record the lab-test side linked back to the order (OrderId).
+        // (OrderLabTestAsync, by contrast, records a lab in isolation — used for bulk imports —
+        // which is exactly why imported/standalone labs never appeared on the Orders page.)
+        string labTestId = $"LAB-{Guid.NewGuid()}";
+        string providerId = string.IsNullOrWhiteSpace(orderingProviderId) ? "PROV-001" : orderingProviderId;
+        string providerName = orderingProviderName ?? string.Empty;
+
+        string labOrderId = await PlaceOrderAsync(
+            "Laboratory", testName, labTestId,
+            providerId, providerName, null, null,
+            "Routine",
+            string.IsNullOrWhiteSpace(specimenType) ? null : $"Specimen: {specimenType}",
+            null);
+
+        ILabTestGrain labGrain = GrainFactory.GetGrain<ILabTestGrain>(labTestId);
+        await labGrain.OrderLabTestAsync(
+            PatientId, testId, testName, testCode, labOrderId,
+            orderingProviderId, orderingProviderName, specimenType, category);
+
+        await AppendCappedIdAsync(PatientHistoryDomains.Lab, labTestId, DateTime.UtcNow);
+
+        return labTestId;
+    }
+
     public async Task<List<LabResultSummary>> GetLabResultsAsync()
     {
         var patientGrain = GetPatientGrain();
@@ -169,6 +201,16 @@ public partial class PatientWorkflowGrain
     {
         var labGrain = GrainFactory.GetGrain<ILabTestGrain>(labTestId);
         await labGrain.VerifyResultAsync(verifyingProviderId, verifyingProviderName, verifiedDateTime);
+
+        // A verified result completes the CPOE order that requested it, so the lab order moves
+        // out of the active view into completed/history. Labs placed in isolation (bulk imports,
+        // seeded historical results) carry no OrderId and are left untouched.
+        LabTestState lab = await labGrain.GetLabTestAsync();
+        if (!string.IsNullOrEmpty(lab.OrderId))
+        {
+            await GrainFactory.GetGrain<IOrderGrain>(lab.OrderId).CompleteOrderAsync(verifiedDateTime);
+            await SyncOrderToIndexAsync(lab.OrderId);
+        }
     }
 
     public async Task<List<LabTestSummaryEntry>> GetLabSummaryAsync()
