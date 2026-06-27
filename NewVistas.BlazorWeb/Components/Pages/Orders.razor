@@ -189,11 +189,15 @@
                 <h3>@selectedSetDetail.Name</h3>
                 <p>@selectedSetDetail.Description</p>
                 <table class="data-table">
-                    <thead><tr><th>Seq</th><th>Order</th><th>Type</th><th>Urgency</th></tr></thead>
+                    <thead><tr><th class="chk">Include</th><th>Seq</th><th>Order</th><th>Type</th><th>Urgency</th></tr></thead>
                     <tbody>
                         @foreach (var t in selectedSetDetail.Items.OrderBy(i => i.Sequence))
                         {
-                            <tr>
+                            <tr class="@(selectedTemplateIds.Contains(t.TemplateId) ? "" : "row-excluded")">
+                                <td class="chk">
+                                    <input type="checkbox" checked="@selectedTemplateIds.Contains(t.TemplateId)"
+                                           @onchange="e => ToggleTemplate(t.TemplateId, (bool)(e.Value ?? false))" />
+                                </td>
                                 <td>@t.Sequence</td>
                                 <td>@t.OrderableItem</td>
                                 <td class="type">@t.OrderType</td>
@@ -202,13 +206,17 @@
                         }
                     </tbody>
                 </table>
+                <p class="set-hint">
+                    Tick the orders you want, pick the provider, then place them. They're added as
+                    <strong>pending</strong> orders and appear under <em>Active Orders</em> for you to sign.
+                </p>
                 <div class="form-row" style="margin-top:0.75rem">
                     <label>Provider</label>
-                    <ProviderPicker @bind-ProviderName="setProviderName" Label="" DefaultToSelf="true" />
+                    <ProviderPicker @bind-ProviderId="setProviderId" @bind-ProviderName="setProviderName" Label="" DefaultToSelf="true" />
                 </div>
                 <button class="btn btn-primary" @onclick="ExecuteSelectedSet"
-                        disabled="@(string.IsNullOrWhiteSpace(patientId) || string.IsNullOrWhiteSpace(setProviderName) || executingSet)">
-                    @if (executingSet) { <span>Executing...</span> } else { <span>Execute Order Set</span> }
+                        disabled="@(string.IsNullOrWhiteSpace(patientId) || string.IsNullOrWhiteSpace(setProviderName) || selectedTemplateIds.Count == 0 || executingSet)">
+                    @if (executingSet) { <span>Placing…</span> } else { <span>Place @selectedTemplateIds.Count Order@(selectedTemplateIds.Count == 1 ? "" : "s")</span> }
                 </button>
             </div>
         }
@@ -299,7 +307,9 @@
     private List<OrderSetEntry>? orderSets;
     private string? selectedSetId;
     private OrderSetState? selectedSetDetail;
+    private string setProviderId = "";
     private string setProviderName = "";
+    private HashSet<string> selectedTemplateIds = new();
     private bool executingSet;
 
     // History tab
@@ -438,19 +448,32 @@
         {
             var setGrain = Grains.GetGrain<IOrderSetGrain>(setId);
             selectedSetDetail = await setGrain.GetOrderSetAsync();
+            // Pre-tick the set's default items; the provider can deselect any they don't want.
+            selectedTemplateIds = selectedSetDetail.Items
+                .Where(i => i.IsDefaultSelected)
+                .Select(i => i.TemplateId)
+                .ToHashSet();
         }
         catch (Exception ex) { error = ex.Message; }
     }
 
+    private void ToggleTemplate(string templateId, bool include)
+    {
+        if (include) selectedTemplateIds.Add(templateId);
+        else selectedTemplateIds.Remove(templateId);
+    }
+
     private async Task ExecuteSelectedSet()
     {
-        if (string.IsNullOrWhiteSpace(patientId) || selectedSetId == null) return;
+        if (string.IsNullOrWhiteSpace(patientId) || selectedSetId == null || selectedTemplateIds.Count == 0) return;
         executingSet = true; error = null; successMsg = null;
         try
         {
             var grain = Grains.GetGrain<IPatientWorkflowGrain>(patientId.Trim());
-            var orderIds = await grain.ExecuteOrderSetAsync(selectedSetId, "PROV-001", setProviderName, null, null, null);
-            successMsg = $"Order set executed: {orderIds.Count} orders created.";
+            string provId = string.IsNullOrWhiteSpace(setProviderId) ? "PROV-001" : setProviderId.Trim();
+            var orderIds = await grain.ExecuteOrderSetAsync(
+                selectedSetId, provId, setProviderName, null, null, selectedTemplateIds.ToList());
+            successMsg = $"{orderIds.Count} order(s) placed from \"{selectedSetDetail?.Name}\" — pending your signature in Active Orders.";
             activeTab = 0; await Load();
         }
         catch (Exception ex) { error = ex.Message; }
@@ -466,6 +489,9 @@
     .btn { padding: 0.5rem 1.25rem; border: none; border-radius: 4px; cursor: pointer; font-size: 0.85rem; }
     .btn-primary { background: #003f72; color: white; }
     .btn-primary:disabled { background: #999; cursor: not-allowed; }
+    .chk { text-align: center; width: 70px; }
+    .row-excluded { opacity: 0.45; }
+    .set-hint { font-size: 0.8rem; color: #555; margin: 0.5rem 0 0.25rem; }
     .btn-check { background: #e8a317; color: white; }
     .btn-sm { padding: 0.2rem 0.5rem; font-size: 0.75rem; border: 1px solid #ccc; border-radius: 3px; cursor: pointer; background: white; }
     .btn-sign { border-color: #2563eb; color: #2563eb; }
