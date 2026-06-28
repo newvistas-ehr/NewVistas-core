@@ -23,6 +23,8 @@
             <Authorized>
                 <div class="header-user">
                     <span class="user-name">@context.User.Identity?.Name</span>
+                    <a class="btn-help" href="@_helpUrl" target="_blank" rel="noopener"
+                       title="Open the user manual for this page">📖 Help</a>
                     <button class="btn-logout" @onclick="Logout">Sign Out</button>
                 </div>
             </Authorized>
@@ -440,21 +442,27 @@
 
 @code {
     private ErrorBoundary? _errorBoundary;
+    private string _manualSection = "doctor";
+    private string _helpUrl = $"{ManualHelp.Root}/index.html";
 
     protected override async Task OnInitializedAsync()
     {
         PatientContext.OnChanged += StateHasChanged;
         Navigation.LocationChanged += OnLocationChanged;
 
-        // Self-heal the per-circuit security context. It is normally populated by the login
-        // page, but if that didn't run for this circuit (fresh circuit, reconnect) the menu
-        // would collapse to General-only for the whole session. Load it here — straight from
-        // the silo's AccessControl grain, like every other internal page — so the navigation
-        // reflects the user's actual access.
-        if (!SecurityContext.IsInitialized)
+        var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+        if (authState.User.Identity?.IsAuthenticated == true)
         {
-            var authState = await AuthStateProvider.GetAuthenticationStateAsync();
-            if (authState.User.Identity?.IsAuthenticated == true)
+            // The user's role picks the manual section for the context-sensitive Help link.
+            _manualSection = ManualHelp.SectionForRoles(ManualHelp.RolesFromPrincipal(authState.User));
+            UpdateHelpUrl();
+
+            // Self-heal the per-circuit security context. It is normally populated by the login
+            // page, but if that didn't run for this circuit (fresh circuit, reconnect) the menu
+            // would collapse to General-only for the whole session. Load it here — straight from
+            // the silo's AccessControl grain, like every other internal page — so the navigation
+            // reflects the user's actual access.
+            if (!SecurityContext.IsInitialized)
             {
                 string? userId =
                     authState.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value
@@ -469,6 +477,10 @@
         }
     }
 
+    // The Help link points at the manual page for the user's role + the current screen.
+    private void UpdateHelpUrl()
+        => _helpUrl = ManualHelp.UrlForRoute(_manualSection, Navigation.ToBaseRelativePath(Navigation.Uri));
+
     private void Logout()
     {
         PatientContext.Clear();
@@ -477,8 +489,14 @@
         Navigation.NavigateTo("/login", forceLoad: false);
     }
 
-    // Clear a caught page error when the user navigates away, so the next page renders fresh.
-    private void OnLocationChanged(object? sender, LocationChangedEventArgs e) => _errorBoundary?.Recover();
+    // On navigation: clear any caught page error so the next page renders fresh, and re-point
+    // the Help link at the new page's manual topic.
+    private void OnLocationChanged(object? sender, LocationChangedEventArgs e)
+    {
+        _errorBoundary?.Recover();
+        UpdateHelpUrl();
+        StateHasChanged();
+    }
 
     public void Dispose()
     {
@@ -497,6 +515,8 @@
     .ctx-label { color: #666; }
     .ctx-value { font-weight: 600; color: #003f72; }
     .ctx-id { color: #888; font-size: 0.8rem; }
+    .btn-help { text-decoration: none; color: #fff; background: rgba(255,255,255,0.15); border: 1px solid rgba(255,255,255,0.4); border-radius: 4px; padding: 0.25rem 0.6rem; font-size: 0.8rem; margin-right: 0.5rem; white-space: nowrap; }
+    .btn-help:hover { background: rgba(255,255,255,0.28); }
     .page-error { border: 1px solid #f0c36d; background: #fef9ec; color: #7a5b00; border-radius: 6px; padding: 1.25rem 1.5rem; margin: 1rem 0; max-width: 680px; }
     .page-error h2 { margin: 0 0 0.5rem; font-size: 1.1rem; color: #7a5b00; }
     .page-error p { margin: 0; }

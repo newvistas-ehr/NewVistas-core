@@ -65,6 +65,24 @@
         and blocks the underlying action.
       </div>
 
+      <h2>What a user without a key sees</h2>
+      <p>Access control fails <strong>gracefully</strong> — a user who lacks a key never hits a raw error:</p>
+      <ul>
+        <li>Where a whole page is key-gated (for example <strong>Mental Health</strong>, which needs
+            <code>YS MH INSTRUMENT</code>), the menu item is <strong>hidden</strong> for users without the key.</li>
+        <li>For an action they can't perform (for example adding a problem without <code>GMPL PROBLEM</code>),
+            the app shows a clear notice naming the required key — <em>"You don't have permission for this
+            action — it needs the 'GMPL PROBLEM' security key"</em> — instead of an error.</li>
+      </ul>
+      <div class="callout note">
+        <span class="ct">Which key does each page need?</span>
+        As a rule of thumb: a <em>Provider</em> can place orders, prescribe, write &amp; sign notes,
+        and record vitals, allergies and problems. Beyond that, <strong>scheduling</strong> needs
+        <code>SD SCHEDULING</code>, <strong>ADT</strong> needs <code>DG ADMIT</code>, <strong>lab</strong>
+        collection/verification need <code>LRLAB</code>/<code>LRVERIFY</code>, <strong>Mental Health</strong>
+        needs <code>YS MH INSTRUMENT</code>, and <strong>cosigning</strong> a note needs <code>TIU COSIGN</code>.
+      </div>
+
       <h2>The three tabs</h2>
       <ul>
         <li><strong>Security Keys</strong> — the keys this user currently holds, with each key's category and a <kbd>Revoke</kbd> button.</li>
