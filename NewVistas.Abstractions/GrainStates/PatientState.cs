@@ -536,4 +536,17 @@ public class PatientState : EventSourcedStateBase
     /// </summary>
     [Id(66)]
     public string? SensitivityLevel { get; set; }
+
+    /// <summary>
+    /// The patient's preferred (default) OUTPATIENT pharmacy — a PharmacyId in the pharmacy
+    /// directory. New outpatient prescriptions default to it; the provider can override per-Rx.
+    /// Part of the EXTERNAL_PHARMACY enhancement (see <see cref="SiteFeatures"/>); inpatient
+    /// orders always go to the hospital pharmacy and ignore this.
+    /// </summary>
+    [Id(81)]
+    public string? PreferredPharmacyId { get; set; }
+
+    /// <summary>Cached display name of the preferred pharmacy, denormalized for quick display.</summary>
+    [Id(82)]
+    public string? PreferredPharmacyName { get; set; }
 }

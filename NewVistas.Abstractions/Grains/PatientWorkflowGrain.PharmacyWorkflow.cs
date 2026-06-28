@@ -27,6 +27,66 @@ public partial class PatientWorkflowGrain
     private IPharmacyGrain PharmacyRx(string prescriptionId)
         => GrainFactory.GetGrain<IPharmacyGrain>(prescriptionId);
 
+    private IPharmacyDirectoryGrain PharmacyDirectory()
+        => GrainFactory.GetGrain<IPharmacyDirectoryGrain>("PHARMACY-DIRECTORY");
+
+    // ─── New outpatient prescription (structured Rx with a pharmacy destination) ──────
+    //
+    // Creates a structured prescription (PharmacyState, File #52) — unlike a generic
+    // "Pharmacy"-type order — so it lands in the active-med list, and records WHICH pharmacy
+    // fills it. pharmacyId/Name come from the pharmacy directory; for an EXTERNAL_PHARMACY
+    // site this is the patient's chosen (or preferred) outpatient pharmacy. Inpatient meds
+    // go through the separate InpatientOrder path (always the hospital pharmacy).
+    public async Task<string> PlacePrescriptionAsync(
+        string drugName, string? drugId, string? dosage, string? route, string? schedule, string? sig,
+        int? daysSupply, int? quantity, int? refills,
+        string providerId, string providerName,
+        string? pharmacyId, string? pharmacyName, string? comments)
+    {
+        string rxId = $"RX-{Guid.NewGuid():N}";
+        IPharmacyGrain rx = PharmacyRx(rxId);
+
+        await rx.CreatePrescriptionAsync(
+            PatientId, drugName, drugId, dosage, route, schedule, sig,
+            daysSupply, quantity, refills, providerId, providerName,
+            pharmacyId, pharmacyName, null, comments);
+
+        // Sync the per-patient prescription index (the authoritative active-med source) and
+        // link the Rx to the patient — mirrors OutpatientPharmacyController.SyncIndex.
+        PharmacyState state = await rx.GetPrescriptionAsync();
+        await GrainFactory.GetGrain<IPatientPrescriptionIndexGrain>($"PSO-INDEX:{PatientId}")
+            .AddOrUpdateEntryAsync(new PrescriptionIndexEntry
+            {
+                PrescriptionId = rxId, DrugName = state.DrugName, DrugId = state.DrugId,
+                Status = state.Status, IssueDate = state.IssueDate, ExpirationDate = state.ExpirationDate,
+                Refills = state.Refills, RefillsRemaining = state.RefillsRemaining, Priority = state.Priority,
+                IsVerified = state.IsVerified, CounselingRequired = state.CounselingRequired,
+                ProviderId = state.ProviderId, ProviderName = state.ProviderName, Dosage = state.Dosage
+            });
+        await GetPatientGrain().AddPharmacyIdAsync(rxId);
+
+        // The prescriber is now responsible for this patient.
+        await EnsureProviderPanelAsync(providerId, "Prescriber");
+
+        return rxId;
+    }
+
+    // ─── Patient preferred (default) outpatient pharmacy ──────────────────────────────
+    public async Task<PharmacyDirectoryEntry?> GetPreferredPharmacyAsync()
+    {
+        PatientState patient = await GetPatientGrain().GetPatientAsync();
+        if (string.IsNullOrWhiteSpace(patient.PreferredPharmacyId))
+            return null;
+        return await PharmacyDirectory().GetAsync(patient.PreferredPharmacyId);
+    }
+
+    public async Task SetPreferredPharmacyAsync(string pharmacyId)
+    {
+        PharmacyDirectoryEntry? entry = await PharmacyDirectory().GetAsync(pharmacyId);
+        if (entry is null) return; // unknown pharmacy — ignore
+        await GetPatientGrain().SetPreferredPharmacyAsync(entry.PharmacyId, entry.Name);
+    }
+
     // ─── DUR Clearance Check ─────────────────────────────────────────────────
 
     public async Task<bool> IsDurClearedForPrescriptionAsync(string prescriptionId)

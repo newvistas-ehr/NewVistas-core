@@ -535,6 +535,14 @@ public class PatientGrain : Grain, IPatientGrain
 
     public Task<List<string>> GetPharmacyIdsAsync() => Task.FromResult(_state.State.PharmacyIds);
 
+    public async Task SetPreferredPharmacyAsync(string? pharmacyId, string? pharmacyName)
+    {
+        _state.State.PreferredPharmacyId = pharmacyId;
+        _state.State.PreferredPharmacyName = pharmacyName;
+        _state.State.LastModifiedDate = DateTime.UtcNow;
+        await _state.WriteStateAsync();
+    }
+
     // --- BCMA ---
     public async Task AddBcmaIdAsync(string bcmaId)
     {

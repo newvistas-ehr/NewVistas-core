@@ -211,6 +211,9 @@ public static class ExtremeLeeSickSeed
             }
 
             // ── Medications (active list) ───────────────────────────────────────────
+            // Preferred outpatient pharmacy (EXTERNAL_PHARMACY enhancement): new prescriptions
+            // default to CVS #4501; the provider can change it per-Rx.
+            await grainFactory.GetGrain<IPatientGrain>(Pid).SetPreferredPharmacyAsync("PHARM-CVS-4501", "CVS PHARMACY #4501");
             await Rx("LYRICA", "LYRICA (PREGABALIN) 150MG", "150 mg", "PO", "BID",
                 "Take 1 capsule (150 mg) by mouth twice daily", 30, 60, 3, DrPainId, DrPain, new DateTime(2025, 2, 1));
             await Rx("NUCYNTA", "NUCYNTA (TAPENTADOL) 50MG", "50 mg", "PO", "TID",

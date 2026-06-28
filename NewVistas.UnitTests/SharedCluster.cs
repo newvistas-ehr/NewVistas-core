@@ -337,6 +337,7 @@ public static class SharedCluster
             siloBuilder.AddMemoryGrainStorage("ndfProductIndexStore");
             siloBuilder.AddMemoryGrainStorage("newPersonStore");
             siloBuilder.AddMemoryGrainStorage("providerDirectoryStore");
+            siloBuilder.AddMemoryGrainStorage("pharmacyDirectoryStore");
             siloBuilder.AddMemoryGrainStorage("notificationStore");
             siloBuilder.AddMemoryGrainStorage("nursingAcuityStore");
             siloBuilder.AddMemoryGrainStorage("nursingAssessmentIndexStore");

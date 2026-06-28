@@ -82,13 +82,32 @@ public class SiteParametersState
     ///   "PROVIDER_AVAILABILITY"        — Provider-level availability patterns, time blocks, scheduling tiers (Enhancement — VistA is clinic-centric only)
     ///   "PROVIDER_UNAVAILABILITY_BATCH" — Batch cancellation/reassignment when provider suddenly unavailable (Enhancement — VistA handles one-at-a-time)
     ///   "PATIENT_SELF_SCHEDULING"      — Patient portal appointment self-scheduling (Enhancement — inspired by VAOS, not part of core VistA/RPMS)
+    ///   "EXTERNAL_PHARMACY"            — Multiple outpatient pharmacies, patient-preferred pharmacy, and NCPDP SCRIPT e-prescribing
+    ///                                    (Enhancement — VistA/RPMS dispense in-house + CMOP mail-order; ENABLED BY DEFAULT, see SiteFeatures)
     /// </summary>
     [Id(7)]
-    public HashSet<string> Features { get; set; } = new();
+    public HashSet<string> Features { get; set; } = new() { SiteFeatures.ExternalPharmacy };
 
     [Id(3)]
     public DateTime CreatedDate { get; set; } = DateTime.UtcNow;
 
     [Id(4)]
     public DateTime LastModifiedDate { get; set; } = DateTime.UtcNow;
+}
+
+/// <summary>
+/// Well-known site feature-flag names — the strings stored in <see cref="SiteParametersState.Features"/>
+/// and checked with <c>ISiteParametersGrain.IsFeatureEnabledAsync(...)</c>.
+/// </summary>
+public static class SiteFeatures
+{
+    /// <summary>
+    /// Multiple outpatient pharmacies: a pharmacy directory, a patient-preferred (default) pharmacy,
+    /// a per-prescription pharmacy choice, and NCPDP SCRIPT e-prescribing. This is beyond core
+    /// VistA/RPMS (which dispense in-house + CMOP mail-order), so it is feature-gated — but it is
+    /// <b>enabled by default</b> (pre-seeded into <see cref="SiteParametersState.Features"/>). A
+    /// VA/IHS-style site can turn it off (<c>DisableFeatureAsync("EXTERNAL_PHARMACY")</c>) to restore
+    /// facility-only dispensing; inpatient orders always use the hospital pharmacy regardless.
+    /// </summary>
+    public const string ExternalPharmacy = "EXTERNAL_PHARMACY";
 }

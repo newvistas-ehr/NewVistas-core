@@ -324,6 +324,25 @@ public interface IPatientWorkflowGrain : IGrainWithStringKey
     Task<List<GrainStates.MedicationSummary>> GetActiveMedicationsAsync();
 
     /// <summary>
+    /// Place a new structured OUTPATIENT prescription (PharmacyState, File #52), recording which
+    /// pharmacy fills it (pharmacyId/Name from the pharmacy directory — the patient's chosen or
+    /// preferred outpatient pharmacy). It is added to the active-med list and the prescriber's panel.
+    /// </summary>
+    [RequiresSecurityKey(SecurityKeys.ORES, SecurityKeys.ORELSE)]
+    [AuditAction("PHARMACY", "CREATE", EntityType = "PRESCRIPTION", IsClinicalWrite = true)]
+    Task<string> PlacePrescriptionAsync(
+        string drugName, string? drugId, string? dosage, string? route, string? schedule, string? sig,
+        int? daysSupply, int? quantity, int? refills,
+        string providerId, string providerName,
+        string? pharmacyId, string? pharmacyName, string? comments);
+
+    /// <summary>The patient's preferred (default) outpatient pharmacy directory entry, or null.</summary>
+    Task<GrainStates.PharmacyDirectoryEntry?> GetPreferredPharmacyAsync();
+
+    /// <summary>Set the patient's preferred outpatient pharmacy by directory PharmacyId (no-op if unknown).</summary>
+    Task SetPreferredPharmacyAsync(string pharmacyId);
+
+    /// <summary>
     /// Paged full medication history (newest first); default reads return only the recent window.
     /// </summary>
     Task<List<GrainStates.MedicationSummary>> GetMedicationHistoryAsync(int offset, int maxResults);

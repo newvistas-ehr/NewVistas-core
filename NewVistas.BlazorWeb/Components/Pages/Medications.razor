@@ -18,6 +18,75 @@
 <PatientBar @bind-PatientId="patientId" Loading="loading" OnLoad="Load" />
 
 @if (error != null) { <div class="alert alert-error">@error</div> }
+@if (success != null) { <div class="alert alert-success">@success</div> }
+
+@if (!string.IsNullOrWhiteSpace(patientId))
+{
+    <div class="rx-actions">
+        <button class="btn btn-primary" @onclick="ToggleNewRx">@(showNewRx ? "Close" : "+ New Prescription")</button>
+    </div>
+}
+
+@if (showNewRx)
+{
+    <div class="rx-form">
+        <h3>New Outpatient Prescription</h3>
+        <div class="rx-grid">
+            <label>Drug *</label>
+            <input @bind="rxDrug" placeholder="e.g. Lisinopril 10 mg tablet" class="form-input" />
+
+            <label>Sig (directions)</label>
+            <input @bind="rxSig" placeholder="e.g. Take 1 tablet by mouth once daily" class="form-input" />
+
+            <label>Dosage</label>
+            <input @bind="rxDosage" placeholder="e.g. 10 mg" class="form-input" />
+
+            <label>Route</label>
+            <select @bind="rxRoute" class="form-input">
+                <option value="">— Select —</option>
+                <option>PO</option><option>IM</option><option>IV</option><option>SUBCUT</option>
+                <option>TOPICAL</option><option>INHALED</option><option>PR</option><option>SL</option>
+            </select>
+
+            <label>Days supply</label>
+            <input type="number" min="1" @bind="rxDays" class="form-input" />
+
+            <label>Quantity</label>
+            <input type="number" min="1" @bind="rxQty" class="form-input" />
+
+            <label>Refills</label>
+            <input type="number" min="0" @bind="rxRefills" class="form-input" />
+
+            <label>Prescriber</label>
+            <ProviderPicker @bind-ProviderId="rxProviderId" @bind-ProviderName="rxProviderName" Label="" />
+
+            <label>Pharmacy</label>
+            @if (externalPharmacy)
+            {
+                <PharmacyPicker @bind-PharmacyId="rxPharmacyId" @bind-PharmacyName="rxPharmacyName" PatientId="@patientId" Label="" />
+            }
+            else
+            {
+                <span class="rx-facility">Facility / hospital pharmacy</span>
+            }
+        </div>
+        <p class="rx-hint">
+            @if (externalPharmacy)
+            {
+                <text>Defaults to the patient's preferred pharmacy — change it to whichever pharmacy the patient wants for this prescription, and it routes there (NCPDP SCRIPT).</text>
+            }
+            else
+            {
+                <text>External-pharmacy routing is off for this site; prescriptions are filled by the facility pharmacy.</text>
+            }
+        </p>
+        <div class="rx-form-actions">
+            <button class="btn btn-primary" @onclick="SubmitRx" disabled="@(submitting || string.IsNullOrWhiteSpace(rxDrug))">
+                @(submitting ? "Placing..." : "Place Prescription")
+            </button>
+        </div>
+    </div>
+}
 
 @if (items != null)
 {
@@ -52,6 +121,24 @@
     private List<MedicationSummary>? items;
     private bool loading;
     private string? error;
+    private string? success;
+
+    // EXTERNAL_PHARMACY feature flag (on by default) — gates the per-prescription pharmacy choice.
+    private bool externalPharmacy;
+
+    // New prescription form
+    private bool showNewRx, submitting;
+    private string rxDrug = "", rxSig = "", rxDosage = "", rxRoute = "";
+    private int? rxDays, rxQty, rxRefills;
+    private string? rxProviderId, rxProviderName, rxPharmacyId, rxPharmacyName;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try { externalPharmacy = await Grains.GetGrain<ISiteParametersGrain>("SITE:DEFAULT").IsFeatureEnabledAsync(SiteFeatures.ExternalPharmacy); }
+        catch { externalPharmacy = false; }
+    }
+
+    private void ToggleNewRx() { showNewRx = !showNewRx; success = null; }
 
     protected override async Task OnParametersSetAsync()
     {
@@ -59,6 +146,38 @@
             patientId = PatientContext.PatientId;
         if (!string.IsNullOrWhiteSpace(patientId)) await Load();
     }
+
+    private async Task SubmitRx()
+    {
+        if (string.IsNullOrWhiteSpace(patientId) || string.IsNullOrWhiteSpace(rxDrug)) return;
+        submitting = true; error = null; success = null;
+        try
+        {
+            var grain = Grains.GetGrain<IPatientWorkflowGrain>(patientId.Trim());
+            await grain.PlacePrescriptionAsync(
+                rxDrug.Trim(), null,
+                NullIfEmpty(rxDosage), NullIfEmpty(rxRoute), null, NullIfEmpty(rxSig),
+                rxDays, rxQty, rxRefills,
+                rxProviderId ?? Grains.CurrentUserId ?? "PROV-001",
+                rxProviderName ?? Grains.CurrentUserName ?? "",
+                externalPharmacy ? rxPharmacyId : null,
+                externalPharmacy ? rxPharmacyName : null,
+                null);
+            success = externalPharmacy && !string.IsNullOrWhiteSpace(rxPharmacyName)
+                ? $"Prescription placed: {rxDrug} → {rxPharmacyName}."
+                : $"Prescription placed: {rxDrug}.";
+            rxDrug = rxSig = rxDosage = rxRoute = "";
+            rxDays = rxQty = rxRefills = null;
+            rxPharmacyId = rxPharmacyName = null;
+            showNewRx = false;
+            await Load();
+        }
+        catch (UnauthorizedAccessException ex) { error = SecurityKeyError.Describe(ex); }
+        catch (Exception ex) { error = $"Error placing prescription: {ex.Message}"; }
+        finally { submitting = false; }
+    }
+
+    private static string? NullIfEmpty(string s) => string.IsNullOrWhiteSpace(s) ? null : s;
 
     private async Task Load()
     {
@@ -93,4 +212,15 @@
     .sig { color: #555; max-width: 300px; }
     .status { color: #555; }
     .date { color: #888; font-size: 0.8rem; }
+    .alert-success { background: #dcfce7; color: #166534; border: 1px solid #bbf7d0; }
+    .btn-secondary { background: #e8eef5; color: #003f72; border: 1px solid #b9c8da; }
+    .rx-actions { margin-bottom: 1rem; }
+    .rx-form { border: 1px solid #d4d9e0; border-radius: 6px; padding: 1.25rem; margin-bottom: 1.5rem; background: #f9fafb; max-width: 640px; }
+    .rx-form h3 { margin: 0 0 1rem; color: #003f72; font-size: 1.05rem; }
+    .rx-grid { display: grid; grid-template-columns: 130px 1fr; gap: 0.6rem 0.75rem; align-items: center; }
+    .rx-grid > label { font-size: 0.82rem; font-weight: 600; color: #444; }
+    .form-input { padding: 0.4rem 0.6rem; border: 1px solid #ccc; border-radius: 4px; font-size: 0.85rem; width: 100%; }
+    .rx-facility { font-size: 0.85rem; color: #555; font-style: italic; }
+    .rx-hint { font-size: 0.78rem; color: #607089; margin: 0.75rem 0 0; }
+    .rx-form-actions { margin-top: 1rem; }
 </style>

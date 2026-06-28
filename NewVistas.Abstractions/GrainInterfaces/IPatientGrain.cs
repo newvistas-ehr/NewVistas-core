@@ -236,6 +236,9 @@ public interface IPatientGrain : IGrainWithStringKey
     Task RemovePharmacyIdAsync(string pharmacyId);
     Task<List<string>> GetPharmacyIdsAsync();
 
+    /// <summary>Sets the patient's preferred (default) outpatient pharmacy (directory PharmacyId + display name).</summary>
+    Task SetPreferredPharmacyAsync(string? pharmacyId, string? pharmacyName);
+
     // --- BCMA ---
     Task AddBcmaIdAsync(string bcmaId);
     Task RemoveBcmaIdAsync(string bcmaId);

@@ -1,0 +1,175 @@
+@* Copyright 2026 Merrimack Valley Software Works, LLC. All rights reserved. *@
+@* This Source Code Form is subject to the terms of the Mozilla Public *@
+@* License, v. 2.0. If a copy of the MPL was not distributed with this *@
+@* file, You can obtain one at https://mozilla.org/MPL/2.0/.            *@
+@* Reusable outpatient-pharmacy selector. Defaults to the patient's preferred (default)  *@
+@* pharmacy so the provider can just confirm it; "Change" reveals a search of the         *@
+@* pharmacy directory so the provider can ask the patient which pharmacy to use this time.*@
+@using NewVistas.BlazorWeb.Services
+@using NewVistas.Abstractions.GrainInterfaces
+@using NewVistas.Abstractions.GrainStates
+@inject OrleansGrainService Grains
+
+<div class="pharmacy-picker">
+    @if (!string.IsNullOrWhiteSpace(Label))
+    {
+        <label class="ph-label">@Label</label>
+    }
+
+    @if (!searching)
+    {
+        <div class="ph-current">
+            <span class="ph-name">@(string.IsNullOrWhiteSpace(PharmacyName) ? "(no pharmacy selected)" : PharmacyName)</span>
+            @if (IsPreferred) { <span class="ph-pref">patient default</span> }
+            <button type="button" class="btn btn-secondary ph-change" @onclick="StartSearch">Change</button>
+        </div>
+    }
+    else
+    {
+        <div class="ph-search">
+            <input type="text" class="lookup-input ph-input" placeholder="Pharmacy name or NCPDP id, e.g. CVS"
+                   @bind="query" @bind:event="oninput" @onkeydown="OnKey" />
+            <button type="button" class="btn btn-primary" @onclick="DoSearch" disabled="@(loading || string.IsNullOrWhiteSpace(query))">Search</button>
+            <button type="button" class="btn btn-secondary" @onclick="ShowAll" disabled="@loading">Show all</button>
+            @if (CanResetToPreferred)
+            {
+                <button type="button" class="btn btn-secondary" @onclick="ResetToPreferred">Default</button>
+            }
+            <button type="button" class="btn btn-secondary" @onclick="Cancel">Cancel</button>
+        </div>
+
+        @if (results is not null)
+        {
+            @if (results.Count == 0)
+            {
+                <p class="ph-empty">No pharmacies found.</p>
+            }
+            else
+            {
+                <ul class="ph-results">
+                    @foreach (var p in results)
+                    {
+                        <li class="ph-result" @onclick="() => Pick(p)">
+                            <span class="ph-rname">@p.Name</span>
+                            <span class="ph-rmeta">
+                                @KindLabel(p.Kind)@(string.IsNullOrEmpty(p.City) ? "" : $" · {p.City}, {p.State}")@(string.IsNullOrEmpty(p.NcpdpId) ? "" : $" · NCPDP {p.NcpdpId}")
+                            </span>
+                        </li>
+                    }
+                </ul>
+            }
+        }
+    }
+</div>
+
+@code {
+    [Parameter] public string? PharmacyId { get; set; }
+    [Parameter] public EventCallback<string?> PharmacyIdChanged { get; set; }
+    [Parameter] public string? PharmacyName { get; set; }
+    [Parameter] public EventCallback<string?> PharmacyNameChanged { get; set; }
+    [Parameter] public string Label { get; set; } = "Pharmacy";
+
+    /// <summary>Patient id — when set, the field defaults to this patient's preferred pharmacy.</summary>
+    [Parameter] public string? PatientId { get; set; }
+
+    private bool searching, loading;
+    private string query = string.Empty;
+    private List<PharmacyDirectoryEntry>? results;
+    private string? _preferredId, _preferredName;
+    private bool _defaulted;
+    private string? _lastPatient;
+
+    private bool IsPreferred => !string.IsNullOrWhiteSpace(PharmacyId) && PharmacyId == _preferredId;
+    private bool CanResetToPreferred => !string.IsNullOrWhiteSpace(_preferredId) && PharmacyId != _preferredId;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        // Load the patient's preferred pharmacy once per patient.
+        if (!string.IsNullOrWhiteSpace(PatientId) && PatientId != _lastPatient)
+        {
+            _lastPatient = PatientId;
+            _defaulted = false;
+            try
+            {
+                PharmacyDirectoryEntry? pref = await Grains.GetGrain<IPatientWorkflowGrain>(PatientId.Trim()).GetPreferredPharmacyAsync();
+                _preferredId = pref?.PharmacyId;
+                _preferredName = pref?.Name;
+            }
+            catch { _preferredId = null; _preferredName = null; }
+        }
+
+        // Default the field to the patient's preferred pharmacy once, if the caller hasn't set one.
+        if (!_defaulted && string.IsNullOrWhiteSpace(PharmacyId) && !string.IsNullOrWhiteSpace(_preferredId))
+        {
+            _defaulted = true;
+            await SetPharmacy(_preferredId, _preferredName);
+        }
+    }
+
+    private void StartSearch() { searching = true; query = string.Empty; results = null; }
+    private void Cancel() { searching = false; results = null; }
+    private async Task OnKey(KeyboardEventArgs e) { if (e.Key == "Enter") await DoSearch(); }
+
+    private async Task DoSearch()
+    {
+        if (string.IsNullOrWhiteSpace(query)) return;
+        loading = true;
+        try { results = await Dir().SearchAsync(query.Trim(), true, 25); }
+        finally { loading = false; }
+    }
+
+    private async Task ShowAll()
+    {
+        loading = true;
+        try { results = await Dir().GetAllAsync(true); }
+        finally { loading = false; }
+    }
+
+    private async Task Pick(PharmacyDirectoryEntry p)
+    {
+        await SetPharmacy(p.PharmacyId, p.Name);
+        searching = false; results = null;
+    }
+
+    private async Task ResetToPreferred()
+    {
+        if (!string.IsNullOrWhiteSpace(_preferredId)) await SetPharmacy(_preferredId, _preferredName);
+        searching = false; results = null;
+    }
+
+    private async Task SetPharmacy(string? id, string? name)
+    {
+        PharmacyId = id;
+        PharmacyName = name;
+        await PharmacyIdChanged.InvokeAsync(id);
+        await PharmacyNameChanged.InvokeAsync(name);
+    }
+
+    private IPharmacyDirectoryGrain Dir() => Grains.GetGrain<IPharmacyDirectoryGrain>("PHARMACY-DIRECTORY");
+
+    private static string KindLabel(string kind) => kind switch
+    {
+        PharmacyKinds.Mail => "Mail order",
+        PharmacyKinds.Specialty => "Specialty",
+        PharmacyKinds.Inpatient => "Hospital",
+        _ => "Retail"
+    };
+}
+
+<style>
+    .pharmacy-picker { margin-bottom: 0.25rem; }
+    .pharmacy-picker .ph-label { display: block; font-weight: 600; color: #003f72; margin-bottom: 0.25rem; font-size: 0.85rem; }
+    .pharmacy-picker .ph-current { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; }
+    .pharmacy-picker .ph-name { font-weight: 600; }
+    .pharmacy-picker .ph-pref { background: #dcfce7; color: #166534; font-size: 0.7rem; font-weight: 700; padding: 1px 6px; border-radius: 3px; }
+    .pharmacy-picker .ph-change { padding: 0.2rem 0.6rem; font-size: 0.75rem; }
+    .pharmacy-picker .ph-search { display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap; }
+    .pharmacy-picker .ph-input { min-width: 220px; }
+    .pharmacy-picker .ph-empty { color: #666; font-style: italic; font-size: 0.85rem; margin: 0.4rem 0; }
+    .pharmacy-picker .ph-results { list-style: none; margin: 0.4rem 0 0; padding: 0; border: 1px solid #d6deea; border-radius: 4px; max-height: 240px; overflow-y: auto; }
+    .pharmacy-picker .ph-result { padding: 0.4rem 0.6rem; cursor: pointer; border-bottom: 1px solid #eef1f5; display: flex; flex-direction: column; }
+    .pharmacy-picker .ph-result:last-child { border-bottom: none; }
+    .pharmacy-picker .ph-result:hover { background: #eef3f9; }
+    .pharmacy-picker .ph-rname { font-weight: 600; color: #003f72; }
+    .pharmacy-picker .ph-rmeta { color: #607089; font-size: 0.78rem; }
+</style>
