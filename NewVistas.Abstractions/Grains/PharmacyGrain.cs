@@ -21,13 +21,42 @@ public class PharmacyGrain : Grain, IPharmacyGrain
 {
     private readonly IPersistentState<PharmacyState> _state;
     private readonly IRouteValidationService _routeValidation;
+    private readonly IOutboundPrescriptionTransmitter _erxTransmitter;
 
     public PharmacyGrain(
         [PersistentState("pharmacyState", "pharmacyStore")] IPersistentState<PharmacyState> state,
-        IRouteValidationService routeValidation)
+        IRouteValidationService routeValidation,
+        IOutboundPrescriptionTransmitter erxTransmitter)
     {
         _state = state;
         _routeValidation = routeValidation;
+        _erxTransmitter = erxTransmitter;
+    }
+
+    /// <summary>
+    /// Transmit this prescription to its destination pharmacy as an NCPDP SCRIPT NewRx (over the
+    /// Surescripts network) and record the outcome on the Rx. The offline default does not send.
+    /// </summary>
+    public async Task TransmitNewRxAsync(string? pharmacyNcpdpId)
+    {
+        PrescriptionTransmissionResult result = await _erxTransmitter.TransmitNewRxAsync(new NewRxMessage
+        {
+            PrescriptionId = _state.State.PrescriptionId,
+            PatientId = _state.State.PatientId,
+            DrugName = _state.State.DrugName,
+            Sig = _state.State.Sig,
+            Quantity = _state.State.Quantity,
+            DaysSupply = _state.State.DaysSupply,
+            Refills = _state.State.Refills,
+            PrescriberName = _state.State.ProviderName ?? string.Empty,
+            PharmacyName = _state.State.PharmacyName ?? string.Empty,
+            PharmacyNcpdpId = pharmacyNcpdpId
+        });
+
+        _state.State.ErxStatus = result.Status;
+        _state.State.ErxDetail = result.Detail;
+        _state.State.LastModifiedDate = DateTime.UtcNow;
+        await _state.WriteStateAsync();
     }
 
     public override async Task OnActivateAsync(CancellationToken cancellationToken)

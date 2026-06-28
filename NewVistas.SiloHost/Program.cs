@@ -27,6 +27,7 @@ builder.Services.AddSingleton<IPatientIndexSnapshotService, PatientIndexSnapshot
 // client can replace it later via configuration.
 builder.Services.AddSingleton<IRouteValidationService, RouteValidationService>();
 builder.Services.TryAddSingleton<IRxNavDoseFormClient, NullRxNavDoseFormClient>();
+builder.Services.TryAddSingleton<IOutboundPrescriptionTransmitter, NullOutboundPrescriptionTransmitter>();
 
 // Clinical-summary narrative seam. When the "ClinicalNarrative" config section is
 // Enabled, a live Claude client (Anthropic SDK), wrapped in a resilient fallback, is

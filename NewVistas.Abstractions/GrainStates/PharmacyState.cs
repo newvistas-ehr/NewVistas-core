@@ -300,6 +300,17 @@ public class PharmacyState : EventSourcedStateBase
     public List<string> RouteSuggestions { get; set; } = new();
 
     /// <summary>
+    /// E-prescribing (NCPDP SCRIPT) transmission status for this Rx, e.g. "TRANSMITTED" or
+    /// "NOT_TRANSMITTED" (offline). Null when it was never an e-Rx (facility / inpatient fill).
+    /// </summary>
+    [Id(56)]
+    public string? ErxStatus { get; set; }
+
+    /// <summary>Human-readable detail of the last e-prescribing transmission attempt, for audit.</summary>
+    [Id(57)]
+    public string? ErxDetail { get; set; }
+
+    /// <summary>
     /// Deep copy. Used at event/state boundaries so that mutating the live
     /// prescription on the grain does not retroactively mutate the historical
     /// snapshot stored on a clinical event payload (which would break the
@@ -372,7 +383,9 @@ public class PharmacyState : EventSourcedStateBase
         CounseledBy = CounseledBy,
         CounselingNotes = CounselingNotes,
         RouteValidationWarning = RouteValidationWarning,
-        RouteSuggestions = RouteSuggestions.ToList()
+        RouteSuggestions = RouteSuggestions.ToList(),
+        ErxStatus = ErxStatus,
+        ErxDetail = ErxDetail
     };
 }
 

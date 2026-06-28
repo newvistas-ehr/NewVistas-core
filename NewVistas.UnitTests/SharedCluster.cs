@@ -91,6 +91,7 @@ public static class SharedCluster
             // InpatientOrderGrain). RxNav client defaults to the offline no-op.
             siloBuilder.Services.AddSingleton<IRouteValidationService, RouteValidationService>();
             siloBuilder.Services.AddSingleton<IRxNavDoseFormClient, NullRxNavDoseFormClient>();
+            siloBuilder.Services.AddSingleton<IOutboundPrescriptionTransmitter, NullOutboundPrescriptionTransmitter>();
             siloBuilder.Services.AddSingleton<IClinicalNarrativeService, TemplateClinicalNarrativeService>();
             siloBuilder.Services.AddSingleton<IRadiologyFindingExtractor, HeuristicRadiologyFindingExtractor>();
 

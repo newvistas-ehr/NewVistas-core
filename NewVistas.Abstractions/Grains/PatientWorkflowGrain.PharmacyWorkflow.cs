@@ -68,6 +68,15 @@ public partial class PatientWorkflowGrain
         // The prescriber is now responsible for this patient.
         await EnsureProviderPanelAsync(providerId, "Prescriber");
 
+        // E-prescribe (NCPDP SCRIPT NewRx) when the destination is an e-Rx-capable pharmacy with
+        // an NCPDP id. The transmitter's offline default does not actually send; it records why.
+        if (!string.IsNullOrWhiteSpace(pharmacyId))
+        {
+            PharmacyDirectoryEntry? pharmacy = await PharmacyDirectory().GetAsync(pharmacyId);
+            if (pharmacy is { AcceptsErx: true, NcpdpId: { Length: > 0 } })
+                await rx.TransmitNewRxAsync(pharmacy.NcpdpId);
+        }
+
         return rxId;
     }
 

@@ -75,4 +75,33 @@ public class PharmacyDirectoryWorkflowTests
         Assert.That(rx.PharmacyId, Is.EqualTo("PHARM-WAG-2210"));
         Assert.That(rx.PharmacyName, Is.EqualTo("WALGREENS #2210"));
     }
+
+    [Test]
+    public async Task PlacePrescription_ErxCapablePharmacy_RecordsOfflineTransmission()
+    {
+        string pid = $"PAT-{Guid.NewGuid()}";
+        // Walgreens accepts e-Rx and has an NCPDP id → the (offline) transmitter records the NewRx.
+        string rxId = await Wf(pid).PlacePrescriptionAsync(
+            "Atorvastatin 20 mg tablet", null, "20 mg", "PO", "QHS", "Take 1 tablet at bedtime",
+            30, 30, 5, "PROV-001", "Dr. Smith", "PHARM-WAG-2210", "WALGREENS #2210", null);
+
+        PharmacyState rx = await _cluster.GrainFactory.GetGrain<IPharmacyGrain>(rxId).GetPrescriptionAsync();
+        Assert.That(rx.ErxStatus, Is.EqualTo("NOT_TRANSMITTED"),
+            "the offline transmitter records the attempt but does not actually send");
+        Assert.That(rx.ErxDetail, Does.Contain("NCPDP SCRIPT"));
+        Assert.That(rx.ErxDetail, Does.Contain("WALGREENS"));
+    }
+
+    [Test]
+    public async Task PlacePrescription_HospitalPharmacy_IsNotEPrescribed()
+    {
+        string pid = $"PAT-{Guid.NewGuid()}";
+        // The hospital pharmacy has no NCPDP id / is not e-Rx capable → no transmission attempt.
+        string rxId = await Wf(pid).PlacePrescriptionAsync(
+            "Acetaminophen 500 mg tablet", null, "500 mg", "PO", "Q6H PRN", "Take 1-2 tablets every 6 hours as needed",
+            10, 40, 0, "PROV-001", "Dr. Smith", "PHARM-HOSPITAL", "NEWVISTAS HOSPITAL PHARMACY", null);
+
+        PharmacyState rx = await _cluster.GrainFactory.GetGrain<IPharmacyGrain>(rxId).GetPrescriptionAsync();
+        Assert.That(rx.ErxStatus, Is.Null, "the hospital pharmacy (no NCPDP, not e-Rx) is not transmitted");
+    }
 }

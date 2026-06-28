@@ -31,6 +31,12 @@ public interface IPharmacyGrain : IGrainWithStringKey
         string? orderId,
         string? comments);
 
+    /// <summary>
+    /// Transmit this prescription to its destination pharmacy as an NCPDP SCRIPT NewRx (over
+    /// Surescripts) and record the outcome on the Rx. The offline default does not send.
+    /// </summary>
+    Task TransmitNewRxAsync(string? pharmacyNcpdpId);
+
     Task FillPrescriptionAsync(DateTime fillDate);
     Task DiscontinueAsync(string reason);
     Task ExpireAsync();
