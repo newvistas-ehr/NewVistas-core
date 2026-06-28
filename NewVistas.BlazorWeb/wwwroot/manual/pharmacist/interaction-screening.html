@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Interaction Screening — Pharmacist Manual — NewVistas</title>
+  <link rel="stylesheet" href="../assets/css/manual.css" />
+</head>
+<body>
+  <div class="topbar">
+    <div class="brand"><a href="../index.html">NewVistas</a> <span>· User Manual</span></div>
+    <div class="role-pill">💊 Pharmacist</div>
+  </div>
+
+  <div class="layout">
+    <nav class="sidebar">
+      <div class="section">Pharmacist Manual</div>
+      <a href="index.html">Overview</a>
+      <a href="getting-started.html">Getting Started</a>
+      <div class="section">Workflows</div>
+      <a href="pharmacy-hub.html">Pharmacy Hub</a>
+      <a href="verify-fill.html">Verify &amp; Fill</a>
+      <a href="drug-utilization-review.html">Drug Utilization Review</a>
+      <a href="interaction-screening.html" class="active">Interaction Screening</a>
+      <a href="epcs.html">EPCS</a>
+      <a href="inpatient-meds.html">Inpatient Meds</a>
+      <a href="drug-accountability.html">Drug Accountability</a>
+      <a href="benefits-pa.html">Benefits &amp; PA</a>
+      <a href="pos-claims.html">POS Claims</a>
+      <div class="section">&nbsp;</div>
+      <a href="../index.html">← All roles</a>
+    </nav>
+
+    <main class="content">
+      <div class="crumb"><a href="../index.html">Manual</a> › <a href="index.html">Pharmacist</a> › Interaction Screening</div>
+      <h1>Drug Interaction Blocking</h1>
+      <p class="lead">
+        The Drug Interaction Blocking screen runs a new prescription against the
+        patient's existing medications, records every interaction it finds, and
+        blocks the fill on any significant or contraindicated pairing until a
+        pharmacist overrides it with a clinical reason.
+      </p>
+
+      <h2>Load a patient's screenings</h2>
+      <ol class="steps">
+        <li>From the sidebar, open <kbd>Interaction Screening</kbd> (or go to <code>/interaction-blocking</code>).</li>
+        <li>In the <strong>Patient ID</strong> field, type the patient ID and press <kbd>Enter</kbd> or click <kbd>Load</kbd>.</li>
+        <li>The screenings load into tabbed views: <strong>All</strong> and <strong>Blocked</strong>, each with a count.</li>
+        <li>If you arrived with a patient already in context, the screen auto-loads them.</li>
+      </ol>
+
+      <figure class="shot">
+        <img src="../assets/img/pharmacist/interaction-screening.png" alt="Interaction screening list with All and Blocked tabs and a detail panel" />
+        <figcaption>Drug Interaction Blocking — the screening list with All/Blocked tabs, and the detail panel showing each interaction finding with its severity.</figcaption>
+      </figure>
+
+      <h2>What you see</h2>
+      <h3>The screening list</h3>
+      <p>Each row in the <strong>All</strong> and <strong>Blocked</strong> tabs shows:</p>
+      <ul>
+        <li><strong>Date</strong> — when the screen was run.</li>
+        <li><strong>Drug</strong> and <strong>Rx ID</strong> — the prescription that was screened.</li>
+        <li><strong>Status</strong> — <em>Not Screened</em>, <em>Cleared</em>, <em>Blocked</em>, or <em>Overridden</em>.</li>
+        <li><strong>Blocking</strong> and <strong>Total</strong> — the count of blocking interactions and total interactions found.</li>
+        <li><strong>View</strong> — opens the Detail tab for that screening.</li>
+      </ul>
+      <p>A blocked screening's row is highlighted, and its blocking count is shown in red.</p>
+
+      <h3>The detail panel</h3>
+      <p>
+        The Detail tab lists every <strong>Interaction Finding</strong> — the new
+        drug ingredient, the existing drug ingredient, a <strong>severity</strong>
+        badge (Minor, Moderate, Significant, Contraindicated), a description, and
+        whether the finding is <strong>BLOCKED</strong>, a <strong>Warning</strong>,
+        or already overridden. A cleared prescription shows
+        <em>"No drug interactions found — prescription is cleared."</em>
+      </p>
+
+      <h2>Screen a new prescription</h2>
+      <ol class="steps">
+        <li>With a patient loaded, click <kbd>+ Screen Rx</kbd>.</li>
+        <li>Fill in the required <strong>Prescription ID</strong> and <strong>Drug Name</strong>.</li>
+        <li>Optionally add the <strong>new</strong> and <strong>existing</strong> ingredient IEN/name pairs to test, plus the <strong>Screened By</strong> pharmacist ID.</li>
+        <li>Click <kbd>Run Screen</kbd>. The screening is created, the success banner shows its ID, and the Detail tab opens automatically.</li>
+      </ol>
+
+      <h2>Override a blocking interaction</h2>
+      <ol class="steps">
+        <li>On a blocked finding, click <kbd>Override</kbd>.</li>
+        <li>Enter the required <strong>Pharmacist ID</strong> and a <strong>Clinical Reason</strong>.</li>
+        <li>Click <kbd>Submit Override</kbd>. The finding flips to <em>Overridden by</em> your pharmacist ID, and the screening status moves to <strong>Overridden</strong>.</li>
+      </ol>
+      <div class="callout safety">
+        <span class="ct">⚠ Both fields are required</span>
+        An override will not submit without a pharmacist ID and a clinical reason —
+        the reason is stored verbatim against the finding so the override is
+        accountable. Only the prescriber-of-record's pharmacist should clear a
+        contraindicated pairing.
+      </div>
+
+      <div class="callout note">
+        <span class="ct">Blocked means blocked</span>
+        While a finding is blocking and not yet overridden, the prescription is
+        held in <strong>Blocked</strong> status. Clearing or overriding every
+        blocking finding is what releases the fill on the
+        <a href="verify-fill.html">Verify &amp; Fill</a> screen.
+      </div>
+
+      <footer>NewVistas User Manual · Pharmacist · Interaction Screening</footer>
+    </main>
+  </div>
+</body>
+</html>

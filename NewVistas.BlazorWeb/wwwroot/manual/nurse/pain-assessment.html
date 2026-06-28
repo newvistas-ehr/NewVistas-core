@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Pain Assessment — Nurse Manual — NewVistas</title>
+  <link rel="stylesheet" href="../assets/css/manual.css" />
+</head>
+<body>
+  <div class="topbar">
+    <div class="brand"><a href="../index.html">NewVistas</a> <span>· User Manual</span></div>
+    <div class="role-pill">🩹 Nurse</div>
+  </div>
+
+  <div class="layout">
+    <nav class="sidebar">
+      <div class="section">Nurse Manual</div>
+      <a href="index.html">Overview</a>
+      <a href="getting-started.html">Getting Started</a>
+      <div class="section">Workflows</div>
+      <a href="vital-signs.html">Vital Signs</a>
+      <a href="pain-assessment.html" class="active">Pain Assessment</a>
+      <a href="nursing-assessment.html">Nursing Assessment</a>
+      <a href="care-plan.html">Care Plan</a>
+      <a href="triage.html">Triage</a>
+      <a href="task-worklist.html">Task Worklist</a>
+      <a href="bcma.html">BCMA</a>
+      <a href="shift-handoff.html">Shift Handoff</a>
+      <div class="section">&nbsp;</div>
+      <a href="../index.html">← All roles</a>
+    </nav>
+
+    <main class="content">
+      <div class="crumb"><a href="../index.html">Manual</a> › <a href="index.html">Nurse</a> › Pain Assessment</div>
+      <h1>Pain Assessment</h1>
+      <p class="lead">
+        Document a structured pain assessment for a patient using any of six
+        validated tools — NRS, DVPRS, Wong-Baker FACES, FLACC, CPOT, or VAS —
+        review the pain history with severity-coded rows, and record a
+        post-intervention reassessment to show whether treatment worked.
+      </p>
+
+      <h2>Open the Pain Assessment screen</h2>
+      <ol class="steps">
+        <li>Go to <code>/pain-assessment</code> (linked from the cover sheet whenever a recorded pain score is above 0).</li>
+        <li>In the <strong>Patient Bar</strong> at the top, enter the patient ID and click <kbd>Load</kbd>.</li>
+        <li>The <strong>Pain History</strong> tab opens. If nothing is on file yet it reads "No pain assessments recorded."</li>
+      </ol>
+
+      <figure class="shot">
+        <img src="../assets/img/nurse/pain-assessment.png" alt="Pain Assessment screen for a loaded patient" />
+        <figcaption>The Pain Assessment screen — Pain History, Assessment Detail, New Assessment, and Reassessment tabs.</figcaption>
+      </figure>
+
+      <h2>What you see</h2>
+      <p>
+        The four tabs across the top are <strong>Pain History</strong>,
+        <strong>Assessment Detail</strong>, <strong>New Assessment</strong>, and
+        <strong>Reassessment</strong>.
+      </p>
+      <h3>Pain History tab</h3>
+      <ul>
+        <li>One row per assessment, with columns for Date/Time, Nurse, Tool, Score, Location, Reassess?, and Post-Rx.</li>
+        <li>The score shows as a colored badge (<code>n/10</code>) — green at 0, blue for mild, amber for 4–6, red for 7 and above.</li>
+        <li>Rows are shaded by severity: amber for a score of 4–6, red for 7+, so the worst pain stands out at a glance.</li>
+        <li>Click <kbd>View</kbd> on any row to open the full Assessment Detail.</li>
+      </ul>
+      <h3>New Assessment tab</h3>
+      <ul>
+        <li><strong>Tool</strong> — choose NRS (0–10), DVPRS, Wong-Baker FACES, FLACC, CPOT, or VAS.</li>
+        <li><strong>Pain Score</strong> (required, 0–10), <strong>Location</strong>, and <strong>Character</strong> (Sharp, Dull, Burning, Throbbing, Aching, Pressure, Stabbing).</li>
+        <li><strong>Nurse ID</strong>, <strong>Onset</strong> (Acute, Chronic, Intermittent), <strong>Intervention</strong> (e.g. <code>Morphine 4mg IV</code>), <strong>Acceptable Level</strong>, and <strong>Notes</strong>.</li>
+        <li>Click <kbd>Record Pain Assessment</kbd> to save; a banner confirms the new assessment ID and the history reloads.</li>
+      </ul>
+
+      <div class="callout note">
+        <span class="ct">Reassessment closes the loop</span>
+        On the <strong>Reassessment</strong> tab, enter the <strong>Initial
+        Assessment ID</strong> (copy it from the history or detail view), the
+        <strong>Post-Rx Score</strong>, the <strong>Minutes Since</strong> the
+        intervention, and the intervention given. This records whether the
+        treatment was effective and is required after any score that prompted an
+        intervention.
+      </div>
+
+      <div class="callout tip">
+        <span class="ct">Pick the tool to match the patient</span>
+        Use FLACC or CPOT for patients who can't self-report (infants, sedated, or
+        non-verbal), Wong-Baker FACES for children, and NRS or DVPRS for most
+        adults. The Assessment Detail view shows the extra DVPRS and FLACC
+        component breakdowns when those tools were used.
+      </div>
+
+      <footer>NewVistas User Manual · Nurse · Pain Assessment</footer>
+    </main>
+  </div>
+</body>
+</html>

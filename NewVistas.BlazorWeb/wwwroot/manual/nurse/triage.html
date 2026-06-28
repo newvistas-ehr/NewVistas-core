@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Triage — Nurse Manual — NewVistas</title>
+  <link rel="stylesheet" href="../assets/css/manual.css" />
+</head>
+<body>
+  <div class="topbar">
+    <div class="brand"><a href="../index.html">NewVistas</a> <span>· User Manual</span></div>
+    <div class="role-pill">🩹 Nurse</div>
+  </div>
+
+  <div class="layout">
+    <nav class="sidebar">
+      <div class="section">Nurse Manual</div>
+      <a href="index.html">Overview</a>
+      <a href="getting-started.html">Getting Started</a>
+      <div class="section">Workflows</div>
+      <a href="vital-signs.html">Vital Signs</a>
+      <a href="pain-assessment.html">Pain Assessment</a>
+      <a href="nursing-assessment.html">Nursing Assessment</a>
+      <a href="care-plan.html">Care Plan</a>
+      <a href="triage.html" class="active">Triage</a>
+      <a href="task-worklist.html">Task Worklist</a>
+      <a href="bcma.html">BCMA</a>
+      <a href="shift-handoff.html">Shift Handoff</a>
+      <div class="section">&nbsp;</div>
+      <a href="../index.html">← All roles</a>
+    </nav>
+
+    <main class="content">
+      <div class="crumb"><a href="../index.html">Manual</a> › <a href="index.html">Nurse</a> › Triage</div>
+      <h1>Triage</h1>
+      <p class="lead">
+        Perform an intake / triage assessment: capture the chief complaint and a
+        full set of triage vital signs, assign an ESI acuity level, then sign the
+        assessment and set its disposition. This is NewVistas' Emergency Severity
+        Index triage workflow.
+      </p>
+
+      <h2>Open the Triage screen</h2>
+      <ol class="steps">
+        <li>Go to <code>/nursing-triage</code>.</li>
+        <li>In the <strong>Patient Bar</strong> at the top, enter the patient ID and click <kbd>Load</kbd>.</li>
+        <li>The <strong>Triage History</strong> tab opens. If nothing is on file it reads "No triage assessments recorded."</li>
+      </ol>
+
+      <figure class="shot">
+        <img src="../assets/img/nurse/triage.png" alt="Triage screen for a loaded patient" />
+        <figcaption>The Triage screen — the Triage History, Triage Detail, and New Triage tabs.</figcaption>
+      </figure>
+
+      <h2>What you see</h2>
+      <p>Three tabs run across the top: <strong>Triage History</strong>, <strong>Triage Detail</strong>, and <strong>New Triage</strong>.</p>
+      <h3>Triage History tab</h3>
+      <ul>
+        <li>One row per triage, with columns for Date/Time, Nurse, Chief Complaint, ESI, Pain, Disposition, and Status.</li>
+        <li>The ESI column shows the assigned acuity level (<code>ESI 1</code> through <code>ESI 5</code>).</li>
+        <li>Click <kbd>View</kbd> to open the full Triage Detail.</li>
+      </ul>
+      <h3>New Triage tab</h3>
+      <ul>
+        <li><strong>Chief Complaint</strong> (required), <strong>Nurse ID</strong>, and <strong>Nurse Name</strong>.</li>
+        <li><strong>Triage Vital Signs</strong> — Temp&nbsp;(F), HR, RR, Sys&nbsp;BP, Dia&nbsp;BP, SpO2, and Pain&nbsp;(0–10).</li>
+        <li><strong>ESI Level</strong> — ESI&nbsp;1 Resuscitation, ESI&nbsp;2 Emergent, ESI&nbsp;3 Urgent, ESI&nbsp;4 Less Urgent, or ESI&nbsp;5 Non-Urgent.</li>
+        <li><strong>Mode of Arrival</strong> (Ambulatory, Wheelchair, Stretcher, Ambulance) and <strong>Notes</strong>.</li>
+        <li>Click <kbd>Create Triage</kbd> to save; a banner confirms the new triage ID.</li>
+      </ul>
+      <h3>Triage Detail tab</h3>
+      <ul>
+        <li>Shows the chief complaint, HPI, arrival mode, level of consciousness, and the recorded triage vitals.</li>
+        <li>A <kbd>Sign</kbd> button appears while the assessment is a Draft.</li>
+        <li>While the disposition is Pending, <kbd>Admit</kbd>, <kbd>Observation</kbd>, and <kbd>Discharge</kbd> buttons let you set it.</li>
+      </ul>
+
+      <div class="callout note">
+        <span class="ct">ESI 1 is the most acute</span>
+        Lower ESI numbers mean higher acuity: ESI&nbsp;1 (Resuscitation) and ESI&nbsp;2
+        (Emergent) need immediate attention, while ESI&nbsp;5 (Non-Urgent) is the
+        lowest. The level defaults to ESI&nbsp;3 (Urgent) on a new triage — set it
+        deliberately for every patient.
+      </div>
+
+      <div class="callout tip">
+        <span class="ct">Sign before setting disposition</span>
+        A new triage starts as a Draft. Open it on the Triage Detail tab and click
+        <kbd>Sign</kbd> to finalize it, then use the disposition buttons to route
+        the patient to Admit, Observation, or Discharge.
+      </div>
+
+      <footer>NewVistas User Manual · Nurse · Triage</footer>
+    </main>
+  </div>
+</body>
+</html>

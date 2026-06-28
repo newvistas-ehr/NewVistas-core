@@ -36,6 +36,12 @@ public class ManualHelpTests
     [TestCase("pharmacist", "drug-utilization-review", "/manual/pharmacist/drug-utilization-review.html")]
     [TestCase("pharmacist", "pharmacy-pos", "/manual/pharmacist/pos-claims.html")]
     [TestCase("admin", "security-keys", "/manual/admin/security-keys.html")]
+    [TestCase("nurse", "pain-assessment", "/manual/nurse/pain-assessment.html")]
+    [TestCase("nurse", "nursing-careplan", "/manual/nurse/care-plan.html")]
+    [TestCase("pharmacist", "pharmacy", "/manual/pharmacist/pharmacy-hub.html")]
+    [TestCase("pharmacist", "inpatientpharmacy", "/manual/pharmacist/inpatient-meds.html")]
+    [TestCase("admin", "registration", "/manual/admin/registration.html")]
+    [TestCase("admin", "service-connected", "/manual/admin/sc-conditions.html")]
     [TestCase("bogus", "xyz-unmapped", "/manual/doctor/index.html")] // unknown section → doctor + fallback
     public void UrlForRoute_DeepLinksTopicOrFallsBack(string section, string route, string expected)
         => Assert.That(ManualHelp.UrlForRoute(section, route), Is.EqualTo(expected));

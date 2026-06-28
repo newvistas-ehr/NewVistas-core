@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>SC Conditions — Administrator Manual — NewVistas</title>
+  <link rel="stylesheet" href="../assets/css/manual.css" />
+</head>
+<body>
+  <div class="topbar">
+    <div class="brand"><a href="../index.html">NewVistas</a> <span>· User Manual</span></div>
+    <div class="role-pill">⚙️ Administrator</div>
+  </div>
+
+  <div class="layout">
+    <nav class="sidebar">
+      <div class="section">Administrator Manual</div>
+      <a href="index.html">Overview</a>
+      <a href="getting-started.html">Getting Started</a>
+      <div class="section">Administration</div>
+      <a href="adt.html">ADT</a>
+      <a href="registration.html">Registration</a>
+      <a href="patient-merge.html">Patient Merge</a>
+      <a href="means-test.html">Means Test</a>
+      <a href="sc-conditions.html" class="active">SC Conditions</a>
+      <a href="prosthetics.html">Prosthetics</a>
+      <a href="security-keys.html">Security Keys</a>
+      <a href="site-parameters.html">Site Parameters</a>
+      <div class="section">&nbsp;</div>
+      <a href="../index.html">← All roles</a>
+    </nav>
+
+    <main class="content">
+      <div class="crumb"><a href="../index.html">Manual</a> › <a href="index.html">Administrator</a> › SC Conditions</div>
+      <h1>Service Connected Conditions</h1>
+      <p class="lead">
+        This screen tracks a veteran's service-connected (SC) and
+        non-service-connected (NSC) conditions — each condition's disability
+        percentage, rating decisions, combined rating, appeal status, C&amp;P exams,
+        Permanent &amp; Total and SMC status. It corresponds to VistA's
+        service-connected / rated-disability registration data.
+      </p>
+
+      <h2>Open SC Conditions and load a patient</h2>
+      <ol class="steps">
+        <li>In the sidebar, under <strong>Administrative</strong>, click <kbd>SC Conditions</kbd> (or go to <code>/service-connected</code>).</li>
+        <li>In the <strong>Patient ID</strong> field, type the patient ID (e.g. <code>P9001</code>).</li>
+        <li>Click <kbd>Load</kbd> (or press <kbd>Enter</kbd>) to list that patient's conditions.</li>
+      </ol>
+
+      <figure class="shot">
+        <img src="../assets/img/admin/sc-conditions.png" alt="Service Connected Conditions screen with the lookup bar, Conditions tab, and conditions list" />
+        <figcaption>The SC Conditions screen — the lookup bar, the Conditions/Detail tabs, and the table of conditions.</figcaption>
+      </figure>
+
+      <h2>What you see</h2>
+      <ul>
+        <li><strong>Conditions tab</strong> — each condition with its ICD-10 code, disability percentage, an <strong>SC</strong>/<strong>NSC</strong> marker, effective date, and a status badge.</li>
+        <li><strong>Status badge</strong> — green for <strong>ACTIVE</strong>, neutral otherwise.</li>
+        <li><strong>Detail tab</strong> — opens when you click a row; shows combined rating, P&amp;T, SMC level, appeal status, rating-decision and exam dates, plus the section forms.</li>
+      </ul>
+
+      <h2>Record a new condition</h2>
+      <ol class="steps">
+        <li>Click <kbd>+ Record Condition</kbd> to open the form.</li>
+        <li>Enter the <strong>Condition</strong> (e.g. <em>Hearing Loss, Bilateral</em>) and optional ICD-10 diagnosis code.</li>
+        <li>Set the disability percentage, whether it is service-connected, the effective date, and any affected extremity.</li>
+        <li>Click <kbd>Record</kbd>. The condition appears in the list.</li>
+      </ol>
+
+      <h2>Work a condition's detail</h2>
+      <p>Click any row to open the <strong>Detail</strong> tab, which stacks several section forms:</p>
+      <ul>
+        <li><strong>SC Percentage</strong> and <strong>Rating Decision</strong> — set the percentage and record the rating decision date/ID.</li>
+        <li><strong>Rated Disabilities</strong> — list and add individual rated disabilities (condition, rating %, effective date, diagnostic code, static flag).</li>
+        <li><strong>Calculate Combined Rating</strong> — one click computes the VA combined rating from the rated disabilities.</li>
+        <li><strong>Appeal Status</strong>, <strong>C&amp;P Exam</strong>, <strong>Permanent &amp; Total</strong>, and <strong>SMC</strong> — track appeals, exams, P&amp;T, and special monthly compensation.</li>
+        <li><strong>Notes</strong> — add an authored note (the author defaults to the logged-in provider).</li>
+      </ul>
+      <div class="callout note">
+        <span class="ct">Combined ≠ sum</span>
+        The combined rating is not the arithmetic sum of the individual ratings —
+        click <kbd>Calculate Combined Rating</kbd> to apply the VA combined-ratings
+        formula across the rated disabilities you've entered.
+      </div>
+
+      <footer>NewVistas User Manual · Administrator · SC Conditions</footer>
+    </main>
+  </div>
+</body>
+</html>

@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Care Plan — Nurse Manual — NewVistas</title>
+  <link rel="stylesheet" href="../assets/css/manual.css" />
+</head>
+<body>
+  <div class="topbar">
+    <div class="brand"><a href="../index.html">NewVistas</a> <span>· User Manual</span></div>
+    <div class="role-pill">🩹 Nurse</div>
+  </div>
+
+  <div class="layout">
+    <nav class="sidebar">
+      <div class="section">Nurse Manual</div>
+      <a href="index.html">Overview</a>
+      <a href="getting-started.html">Getting Started</a>
+      <div class="section">Workflows</div>
+      <a href="vital-signs.html">Vital Signs</a>
+      <a href="pain-assessment.html">Pain Assessment</a>
+      <a href="nursing-assessment.html">Nursing Assessment</a>
+      <a href="care-plan.html" class="active">Care Plan</a>
+      <a href="triage.html">Triage</a>
+      <a href="task-worklist.html">Task Worklist</a>
+      <a href="bcma.html">BCMA</a>
+      <a href="shift-handoff.html">Shift Handoff</a>
+      <div class="section">&nbsp;</div>
+      <a href="../index.html">← All roles</a>
+    </nav>
+
+    <main class="content">
+      <div class="crumb"><a href="../index.html">Manual</a> › <a href="index.html">Nurse</a> › Care Plan</div>
+      <h1>Care Plan</h1>
+      <p class="lead">
+        Build and maintain a patient's nursing care plan using NANDA nursing
+        diagnoses, each with its own goals, interventions, and outcome
+        evaluations. This is NewVistas' implementation of the VistA Nursing Care
+        Plan (File&nbsp;#212).
+      </p>
+
+      <h2>Open the Care Plan screen</h2>
+      <ol class="steps">
+        <li>Go to <code>/nursing-careplan</code>.</li>
+        <li>In the <strong>Patient Bar</strong> at the top, enter the patient ID and click <kbd>Load</kbd>.</li>
+        <li>The <strong>Care Plan</strong> tab opens. If nothing is on file it reads "No nursing diagnoses on care plan. Use the Add Diagnosis tab to start."</li>
+      </ol>
+
+      <figure class="shot">
+        <img src="../assets/img/nurse/care-plan.png" alt="Care Plan screen for a loaded patient" />
+        <figcaption>The Care Plan screen — the Care Plan and Add Diagnosis tabs.</figcaption>
+      </figure>
+
+      <h2>What you see</h2>
+      <p>The screen has two tabs: <strong>Care Plan</strong> and <strong>Add Diagnosis</strong>.</p>
+      <h3>Care Plan tab</h3>
+      <ul>
+        <li>One card per nursing diagnosis, with its <strong>Related To</strong> (R/T) etiology, <strong>As Evidenced By</strong> (AEB) characteristics, status tag, priority, and created date.</li>
+        <li>Two side-by-side columns — <strong>Goals</strong> and <strong>Interventions</strong> — each listing the active items, with the intervention frequency shown in parentheses (e.g. <code>PRN</code>).</li>
+        <li>An <strong>Outcome Evaluations</strong> table appears once evaluations exist, showing date, evaluator, rating, and notes.</li>
+        <li>A <kbd>Resolve Diagnosis</kbd> button shows on each active diagnosis.</li>
+      </ul>
+      <h3>Add Diagnosis tab</h3>
+      <ul>
+        <li><strong>Nursing Diagnosis</strong> (required, e.g. <code>Acute Pain</code>), <strong>Related To</strong> (etiology), and <strong>As Evidenced By</strong> (defining characteristics).</li>
+        <li>Click <kbd>Add to Care Plan</kbd> to save; the new diagnosis appears as a card on the Care Plan tab.</li>
+      </ul>
+
+      <h2>Add goals and interventions</h2>
+      <ol class="steps">
+        <li>On the <strong>Care Plan</strong> tab, find the diagnosis card you want to expand.</li>
+        <li>Under <strong>Goals</strong>, type a goal in the "New goal..." box and click <kbd>Add</kbd>.</li>
+        <li>Under <strong>Interventions</strong>, type the intervention, an optional frequency in the small "Freq" box, and click <kbd>Add</kbd>.</li>
+      </ol>
+
+      <div class="callout note">
+        <span class="ct">Resolve, don't delete</span>
+        When a diagnosis is met, click <kbd>Resolve Diagnosis</kbd> rather than
+        removing it. The diagnosis stays on the record with a resolved status, so
+        the care-plan history and outcome evaluations remain intact for audit and
+        handoff.
+      </div>
+
+      <div class="callout tip">
+        <span class="ct">Write goals to match interventions</span>
+        Keep each diagnosis self-contained: every goal should have at least one
+        intervention that drives toward it, and an outcome evaluation that records
+        the rating. That structure makes the plan easy to evaluate at shift change.
+      </div>
+
+      <footer>NewVistas User Manual · Nurse · Care Plan</footer>
+    </main>
+  </div>
+</body>
+</html>

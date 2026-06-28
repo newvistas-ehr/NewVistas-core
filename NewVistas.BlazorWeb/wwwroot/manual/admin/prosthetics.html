@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Prosthetics — Administrator Manual — NewVistas</title>
+  <link rel="stylesheet" href="../assets/css/manual.css" />
+</head>
+<body>
+  <div class="topbar">
+    <div class="brand"><a href="../index.html">NewVistas</a> <span>· User Manual</span></div>
+    <div class="role-pill">⚙️ Administrator</div>
+  </div>
+
+  <div class="layout">
+    <nav class="sidebar">
+      <div class="section">Administrator Manual</div>
+      <a href="index.html">Overview</a>
+      <a href="getting-started.html">Getting Started</a>
+      <div class="section">Administration</div>
+      <a href="adt.html">ADT</a>
+      <a href="registration.html">Registration</a>
+      <a href="patient-merge.html">Patient Merge</a>
+      <a href="means-test.html">Means Test</a>
+      <a href="sc-conditions.html">SC Conditions</a>
+      <a href="prosthetics.html" class="active">Prosthetics</a>
+      <a href="security-keys.html">Security Keys</a>
+      <a href="site-parameters.html">Site Parameters</a>
+      <div class="section">&nbsp;</div>
+      <a href="../index.html">← All roles</a>
+    </nav>
+
+    <main class="content">
+      <div class="crumb"><a href="../index.html">Manual</a> › <a href="index.html">Administrator</a> › Prosthetics</div>
+      <h1>Prosthetics &amp; Orthotics</h1>
+      <p class="lead">
+        The Prosthetics screen records prosthetic and orthotic items issued to a
+        patient — the item and its HCPCS code, cost and vendor, warranty,
+        delivery, fitting, patient satisfaction, and ongoing maintenance. It's
+        the equivalent of VistA's Prosthetics (RMPR) package.
+      </p>
+
+      <h2>Open Prosthetics and load a patient</h2>
+      <ol class="steps">
+        <li>In the sidebar, under <strong>Administrative</strong>, click <kbd>Prosthetics</kbd> (or go to <code>/prosthetics</code>).</li>
+        <li>In the <strong>Patient ID</strong> field, type the patient ID (e.g. <code>P9001</code>) — or it picks up the current patient context if one is already selected.</li>
+        <li>Click <kbd>Load</kbd> (or press <kbd>Enter</kbd>) to list that patient's issued items.</li>
+      </ol>
+
+      <figure class="shot">
+        <img src="../assets/img/admin/prosthetics.png" alt="Prosthetics screen with the lookup bar, Items tab, and issued-items list" />
+        <figcaption>The Prosthetics screen — the lookup bar, the Items/Detail tabs, and the table of issued items.</figcaption>
+      </figure>
+
+      <h2>What you see</h2>
+      <ul>
+        <li><strong>Items tab</strong> — each issued item with its date, description, HCPCS code, category, cost, an <strong>SC</strong> marker, and a status badge.</li>
+        <li><strong>Detail tab</strong> — opens when you click a row; shows vendor, warranty, delivery, fitting, satisfaction, and next-maintenance details, plus the section forms.</li>
+      </ul>
+
+      <h2>Issue a new item</h2>
+      <ol class="steps">
+        <li>Click <kbd>+ Issue Item</kbd> to open the form.</li>
+        <li>Enter the <strong>Item Description</strong> (e.g. <em>Below-Knee Prosthesis</em>) and optional HCPCS code.</li>
+        <li>Pick the category (Prosthetic, Orthotic, Sensory Aid, Wheelchair, or Other), and set date issued, quantity, and cost.</li>
+        <li>Choose the issuing provider (defaults to the logged-in provider), location, and whether it is service-connected.</li>
+        <li>Click <kbd>Issue</kbd>. The item appears in the list.</li>
+      </ol>
+
+      <h2>Work an item's detail</h2>
+      <p>Click any row to open the <strong>Detail</strong> tab, which stacks section forms:</p>
+      <ul>
+        <li><strong>HCPCS Code</strong> and <strong>Cost &amp; Vendor</strong> — set or correct the billing code, cost, and vendor.</li>
+        <li><strong>Warranty</strong>, <strong>Delivery</strong>, and <strong>Fitting</strong> — record warranty dates, delivery method/tracking, and fitting notes.</li>
+        <li><strong>Patient Satisfaction</strong> — record a 1–5 rating.</li>
+        <li><strong>Schedule Maintenance</strong> and <strong>Maintenance History</strong> — set the next maintenance date and add maintenance records (type, technician, cost, notes).</li>
+      </ul>
+      <div class="callout tip">
+        <span class="ct">Tip</span>
+        Each section form saves on its own and shows a green confirmation, so you
+        can issue an item, then set its warranty, record delivery, and log a
+        fitting in sequence without leaving the Detail tab.
+      </div>
+
+      <footer>NewVistas User Manual · Administrator · Prosthetics</footer>
+    </main>
+  </div>
+</body>
+</html>

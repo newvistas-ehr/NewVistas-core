@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Drug Accountability — Pharmacist Manual — NewVistas</title>
+  <link rel="stylesheet" href="../assets/css/manual.css" />
+</head>
+<body>
+  <div class="topbar">
+    <div class="brand"><a href="../index.html">NewVistas</a> <span>· User Manual</span></div>
+    <div class="role-pill">💊 Pharmacist</div>
+  </div>
+
+  <div class="layout">
+    <nav class="sidebar">
+      <div class="section">Pharmacist Manual</div>
+      <a href="index.html">Overview</a>
+      <a href="getting-started.html">Getting Started</a>
+      <div class="section">Workflows</div>
+      <a href="pharmacy-hub.html">Pharmacy Hub</a>
+      <a href="verify-fill.html">Verify &amp; Fill</a>
+      <a href="drug-utilization-review.html">Drug Utilization Review</a>
+      <a href="interaction-screening.html">Interaction Screening</a>
+      <a href="epcs.html">EPCS</a>
+      <a href="inpatient-meds.html">Inpatient Meds</a>
+      <a href="drug-accountability.html" class="active">Drug Accountability</a>
+      <a href="benefits-pa.html">Benefits &amp; PA</a>
+      <a href="pos-claims.html">POS Claims</a>
+      <div class="section">&nbsp;</div>
+      <a href="../index.html">← All roles</a>
+    </nav>
+
+    <main class="content">
+      <div class="crumb"><a href="../index.html">Manual</a> › <a href="index.html">Pharmacist</a> › Drug Accountability</div>
+      <h1>Drug Accountability — Inventory Management</h1>
+      <p class="lead">
+        Drug Accountability tracks per-location drug inventory against a signed
+        transaction ledger. Every receipt, dispense, waste, and physical count is
+        recorded with a running balance, so controlled-substance stock can be
+        reconciled at any time. It's the equivalent of VistA's Drug Accountability
+        (PSA) package, Files #58.8 and #58.81.
+      </p>
+
+      <h2>Load a location's stock</h2>
+      <ol class="steps">
+        <li>From the sidebar, open <kbd>Drug Accountability</kbd> (or go to <code>/drugaccountability</code>).</li>
+        <li>In the <strong>Location ID</strong> field, type the location (e.g. <code>VAULT-001</code>).</li>
+        <li>Click <kbd>Load Location</kbd>.</li>
+        <li>The drug table loads with columns: <strong>Drug Name</strong>, <strong>Balance</strong>, <strong>Unit</strong>, <strong>Type</strong>, <strong>Reorder</strong>, <strong>Status</strong>, and <strong>Actions</strong>.</li>
+      </ol>
+
+      <figure class="shot">
+        <img src="../assets/img/pharmacist/drug-accountability.png" alt="Drug accountability stock table and the transaction-history detail panel" />
+        <figcaption>Drug Accountability — the per-location drug table with per-row action buttons, and the transaction-history panel for the selected drug.</figcaption>
+      </figure>
+
+      <h2>What you see</h2>
+      <h3>The stock table</h3>
+      <ul>
+        <li><strong>Type</strong> — a <strong>DEA</strong> badge for controlled drugs or <strong>RX</strong> for the rest.</li>
+        <li><strong>Status</strong> — <strong>LOW STOCK</strong> (red) when the balance is at or below the reorder point, otherwise <strong>OK</strong>.</li>
+        <li>Two checkboxes filter the table to <strong>Low stock only</strong> and <strong>Controlled only</strong>.</li>
+        <li>Per-row action buttons: <kbd>Receive</kbd>, <kbd>Dispense</kbd>, <kbd>Waste</kbd>, and <kbd>Count</kbd>.</li>
+      </ul>
+
+      <h3>Transaction history</h3>
+      <p>
+        Clicking a drug opens its history panel — the current balance with
+        <strong>CONTROLLED</strong> and <strong>VAULT</strong> badges where they
+        apply, then a ledger of every transaction: date, type (RECEIPT, DISPENSE,
+        WASTE, RETURN, TRANSFER, ADJUSTMENT/INVENTORY_COUNT), signed quantity,
+        balance before and after, the user, the patient, and notes or witness.
+      </p>
+
+      <h2>Record a transaction</h2>
+      <ol class="steps">
+        <li><strong>Receive</strong> — click <kbd>Receive</kbd>, enter the quantity, lot number, and user, then <kbd>Submit</kbd> to add stock.</li>
+        <li><strong>Dispense</strong> — click <kbd>Dispense</kbd>, enter the quantity, patient ID, prescription ID, and user, then <kbd>Submit</kbd> to draw stock down.</li>
+        <li><strong>Waste</strong> — click <kbd>Waste</kbd>, enter the quantity and reason, the <strong>witness ID and name</strong>, and your user, then <kbd>Submit</kbd>.</li>
+        <li><strong>Count</strong> — click <kbd>Count</kbd> to open a physical inventory count; the panel shows the system balance, you enter the counted quantity, and <kbd>Submit</kbd> records the reconciliation.</li>
+      </ol>
+      <p>After any submission the balance and the transaction history refresh automatically.</p>
+
+      <div class="callout safety">
+        <span class="ct">⚠ Waste needs a witness</span>
+        Recording waste captures a witness ID and witness name alongside the
+        wasting pharmacist — that two-person signature is what makes the
+        controlled-substance ledger defensible. Don't waste vault stock without a
+        second signer present.
+      </div>
+
+      <div class="callout tip">
+        <span class="ct">Watch the low-stock filter</span>
+        Tick <strong>Low stock only</strong> to see everything at or below its
+        reorder point in one pass — a fast way to build a reorder list before
+        receiving the next shipment.
+      </div>
+
+      <footer>NewVistas User Manual · Pharmacist · Drug Accountability</footer>
+    </main>
+  </div>
+</body>
+</html>

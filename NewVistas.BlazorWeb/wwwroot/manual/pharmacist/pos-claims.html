@@ -18,29 +18,29 @@
       <a href="index.html">Overview</a>
       <a href="getting-started.html">Getting Started</a>
       <div class="section">Workflows</div>
+      <a href="pharmacy-hub.html">Pharmacy Hub</a>
       <a href="verify-fill.html">Verify &amp; Fill</a>
       <a href="drug-utilization-review.html">Drug Utilization Review</a>
+      <a href="interaction-screening.html">Interaction Screening</a>
       <a href="epcs.html">EPCS</a>
+      <a href="inpatient-meds.html">Inpatient Meds</a>
+      <a href="drug-accountability.html">Drug Accountability</a>
+      <a href="benefits-pa.html">Benefits &amp; PA</a>
       <a href="pos-claims.html" class="active">POS Claims</a>
-      <div class="section">More (coming soon)</div>
-      <a href="#" style="opacity:.45;pointer-events:none">Interaction Screening</a>
-      <a href="#" style="opacity:.45;pointer-events:none">Controlled Substances</a>
-      <a href="#" style="opacity:.45;pointer-events:none">Drug Accountability</a>
-      <a href="#" style="opacity:.45;pointer-events:none">IV Admixture</a>
-      <a href="#" style="opacity:.45;pointer-events:none">CMOP</a>
-      <a href="#" style="opacity:.45;pointer-events:none">Auto-Refill</a>
       <div class="section">&nbsp;</div>
       <a href="../index.html">← All roles</a>
     </nav>
 
     <main class="content">
       <div class="crumb"><a href="../index.html">Manual</a> › <a href="index.html">Pharmacist</a> › POS Claims</div>
-      <h1>Point-of-Sale Pharmacy Claims</h1>
+      <h1>Point-of-Sale Pharmacy Claims <span class="tier rpms">RPMS</span></h1>
       <p class="lead">
         The Pharmacy POS screen is where you submit insurance claims for
         dispensed medications, adjudicate them, reverse them, and review claim
         history — using NCPDP standard BIN/PCN routing. It's the third-party
-        billing layer of the pharmacy.
+        billing layer of the pharmacy. Point-of-Sale is an <strong>RPMS</strong>
+        module (feature flag <span class="flag">PHARMACY_POS</span>) — IHS sites bill
+        third parties at the point of dispense; a plain VistA site can leave it off.
       </p>
 
       <h2>Submit a billing (B1) claim</h2>

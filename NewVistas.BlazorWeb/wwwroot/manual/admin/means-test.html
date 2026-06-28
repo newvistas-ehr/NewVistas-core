@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Means Test — Administrator Manual — NewVistas</title>
+  <link rel="stylesheet" href="../assets/css/manual.css" />
+</head>
+<body>
+  <div class="topbar">
+    <div class="brand"><a href="../index.html">NewVistas</a> <span>· User Manual</span></div>
+    <div class="role-pill">⚙️ Administrator</div>
+  </div>
+
+  <div class="layout">
+    <nav class="sidebar">
+      <div class="section">Administrator Manual</div>
+      <a href="index.html">Overview</a>
+      <a href="getting-started.html">Getting Started</a>
+      <div class="section">Administration</div>
+      <a href="adt.html">ADT</a>
+      <a href="registration.html">Registration</a>
+      <a href="patient-merge.html">Patient Merge</a>
+      <a href="means-test.html" class="active">Means Test</a>
+      <a href="sc-conditions.html">SC Conditions</a>
+      <a href="prosthetics.html">Prosthetics</a>
+      <a href="security-keys.html">Security Keys</a>
+      <a href="site-parameters.html">Site Parameters</a>
+      <div class="section">&nbsp;</div>
+      <a href="../index.html">← All roles</a>
+    </nav>
+
+    <main class="content">
+      <div class="crumb"><a href="../index.html">Manual</a> › <a href="index.html">Administrator</a> › Means Test</div>
+      <h1>Means Test / Eligibility</h1>
+      <p class="lead">
+        The Means Test screen records a veteran's financial assessment — income,
+        net worth, dependents, deductible expenses, and the resulting copay and
+        eligibility determination. Each test is a record you can open and build
+        up section by section, mirroring VistA's Income Verification / Means Test
+        process.
+      </p>
+
+      <h2>Open Means Test and load a patient</h2>
+      <ol class="steps">
+        <li>In the sidebar, under <strong>Administrative</strong>, click <kbd>Means Test</kbd> (or go to <code>/means-test</code>).</li>
+        <li>In the <strong>Patient ID</strong> field, type the patient ID (e.g. <code>P9001</code>).</li>
+        <li>Click <kbd>Load</kbd> (or press <kbd>Enter</kbd>) to list that patient's means tests.</li>
+      </ol>
+
+      <figure class="shot">
+        <img src="../assets/img/admin/means-test.png" alt="Means Test screen with the lookup bar, Tests tab, and means-test list" />
+        <figcaption>The Means Test screen — the lookup bar, the Tests/Detail tabs, and the table of recorded tests.</figcaption>
+      </figure>
+
+      <h2>What you see</h2>
+      <ul>
+        <li><strong>Tests tab</strong> — every test on file, with its date, type, income, net worth, dependents, priority group, eligibility, and a status badge.</li>
+        <li><strong>Status badge</strong> — green <strong>COMPLETED</strong> or amber for any other status.</li>
+        <li><strong>Detail tab</strong> — appears once you open a test; shows the full computed picture (adjusted income, GMT threshold, hardship, copay result) plus the section forms.</li>
+      </ul>
+
+      <h2>Record a new means test</h2>
+      <ol class="steps">
+        <li>Click <kbd>+ Record Test</kbd> to open the form.</li>
+        <li>Pick the <strong>Test Type</strong> (Means Test, Copay Test, Hardship, or GMT Threshold) and set the date.</li>
+        <li>Enter annual income, net worth, number of dependents, priority group, eligibility status, and who completed it.</li>
+        <li>Click <kbd>Record</kbd>. The new test appears in the list.</li>
+      </ol>
+
+      <h2>Build up a test's detail</h2>
+      <p>Click any row to open the <strong>Detail</strong> tab, which has a stacked set of section forms:</p>
+      <ul>
+        <li><strong>Income</strong>, <strong>Assets</strong>, and <strong>Expenses</strong> — record the veteran, spouse, and dependent figures.</li>
+        <li><strong>Calculate Adjusted Income</strong> — one click computes adjusted income from what you've entered.</li>
+        <li><strong>GMT Threshold</strong>, <strong>Hardship Determination</strong>, and <strong>Copay Test Result</strong> — set the geographic threshold and the final determinations.</li>
+        <li><strong>Dependents</strong> — list and add dependents with name, relationship, DOB, income, and net worth.</li>
+      </ul>
+      <div class="callout note">
+        <span class="ct">Order matters</span>
+        Record income, assets, and expenses first, then click
+        <kbd>Calculate Adjusted Income</kbd> — the adjusted figure is derived
+        from those entries, so calculating before they're in place gives an
+        incomplete result.
+      </div>
+
+      <footer>NewVistas User Manual · Administrator · Means Test</footer>
+    </main>
+  </div>
+</body>
+</html>

@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Benefits &amp; PA — Pharmacist Manual — NewVistas</title>
+  <link rel="stylesheet" href="../assets/css/manual.css" />
+</head>
+<body>
+  <div class="topbar">
+    <div class="brand"><a href="../index.html">NewVistas</a> <span>· User Manual</span></div>
+    <div class="role-pill">💊 Pharmacist</div>
+  </div>
+
+  <div class="layout">
+    <nav class="sidebar">
+      <div class="section">Pharmacist Manual</div>
+      <a href="index.html">Overview</a>
+      <a href="getting-started.html">Getting Started</a>
+      <div class="section">Workflows</div>
+      <a href="pharmacy-hub.html">Pharmacy Hub</a>
+      <a href="verify-fill.html">Verify &amp; Fill</a>
+      <a href="drug-utilization-review.html">Drug Utilization Review</a>
+      <a href="interaction-screening.html">Interaction Screening</a>
+      <a href="epcs.html">EPCS</a>
+      <a href="inpatient-meds.html">Inpatient Meds</a>
+      <a href="drug-accountability.html">Drug Accountability</a>
+      <a href="benefits-pa.html" class="active">Benefits &amp; PA</a>
+      <a href="pos-claims.html">POS Claims</a>
+      <div class="section">&nbsp;</div>
+      <a href="../index.html">← All roles</a>
+    </nav>
+
+    <main class="content">
+      <div class="crumb"><a href="../index.html">Manual</a> › <a href="index.html">Pharmacist</a> › Benefits &amp; PA</div>
+      <h1>Pharmacy Benefits Management</h1>
+      <p class="lead">
+        The Pharmacy Benefits screen checks a patient's drug plan — formulary
+        tier, copay, coverage, and quantity limits — and runs the
+        prior-authorization review queue. It's the equivalent of VistA's Pharmacy
+        Benefits Management (BPS), File #59.9, organized into a
+        <strong>Patient Benefits</strong> tab and a <strong>Plan Formulary</strong> tab.
+      </p>
+
+      <h2>Open Pharmacy Benefits</h2>
+      <ol class="steps">
+        <li>From the sidebar, open <kbd>Pharmacy Benefits</kbd> (or go to <code>/pharmacybenefits</code>).</li>
+        <li>On the <strong>Patient Benefits</strong> tab, type a <strong>Patient ID</strong> and click <kbd>Load Patient</kbd>.</li>
+        <li>The plan card loads with the plan name, active state, insurer, member and group numbers, and effective/expiration dates.</li>
+      </ol>
+
+      <figure class="shot">
+        <img src="../assets/img/pharmacist/benefits-pa.png" alt="Pharmacy benefits plan card, coverage check, and prior-authorization table" />
+        <figcaption>Pharmacy Benefits — the plan card with copay tiers, the coverage-check box, and the prior-authorization review table.</figcaption>
+      </figure>
+
+      <h2>What you see</h2>
+      <h3>The plan card</h3>
+      <p>
+        The plan card shows four boxes — <strong>Tier 1</strong> (Preferred
+        Generic), <strong>Tier 2</strong> (Preferred Brand), <strong>Tier 3</strong>
+        (Non-Preferred), and the annual <strong>Deductible</strong>, marked
+        <strong>MET</strong> or <em>Not met</em>. An <strong>ACTIVE</strong> or
+        <strong>INACTIVE</strong> badge sits next to the plan name.
+      </p>
+
+      <h3>Coverage check</h3>
+      <ol class="steps">
+        <li>Under <strong>Coverage Check</strong>, type a <strong>Drug ID</strong> (e.g. <code>50-WARFARIN</code>).</li>
+        <li>Click <kbd>Check Coverage</kbd>.</li>
+        <li>The result shows the coverage status badge — <strong>COVERED</strong>, <strong>NOT_COVERED</strong>, <strong>REQUIRES_PA</strong>, or <strong>NON_FORMULARY</strong> — plus the tier, the applicable copay, a <strong>PA REQUIRED</strong> badge where it applies, and any quantity limit.</li>
+      </ol>
+
+      <h2>Review prior authorizations</h2>
+      <p>
+        The <strong>Prior Authorizations</strong> table lists each request with its
+        drug, status badge (PENDING, APPROVED, DENIED, EXPIRED), request date,
+        expiration, and provider.
+      </p>
+      <ol class="steps">
+        <li>On a <strong>PENDING</strong> request, click <kbd>Approve</kbd> or <kbd>Deny</kbd>.</li>
+        <li><strong>Approve</strong> — enter the reviewer ID and name, an expiration date, and optional notes, then <kbd>Submit</kbd>.</li>
+        <li><strong>Deny</strong> — enter the reviewer ID and name and a denial reason, then <kbd>Submit</kbd>.</li>
+        <li>The table refreshes with the new status.</li>
+      </ol>
+
+      <h2>Browse a plan formulary</h2>
+      <ol class="steps">
+        <li>Switch to the <strong>Plan Formulary</strong> tab.</li>
+        <li>Type a <strong>Plan ID</strong> (e.g. <code>TRICARE-STD</code>) and click <kbd>Load Formulary</kbd>.</li>
+        <li>Filter by <strong>tier</strong> or by <strong>PA Required only</strong>.</li>
+        <li>Each row shows the drug, tier, coverage, PA flag, copay override, quantity limit, day-supply limit, and whether step therapy is required.</li>
+      </ol>
+
+      <div class="callout note">
+        <span class="ct">Coverage check reads the formulary</span>
+        A coverage check looks the drug up in the selected plan's formulary. If the
+        drug isn't on the formulary, the result comes back <strong>NOT_COVERED</strong> —
+        which usually means a prior authorization or a formulary alternative is needed.
+      </div>
+
+      <div class="callout tip">
+        <span class="ct">PA review is a manual decision</span>
+        Approvals and denials are recorded against the reviewing pharmacist with a
+        date and notes, so each decision is accountable. Set a realistic expiration
+        date on approvals so the authorization lapses on schedule.
+      </div>
+
+      <footer>NewVistas User Manual · Pharmacist · Benefits &amp; PA</footer>
+    </main>
+  </div>
+</body>
+</html>

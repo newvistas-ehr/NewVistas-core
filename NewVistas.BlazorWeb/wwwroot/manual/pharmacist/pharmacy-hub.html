@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Pharmacy Hub — Pharmacist Manual — NewVistas</title>
+  <link rel="stylesheet" href="../assets/css/manual.css" />
+</head>
+<body>
+  <div class="topbar">
+    <div class="brand"><a href="../index.html">NewVistas</a> <span>· User Manual</span></div>
+    <div class="role-pill">💊 Pharmacist</div>
+  </div>
+
+  <div class="layout">
+    <nav class="sidebar">
+      <div class="section">Pharmacist Manual</div>
+      <a href="index.html">Overview</a>
+      <a href="getting-started.html">Getting Started</a>
+      <div class="section">Workflows</div>
+      <a href="pharmacy-hub.html" class="active">Pharmacy Hub</a>
+      <a href="verify-fill.html">Verify &amp; Fill</a>
+      <a href="drug-utilization-review.html">Drug Utilization Review</a>
+      <a href="interaction-screening.html">Interaction Screening</a>
+      <a href="epcs.html">EPCS</a>
+      <a href="inpatient-meds.html">Inpatient Meds</a>
+      <a href="drug-accountability.html">Drug Accountability</a>
+      <a href="benefits-pa.html">Benefits &amp; PA</a>
+      <a href="pos-claims.html">POS Claims</a>
+      <div class="section">&nbsp;</div>
+      <a href="../index.html">← All roles</a>
+    </nav>
+
+    <main class="content">
+      <div class="crumb"><a href="../index.html">Manual</a> › <a href="index.html">Pharmacist</a> › Pharmacy Hub</div>
+      <h1>Pharmacy Hub</h1>
+      <p class="lead">
+        The Pharmacy Operations Center is the landing page for every pharmacy
+        package. It gathers the seven VistA pharmacy modules — PSO, PSJ, PSB,
+        PSA, BPS, PSN, and PSS — into a single set of cards, plus a grid of the
+        common day-to-day workflows, so you can jump straight to the screen you
+        need.
+      </p>
+
+      <h2>Open the Pharmacy Hub</h2>
+      <ol class="steps">
+        <li>From the sidebar, open <kbd>Pharmacy</kbd> (or go to <code>/pharmacy</code>).</li>
+        <li>The header reads <strong>Pharmacy Operations Center</strong> with the package line <code>PSO · PSJ · PSB · PSA · BPS · PSN · PSS</code>.</li>
+        <li>Under <strong>Pharmacy Modules</strong>, click <kbd>Open</kbd> on any card to launch that module.</li>
+        <li>Under <strong>Common Workflows</strong>, click any task row to go directly to the matching screen.</li>
+      </ol>
+
+      <figure class="shot">
+        <img src="../assets/img/pharmacist/pharmacy-hub.png" alt="Pharmacy Operations Center with module cards and workflow grid" />
+        <figcaption>The Pharmacy Hub — the seven module cards on top, the common-workflow grid below, and the demo-data bar in the header.</figcaption>
+      </figure>
+
+      <h2>What you see</h2>
+      <h3>Pharmacy Modules</h3>
+      <p>Each card carries its VistA package badge, an icon, a short description, and an <strong>Open</strong> button:</p>
+      <ul>
+        <li><strong>PSO — Outpatient Pharmacy</strong> — fill, refill, pharmacist verification, label printing, counseling flags, days-supply tracking.</li>
+        <li><strong>PSJ — Inpatient Medications</strong> — unit dose, IV, and large-volume parenteral orders with BCMA integration.</li>
+        <li><strong>PSB — BCMA</strong> — bedside medication administration, witness recording, PRN reason and effectiveness capture.</li>
+        <li><strong>PSA — Drug Accountability</strong> — per-location inventory with a signed transaction ledger and vault tracking.</li>
+        <li><strong>BPS — Pharmacy Benefits</strong> — formulary look-up, tier and copay check, coverage, and prior-authorization review.</li>
+        <li><strong>PSN — National Drug File</strong> — the VA Product and VA Generic catalog, drug classes, and NDC codes.</li>
+        <li><strong>PSS — Drug File</strong> — the local drug file (File #50), orderable items, routes, and dose units.</li>
+      </ul>
+
+      <h3>Common Workflows</h3>
+      <p>
+        The workflow grid is a shortcut menu — each row pairs an icon with a task
+        name and a one-line description (for example <em>Fill New Prescription</em>,
+        <em>Process Refill Request</em>, <em>Verify Inpatient Order</em>,
+        <em>Receive Drug Shipment</em>, <em>Check Insurance Coverage</em>,
+        <em>Submit Prior Authorization</em>, and <em>Controlled Substance Count</em>).
+        Clicking a row opens the same module as the matching card.
+      </p>
+
+      <div class="callout note">
+        <span class="ct">Demo data</span>
+        The header has a <strong>Patient ID for demo</strong> box and a
+        <kbd>Load All Demo Data</kbd> button. In the in-app build this only
+        reminds you that demo loading requires the API server — to work with real
+        grain data, open an individual module and load a patient there. The demo
+        note suggests Patient ID <code>P-DEMO-001</code> for patient-specific modules.
+      </div>
+
+      <div class="callout tip">
+        <span class="ct">One hop, no re-entry</span>
+        Opening a module from the hub carries you straight into that screen. The
+        patient-specific modules (Outpatient, Inpatient, BCMA, Benefits) still ask
+        for a Patient ID once you arrive — pick your patient there to load their data.
+      </div>
+
+      <footer>NewVistas User Manual · Pharmacist · Pharmacy Hub</footer>
+    </main>
+  </div>
+</body>
+</html>

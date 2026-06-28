@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Inpatient Meds — Pharmacist Manual — NewVistas</title>
+  <link rel="stylesheet" href="../assets/css/manual.css" />
+</head>
+<body>
+  <div class="topbar">
+    <div class="brand"><a href="../index.html">NewVistas</a> <span>· User Manual</span></div>
+    <div class="role-pill">💊 Pharmacist</div>
+  </div>
+
+  <div class="layout">
+    <nav class="sidebar">
+      <div class="section">Pharmacist Manual</div>
+      <a href="index.html">Overview</a>
+      <a href="getting-started.html">Getting Started</a>
+      <div class="section">Workflows</div>
+      <a href="pharmacy-hub.html">Pharmacy Hub</a>
+      <a href="verify-fill.html">Verify &amp; Fill</a>
+      <a href="drug-utilization-review.html">Drug Utilization Review</a>
+      <a href="interaction-screening.html">Interaction Screening</a>
+      <a href="epcs.html">EPCS</a>
+      <a href="inpatient-meds.html" class="active">Inpatient Meds</a>
+      <a href="drug-accountability.html">Drug Accountability</a>
+      <a href="benefits-pa.html">Benefits &amp; PA</a>
+      <a href="pos-claims.html">POS Claims</a>
+      <div class="section">&nbsp;</div>
+      <a href="../index.html">← All roles</a>
+    </nav>
+
+    <main class="content">
+      <div class="crumb"><a href="../index.html">Manual</a> › <a href="index.html">Pharmacist</a> › Inpatient Meds</div>
+      <h1>Inpatient Pharmacy</h1>
+      <p class="lead">
+        The Inpatient Pharmacy screen is where you review and act on a patient's
+        ward medication orders — unit dose, IV admixture, and large-volume
+        parenterals. It's the equivalent of VistA's Inpatient Medications (PSJ)
+        package, with pharmacist verification, IV additives, scheduled
+        administration times, and BCMA event counts.
+      </p>
+
+      <h2>Load a patient's orders</h2>
+      <ol class="steps">
+        <li>From the sidebar, open <kbd>Inpatient Pharmacy</kbd> (or go to <code>/inpatientpharmacy</code>).</li>
+        <li>In the <strong>Patient ID</strong> field, type the patient ID (e.g. <code>P-DEMO-001</code>).</li>
+        <li>Click <kbd>Load Orders</kbd>.</li>
+        <li>The order table loads with a header count and a legend for the type badges: <strong>UD</strong> Unit Dose, <strong>IV</strong> IV Admixture, and <strong>LVP</strong> Large Volume.</li>
+      </ol>
+
+      <figure class="shot">
+        <img src="../assets/img/pharmacist/inpatient-meds.png" alt="Inpatient pharmacy order table and the selected-order detail panel" />
+        <figcaption>Inpatient Pharmacy — the order list on top, the selected-order detail panel with its action bar below.</figcaption>
+      </figure>
+
+      <h2>What you see</h2>
+      <h3>The order list</h3>
+      <p>Each row shows columns for <strong>Drug</strong>, <strong>Type</strong>, <strong>Status</strong>, <strong>Priority</strong>, <strong>Schedule</strong>, <strong>Dosage</strong>, <strong>Ward/Bed</strong>, <strong>Verified</strong>, <strong>Last Admin</strong>, and <strong>Provider</strong>. Status appears as a colored badge — PENDING, ACTIVE, HOLD, DISCONTINUED, or EXPIRED — and the Verified column reads <strong>✓ RPh</strong> or <strong>⚠ Pending</strong>.</p>
+
+      <h3>The detail panel</h3>
+      <p>
+        Clicking a row opens the detail panel: order ID, route, schedule, dosage,
+        ward/bed, start/stop dates, and provider. IV orders also show the
+        <strong>IV Solution</strong>, volume, and infusion rate, plus an
+        <strong>IV Additives</strong> table and the <strong>Scheduled
+        Administration Times</strong> chips. A <strong>BCMA Events</strong> count
+        ties the order back to bedside administration.
+      </p>
+
+      <h2>Verify a pending order</h2>
+      <ol class="steps">
+        <li>Select a <strong>PENDING</strong>, unverified order.</li>
+        <li>Click <kbd>✓ Verify (RPh)</kbd>. The action message confirms <em>"Action 'verify' completed."</em></li>
+        <li>The detail panel now shows <strong>Verified by</strong> and the date/time, and the row's Verified column shows ✓ RPh.</li>
+      </ol>
+
+      <h2>Manage an active order</h2>
+      <ol class="steps">
+        <li>On an <strong>ACTIVE</strong> or <strong>PENDING</strong> order, the action bar offers <kbd>Discontinue</kbd> and <kbd>Hold</kbd>.</li>
+        <li>Click <kbd>Hold</kbd> to move the order to <strong>HOLD</strong>; the bar then offers <kbd>Resume</kbd> to return it to active.</li>
+        <li>Click <kbd>Discontinue</kbd>, type a reason in the input row, and click <kbd>Confirm D/C</kbd> to stop the order.</li>
+        <li>Active or held orders can also be <kbd>Expire</kbd>d.</li>
+        <li>On an active order, click <kbd>Record Administration</kbd> to log a dose.</li>
+      </ol>
+
+      <h2>Add an IV additive</h2>
+      <ol class="steps">
+        <li>On an active <strong>IV</strong> or <strong>LVP</strong> order, click <kbd>+ Additive</kbd>.</li>
+        <li>Enter the <strong>Drug name</strong>, <strong>Dose</strong>, and <strong>Unit</strong> (MG, GM…), and tick <strong>Primary additive</strong> if it's the base.</li>
+        <li>Click <kbd>Add</kbd>. The additive appears in the IV Additives table on the order.</li>
+      </ol>
+
+      <div class="callout note">
+        <span class="ct">Route validation warning</span>
+        If the order's route doesn't match the drug, the detail panel shows a
+        <strong>route warning</strong> banner with suggested routes. Treat it as a
+        prompt to confirm the order with the prescriber before activation.
+      </div>
+
+      <div class="callout tip">
+        <span class="ct">Demo data needs the API server</span>
+        The <kbd>Load Demo</kbd> button only loads sample orders when the API
+        server is running; otherwise it simply tells you so. Load a real patient
+        with <kbd>Load Orders</kbd> to work with live grain data.
+      </div>
+
+      <footer>NewVistas User Manual · Pharmacist · Inpatient Meds</footer>
+    </main>
+  </div>
+</body>
+</html>
