@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Immunizations — Physician Manual — NewVistas</title>
+  <link rel="stylesheet" href="../assets/css/manual.css" />
+</head>
+<body>
+  <div class="topbar">
+    <div class="brand"><a href="../index.html">NewVistas</a> <span>· User Manual</span></div>
+    <div class="role-pill">🩺 Physician</div>
+  </div>
+
+  <div class="layout">
+    <nav class="sidebar">
+      <div class="section">Physician Manual</div>
+      <a href="index.html">Overview</a>
+      <a href="getting-started.html">Getting Started</a>
+      <div class="section">Chart &amp; Workflows</div>
+      <a href="cover-sheet.html">Cover Sheet</a>
+      <a href="problem-list.html">Problem List</a>
+      <a href="prescribing.html">Prescribing &amp; Safety Gate</a>
+      <a href="orders.html">Order Entry</a>
+      <a href="notes.html">Progress Notes</a>
+      <a href="consults.html">Consults</a>
+      <a href="labs.html">Labs</a>
+      <a href="allergies.html">Allergies</a>
+      <a href="immunizations.html" class="active">Immunizations</a>
+      <div class="section">&nbsp;</div>
+      <a href="../index.html">← All roles</a>
+    </nav>
+
+    <main class="content">
+      <div class="crumb"><a href="../index.html">Manual</a> › <a href="index.html">Physician</a> › Immunizations</div>
+      <h1>Immunizations</h1>
+      <p class="lead">
+        The Immunizations screen is where you review a patient's vaccination
+        history, record a new immunization, and drill into a single dose to
+        capture series, VIS, manufacturer, and registry details. It is the
+        equivalent of the CPRS Immunizations tab.
+      </p>
+
+      <h2>Open Immunizations</h2>
+      <ol class="steps">
+        <li>In the sidebar, click <kbd>Immunizations</kbd> (or go to <code>/immunizations</code>).</li>
+        <li>In the <strong>Patient ID</strong> box, type the patient ID (e.g. <code>P9001</code>) and click <kbd>Load</kbd> (or press <kbd>Enter</kbd>). If a patient is already in context, the list loads automatically.</li>
+      </ol>
+
+      <figure class="shot">
+        <img src="../assets/img/doctor/immunizations.png" alt="Immunizations list for a loaded patient" />
+        <figcaption>Immunizations — the dose list with date, vaccine, CVX, series, and lot.</figcaption>
+      </figure>
+
+      <h2>What you see</h2>
+      <h3>The immunizations list</h3>
+      <p>The body is a table of the patient's doses, showing Date, Immunization, CVX, Series, Lot, Manufacturer, and Site. Click any row to open the full detail for that dose. If there are none, an empty-state message is shown.</p>
+
+      <h3>Recording an immunization</h3>
+      <p>Click <strong>+ Record Immunization</strong> to open the form. Enter the <strong>Immunization Name</strong> (required, e.g. Influenza Vaccine) and <strong>Date Given</strong> (required), plus optional CVX code, Series, Lot Number, Manufacturer, Administered By, Site, Route, Dose, Location, and Comments, then click <strong>Record</strong>.</p>
+
+      <h3>The detail view</h3>
+      <p>Opening a dose shows every recorded field and a set of sections for adding more:</p>
+      <ul>
+        <li><strong>Series Information</strong> — dose number, doses in series, and whether the series is complete.</li>
+        <li><strong>Administration Details</strong> — site and route.</li>
+        <li><strong>Vaccine Information Statement (VIS)</strong> — dates offered and published.</li>
+        <li><strong>Vaccine Group</strong> and <strong>Manufacturer</strong> — name and code for each.</li>
+        <li><strong>Registry Status</strong> — Submitted / Accepted / Rejected / Pending.</li>
+        <li><strong>Mark as Historical</strong> — record an information source for an outside dose.</li>
+        <li><strong>Comments</strong> — add timestamped, attributed comments.</li>
+      </ul>
+      <div class="callout note">
+        <span class="ct">Historical doses</span>
+        Use <strong>Mark as Historical</strong> for vaccines given elsewhere
+        (patient recall, school record, outside clinic) — you record the
+        information source so the entry is clearly distinguished from a dose
+        administered here.
+      </div>
+      <div class="callout tip">
+        <span class="ct">Tip</span>
+        You can capture the essentials at recording time and fill in series,
+        VIS, and registry details later from the detail view — nothing forces
+        you to complete every section in one pass.
+      </div>
+
+      <footer>NewVistas User Manual · Physician · Immunizations</footer>
+    </main>
+  </div>
+</body>
+</html>

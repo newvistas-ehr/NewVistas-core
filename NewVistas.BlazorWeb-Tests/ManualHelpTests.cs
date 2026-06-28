@@ -23,7 +23,11 @@ public class ManualHelpTests
     }
 
     [TestCase("doctor", "medications", "/manual/doctor/prescribing.html")]
-    [TestCase("doctor", "orders?type=Pharmacy", "/manual/doctor/prescribing.html")]
+    [TestCase("doctor", "orders?type=Pharmacy", "/manual/doctor/orders.html")]
+    [TestCase("doctor", "labs", "/manual/doctor/labs.html")]
+    [TestCase("doctor", "allergies", "/manual/doctor/allergies.html")]
+    [TestCase("doctor", "consults", "/manual/doctor/consults.html")]
+    [TestCase("doctor", "immunizations", "/manual/doctor/immunizations.html")]
     [TestCase("doctor", "cover-sheet", "/manual/doctor/cover-sheet.html")]
     [TestCase("doctor", "", "/manual/doctor/getting-started.html")]
     [TestCase("doctor", "some-unmapped-page", "/manual/doctor/index.html")]

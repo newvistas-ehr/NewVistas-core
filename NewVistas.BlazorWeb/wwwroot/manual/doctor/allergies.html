@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Allergies — Physician Manual — NewVistas</title>
+  <link rel="stylesheet" href="../assets/css/manual.css" />
+</head>
+<body>
+  <div class="topbar">
+    <div class="brand"><a href="../index.html">NewVistas</a> <span>· User Manual</span></div>
+    <div class="role-pill">🩺 Physician</div>
+  </div>
+
+  <div class="layout">
+    <nav class="sidebar">
+      <div class="section">Physician Manual</div>
+      <a href="index.html">Overview</a>
+      <a href="getting-started.html">Getting Started</a>
+      <div class="section">Chart &amp; Workflows</div>
+      <a href="cover-sheet.html">Cover Sheet</a>
+      <a href="problem-list.html">Problem List</a>
+      <a href="prescribing.html">Prescribing &amp; Safety Gate</a>
+      <a href="orders.html">Order Entry</a>
+      <a href="notes.html">Progress Notes</a>
+      <a href="consults.html">Consults</a>
+      <a href="labs.html">Labs</a>
+      <a href="allergies.html" class="active">Allergies</a>
+      <a href="immunizations.html">Immunizations</a>
+      <div class="section">&nbsp;</div>
+      <a href="../index.html">← All roles</a>
+    </nav>
+
+    <main class="content">
+      <div class="crumb"><a href="../index.html">Manual</a> › <a href="index.html">Physician</a> › Allergies</div>
+      <h1>Allergy Documentation</h1>
+      <p class="lead">
+        The Allergies screen is where you review a patient's documented
+        allergies and adverse reactions, and record new ones. Allergies drive
+        the safety checks elsewhere in the chart, so keeping them accurate
+        matters. It is the equivalent of the CPRS Allergies tab.
+      </p>
+
+      <h2>Open Allergies</h2>
+      <ol class="steps">
+        <li>In the sidebar, click <kbd>Allergies</kbd> (or go to <code>/allergies</code>).</li>
+        <li>If a patient is already in context, their allergies load automatically. Otherwise, in the patient bar type the patient ID (e.g. <code>P9001</code>) and click <kbd>Load</kbd>.</li>
+      </ol>
+
+      <figure class="shot">
+        <img src="../assets/img/doctor/allergies.png" alt="Allergies view tab for a loaded patient" />
+        <figcaption>Allergies — the view tab listing allergen, type, reactions, and severity.</figcaption>
+      </figure>
+
+      <h2>What you see</h2>
+      <h3>The two tabs</h3>
+      <ul>
+        <li><strong>Allergies</strong> — the current list.</li>
+        <li><strong>Record Allergy</strong> — the form for adding a new entry.</li>
+      </ul>
+
+      <h3>The allergies list</h3>
+      <p>The view tab is a table showing Allergen, Type, Reactions, Severity, and whether the entry is Observed or Historical. Severe reactions are shown in red, moderate in amber. If the patient has none, a green <strong>No Known Allergies</strong> banner appears instead of a blank table.</p>
+
+      <h3>Recording an allergy</h3>
+      <p>On the <strong>Record Allergy</strong> tab, enter the <strong>Allergen</strong> (required, e.g. Penicillin) and pick the <strong>Allergen Type</strong> (Drug / Food / Other, required). Then set the Reaction Type, list the Reactions (comma-separated), choose a Severity (Mild / Moderate / Severe), mark it <strong>Observed</strong> or <strong>Historical</strong>, confirm the Originator, add any Comments, and click <strong>Record Allergy</strong>.</p>
+      <div class="callout note">
+        <span class="ct">Why it matters</span>
+        Allergies are always shown in full on the Cover Sheet (never trimmed),
+        and they feed the order-check and prescribing safety gates. An accurate
+        allergy list is what makes those warnings fire when they should.
+      </div>
+      <div class="callout tip">
+        <span class="ct">Tip</span>
+        Enter several reactions at once by separating them with commas — e.g.
+        <code>Rash, Itching, Swelling</code> — and they're stored as distinct
+        reactions.
+      </div>
+
+      <footer>NewVistas User Manual · Physician · Allergies</footer>
+    </main>
+  </div>
+</body>
+</html>

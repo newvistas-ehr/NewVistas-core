@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Labs — Physician Manual — NewVistas</title>
+  <link rel="stylesheet" href="../assets/css/manual.css" />
+</head>
+<body>
+  <div class="topbar">
+    <div class="brand"><a href="../index.html">NewVistas</a> <span>· User Manual</span></div>
+    <div class="role-pill">🩺 Physician</div>
+  </div>
+
+  <div class="layout">
+    <nav class="sidebar">
+      <div class="section">Physician Manual</div>
+      <a href="index.html">Overview</a>
+      <a href="getting-started.html">Getting Started</a>
+      <div class="section">Chart &amp; Workflows</div>
+      <a href="cover-sheet.html">Cover Sheet</a>
+      <a href="problem-list.html">Problem List</a>
+      <a href="prescribing.html">Prescribing &amp; Safety Gate</a>
+      <a href="orders.html">Order Entry</a>
+      <a href="notes.html">Progress Notes</a>
+      <a href="consults.html">Consults</a>
+      <a href="labs.html" class="active">Labs</a>
+      <a href="allergies.html">Allergies</a>
+      <a href="immunizations.html">Immunizations</a>
+      <div class="section">&nbsp;</div>
+      <a href="../index.html">← All roles</a>
+    </nav>
+
+    <main class="content">
+      <div class="crumb"><a href="../index.html">Manual</a> › <a href="index.html">Physician</a> › Labs</div>
+      <h1>Labs</h1>
+      <p class="lead">
+        The Laboratory Information System (LR) screen is where you review lab
+        results, see the current summary with trends, and order new tests. It
+        maps to VistA File #63 and is the equivalent of the CPRS Labs tab.
+      </p>
+
+      <h2>Open Labs</h2>
+      <ol class="steps">
+        <li>In the sidebar, click <kbd>Labs</kbd> (or go to <code>/labs</code>).</li>
+        <li>If a patient is already in context, their results load automatically. Otherwise, in the patient bar type the patient ID (e.g. <code>P9001</code>) and load the patient.</li>
+      </ol>
+
+      <figure class="shot">
+        <img src="../assets/img/doctor/labs.png" alt="Labs Results tab for a loaded patient" />
+        <figcaption>Labs — the Results tab with summary cards and the results table.</figcaption>
+      </figure>
+
+      <h2>What you see</h2>
+      <h3>The three tabs</h3>
+      <ul>
+        <li><strong>Results</strong> — every lab order with its result, units, abnormal flag, and status.</li>
+        <li><strong>Current Summary</strong> — the latest value per test, with reference range and a last-3 trend.</li>
+        <li><strong>Order / Submit</strong> — place a new lab order or ingest a result directly.</li>
+      </ul>
+
+      <h3>Results tab</h3>
+      <p>Summary cards count Total Orders, Abnormal, and Pending. The table below lists each test; abnormal values appear in red, and rows carry the action that fits the test's status:</p>
+      <ul>
+        <li><strong>Collect</strong> — record specimen collection for an Ordered test.</li>
+        <li><strong>Enter Result</strong> — record a value, units, reference range, and abnormal flag for a Collected test.</li>
+        <li><strong>Verify</strong> — verify a Completed result by selecting the verifying provider.</li>
+      </ul>
+
+      <h3>Current Summary tab</h3>
+      <p>Shows the most recent value per test with LOINC, reference range, flag, and a small trend of the last three values. Any abnormal results are also called out in a banner at the top.</p>
+
+      <h3>Order / Submit tab</h3>
+      <p>The <strong>Order New Lab Test</strong> form has a <em>Quick pick</em> of common tests (CBC, BMP, Lipid Panel, A1c, and more) that fills the test name, LOINC, category, and specimen for you; confirm the ordering provider and click <strong>Place Order</strong>. A separate <strong>Ingest Result</strong> form lets you submit a completed result directly — for example from an HL7 feed or external lab.</p>
+      <div class="callout note">
+        <span class="ct">Flags &amp; colors</span>
+        Abnormal flags follow the standard scheme: H/L are highlighted, and
+        critical highs/lows (CH/CL) are shown in red and tint the whole row —
+        so critical results stand out at a glance.
+      </div>
+      <div class="callout tip">
+        <span class="ct">Tip</span>
+        Don't know the LOINC code? Use the <strong>Quick pick</strong> dropdown
+        on the Order tab — selecting a common test fills the LOINC, category,
+        and specimen automatically.
+      </div>
+
+      <footer>NewVistas User Manual · Physician · Labs</footer>
+    </main>
+  </div>
+</body>
+</html>

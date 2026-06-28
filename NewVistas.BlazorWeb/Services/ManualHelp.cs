@@ -49,9 +49,14 @@ public static class ManualHelp
             ["patient-lookup"] = "getting-started.html",
             ["cover-sheet"] = "cover-sheet.html",
             ["problems"] = "problem-list.html",
-            ["orders"] = "prescribing.html",
+            ["orders"] = "orders.html",
             ["medications"] = "prescribing.html",
             ["epcs"] = "prescribing.html",
+            ["notes"] = "notes.html",
+            ["consults"] = "consults.html",
+            ["labs"] = "labs.html",
+            ["allergies"] = "allergies.html",
+            ["immunizations"] = "immunizations.html",
         },
         ["nurse"] = new()
         {

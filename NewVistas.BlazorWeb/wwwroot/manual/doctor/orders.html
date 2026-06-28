@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Order Entry — Physician Manual — NewVistas</title>
+  <link rel="stylesheet" href="../assets/css/manual.css" />
+</head>
+<body>
+  <div class="topbar">
+    <div class="brand"><a href="../index.html">NewVistas</a> <span>· User Manual</span></div>
+    <div class="role-pill">🩺 Physician</div>
+  </div>
+
+  <div class="layout">
+    <nav class="sidebar">
+      <div class="section">Physician Manual</div>
+      <a href="index.html">Overview</a>
+      <a href="getting-started.html">Getting Started</a>
+      <div class="section">Chart &amp; Workflows</div>
+      <a href="cover-sheet.html">Cover Sheet</a>
+      <a href="problem-list.html">Problem List</a>
+      <a href="prescribing.html">Prescribing &amp; Safety Gate</a>
+      <a href="orders.html" class="active">Order Entry</a>
+      <a href="notes.html">Progress Notes</a>
+      <a href="consults.html">Consults</a>
+      <a href="labs.html">Labs</a>
+      <a href="allergies.html">Allergies</a>
+      <a href="immunizations.html">Immunizations</a>
+      <div class="section">&nbsp;</div>
+      <a href="../index.html">← All roles</a>
+    </nav>
+
+    <main class="content">
+      <div class="crumb"><a href="../index.html">Manual</a> › <a href="index.html">Physician</a> › Order Entry</div>
+      <h1>Order Entry</h1>
+      <p class="lead">
+        The Order Entry / Results Reporting screen is where you place, check,
+        sign, and manage orders for a patient — labs, pharmacy, radiology,
+        consults, nursing, diet, and vitals — including reusable order sets. It
+        is the equivalent of the CPRS Orders tab.
+      </p>
+
+      <h2>Open Order Entry</h2>
+      <ol class="steps">
+        <li>In the sidebar, click <kbd>Order Entry</kbd> (or go to <code>/orders</code>).</li>
+        <li>If a patient is already in context, their orders load automatically. Otherwise, in the patient bar type the patient ID (e.g. <code>P9001</code>) and click <kbd>Load</kbd>.</li>
+      </ol>
+
+      <figure class="shot">
+        <img src="../assets/img/doctor/orders.png" alt="Order Entry screen showing the New Order form" />
+        <figcaption>Order Entry — the four-tab bar and the New Order form.</figcaption>
+      </figure>
+
+      <h2>What you see</h2>
+      <h3>The four tabs</h3>
+      <p>A tab bar across the top switches between the working views:</p>
+      <ul>
+        <li><strong>Active Orders</strong> — the current orders, with a filter dropdown (Current, All, Discontinued, Completed/Expired, Pending, Unsigned).</li>
+        <li><strong>New Order</strong> — the form for placing a single order.</li>
+        <li><strong>Order Sets</strong> — pre-built bundles you can place all at once.</li>
+        <li><strong>Order History</strong> — a date-range search of past orders.</li>
+      </ul>
+
+      <h3>Acting on an order</h3>
+      <p>Each row in the Active Orders table carries a status badge and the actions that fit it:</p>
+      <ul>
+        <li><strong>Sign</strong> — for Pending or Active orders.</li>
+        <li><strong>Hold</strong> and <strong>DC</strong> (discontinue) — for Active orders.</li>
+        <li><strong>Release</strong> — for orders on Hold.</li>
+      </ul>
+
+      <h3>Placing a new order</h3>
+      <p>On the <strong>New Order</strong> tab, choose the Order Type, type the Order Text, set Urgency (Routine / Urgent / STAT), add optional Instructions, optionally pick a Clinic / Location, and confirm the Ordering provider:</p>
+      <ul>
+        <li><strong>Check Order</strong> runs order checks first — any warnings appear in a highlighted box with their severity.</li>
+        <li><strong>Place Order</strong> files the order; it then appears under Active Orders.</li>
+      </ul>
+      <div class="callout note">
+        <span class="ct">Order checks</span>
+        Use <strong>Check Order</strong> before placing to surface duplicate,
+        interaction, or other warnings. High-severity warnings are shown in red,
+        moderate in amber — the same color scheme as the rest of the chart.
+      </div>
+
+      <h3>Order sets</h3>
+      <p>The <strong>Order Sets</strong> tab lists bundles as cards. Pick one to expand it, then tick the orders you want, choose the provider, and place them. They are filed as <strong>pending</strong> orders that appear under Active Orders for you to sign.</p>
+      <div class="callout tip">
+        <span class="ct">Tip</span>
+        Order-set items come pre-ticked with the set's defaults — just untick
+        anything you don't want before placing.
+      </div>
+
+      <footer>NewVistas User Manual · Physician · Order Entry</footer>
+    </main>
+  </div>
+</body>
+</html>

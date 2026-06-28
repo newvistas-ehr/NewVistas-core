@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Progress Notes — Physician Manual — NewVistas</title>
+  <link rel="stylesheet" href="../assets/css/manual.css" />
+</head>
+<body>
+  <div class="topbar">
+    <div class="brand"><a href="../index.html">NewVistas</a> <span>· User Manual</span></div>
+    <div class="role-pill">🩺 Physician</div>
+  </div>
+
+  <div class="layout">
+    <nav class="sidebar">
+      <div class="section">Physician Manual</div>
+      <a href="index.html">Overview</a>
+      <a href="getting-started.html">Getting Started</a>
+      <div class="section">Chart &amp; Workflows</div>
+      <a href="cover-sheet.html">Cover Sheet</a>
+      <a href="problem-list.html">Problem List</a>
+      <a href="prescribing.html">Prescribing &amp; Safety Gate</a>
+      <a href="orders.html">Order Entry</a>
+      <a href="notes.html" class="active">Progress Notes</a>
+      <a href="consults.html">Consults</a>
+      <a href="labs.html">Labs</a>
+      <a href="allergies.html">Allergies</a>
+      <a href="immunizations.html">Immunizations</a>
+      <div class="section">&nbsp;</div>
+      <a href="../index.html">← All roles</a>
+    </nav>
+
+    <main class="content">
+      <div class="crumb"><a href="../index.html">Manual</a> › <a href="index.html">Physician</a> › Progress Notes</div>
+      <h1>Progress Notes</h1>
+      <p class="lead">
+        The Progress Notes screen is where you read, write, and sign the
+        patient's TIU documents — progress notes, discharge summaries, consult
+        notes, and more. It is the equivalent of the CPRS Notes tab.
+      </p>
+
+      <h2>Open Progress Notes</h2>
+      <ol class="steps">
+        <li>In the sidebar, click <kbd>Progress Notes</kbd> (or go to <code>/notes</code>).</li>
+        <li>If a patient is already in context, their notes load automatically. Otherwise, in the patient bar type the patient ID (e.g. <code>P9001</code>) and click <kbd>Load</kbd>.</li>
+      </ol>
+
+      <figure class="shot">
+        <img src="../assets/img/doctor/notes.png" alt="Progress Notes list for a loaded patient" />
+        <figcaption>Progress Notes — the notes list with date, type, subject, author, and status.</figcaption>
+      </figure>
+
+      <h2>What you see</h2>
+      <h3>The notes list</h3>
+      <p>The body is a table of the patient's notes. Each row shows Date, Type, Subject, Author, Status, and Location. Click any row to open the full note in a detail view.</p>
+      <ul>
+        <li>Status badges flag where a note stands — <strong>UNSIGNED</strong> / <strong>UNCOSIGNED</strong> in amber, <strong>COMPLETED</strong> in green.</li>
+        <li>A <code>[+]</code> next to the subject means the note has addenda.</li>
+        <li><strong>Note History</strong> opens a date-range search for older notes.</li>
+      </ul>
+
+      <h3>Writing a new note</h3>
+      <p>Click <strong>+ New Note</strong> to open the form. Choose the Document Type (Progress Note, Discharge Summary, Consult Note, Surgical Note, Crisis Note, Advance Directive), add a Subject, confirm the Author, set the Location, type the Note Text, and click <strong>Save Note</strong>.</p>
+
+      <h3>Signing a note</h3>
+      <p>Open a note to see its detail. An <strong>UNSIGNED</strong> note shows a <strong>Sign</strong> button; an <strong>UNCOSIGNED</strong> note shows <strong>Cosign</strong>. Either opens the electronic-signature dialog, where you enter your Signer ID and electronic signature code to complete it.</p>
+      <div class="callout note">
+        <span class="ct">Electronic signature</span>
+        Signing and cosigning require your electronic signature code — the same
+        legally binding e-sig as in CPRS. A note is not part of the legal record
+        until it is signed.
+      </div>
+      <div class="callout tip">
+        <span class="ct">Tip</span>
+        Note text is required before you can save. The subject, author, and
+        location help others find and route the note later — fill them in even
+        though they're optional.
+      </div>
+
+      <footer>NewVistas User Manual · Physician · Progress Notes</footer>
+    </main>
+  </div>
+</body>
+</html>

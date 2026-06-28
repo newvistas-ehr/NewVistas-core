@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Consults — Physician Manual — NewVistas</title>
+  <link rel="stylesheet" href="../assets/css/manual.css" />
+</head>
+<body>
+  <div class="topbar">
+    <div class="brand"><a href="../index.html">NewVistas</a> <span>· User Manual</span></div>
+    <div class="role-pill">🩺 Physician</div>
+  </div>
+
+  <div class="layout">
+    <nav class="sidebar">
+      <div class="section">Physician Manual</div>
+      <a href="index.html">Overview</a>
+      <a href="getting-started.html">Getting Started</a>
+      <div class="section">Chart &amp; Workflows</div>
+      <a href="cover-sheet.html">Cover Sheet</a>
+      <a href="problem-list.html">Problem List</a>
+      <a href="prescribing.html">Prescribing &amp; Safety Gate</a>
+      <a href="orders.html">Order Entry</a>
+      <a href="notes.html">Progress Notes</a>
+      <a href="consults.html" class="active">Consults</a>
+      <a href="labs.html">Labs</a>
+      <a href="allergies.html">Allergies</a>
+      <a href="immunizations.html">Immunizations</a>
+      <div class="section">&nbsp;</div>
+      <a href="../index.html">← All roles</a>
+    </nav>
+
+    <main class="content">
+      <div class="crumb"><a href="../index.html">Manual</a> › <a href="index.html">Physician</a> › Consults</div>
+      <h1>Consults</h1>
+      <p class="lead">
+        The Consults screen is where you request a consult to another service,
+        track it through its lifecycle, and complete it with a result note. It
+        is the equivalent of the CPRS Consults tab.
+      </p>
+
+      <h2>Open Consults</h2>
+      <ol class="steps">
+        <li>In the sidebar, click <kbd>Consults</kbd> (or go to <code>/consults</code>).</li>
+        <li>If a patient is already in context, their consults load automatically. Otherwise, in the patient bar type the patient ID (e.g. <code>P9001</code>) and click <kbd>Load</kbd>.</li>
+      </ol>
+
+      <figure class="shot">
+        <img src="../assets/img/doctor/consults.png" alt="Consults list for a loaded patient" />
+        <figcaption>Consults — the list of requests with service, urgency, and status.</figcaption>
+      </figure>
+
+      <h2>What you see</h2>
+      <h3>The consults list</h3>
+      <p>The body is a table of the patient's consults, showing Date, To Service, From, Type, Urgency, Status, Requesting provider, and Diagnosis. Click a row to open the full consult.</p>
+      <ul>
+        <li>Urgency badges: <strong>STAT</strong> in red, <strong>Urgent</strong> in amber, Routine in blue.</li>
+        <li>Status badges track the lifecycle — PENDING, ACTIVE, SCHEDULED, COMPLETE, CANCELLED.</li>
+        <li>A <code>[Note]</code> marker means a result document is attached.</li>
+      </ul>
+
+      <h3>Requesting a consult</h3>
+      <p>Click <strong>+ New Consult</strong> to open the request form. Enter the <strong>To Service</strong> (required, e.g. Cardiology), optionally the From Service, set Urgency, pick the Requesting Provider and Attention provider, add a Provisional Diagnosis, and type the Reason for Request, then <strong>Submit Request</strong>.</p>
+
+      <h3>Working a consult</h3>
+      <p>Open a consult to see its detail and the actions that fit its status: <strong>Accept</strong> or <strong>Cancel</strong> a PENDING consult, <strong>Schedule</strong> an ACTIVE one, and <strong>Complete</strong> an ACTIVE or SCHEDULED one with a result note. The detail also has sections to set the consult type, clinical history, follow-up recommendation, consulting provider, interfacility details, and to add tracking comments.</p>
+      <div class="callout note">
+        <span class="ct">Lifecycle</span>
+        A consult moves PENDING → ACTIVE → SCHEDULED → COMPLETE. Each step
+        unlocks the next action, so the buttons you see depend on where the
+        consult currently stands.
+      </div>
+      <div class="callout tip">
+        <span class="ct">Tip</span>
+        Use <strong>Tracking Comments</strong> to leave an audit trail as the
+        consult is forwarded, updated, or reviewed — each comment records the
+        author, the action taken, and a timestamp.
+      </div>
+
+      <footer>NewVistas User Manual · Physician · Consults</footer>
+    </main>
+  </div>
+</body>
+</html>
