@@ -108,6 +108,21 @@ figure.shot figcaption { color: var(--muted); font-size: 0.85rem; margin-top: 0.
 .callout.safety { border-left-color: var(--danger); background: var(--danger-bg); }
 .callout.safety .ct { color: var(--danger); }
 
+/* ── Edition tier badges (VistA core / RPMS / Modern) ─────── */
+.tier {
+  display: inline-block; font-size: 0.68rem; font-weight: 700; line-height: 1.5;
+  padding: 0.02rem 0.5rem; border-radius: 999px; vertical-align: middle;
+  margin-left: 0.4rem; letter-spacing: 0.02em; white-space: nowrap;
+}
+.tier.vista  { background: #eaf2fb; color: var(--navy); border: 1px solid #b9cce0; }
+.tier.rpms   { background: #efeaf8; color: #5b3aa6; border: 1px solid #cdbce8; }
+.tier.modern { background: var(--ok-bg); color: var(--ok); border: 1px solid #a9ddbf; }
+.flag { font-family: ui-monospace, "Cascadia Code", Consolas, monospace; font-size: 0.92em; color: var(--muted); }
+
+/* Legend on the landing page */
+.tierlegend { display: flex; flex-wrap: wrap; gap: 1.25rem; margin: 0.75rem 0 0; font-size: 0.85rem; color: var(--muted); }
+.tierlegend > span { display: inline-flex; align-items: center; gap: 0.4rem; }
+
 /* ── Role picker (landing) ───────────────────────────────── */
 .hero { padding: 2.5rem 2.5rem 1rem; max-width: 1000px; margin: 0 auto; }
 .hero h1 { font-size: 2rem; }

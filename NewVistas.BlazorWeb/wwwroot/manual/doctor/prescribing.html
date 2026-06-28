@@ -50,11 +50,14 @@
       </ol>
 
       <div class="callout note">
-        <span class="ct">Choosing the pharmacy</span>
-        Patients can use any outpatient pharmacy — retail (CVS, Walgreens, …), mail-order, or a
-        specialty pharmacy. Each patient has a <strong>default pharmacy</strong> they can set in
-        the Patient Portal under <em>My Pharmacy</em>; new prescriptions default to it and you can
-        override per prescription. Inpatient orders always go to the hospital pharmacy.
+        <span class="ct">Choosing the pharmacy <span class="tier modern">Modern</span></span>
+        Letting the patient pick any outpatient pharmacy is a <strong>Modern</strong> enhancement
+        (flag <span class="flag">EXTERNAL_PHARMACY</span>, on by default) — beyond core VistA/RPMS,
+        which dispense in-house plus CMOP mail-order. When it's on, patients can use any retail
+        (CVS, Walgreens, …), mail-order, or specialty pharmacy; each has a <strong>default
+        pharmacy</strong> they set in the Patient Portal under <em>My Pharmacy</em>, and new
+        prescriptions default to it (override per prescription). With it off, prescriptions
+        dispense from the facility pharmacy. Inpatient orders always go to the hospital pharmacy.
       </div>
 
       <div class="callout note">
@@ -64,8 +67,8 @@
         every chain (CVS, Walgreens, independents, mail-order). The demo build has no live
         Surescripts connection, so the prescription is created and the system records that it
         <em>would</em> route to the chosen pharmacy. Multiple-pharmacy support is a site option —
-        the <code>EXTERNAL_PHARMACY</code> feature, on by default — that a VA/IHS-style site can
-        switch off to dispense in-house.
+        the <span class="flag">EXTERNAL_PHARMACY</span> feature, on by default — that a VA/IHS-style
+        site can switch off to dispense in-house.
       </div>
 
       <h2>Write an e-Prescription</h2>
