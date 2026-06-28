@@ -30,6 +30,7 @@ public class ManualHelpTests
     [TestCase("nurse", "vitals", "/manual/nurse/vital-signs.html")]
     [TestCase("nurse", "bcma", "/manual/nurse/bcma.html")]
     [TestCase("pharmacist", "drug-utilization-review", "/manual/pharmacist/drug-utilization-review.html")]
+    [TestCase("pharmacist", "pharmacy-pos", "/manual/pharmacist/pos-claims.html")]
     [TestCase("admin", "security-keys", "/manual/admin/security-keys.html")]
     [TestCase("bogus", "xyz-unmapped", "/manual/doctor/index.html")] // unknown section → doctor + fallback
     public void UrlForRoute_DeepLinksTopicOrFallsBack(string section, string route, string expected)

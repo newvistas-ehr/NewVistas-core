@@ -69,7 +69,7 @@ public static class ManualHelp
             ["inpatientpharmacy"] = "verify-fill.html",
             ["drug-utilization-review"] = "drug-utilization-review.html",
             ["epcs"] = "epcs.html",
-            ["pharmacypos"] = "pos-claims.html",
+            ["pharmacy-pos"] = "pos-claims.html",
         },
         ["admin"] = new()
         {
