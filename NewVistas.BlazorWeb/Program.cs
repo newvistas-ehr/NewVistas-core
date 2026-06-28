@@ -157,6 +157,28 @@ app.MapGet("/api/imaging/signed/{token}", async (
     }
 }).AllowAnonymous();
 
+// ─── Site editions endpoint (for the in-app user manual's site-aware badges) ──
+// The static manual (wwwroot/manual) fetches this to show which feature modules
+// (VistA core / RPMS / Modern) are enabled on this site and dim the rest. Anonymous +
+// read-only — it exposes only the site's feature-flag names, no patient or config data.
+app.MapGet("/api/site/features", async (Orleans.IGrainFactory grains) =>
+{
+    var site = grains.GetGrain<NewVistas.Abstractions.GrainInterfaces.ISiteParametersGrain>("SITE:DEFAULT");
+    string[] all =
+    {
+        "PATIENT_MERGE", "EPCS",
+        "IMMUNIZATION_FORECAST", "EXTERNAL_REFERRAL", "SUBSTANCE_ABUSE_TREATMENT", "PHARMACY_POS",
+        "GPRA_REPORTING", "PCC_SURVEILLANCE", "ICARE_DASHBOARD", "APPOINTMENT_WAITLIST",
+        "PROVIDER_AVAILABILITY", "PROVIDER_UNAVAILABILITY_BATCH", "PATIENT_SELF_SCHEDULING", "EXTERNAL_PHARMACY",
+    };
+    var enabled = new List<string>();
+    foreach (string f in all)
+    {
+        if (await site.IsFeatureEnabledAsync(f)) enabled.Add(f);
+    }
+    return Results.Ok(new { enabled });
+}).AllowAnonymous();
+
 app.MapDefaultEndpoints();
 
 app.MapRazorComponents<App>()

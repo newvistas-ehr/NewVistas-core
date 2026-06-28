@@ -123,6 +123,13 @@ figure.shot figcaption { color: var(--muted); font-size: 0.85rem; margin-top: 0.
 .tierlegend { display: flex; flex-wrap: wrap; gap: 1.25rem; margin: 0.75rem 0 0; font-size: 0.85rem; color: var(--muted); }
 .tierlegend > span { display: inline-flex; align-items: center; gap: 0.4rem; }
 
+/* Site-aware editions (editions.js) — banner + dimmed off-here content */
+.site-edition-banner { background: #eef3f9; border-bottom: 1px solid var(--line); padding: 0.4rem 1.25rem; font-size: 0.8rem; color: var(--muted); }
+.site-edition-banner strong { color: var(--navy); }
+.site-edition-banner .flag { color: var(--navy); }
+[data-flag].edition-off { opacity: 0.5; }
+.edition-off-note { display: inline-block; margin-left: 0.5rem; font-size: 0.68rem; font-weight: 700; color: var(--warn); background: var(--warn-bg); border: 1px solid #f0d68a; border-radius: 999px; padding: 0.02rem 0.55rem; vertical-align: middle; letter-spacing: .01em; }
+
 /* ── Role picker (landing) ───────────────────────────────── */
 .hero { padding: 2.5rem 2.5rem 1rem; max-width: 1000px; margin: 0 auto; }
 .hero h1 { font-size: 2rem; }
