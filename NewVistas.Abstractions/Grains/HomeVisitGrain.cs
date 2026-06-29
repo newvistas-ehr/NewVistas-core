@@ -2,17 +2,18 @@
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
+using Orleans.Runtime;
 using NewVistas.Abstractions.GrainInterfaces;
 using NewVistas.Abstractions.GrainStates;
 
 namespace NewVistas.Abstractions.Grains;
 
-public class HHCVisitGrain : Grain, IHHCVisitGrain
+public class HomeVisitGrain : Grain, IHomeVisitGrain
 {
-    private readonly IPersistentState<HHCVisitState> _state;
+    private readonly IPersistentState<HomeVisitState> _state;
 
-    public HHCVisitGrain(
-        [PersistentState("hhcVisitState", "hhcVisitStore")] IPersistentState<HHCVisitState> state)
+    public HomeVisitGrain(
+        [PersistentState("homeVisitState", "homeVisitStore")] IPersistentState<HomeVisitState> state)
     {
         _state = state;
     }
@@ -20,76 +21,72 @@ public class HHCVisitGrain : Grain, IHHCVisitGrain
     public override Task OnActivateAsync(CancellationToken cancellationToken)
     {
         if (string.IsNullOrEmpty(_state.State.VisitId))
+        {
             _state.State.VisitId = this.GetPrimaryKeyString();
+            _state.State.CreatedDate = DateTime.UtcNow;
+            _state.State.LastModifiedDate = DateTime.UtcNow;
+        }
         return base.OnActivateAsync(cancellationToken);
     }
 
-    public async Task ScheduleVisitAsync(
+    public async Task ScheduleAsync(
+        string episodeId,
         string patientId,
         string patientName,
-        DateTime visitDate,
-        HHCVisitDiscipline discipline,
-        HHCVisitType visitType,
+        HomeCareDiscipline discipline,
+        HomeVisitType visitType,
+        DateTime scheduledDateTime,
         string clinicianId,
         string clinicianName,
-        string notes)
+        string reason)
     {
+        _state.State.EpisodeId = episodeId;
         _state.State.PatientId = patientId;
         _state.State.PatientName = patientName;
-        _state.State.VisitDate = visitDate;
         _state.State.Discipline = discipline;
         _state.State.VisitType = visitType;
+        _state.State.ScheduledDateTime = scheduledDateTime;
         _state.State.ClinicianId = clinicianId;
         _state.State.ClinicianName = clinicianName;
-        _state.State.Notes = notes;
-        _state.State.Status = HHCVisitStatus.Scheduled;
+        _state.State.Reason = reason;
+        _state.State.Status = HomeVisitStatus.Scheduled;
         _state.State.LastModifiedDate = DateTime.UtcNow;
         await _state.WriteStateAsync();
     }
 
-    public async Task CompleteVisitAsync(
+    public async Task StartAsync()
+    {
+        _state.State.Status = HomeVisitStatus.InProgress;
+        _state.State.LastModifiedDate = DateTime.UtcNow;
+        await _state.WriteStateAsync();
+    }
+
+    public async Task CompleteAsync(
         int durationMinutes,
         string vitalSigns,
         List<string> interventions,
-        string patientResponse,
-        string goalsProgress,
-        DateTime? nextVisitDate,
-        string notes)
+        string summary,
+        string noteId,
+        DateTime? nextVisitDate)
     {
-        _state.State.Status = HHCVisitStatus.Completed;
+        _state.State.Status = HomeVisitStatus.Completed;
         _state.State.DurationMinutes = durationMinutes;
         _state.State.VitalSigns = vitalSigns;
-        _state.State.Interventions = interventions;
-        _state.State.PatientResponse = patientResponse;
-        _state.State.GoalsProgress = goalsProgress;
+        _state.State.Interventions = interventions ?? new();
+        _state.State.Summary = summary;
+        _state.State.NoteId = noteId;
         _state.State.NextVisitDate = nextVisitDate;
-        _state.State.Notes = notes;
         _state.State.LastModifiedDate = DateTime.UtcNow;
         await _state.WriteStateAsync();
     }
 
-    public async Task CancelVisitAsync(string cancellationReason)
+    public async Task CancelAsync(HomeVisitStatus status, string reason)
     {
-        _state.State.Status = HHCVisitStatus.Cancelled;
-        _state.State.CancellationReason = cancellationReason;
+        _state.State.Status = status;
+        _state.State.CancellationReason = reason;
         _state.State.LastModifiedDate = DateTime.UtcNow;
         await _state.WriteStateAsync();
     }
 
-    public async Task MarkNoAnswerAsync()
-    {
-        _state.State.Status = HHCVisitStatus.NoAnswer;
-        _state.State.LastModifiedDate = DateTime.UtcNow;
-        await _state.WriteStateAsync();
-    }
-
-    public async Task MarkPatientRefusedAsync(string notes)
-    {
-        _state.State.Status = HHCVisitStatus.PatientRefused;
-        _state.State.Notes = notes;
-        _state.State.LastModifiedDate = DateTime.UtcNow;
-        await _state.WriteStateAsync();
-    }
-
-    public Task<HHCVisitState> GetVisitAsync() => Task.FromResult(_state.State);
+    public Task<HomeVisitState> GetVisitAsync() => Task.FromResult(_state.State);
 }

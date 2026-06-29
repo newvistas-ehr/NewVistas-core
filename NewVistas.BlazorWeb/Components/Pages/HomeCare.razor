@@ -1,0 +1,1113 @@
+@* Copyright 2026 Merrimack Valley Software Works, LLC. All rights reserved. *@
+@* This Source Code Form is subject to the terms of the Mozilla Public *@
+@* License, v. 2.0. If a copy of the MPL was not distributed with this *@
+@* file, You can obtain one at https://mozilla.org/MPL/2.0/.            *@
+@page "/home-care"
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+@rendermode InteractiveServer
+@using NewVistas.BlazorWeb.Services
+@using NewVistas.Abstractions.GrainInterfaces
+@using NewVistas.Abstractions.GrainStates
+@using NewVistas.Abstractions.Security
+@inject OrleansGrainService Grains
+@inject PatientContextService PatientContext
+@inject UserSecurityContext SecurityContext
+
+<PageTitle>Home-Based Care (HBPC)</PageTitle>
+
+@if (!SecurityContext.IsFeatureEnabled("HOME_BASED_CARE"))
+{
+    <div class="hbpc-container">
+        <div class="alert alert-info">Home-Based Care is not enabled at this site.</div>
+    </div>
+}
+else
+{
+    <div class="hbpc-container">
+        <div class="hbpc-header">
+            <h2>Home-Based Care (HBPC)</h2>
+            <div class="lookup-bar">
+                <input @bind="patientId" placeholder="Patient ID" class="lookup-input" />
+                <button class="btn btn-primary" @onclick="LoadEpisode">Load Episode</button>
+            </div>
+        </div>
+
+        @if (error != null)
+        {
+            <div class="alert alert-error">@error</div>
+        }
+        @if (successMsg != null)
+        {
+            <div class="alert alert-success">@successMsg</div>
+        }
+        @if (!CanEdit)
+        {
+            <div class="alert alert-info">👁 Read-only — viewing home care. Editing requires the HBHC MANAGER security key.</div>
+        }
+
+        <div class="tab-bar">
+            <button class="tab @TabClass("caseload")" @onclick='() => SetTab("caseload")'>Caseload</button>
+            <button class="tab @TabClass("visits")" @onclick='() => SetTab("visits")'>Today's Visits</button>
+            <button class="tab @TabClass("episode")" @onclick='() => SetTab("episode")'>Episode Detail</button>
+        </div>
+
+        <!-- ── Caseload Tab ────────────────────────────────────────────────── -->
+        @if (activeTab == "caseload")
+        {
+            @if (caseloadLoading)
+            {
+                <div class="loading">Loading caseload…</div>
+            }
+            else
+            {
+                @if (workload != null)
+                {
+                    <div class="stat-cards">
+                        <div class="stat-card active">
+                            <span class="stat-num">@workload.ActiveEpisodes</span>
+                            <span class="stat-lbl">Active</span>
+                        </div>
+                        <div class="stat-card hold">
+                            <span class="stat-num">@workload.OnHoldEpisodes</span>
+                            <span class="stat-lbl">On Hold</span>
+                        </div>
+                        <div class="stat-card basic">
+                            <span class="stat-num">@workload.BasicCare</span>
+                            <span class="stat-lbl">Basic</span>
+                        </div>
+                        <div class="stat-card enhanced">
+                            <span class="stat-num">@workload.EnhancedCare</span>
+                            <span class="stat-lbl">Enhanced</span>
+                        </div>
+                        <div class="stat-card palliative">
+                            <span class="stat-num">@workload.PalliativeCare</span>
+                            <span class="stat-lbl">Palliative</span>
+                        </div>
+                        <div class="stat-card norecent">
+                            <span class="stat-num">@workload.NoRecentVisit</span>
+                            <span class="stat-lbl">No Recent Visit</span>
+                        </div>
+                        <div class="stat-card upcoming">
+                            <span class="stat-num">@workload.UpcomingVisits</span>
+                            <span class="stat-lbl">Upcoming (7d)</span>
+                        </div>
+                    </div>
+                }
+
+                <div class="filter-bar">
+                    <label>Filter</label>
+                    <select @bind="caseloadFilter" @bind:after="ApplyCaseloadFilter">
+                        <option value="all">All active</option>
+                        <option value="norecent">No recent visit (30d)</option>
+                        <option value="Basic">Level: Basic</option>
+                        <option value="Enhanced">Level: Enhanced</option>
+                        <option value="Palliative">Level: Palliative</option>
+                    </select>
+                    <button class="btn btn-secondary" @onclick="LoadCaseload">Refresh</button>
+                </div>
+
+                @if (caseload == null || caseload.Count == 0)
+                {
+                    <div class="empty-state">No home-care episodes match this filter.</div>
+                }
+                else
+                {
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th>Patient</th>
+                                <th>Program</th>
+                                <th>Level of Care</th>
+                                <th>Primary Provider</th>
+                                <th>Last Visit</th>
+                                <th>Next Visit</th>
+                                <th>Open Problems</th>
+                                <th>Status</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (HomeCareCensusEntry e in caseload)
+                            {
+                                <tr class="clickable-row" @onclick="() => OpenEpisodeForPatient(e.PatientId)">
+                                    <td>@e.PatientName <span class="code">@e.PatientId</span></td>
+                                    <td>@ProgramText(e.ProgramType)</td>
+                                    <td>@e.LevelOfCare</td>
+                                    <td>@(string.IsNullOrWhiteSpace(e.PrimaryProviderName) ? "—" : e.PrimaryProviderName)</td>
+                                    <td>@(e.LastVisitDate.HasValue ? e.LastVisitDate.Value.ToString("yyyy-MM-dd") : "—")</td>
+                                    <td>@(e.NextVisitDate.HasValue ? e.NextVisitDate.Value.ToString("yyyy-MM-dd") : "—")</td>
+                                    <td>@e.OpenProblemCount</td>
+                                    <td><span class="badge @EpisodeStatusBadge(e.Status)">@e.Status</span></td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                }
+            }
+        }
+
+        <!-- ── Today's Visits Tab ──────────────────────────────────────────── -->
+        @if (activeTab == "visits")
+        {
+            @if (visitsLoading)
+            {
+                <div class="loading">Loading visit schedule…</div>
+            }
+            else if (upcomingVisits == null || upcomingVisits.Count == 0)
+            {
+                <div class="empty-state">No home visits scheduled in the next 7 days.</div>
+            }
+            else
+            {
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>Date / Time</th>
+                            <th>Patient</th>
+                            <th>Discipline</th>
+                            <th>Type</th>
+                            <th>Clinician</th>
+                            <th>Status</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (HomeVisitIndexEntry v in upcomingVisits)
+                        {
+                            <tr class="clickable-row" @onclick="() => OpenEpisodeForVisit(v)">
+                                <td>@v.ScheduledDateTime.ToString("yyyy-MM-dd HH:mm")</td>
+                                <td>@v.PatientName <span class="code">@v.PatientId</span></td>
+                                <td>@DisciplineText(v.Discipline)</td>
+                                <td>@v.VisitType</td>
+                                <td>@(string.IsNullOrWhiteSpace(v.ClinicianName) ? "—" : v.ClinicianName)</td>
+                                <td><span class="badge @VisitStatusBadge(v.Status)">@v.Status</span></td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            }
+        }
+
+        <!-- ── Episode Detail Tab ──────────────────────────────────────────── -->
+        @if (activeTab == "episode")
+        {
+            @if (string.IsNullOrWhiteSpace(patientId))
+            {
+                <div class="empty-state">Enter a Patient ID above and click "Load Episode", or pick a patient from the Caseload tab.</div>
+            }
+            else if (episodeLoading)
+            {
+                <div class="loading">Loading episode…</div>
+            }
+            else if (episode == null)
+            {
+                <div class="empty-state">No active home-care episode for @patientId.</div>
+                @if (CanEdit)
+                {
+                    <div class="tab-controls">
+                        <button class="btn btn-primary" @onclick="() => showAdmitPanel = !showAdmitPanel">Admit to HBPC</button>
+                    </div>
+                    @if (showAdmitPanel)
+                    {
+                        <div class="action-panel">
+                            <h5>Admit to HBPC</h5>
+                            <div class="form-row">
+                                <label>Program</label>
+                                <select @bind="admitProgram">
+                                    @foreach (HomeCareProgramType pt in Enum.GetValues<HomeCareProgramType>())
+                                    {
+                                        <option value="@pt">@ProgramText(pt)</option>
+                                    }
+                                </select>
+                                <label>Admission Date</label><input type="date" @bind="admitDate" />
+                            </div>
+                            <div class="form-row">
+                                <label>Admission Source</label>
+                                <select @bind="admitSource">
+                                    @foreach (HomeCareAdmissionSource s in Enum.GetValues<HomeCareAdmissionSource>())
+                                    {
+                                        <option value="@s">@s</option>
+                                    }
+                                </select>
+                                <label>Level of Care</label>
+                                <select @bind="admitLevel">
+                                    @foreach (HomeCareLevelOfCare l in Enum.GetValues<HomeCareLevelOfCare>())
+                                    {
+                                        <option value="@l">@l</option>
+                                    }
+                                </select>
+                            </div>
+                            <div class="form-row">
+                                <label>Referring Provider ID</label><input @bind="admitRefId" />
+                                <label>Referring Provider Name</label><input @bind="admitRefName" />
+                            </div>
+                            <div class="form-row">
+                                <label>Primary Dx Code</label><input @bind="admitDxCode" placeholder="ICD-10" />
+                                <label>Primary Dx Text</label><input @bind="admitDxText" />
+                            </div>
+                            <div class="form-row">
+                                <label>Clinical-Need Narrative</label><textarea @bind="admitNarrative" rows="2"></textarea>
+                            </div>
+                            <div class="form-row">
+                                <label>Primary Caregiver</label><input @bind="admitCaregiver" />
+                                <label>Home Address</label><input @bind="admitHomeAddress" />
+                            </div>
+                            <div class="panel-btns">
+                                <button class="btn btn-primary" @onclick="SubmitAdmit">Admit</button>
+                                <button class="btn btn-secondary" @onclick="CloseAllPanels">Cancel</button>
+                            </div>
+                        </div>
+                    }
+                }
+            }
+            else
+            {
+                <div class="detail-panel">
+                    <h4>@episode.PatientName — @ProgramText(episode.ProgramType)</h4>
+                    <div class="detail-grid">
+                        <div><label>Status</label><span><span class="badge @EpisodeStatusBadge(episode.Status)">@episode.Status</span></span></div>
+                        <div><label>Admission Date</label><span>@episode.AdmissionDate.ToString("yyyy-MM-dd")</span></div>
+                        <div><label>Admission Source</label><span>@episode.AdmissionSource</span></div>
+                        <div><label>Level of Care</label><span>@episode.LevelOfCare</span></div>
+                        <div><label>Primary Dx</label><span>@episode.PrimaryDiagnosisText <span class="code">@episode.PrimaryDiagnosisCode</span></span></div>
+                        <div><label>Caregiver</label><span>@(string.IsNullOrWhiteSpace(episode.PrimaryCaregiver) ? "—" : episode.PrimaryCaregiver)</span></div>
+                        <div class="full-width"><label>Home Address</label><span>@(string.IsNullOrWhiteSpace(episode.HomeAddress) ? "—" : episode.HomeAddress)</span></div>
+                        <div class="full-width"><label>Clinical-Need Narrative</label><span>@(string.IsNullOrWhiteSpace(episode.Eligibility.ClinicalNeedNarrative) ? "—" : episode.Eligibility.ClinicalNeedNarrative)</span></div>
+                        @if (episode.Status == HomeCareEpisodeStatus.OnHold && !string.IsNullOrWhiteSpace(episode.OnHoldReason))
+                        {
+                            <div class="full-width"><label>On-Hold Reason</label><span>@episode.OnHoldReason</span></div>
+                        }
+                    </div>
+
+                    @if (CanEdit)
+                    {
+                        <div class="detail-actions">
+                            <button class="btn btn-primary" @onclick="() => Toggle(ref showTeamPanel)">Add Team Member</button>
+                            <button class="btn btn-primary" @onclick="() => Toggle(ref showVisitPanel)">Schedule Visit</button>
+                            <button class="btn btn-primary" @onclick="() => Toggle(ref showAssessPanel)">Record Assessment</button>
+                            @if (string.IsNullOrWhiteSpace(episode.PlanOfCareId))
+                            {
+                                <button class="btn btn-primary" @onclick="() => Toggle(ref showCreatePlanPanel)">Create Plan of Care</button>
+                            }
+                            else
+                            {
+                                <button class="btn btn-primary" @onclick="() => Toggle(ref showPlanProblemPanel)">Add Plan Problem</button>
+                            }
+                            <button class="btn btn-primary" @onclick="() => Toggle(ref showDischargePanel)">Discharge</button>
+                        </div>
+                    }
+                </div>
+
+                @* ── Team panel ── *@
+                <div class="detail-panel">
+                    <h4>Team</h4>
+                    @if (episode.Team == null || episode.Team.Count == 0)
+                    {
+                        <div class="empty-state">No team members assigned.</div>
+                    }
+                    else
+                    {
+                        <table class="data-table">
+                            <thead>
+                                <tr><th>Discipline</th><th>Name</th><th>Role</th><th></th></tr>
+                            </thead>
+                            <tbody>
+                                @foreach (HomeCareTeamMember m in episode.Team)
+                                {
+                                    <tr>
+                                        <td>@DisciplineText(m.Discipline)</td>
+                                        <td>@m.Name <span class="code">@m.ProviderId</span></td>
+                                        <td>@(string.IsNullOrWhiteSpace(m.RoleTitle) ? "—" : m.RoleTitle)</td>
+                                        <td>@if (m.IsPrimary) { <span class="badge badge-info">Primary</span> }</td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    }
+                </div>
+
+                @if (showTeamPanel)
+                {
+                    <div class="action-panel">
+                        <h5>Add Team Member</h5>
+                        <div class="form-row">
+                            <label>Provider ID</label><input @bind="teamProviderId" />
+                            <label>Name</label><input @bind="teamName" />
+                        </div>
+                        <div class="form-row">
+                            <label>Discipline</label>
+                            <select @bind="teamDiscipline">
+                                @foreach (HomeCareDiscipline d in Enum.GetValues<HomeCareDiscipline>())
+                                {
+                                    <option value="@d">@DisciplineText(d)</option>
+                                }
+                            </select>
+                            <label>Role Title</label><input @bind="teamRole" placeholder="e.g. Primary RN" />
+                        </div>
+                        <div class="form-row">
+                            <label>Primary</label><input type="checkbox" @bind="teamIsPrimary" />
+                        </div>
+                        <div class="panel-btns">
+                            <button class="btn btn-primary" @onclick="SubmitTeamMember">Add</button>
+                            <button class="btn btn-secondary" @onclick="CloseAllPanels">Cancel</button>
+                        </div>
+                    </div>
+                }
+
+                @* ── Plan of Care panel ── *@
+                <div class="detail-panel">
+                    <h4>Plan of Care</h4>
+                    @if (string.IsNullOrWhiteSpace(episode.PlanOfCareId))
+                    {
+                        <div class="empty-state">No plan of care established yet.</div>
+                    }
+                    else if (plan == null)
+                    {
+                        <div class="loading">Loading plan…</div>
+                    }
+                    else
+                    {
+                        <div class="plan-meta">
+                            Established by @plan.EstablishedByName on @plan.EstablishedDate.ToString("yyyy-MM-dd")
+                            @if (plan.LastReviewDate.HasValue) { <text> · Last reviewed @plan.LastReviewDate.Value.ToString("yyyy-MM-dd")</text> }
+                            @if (plan.NextReviewDue.HasValue) { <text> · Next review due @plan.NextReviewDue.Value.ToString("yyyy-MM-dd")</text> }
+                        </div>
+                        @if (plan.Problems == null || plan.Problems.Count == 0)
+                        {
+                            <div class="empty-state">No problems on the plan yet.</div>
+                        }
+                        else
+                        {
+                            @foreach (CarePlanProblem p in plan.Problems)
+                            {
+                                <div class="problem-card">
+                                    <div class="problem-header">
+                                        <strong>@p.Problem</strong>
+                                        <span class="badge @ProblemStatusBadge(p.Status)">@p.Status</span>
+                                        <span class="problem-disc">@DisciplineText(p.ResponsibleDiscipline)</span>
+                                    </div>
+                                    @if (!string.IsNullOrWhiteSpace(p.RelatedTo))
+                                    {
+                                        <div class="problem-line"><em>Related to:</em> @p.RelatedTo</div>
+                                    }
+                                    @if (p.Goals != null && p.Goals.Count > 0)
+                                    {
+                                        <div class="problem-line"><em>Goals:</em> @string.Join("; ", p.Goals)</div>
+                                    }
+                                    @if (p.Interventions != null && p.Interventions.Count > 0)
+                                    {
+                                        <div class="problem-line"><em>Interventions:</em> @string.Join("; ", p.Interventions)</div>
+                                    }
+                                </div>
+                            }
+                        }
+                    }
+                </div>
+
+                @if (showCreatePlanPanel)
+                {
+                    <div class="action-panel">
+                        <h5>Create Plan of Care</h5>
+                        <div class="form-row">
+                            <ProviderPicker @bind-ProviderId="planEstablishedById" @bind-ProviderName="planEstablishedByName" Label="Established by" DefaultToSelf="true" />
+                        </div>
+                        <div class="panel-btns">
+                            <button class="btn btn-primary" @onclick="SubmitCreatePlan">Create Plan</button>
+                            <button class="btn btn-secondary" @onclick="CloseAllPanels">Cancel</button>
+                        </div>
+                    </div>
+                }
+
+                @if (showPlanProblemPanel)
+                {
+                    <div class="action-panel">
+                        <h5>Add Plan Problem</h5>
+                        <div class="form-row">
+                            <label>Problem</label><input @bind="probProblem" />
+                            <label>Related To</label><input @bind="probRelatedTo" />
+                        </div>
+                        <div class="form-row">
+                            <label>Goals (one per line)</label>
+                            <textarea @bind="probGoals" rows="2"></textarea>
+                        </div>
+                        <div class="form-row">
+                            <label>Interventions (one per line)</label>
+                            <textarea @bind="probInterventions" rows="2"></textarea>
+                        </div>
+                        <div class="form-row">
+                            <label>Responsible Discipline</label>
+                            <select @bind="probDiscipline">
+                                @foreach (HomeCareDiscipline d in Enum.GetValues<HomeCareDiscipline>())
+                                {
+                                    <option value="@d">@DisciplineText(d)</option>
+                                }
+                            </select>
+                        </div>
+                        <div class="panel-btns">
+                            <button class="btn btn-primary" @onclick="SubmitPlanProblem">Add Problem</button>
+                            <button class="btn btn-secondary" @onclick="CloseAllPanels">Cancel</button>
+                        </div>
+                    </div>
+                }
+
+                @* ── Visits panel ── *@
+                <div class="detail-panel">
+                    <h4>Visits</h4>
+                    @if (episodeVisits == null || episodeVisits.Count == 0)
+                    {
+                        <div class="empty-state">No visits recorded for this episode.</div>
+                    }
+                    else
+                    {
+                        <table class="data-table">
+                            <thead>
+                                <tr>
+                                    <th>Date / Time</th>
+                                    <th>Discipline</th>
+                                    <th>Type</th>
+                                    <th>Clinician</th>
+                                    <th>Status</th>
+                                    <th>Duration</th>
+                                    @if (CanEdit) { <th></th> }
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (HomeVisitIndexEntry v in episodeVisits)
+                                {
+                                    <tr>
+                                        <td>@v.ScheduledDateTime.ToString("yyyy-MM-dd HH:mm")</td>
+                                        <td>@DisciplineText(v.Discipline)</td>
+                                        <td>@v.VisitType</td>
+                                        <td>@(string.IsNullOrWhiteSpace(v.ClinicianName) ? "—" : v.ClinicianName)</td>
+                                        <td><span class="badge @VisitStatusBadge(v.Status)">@v.Status</span></td>
+                                        <td>@(v.DurationMinutes > 0 ? $"{v.DurationMinutes} min" : "—")</td>
+                                        @if (CanEdit)
+                                        {
+                                            <td>
+                                                @if (v.Status == HomeVisitStatus.Scheduled || v.Status == HomeVisitStatus.InProgress)
+                                                {
+                                                    <button class="btn btn-secondary btn-sm" @onclick="() => OpenCompleteVisit(v.VisitId)">Complete</button>
+                                                }
+                                            </td>
+                                        }
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    }
+                </div>
+
+                @if (showVisitPanel)
+                {
+                    <div class="action-panel">
+                        <h5>Schedule Home Visit</h5>
+                        <div class="form-row">
+                            <label>Discipline</label>
+                            <select @bind="visitDiscipline">
+                                @foreach (HomeCareDiscipline d in Enum.GetValues<HomeCareDiscipline>())
+                                {
+                                    <option value="@d">@DisciplineText(d)</option>
+                                }
+                            </select>
+                            <label>Type</label>
+                            <select @bind="visitType">
+                                @foreach (HomeVisitType t in Enum.GetValues<HomeVisitType>())
+                                {
+                                    <option value="@t">@t</option>
+                                }
+                            </select>
+                        </div>
+                        <div class="form-row">
+                            <label>Date / Time</label><input type="datetime-local" @bind="visitDateTime" />
+                            <label>Reason</label><input @bind="visitReason" />
+                        </div>
+                        <div class="form-row">
+                            <label>Clinician ID</label><input @bind="visitClinicianId" />
+                            <label>Clinician Name</label><input @bind="visitClinicianName" />
+                        </div>
+                        <div class="panel-btns">
+                            <button class="btn btn-primary" @onclick="SubmitScheduleVisit">Schedule</button>
+                            <button class="btn btn-secondary" @onclick="CloseAllPanels">Cancel</button>
+                        </div>
+                    </div>
+                }
+
+                @if (showCompleteVisitPanel)
+                {
+                    <div class="action-panel">
+                        <h5>Complete Visit</h5>
+                        <div class="form-row">
+                            <label>Duration (min)</label><input type="number" min="0" @bind="cvDuration" />
+                            <label>Vital Signs</label><input @bind="cvVitals" placeholder="BP 138/84, HR 72, O2 96%" />
+                        </div>
+                        <div class="form-row">
+                            <label>Interventions (one per line)</label>
+                            <textarea @bind="cvInterventions" rows="2"></textarea>
+                        </div>
+                        <div class="form-row">
+                            <label>Summary</label><textarea @bind="cvSummary" rows="2"></textarea>
+                        </div>
+                        <div class="form-row">
+                            <label>Note ID</label><input @bind="cvNoteId" />
+                            <label>Next Visit Date</label><input type="date" @bind="cvNextVisitDate" />
+                        </div>
+                        <div class="panel-btns">
+                            <button class="btn btn-primary" @onclick="SubmitCompleteVisit">Complete Visit</button>
+                            <button class="btn btn-secondary" @onclick="CloseAllPanels">Cancel</button>
+                        </div>
+                    </div>
+                }
+
+                @* ── Assessments panel ── *@
+                <div class="detail-panel">
+                    <h4>Assessments</h4>
+                    @if (assessments == null || assessments.Count == 0)
+                    {
+                        <div class="empty-state">No assessments recorded for this episode.</div>
+                    }
+                    else
+                    {
+                        @foreach (HomeCareAssessmentState a in assessments)
+                        {
+                            <div class="problem-card">
+                                <div class="problem-header">
+                                    <strong>@a.AssessmentType</strong>
+                                    <span class="problem-disc">@a.AssessmentDate.ToString("yyyy-MM-dd") · @a.AssessorName</span>
+                                </div>
+                                @if (!string.IsNullOrWhiteSpace(a.Comprehensive.Summary))
+                                {
+                                    <div class="problem-line"><em>Summary:</em> @a.Comprehensive.Summary</div>
+                                }
+                                @if (!string.IsNullOrWhiteSpace(a.Comprehensive.FunctionalStatus))
+                                {
+                                    <div class="problem-line"><em>Functional:</em> @a.Comprehensive.FunctionalStatus</div>
+                                }
+                                @if (!string.IsNullOrWhiteSpace(a.Comprehensive.HomeSafety))
+                                {
+                                    <div class="problem-line"><em>Home safety:</em> @a.Comprehensive.HomeSafety</div>
+                                }
+                                @if (!string.IsNullOrWhiteSpace(a.Comprehensive.FallRisk))
+                                {
+                                    <div class="problem-line"><em>Fall risk:</em> @a.Comprehensive.FallRisk</div>
+                                }
+                            </div>
+                        }
+                    }
+                </div>
+
+                @if (showAssessPanel)
+                {
+                    <div class="action-panel">
+                        <h5>Record Comprehensive Assessment</h5>
+                        <div class="form-row">
+                            <label>Assessor ID</label><input @bind="asrId" />
+                            <label>Assessor Name</label><input @bind="asrName" />
+                            <label>Date</label><input type="date" @bind="asrDate" />
+                        </div>
+                        <div class="form-row">
+                            <label>Functional Status</label><input @bind="asrFunctional" />
+                            <label>Instrumental ADLs</label><input @bind="asrIadl" />
+                        </div>
+                        <div class="form-row">
+                            <label>Home Safety</label><input @bind="asrHomeSafety" />
+                            <label>Caregiver Support</label><input @bind="asrCaregiver" />
+                        </div>
+                        <div class="form-row">
+                            <label>Cognitive / Mental</label><input @bind="asrCognitive" />
+                            <label>Nutrition</label><input @bind="asrNutrition" />
+                        </div>
+                        <div class="form-row">
+                            <label>Med Reconciliation</label><input @bind="asrMedRec" />
+                            <label>Fall Risk</label><input @bind="asrFallRisk" />
+                        </div>
+                        <div class="form-row">
+                            <label>Summary</label><textarea @bind="asrSummary" rows="2"></textarea>
+                        </div>
+                        <div class="panel-btns">
+                            <button class="btn btn-primary" @onclick="SubmitAssessment">Record Assessment</button>
+                            <button class="btn btn-secondary" @onclick="CloseAllPanels">Cancel</button>
+                        </div>
+                    </div>
+                }
+
+                @if (showDischargePanel)
+                {
+                    <div class="action-panel">
+                        <h5>Discharge from HBPC</h5>
+                        <div class="form-row">
+                            <label>Discharge Date</label><input type="date" @bind="dischargeDate" />
+                            <label>Reason</label>
+                            <select @bind="dischargeReason">
+                                @foreach (HomeCareDischargeReason r in Enum.GetValues<HomeCareDischargeReason>())
+                                {
+                                    <option value="@r">@r</option>
+                                }
+                            </select>
+                        </div>
+                        <div class="form-row">
+                            <label>Notes</label><textarea @bind="dischargeNotes" rows="2"></textarea>
+                        </div>
+                        <div class="panel-btns">
+                            <button class="btn btn-primary" @onclick="SubmitDischarge">Discharge</button>
+                            <button class="btn btn-secondary" @onclick="CloseAllPanels">Cancel</button>
+                        </div>
+                    </div>
+                }
+            }
+        }
+    </div>
+}
+
+<style>
+    /* Canonical interaction classes (lookup-bar, lookup-input, tab-bar, tab, btn,
+       btn-primary, btn-secondary, alert, alert-*, data-table, badge, badge-*) are
+       defined once in app.css. Only page-specific styles live here. */
+    .hbpc-container { max-width: 1200px; margin: 0 auto; padding: 1rem; font-family: sans-serif; }
+    .hbpc-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 1rem; }
+    .hbpc-header h2 { margin: 0; color: #003f72; }
+    .loading { padding: 2rem; text-align: center; color: #555; }
+    .stat-cards { display: flex; gap: 1rem; margin-bottom: 1rem; flex-wrap: wrap; }
+    .stat-card { background: #fff; border: 1px solid #d4d9e0; border-radius: 8px; padding: 0.75rem 1.25rem; text-align: center; min-width: 90px; }
+    .stat-card.active { border-color: #166534; }
+    .stat-card.hold { border-color: #b45309; }
+    .stat-card.basic { border-color: #003f72; }
+    .stat-card.enhanced { border-color: #6b21a8; }
+    .stat-card.palliative { border-color: #9d174d; }
+    .stat-card.norecent { border-color: #b91c1c; }
+    .stat-card.upcoming { border-color: #0e7490; }
+    .stat-num { display: block; font-size: 1.8rem; font-weight: 700; color: #003f72; }
+    .stat-lbl { font-size: 0.78rem; color: #555; }
+    .filter-bar { display: flex; align-items: center; gap: 0.6rem; margin-bottom: 0.75rem; flex-wrap: wrap; }
+    .filter-bar label { font-size: 0.85rem; color: #333; }
+    .filter-bar select { padding: 0.35rem 0.5rem; border: 1px solid #d4d9e0; border-radius: 4px; font-size: 0.9rem; }
+    .clickable-row { cursor: pointer; }
+    .clickable-row:hover { background: #eaf2fb; }
+    .code { font-size: 0.75rem; color: #555; margin-left: 4px; }
+    .detail-panel { background: #f9fafb; border: 1px solid #d4d9e0; border-radius: 8px; padding: 1rem; margin-top: 0.75rem; }
+    .detail-panel h4 { margin: 0 0 0.75rem; color: #003f72; }
+    .detail-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 0.5rem; margin-bottom: 0.75rem; }
+    .detail-grid div { background: #fff; border: 1px solid #d4d9e0; border-radius: 4px; padding: 0.4rem 0.6rem; }
+    .detail-grid label { display: block; font-size: 0.75rem; color: #555; margin-bottom: 2px; }
+    .detail-grid span { font-size: 0.9rem; color: #333; }
+    .full-width { grid-column: 1 / -1; }
+    .detail-actions { display: flex; gap: 0.5rem; flex-wrap: wrap; margin-bottom: 0.25rem; }
+    .tab-controls { margin: 0.75rem 0; }
+    .action-panel { background: #f4f6f9; border: 1px solid #d4d9e0; border-radius: 6px; padding: 1rem; margin-top: 0.75rem; }
+    .action-panel h5 { margin: 0 0 0.75rem; color: #003f72; }
+    .form-row { display: flex; align-items: center; gap: 0.6rem; margin-bottom: 0.6rem; flex-wrap: wrap; }
+    .form-row label { font-size: 0.85rem; color: #333; min-width: 150px; }
+    .form-row input:not([type=checkbox]), .form-row select, .form-row textarea { flex: 1; padding: 0.35rem 0.5rem; border: 1px solid #d4d9e0; border-radius: 4px; font-size: 0.9rem; min-width: 120px; }
+    .panel-btns { display: flex; gap: 0.5rem; margin-top: 0.75rem; }
+    .btn-sm { padding: 0.2rem 0.5rem; font-size: 0.8rem; }
+    .empty-state { padding: 0.75rem; color: #555; font-style: italic; }
+    .plan-meta { font-size: 0.85rem; color: #555; margin-bottom: 0.5rem; }
+    .problem-card { background: #fff; border: 1px solid #d4d9e0; border-left: 4px solid #003f72; border-radius: 6px; padding: 0.6rem 0.8rem; margin-bottom: 0.5rem; }
+    .problem-header { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; color: #003f72; }
+    .problem-disc { color: #555; font-size: 0.82rem; }
+    .problem-line { font-size: 0.85rem; color: #333; margin-top: 0.2rem; }
+    button:disabled { opacity: 0.5; cursor: not-allowed; }
+</style>
+
+@code {
+    [SupplyParameterFromQuery] public string? patientId { get; set; }
+    private bool CanEdit => SecurityContext.HasKey(SecurityKeys.HBHC_MANAGER);
+
+    string activeTab = "caseload";
+    string? error;
+    string? successMsg;
+
+    // ── Caseload tab ──
+    bool caseloadLoading;
+    string caseloadFilter = "all";
+    List<HomeCareCensusEntry>? caseload;
+    HomeCareWorkloadStats? workload;
+
+    // ── Today's Visits tab ──
+    bool visitsLoading;
+    List<HomeVisitIndexEntry>? upcomingVisits;
+
+    // ── Episode detail tab ──
+    bool episodeLoading;
+    HomeCareEpisodeState? episode;
+    HomeCarePlanState? plan;
+    List<HomeVisitIndexEntry>? episodeVisits;
+    List<HomeCareAssessmentState>? assessments;
+
+    // ── Action-panel toggles ──
+    bool showAdmitPanel, showTeamPanel, showVisitPanel, showCompleteVisitPanel;
+    bool showCreatePlanPanel, showPlanProblemPanel, showAssessPanel, showDischargePanel;
+
+    // ── Admit form ──
+    HomeCareProgramType admitProgram = HomeCareProgramType.HomeBasedPrimaryCare;
+    DateTime admitDate = DateTime.Today;
+    HomeCareAdmissionSource admitSource = HomeCareAdmissionSource.Community;
+    HomeCareLevelOfCare admitLevel = HomeCareLevelOfCare.Basic;
+    string admitRefId = string.Empty, admitRefName = string.Empty;
+    string admitDxCode = string.Empty, admitDxText = string.Empty;
+    string admitNarrative = string.Empty, admitCaregiver = string.Empty, admitHomeAddress = string.Empty;
+
+    // ── Team form ──
+    string teamProviderId = string.Empty, teamName = string.Empty, teamRole = string.Empty;
+    HomeCareDiscipline teamDiscipline = HomeCareDiscipline.SkilledNursing;
+    bool teamIsPrimary;
+
+    // ── Create plan form ──
+    string? planEstablishedById;
+    string? planEstablishedByName;
+
+    // ── Plan problem form ──
+    string probProblem = string.Empty, probRelatedTo = string.Empty;
+    string probGoals = string.Empty, probInterventions = string.Empty;
+    HomeCareDiscipline probDiscipline = HomeCareDiscipline.SkilledNursing;
+
+    // ── Schedule visit form ──
+    HomeCareDiscipline visitDiscipline = HomeCareDiscipline.SkilledNursing;
+    HomeVisitType visitType = HomeVisitType.Routine;
+    DateTime visitDateTime = DateTime.Today.AddHours(9);
+    string visitReason = string.Empty, visitClinicianId = string.Empty, visitClinicianName = string.Empty;
+
+    // ── Complete visit form ──
+    string? completeVisitId;
+    int cvDuration;
+    string cvVitals = string.Empty, cvSummary = string.Empty, cvNoteId = string.Empty;
+    string cvInterventions = string.Empty;
+    DateTime? cvNextVisitDate;
+
+    // ── Assessment form ──
+    string asrId = string.Empty, asrName = string.Empty;
+    DateTime asrDate = DateTime.Today;
+    string asrFunctional = string.Empty, asrIadl = string.Empty, asrHomeSafety = string.Empty;
+    string asrCaregiver = string.Empty, asrCognitive = string.Empty, asrNutrition = string.Empty;
+    string asrMedRec = string.Empty, asrFallRisk = string.Empty, asrSummary = string.Empty;
+
+    // ── Discharge form ──
+    DateTime dischargeDate = DateTime.Today;
+    HomeCareDischargeReason dischargeReason = HomeCareDischargeReason.GoalsMet;
+    string dischargeNotes = string.Empty;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (!SecurityContext.IsFeatureEnabled("HOME_BASED_CARE")) return;
+        if (string.IsNullOrWhiteSpace(patientId) && !string.IsNullOrWhiteSpace(PatientContext.PatientId))
+            patientId = PatientContext.PatientId;
+        if (caseload == null && activeTab == "caseload")
+            await LoadCaseload();
+        if (!string.IsNullOrWhiteSpace(patientId) && episode == null && !episodeLoading)
+            await LoadEpisode();
+    }
+
+    string TabClass(string tab) => activeTab == tab ? "active" : string.Empty;
+
+    async Task SetTab(string tab)
+    {
+        activeTab = tab;
+        error = null; successMsg = null;
+        CloseAllPanels();
+        if (tab == "caseload" && caseload == null) await LoadCaseload();
+        else if (tab == "visits" && upcomingVisits == null) await LoadUpcomingVisits();
+        else if (tab == "episode" && !string.IsNullOrWhiteSpace(patientId) && episode == null) await LoadEpisode();
+    }
+
+    void Toggle(ref bool flag)
+    {
+        bool target = !flag;
+        CloseAllPanels();
+        flag = target;
+    }
+
+    void CloseAllPanels()
+    {
+        showAdmitPanel = showTeamPanel = showVisitPanel = showCompleteVisitPanel = false;
+        showCreatePlanPanel = showPlanProblemPanel = showAssessPanel = showDischargePanel = false;
+    }
+
+    // ── Display helpers ──
+    static string ProgramText(HomeCareProgramType pt) => pt switch
+    {
+        HomeCareProgramType.HomeBasedPrimaryCare    => "Home-Based Primary Care",
+        HomeCareProgramType.MedicareSkilledHomeHealth => "Medicare Skilled Home Health",
+        _ => pt.ToString(),
+    };
+
+    static string DisciplineText(HomeCareDiscipline d) => d switch
+    {
+        HomeCareDiscipline.NursePractitioner       => "Nurse Practitioner",
+        HomeCareDiscipline.SkilledNursing          => "Skilled Nursing",
+        HomeCareDiscipline.PhysicalTherapy         => "Physical Therapy",
+        HomeCareDiscipline.OccupationalTherapy     => "Occupational Therapy",
+        HomeCareDiscipline.SpeechLanguagePathology => "Speech-Language Pathology",
+        HomeCareDiscipline.HomeHealthAide          => "Home Health Aide",
+        HomeCareDiscipline.MedicalSocialWork       => "Medical Social Work",
+        HomeCareDiscipline.MentalHealth            => "Mental Health",
+        _ => d.ToString(),
+    };
+
+    static string EpisodeStatusBadge(HomeCareEpisodeStatus s) => s switch
+    {
+        HomeCareEpisodeStatus.Active     => "badge-success",
+        HomeCareEpisodeStatus.OnHold     => "badge-warning",
+        HomeCareEpisodeStatus.Discharged => "badge-neutral",
+        HomeCareEpisodeStatus.Deceased   => "badge-neutral",
+        _ => "badge-neutral",
+    };
+
+    static string VisitStatusBadge(HomeVisitStatus s) => s switch
+    {
+        HomeVisitStatus.Scheduled      => "badge-info",
+        HomeVisitStatus.InProgress     => "badge-warning",
+        HomeVisitStatus.Completed      => "badge-success",
+        HomeVisitStatus.Cancelled      => "badge-neutral",
+        HomeVisitStatus.NoAnswer       => "badge-warning",
+        HomeVisitStatus.PatientRefused => "badge-warning",
+        _ => "badge-neutral",
+    };
+
+    static string ProblemStatusBadge(CarePlanProblemStatus s) => s switch
+    {
+        CarePlanProblemStatus.Active       => "badge-success",
+        CarePlanProblemStatus.Resolved     => "badge-neutral",
+        CarePlanProblemStatus.Discontinued => "badge-neutral",
+        _ => "badge-neutral",
+    };
+
+    static List<string> SplitLines(string text) =>
+        (text ?? string.Empty)
+            .Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .ToList();
+
+    // ── Caseload ──
+    async Task LoadCaseload()
+    {
+        caseloadLoading = true; error = null;
+        try
+        {
+            var census = Grains.GetGrain<IHomeCareCensusGrain>("HHC-CENSUS:DEFAULT");
+            workload = await census.GetWorkloadStatsAsync();
+            await ApplyCaseloadFilter();
+        }
+        catch { error = "Failed to load home-care caseload."; }
+        finally { caseloadLoading = false; }
+    }
+
+    async Task ApplyCaseloadFilter()
+    {
+        try
+        {
+            var census = Grains.GetGrain<IHomeCareCensusGrain>("HHC-CENSUS:DEFAULT");
+            caseload = caseloadFilter switch
+            {
+                "norecent"  => await census.GetWithNoRecentVisitAsync(30),
+                "Basic"     => await census.GetByLevelOfCareAsync(HomeCareLevelOfCare.Basic),
+                "Enhanced"  => await census.GetByLevelOfCareAsync(HomeCareLevelOfCare.Enhanced),
+                "Palliative"=> await census.GetByLevelOfCareAsync(HomeCareLevelOfCare.Palliative),
+                _           => await census.GetActiveAsync(),
+            };
+        }
+        catch { error = "Failed to filter caseload."; }
+    }
+
+    // ── Today's Visits ──
+    async Task LoadUpcomingVisits()
+    {
+        visitsLoading = true; error = null;
+        try
+        {
+            var index = Grains.GetGrain<IHomeVisitIndexGrain>("HHC-VISIT-INDEX");
+            upcomingVisits = await index.GetUpcomingVisitsAsync(7);
+        }
+        catch { error = "Failed to load visit schedule."; }
+        finally { visitsLoading = false; }
+    }
+
+    async Task OpenEpisodeForPatient(string pid)
+    {
+        patientId = pid;
+        activeTab = "episode";
+        await LoadEpisode();
+    }
+
+    async Task OpenEpisodeForVisit(HomeVisitIndexEntry v)
+    {
+        await OpenEpisodeForPatient(v.PatientId);
+    }
+
+    // ── Episode detail ──
+    async Task LoadEpisode()
+    {
+        if (string.IsNullOrWhiteSpace(patientId)) return;
+        episodeLoading = true; error = null; successMsg = null;
+        activeTab = "episode";
+        CloseAllPanels();
+        try
+        {
+            PatientContext.SetPatient(patientId.Trim());
+            var workflow = Grains.GetGrain<IPatientWorkflowGrain>(patientId.Trim());
+            episode = await workflow.GetActiveHomeCareEpisodeAsync();
+            plan = null; episodeVisits = null; assessments = null;
+            if (episode != null)
+            {
+                episodeVisits = await workflow.GetHomeVisitsForEpisodeAsync(episode.EpisodeId);
+                assessments = await workflow.GetHomeCareAssessmentsForEpisodeAsync(episode.EpisodeId);
+                if (!string.IsNullOrWhiteSpace(episode.PlanOfCareId))
+                    plan = await workflow.GetHomeCarePlanAsync(episode.PlanOfCareId);
+            }
+        }
+        catch { error = "Failed to load home-care episode."; }
+        finally { episodeLoading = false; }
+    }
+
+    async Task SubmitAdmit()
+    {
+        if (string.IsNullOrWhiteSpace(patientId)) return;
+        try
+        {
+            var workflow = Grains.GetGrain<IPatientWorkflowGrain>(patientId.Trim());
+            await workflow.AdmitToHomeCareAsync(
+                admitProgram, admitDate, admitSource,
+                admitRefId, admitRefName,
+                admitDxCode, admitDxText,
+                admitLevel, admitNarrative, admitCaregiver, admitHomeAddress);
+            successMsg = "Patient admitted to HBPC.";
+            CloseAllPanels();
+            await LoadEpisode();
+            await LoadCaseload();
+        }
+        catch { error = "Failed to admit to HBPC."; }
+    }
+
+    async Task SubmitTeamMember()
+    {
+        if (episode == null || string.IsNullOrWhiteSpace(teamProviderId)) return;
+        try
+        {
+            var workflow = Grains.GetGrain<IPatientWorkflowGrain>(patientId!.Trim());
+            await workflow.AssignHomeCareTeamMemberAsync(
+                episode.EpisodeId, teamProviderId, teamName, teamDiscipline, teamRole, teamIsPrimary);
+            successMsg = "Team member assigned.";
+            teamProviderId = teamName = teamRole = string.Empty; teamIsPrimary = false;
+            CloseAllPanels();
+            await LoadEpisode();
+        }
+        catch { error = "Failed to assign team member."; }
+    }
+
+    async Task SubmitCreatePlan()
+    {
+        if (episode == null) return;
+        try
+        {
+            var workflow = Grains.GetGrain<IPatientWorkflowGrain>(patientId!.Trim());
+            await workflow.CreateHomeCarePlanAsync(
+                episode.EpisodeId, planEstablishedById ?? string.Empty, planEstablishedByName ?? string.Empty);
+            successMsg = "Plan of care created.";
+            CloseAllPanels();
+            await LoadEpisode();
+        }
+        catch { error = "Failed to create plan of care."; }
+    }
+
+    async Task SubmitPlanProblem()
+    {
+        if (episode == null || string.IsNullOrWhiteSpace(episode.PlanOfCareId) || string.IsNullOrWhiteSpace(probProblem)) return;
+        try
+        {
+            var workflow = Grains.GetGrain<IPatientWorkflowGrain>(patientId!.Trim());
+            await workflow.AddHomeCarePlanProblemAsync(
+                episode.PlanOfCareId, probProblem, probRelatedTo,
+                SplitLines(probGoals), SplitLines(probInterventions), probDiscipline);
+            successMsg = "Plan problem added.";
+            probProblem = probRelatedTo = probGoals = probInterventions = string.Empty;
+            CloseAllPanels();
+            await LoadEpisode();
+        }
+        catch { error = "Failed to add plan problem."; }
+    }
+
+    async Task SubmitScheduleVisit()
+    {
+        if (episode == null) return;
+        try
+        {
+            var workflow = Grains.GetGrain<IPatientWorkflowGrain>(patientId!.Trim());
+            await workflow.ScheduleHomeVisitAsync(
+                episode.EpisodeId, visitDiscipline, visitType,
+                visitDateTime, visitClinicianId, visitClinicianName, visitReason);
+            successMsg = "Home visit scheduled.";
+            visitReason = visitClinicianId = visitClinicianName = string.Empty;
+            CloseAllPanels();
+            await LoadEpisode();
+            await LoadCaseload();
+        }
+        catch { error = "Failed to schedule home visit."; }
+    }
+
+    void OpenCompleteVisit(string visitId)
+    {
+        CloseAllPanels();
+        completeVisitId = visitId;
+        cvDuration = 0; cvVitals = cvSummary = cvNoteId = cvInterventions = string.Empty;
+        cvNextVisitDate = null;
+        showCompleteVisitPanel = true;
+    }
+
+    async Task SubmitCompleteVisit()
+    {
+        if (completeVisitId == null) return;
+        try
+        {
+            var workflow = Grains.GetGrain<IPatientWorkflowGrain>(patientId!.Trim());
+            await workflow.CompleteHomeVisitAsync(
+                completeVisitId, cvDuration, cvVitals,
+                SplitLines(cvInterventions), cvSummary, cvNoteId, cvNextVisitDate);
+            successMsg = "Visit completed.";
+            CloseAllPanels();
+            completeVisitId = null;
+            await LoadEpisode();
+            await LoadCaseload();
+        }
+        catch { error = "Failed to complete visit."; }
+    }
+
+    async Task SubmitAssessment()
+    {
+        if (episode == null) return;
+        try
+        {
+            var workflow = Grains.GetGrain<IPatientWorkflowGrain>(patientId!.Trim());
+            var assessment = new HbpcComprehensiveAssessment
+            {
+                FunctionalStatus = asrFunctional,
+                InstrumentalAdls = asrIadl,
+                HomeSafety = asrHomeSafety,
+                CaregiverSupport = asrCaregiver,
+                CognitiveMentalStatus = asrCognitive,
+                Nutrition = asrNutrition,
+                MedicationReconciliation = asrMedRec,
+                FallRisk = asrFallRisk,
+                Summary = asrSummary,
+            };
+            await workflow.RecordHomeCareAssessmentAsync(
+                episode.EpisodeId, asrId, asrName, asrDate, assessment);
+            successMsg = "Assessment recorded.";
+            asrFunctional = asrIadl = asrHomeSafety = asrCaregiver = asrCognitive = string.Empty;
+            asrNutrition = asrMedRec = asrFallRisk = asrSummary = string.Empty;
+            CloseAllPanels();
+            await LoadEpisode();
+        }
+        catch { error = "Failed to record assessment."; }
+    }
+
+    async Task SubmitDischarge()
+    {
+        if (episode == null) return;
+        try
+        {
+            var workflow = Grains.GetGrain<IPatientWorkflowGrain>(patientId!.Trim());
+            await workflow.DischargeFromHomeCareAsync(episode.EpisodeId, dischargeDate, dischargeReason, dischargeNotes);
+            successMsg = "Patient discharged from HBPC.";
+            dischargeNotes = string.Empty;
+            CloseAllPanels();
+            await LoadEpisode();
+            await LoadCaseload();
+        }
+        catch { error = "Failed to discharge from HBPC."; }
+    }
+}

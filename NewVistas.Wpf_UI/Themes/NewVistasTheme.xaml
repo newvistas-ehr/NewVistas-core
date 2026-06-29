@@ -258,7 +258,6 @@ file, You can obtain one at https://mozilla.org/MPL/2.0/.
     <DataTemplate DataType="{x:Type vm:ControlledSubstancesViewModel}"><views:ControlledSubstancesView/></DataTemplate>
     <DataTemplate DataType="{x:Type vm:EngineeringViewModel}"><views:EngineeringView/></DataTemplate>
     <DataTemplate DataType="{x:Type vm:GeriatricsExtendedCareViewModel}"><views:GeriatricsExtendedCareView/></DataTemplate>
-    <DataTemplate DataType="{x:Type vm:HomeHealthViewModel}"><views:HomeHealthView/></DataTemplate>
     <DataTemplate DataType="{x:Type vm:InfectionControlViewModel}"><views:InfectionControlView/></DataTemplate>
     <DataTemplate DataType="{x:Type vm:PatientAdvocateViewModel}"><views:PatientAdvocateView/></DataTemplate>
     <DataTemplate DataType="{x:Type vm:PolytraumaTBIViewModel}"><views:PolytraumaTBIView/></DataTemplate>

@@ -264,6 +264,19 @@ public static class SecurityKeys
     /// </summary>
     public const string ONCO_MANAGER = "ONCO MANAGER";
 
+    // ─── Home-Based Care (HBPC / HHC Package) ───────────────────────────
+
+    /// <summary>
+    /// HBHC MANAGER — Home-Based Care management (Home-Based Primary Care and, in Phase 2,
+    /// Medicare skilled home health). Required to admit/discharge episodes, manage the
+    /// interdisciplinary team and plan of care, schedule and document home visits, and record
+    /// comprehensive assessments. Held by the home-care team (HBPC nurses, PT/OT/SLP, social
+    /// work, the HBPC medical director). Home-care data is <b>readable by any clinician</b> — it
+    /// is part of the chart for care coordination, not a privacy silo — so only mutating
+    /// operations require this key. VistA equivalent: the HBPC (HBH) menu keys.
+    /// </summary>
+    public const string HBHC_MANAGER = "HBHC MANAGER";
+
     // ─── System Administration (XU Package) ─────────────────────────────
 
     /// <summary>

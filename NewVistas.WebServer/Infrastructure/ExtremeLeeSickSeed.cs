@@ -980,6 +980,70 @@ PLAN:
 
             logger.LogInformation("  + oncology: melanoma {Id} staged IIIB with molecular profile (BRAF V600E, PD-L1 35%)", melanomaId);
 
+            // ── Home-Based Care (HBPC) ──────────────────────────────────────────────
+            // Mr. Sick fits HBPC: chronic low back pain + post-cervical-fusion mobility limits +
+            // melanoma surveillance, managed at home by an interdisciplinary team — mirroring his
+            // real PT + visiting-nurse experience. Team-based, longitudinal (not Medicare episodic).
+            string hbpcEpisodeId = await wf.AdmitToHomeCareAsync(
+                HomeCareProgramType.HomeBasedPrimaryCare,
+                new DateTime(2026, 2, 1),
+                HomeCareAdmissionSource.AcuteHospital,
+                DrCannotId, DrCannot,
+                "M54.50", "Low back pain, unspecified",
+                HomeCareLevelOfCare.Enhanced,
+                "Chronic low back pain and post-cervical-fusion mobility limits; routine clinic visits are taxing — appropriate for team-based home management.",
+                "Wife (primary caregiver)",
+                "12 Shady Lane, Salem MA");
+
+            await wf.AssignHomeCareTeamMemberAsync(hbpcEpisodeId, DrCannotId, DrCannot, HomeCareDiscipline.Physician, "HBPC Medical Director", true);
+            await wf.AssignHomeCareTeamMemberAsync(hbpcEpisodeId, NurseRatchedId, NurseRatched, HomeCareDiscipline.SkilledNursing, "Primary RN", false);
+            await wf.AssignHomeCareTeamMemberAsync(hbpcEpisodeId, "PROV-STRETCH", "Dr. Stretch", HomeCareDiscipline.PhysicalTherapy, "Home PT", false);
+
+            string hbpcPlanId = await wf.CreateHomeCarePlanAsync(hbpcEpisodeId, DrCannotId, DrCannot);
+            await wf.AddHomeCarePlanProblemAsync(hbpcPlanId, "Chronic low back pain", "Lumbar degenerative disease",
+                new List<string> { "Pain controlled to 2-3/10 on regimen", "Walk 2 miles without breakthrough pain" },
+                new List<string> { "PT home exercise program 3x/week", "Medication review (Lyrica/Celexa)" },
+                HomeCareDiscipline.PhysicalTherapy);
+            await wf.AddHomeCarePlanProblemAsync(hbpcPlanId, "Post-cervical-fusion mobility", "C4-C6 decompression + C3-C6 fusion (Jan 2025)",
+                new List<string> { "Maintain cervical ROM and safe transfers" },
+                new List<string> { "Home safety evaluation", "Assistive-device training" },
+                HomeCareDiscipline.PhysicalTherapy);
+            await wf.AddHomeCarePlanProblemAsync(hbpcPlanId, "Skin-cancer surveillance", "History of melanoma",
+                new List<string> { "Early detection of new or changing lesions" },
+                new List<string> { "Monthly skin checks by RN; report changes to oncology" },
+                HomeCareDiscipline.SkilledNursing);
+
+            await wf.RecordHomeCareAssessmentAsync(hbpcEpisodeId, NurseRatchedId, NurseRatched, new DateTime(2026, 2, 1),
+                new HbpcComprehensiveAssessment
+                {
+                    FunctionalStatus = "Independent with ADLs; limited standing/walking tolerance (~2 miles).",
+                    InstrumentalAdls = "Wife manages medications, meals, and transportation.",
+                    HomeSafety = "Grab bars in bathroom; throw rugs removed. Low fall risk.",
+                    CaregiverSupport = "Spouse engaged and reliable.",
+                    CognitiveMentalStatus = "Alert and oriented; mood stable on Celexa.",
+                    Nutrition = "Adequate intake; weight stable.",
+                    MedicationReconciliation = "Reconciled: Lyrica, Celexa, PRN analgesics.",
+                    FallRisk = "Low-moderate; reassess each visit.",
+                    Summary = "Stable; appropriate for Enhanced HBPC with home PT + skilled nursing."
+                });
+
+            string hbpcVisit1 = await wf.ScheduleHomeVisitAsync(hbpcEpisodeId, HomeCareDiscipline.SkilledNursing,
+                HomeVisitType.Initial, new DateTime(2026, 2, 1), NurseRatchedId, NurseRatched, "Admission nursing visit");
+            await wf.CompleteHomeVisitAsync(hbpcVisit1, 45, "BP 138/84, HR 72, O2 96%",
+                new List<string> { "Medication reconciliation", "Skin survey — no new lesions" },
+                "Stable admission visit; education provided to patient and spouse.", string.Empty, new DateTime(2026, 2, 15));
+
+            string hbpcVisit2 = await wf.ScheduleHomeVisitAsync(hbpcEpisodeId, HomeCareDiscipline.PhysicalTherapy,
+                HomeVisitType.Routine, new DateTime(2026, 2, 8), "PROV-STRETCH", "Dr. Stretch", "Home PT — lumbar program");
+            await wf.CompleteHomeVisitAsync(hbpcVisit2, 50, "Tolerated session well",
+                new List<string> { "Lumbar stabilization exercises", "Gait training" },
+                "Progressing; pain 3/10 post-session.", string.Empty, new DateTime(2026, 2, 22));
+
+            await wf.ScheduleHomeVisitAsync(hbpcEpisodeId, HomeCareDiscipline.SkilledNursing,
+                HomeVisitType.Routine, DateTime.UtcNow.AddDays(3), NurseRatchedId, NurseRatched, "Routine nursing follow-up");
+
+            logger.LogInformation("  + home-based care: HBPC episode {Id} (3-member team, plan w/ 3 problems, comprehensive assessment, 2 completed visits + 1 upcoming)", hbpcEpisodeId);
+
             logger.LogInformation("Rich demo patient {Id} (SICK,EXTREME LEE) seeded successfully", Pid);
         }
         catch (Exception ex)

@@ -693,8 +693,8 @@ static async Task SeedDemoSecurityKeysAsync(IServiceProvider services)
 
     var roleKeyMap = new Dictionary<string, string[]>
     {
-        ["Provider"]          = [SecurityKeys.PROVIDER, SecurityKeys.ORES, SecurityKeys.TIU_SIGN, SecurityKeys.GMRA_ALLERGY, SecurityKeys.GMRV_VITALS, SecurityKeys.GMPL_PROBLEM],
-        ["Nurse"]             = [SecurityKeys.ORELSE, SecurityKeys.GMRV_VITALS, SecurityKeys.GMRA_ALLERGY, SecurityKeys.GMPL_PROBLEM, SecurityKeys.SD_SCHEDULING],
+        ["Provider"]          = [SecurityKeys.PROVIDER, SecurityKeys.ORES, SecurityKeys.TIU_SIGN, SecurityKeys.GMRA_ALLERGY, SecurityKeys.GMRV_VITALS, SecurityKeys.GMPL_PROBLEM, SecurityKeys.HBHC_MANAGER],
+        ["Nurse"]             = [SecurityKeys.ORELSE, SecurityKeys.GMRV_VITALS, SecurityKeys.GMRA_ALLERGY, SecurityKeys.GMPL_PROBLEM, SecurityKeys.SD_SCHEDULING, SecurityKeys.HBHC_MANAGER],
         ["Pharmacist"]        = [SecurityKeys.PSO_PHARMACY, SecurityKeys.PSJ_RPHARM, SecurityKeys.PSA_ORDERS, SecurityKeys.PSB_MANAGER],
         ["LabTechnician"]     = [SecurityKeys.LRLAB, SecurityKeys.LRVERIFY],
         ["Radiologist"]       = [SecurityKeys.RA_VERIFY, SecurityKeys.PROVIDER, SecurityKeys.TIU_SIGN],

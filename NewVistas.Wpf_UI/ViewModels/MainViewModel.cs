@@ -217,7 +217,6 @@ public partial class MainViewModel : ObservableObject
             Nav("💊", "Controlled Substances", () => _services.GetRequiredService<ControlledSubstancesViewModel>(), MenuArea.Pharmacy),
             Nav("🔧", "Engineering",           () => _services.GetRequiredService<EngineeringViewModel>(), MenuArea.SystemAdmin),
             Nav("👴", "Geriatrics / EC",        () => _services.GetRequiredService<GeriatricsExtendedCareViewModel>(), MenuArea.Clinical),
-            Nav("🏠", "Home Health (HBPC)",    () => _services.GetRequiredService<HomeHealthViewModel>(), MenuArea.Clinical),
             Nav("🦠", "Infection Control",     () => _services.GetRequiredService<InfectionControlViewModel>(), MenuArea.Clinical),
             Nav("🤝", "Patient Advocate",      () => _services.GetRequiredService<PatientAdvocateViewModel>(), MenuArea.Registration),
             Nav("🪖", "Polytrauma / TBI",      () => _services.GetRequiredService<PolytraumaTBIViewModel>(), MenuArea.Clinical),

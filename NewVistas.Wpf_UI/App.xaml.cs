@@ -154,7 +154,6 @@ public partial class App : Application
                 services.AddTransient<ControlledSubstancesViewModel>();
                 services.AddTransient<EngineeringViewModel>();
                 services.AddTransient<GeriatricsExtendedCareViewModel>();
-                services.AddTransient<HomeHealthViewModel>();
                 services.AddTransient<InfectionControlViewModel>();
                 services.AddTransient<PatientAdvocateViewModel>();
                 services.AddTransient<PolytraumaTBIViewModel>();

@@ -88,9 +88,13 @@ public class SiteParametersState
     ///                                    NAACCR cancer-registry abstract (Modern enhancement; ENABLED BY DEFAULT, see SiteFeatures)
     ///   "PRECISION_ONCOLOGY"           — Molecular biomarker profiling + precision-oncology therapy matching (biomarker → targeted/
     ///                                    immunotherapy decision support) (Modern enhancement; ENABLED BY DEFAULT, see SiteFeatures)
+    ///   "HOME_BASED_CARE"              — Home-Based Primary Care: episodes, interdisciplinary team, plan of care, home visits, and the
+    ///                                    caseload/census (Modern enhancement; ENABLED BY DEFAULT, see SiteFeatures)
+    ///   "HOME_HEALTH_MEDICARE"         — Reserved (Phase 2): Medicare skilled home health on top of HBPC — OASIS, PDGM, certification,
+    ///                                    EVV, NOA billing (Modern enhancement; OFF by default — opt-in compliance layer)
     /// </summary>
     [Id(7)]
-    public HashSet<string> Features { get; set; } = new() { SiteFeatures.ExternalPharmacy, SiteFeatures.Oncology, SiteFeatures.PrecisionOncology };
+    public HashSet<string> Features { get; set; } = new() { SiteFeatures.ExternalPharmacy, SiteFeatures.Oncology, SiteFeatures.PrecisionOncology, SiteFeatures.HomeBasedCare };
 
     [Id(3)]
     public DateTime CreatedDate { get; set; } = DateTime.UtcNow;
@@ -134,4 +138,24 @@ public static class SiteFeatures
     /// (<c>DisableFeatureAsync("PRECISION_ONCOLOGY")</c>).
     /// </summary>
     public const string PrecisionOncology = "PRECISION_ONCOLOGY";
+
+    /// <summary>
+    /// Home-Based Care (Home-Based Primary Care) — longitudinal, team-based primary care in the
+    /// patient's home: episodes, the interdisciplinary team, an interdisciplinary plan of care,
+    /// home visits, comprehensive assessments, and the facility caseload/census. A "Modern"
+    /// enhancement (VistA's HBPC <c>HBH</c> package is only workload reporting on top of CPRS),
+    /// <b>enabled by default</b> so it is present in every demo. A site can turn it off
+    /// (<c>DisableFeatureAsync("HOME_BASED_CARE")</c>). Home-care data is readable by any clinician;
+    /// only editing requires the HBHC MANAGER key.
+    /// </summary>
+    public const string HomeBasedCare = "HOME_BASED_CARE";
+
+    /// <summary>
+    /// Reserved (Phase 2): Medicare skilled home health layered on top of Home-Based Care —
+    /// certified 60-day periods, OASIS assessments, PDGM payment grouping, EVV, and NOA/claims
+    /// billing. A "Modern" enhancement, <b>OFF by default</b> (opt-in: it is a heavy compliance
+    /// surface). Enabling it activates the episodic/certification machinery and the
+    /// <c>MedicareSkilledHomeHealth</c> program type.
+    /// </summary>
+    public const string HomeHealthMedicare = "HOME_HEALTH_MEDICARE";
 }

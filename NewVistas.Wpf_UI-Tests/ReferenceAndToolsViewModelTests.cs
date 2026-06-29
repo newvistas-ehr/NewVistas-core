@@ -359,34 +359,6 @@ public class ReferenceAndToolsViewModelTests : ViewModelTestBase
         Assert.That(vm.Drugs, Has.Count.EqualTo(0));
     }
 
-    // ── Home Health ───────────────────────────────────────────────────────
-
-    [Test]
-    public async Task HomeHealth_Load_PopulatesPatients()
-    {
-        var mockReg = Substitute.For<IHBPCRegistryGrain>();
-        mockReg.GetActivePatientsAsync().Returns(new List<HBPCRegistryEntry> { new() });
-        MockGrainFactory.GetGrain<IHBPCRegistryGrain>(Arg.Any<string>(), Arg.Any<string?>()).Returns(mockReg);
-
-        var vm = new HomeHealthViewModel(ApiClient, GrainService);
-        await vm.LoadCommand.ExecuteAsync(null);
-
-        Assert.That(vm.Patients, Has.Count.EqualTo(1));
-    }
-
-    [Test]
-    public async Task HomeHealth_SelectPatient_LoadsVisits()
-    {
-        var mockVisitIdx = Substitute.For<IHHCVisitIndexGrain>();
-        mockVisitIdx.GetAllVisitsAsync().Returns(new List<HHCVisitIndexEntry> { new() });
-        MockGrainFactory.GetGrain<IHHCVisitIndexGrain>(Arg.Any<string>(), Arg.Any<string?>()).Returns(mockVisitIdx);
-
-        var vm = new HomeHealthViewModel(ApiClient, GrainService);
-        await vm.SelectPatientCommand.ExecuteAsync(new HBPCRegistryEntry { PatientId = "P1" });
-
-        Assert.That(vm.Visits, Has.Count.EqualTo(1));
-    }
-
     // ── Geriatrics/EC ─────────────────────────────────────────────────────
 
     [Test]

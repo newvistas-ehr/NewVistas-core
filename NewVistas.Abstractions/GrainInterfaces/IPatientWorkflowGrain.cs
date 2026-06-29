@@ -2324,6 +2324,100 @@ public interface IPatientWorkflowGrain : IGrainWithStringKey
     /// <summary>Returns treatment episodes linked to a specific tumor.</summary>
     Task<List<GrainStates.OncologyTreatmentIndexEntry>> GetOncologyTreatmentsByTumorAsync(string tumorId);
 
+    // ─── Home-Based Care (HBPC) — File #750 / #750.1 — HBPC.m, HBVISIT.m ─────────
+    // Writes require the HBHC MANAGER key; reads are open (home care is part of the chart for
+    // care coordination, not a privacy silo). Patient-scoped; facility-wide caseload and
+    // visit-schedule reads are served by the singleton census and visit-index grains.
+
+    /// <summary>Admits this patient to a home-care program (HBPC) and opens an episode. Returns the new episode id.</summary>
+    [RequiresSecurityKey(SecurityKeys.HBHC_MANAGER)]
+    Task<string> AdmitToHomeCareAsync(
+        GrainStates.HomeCareProgramType programType,
+        DateTime admissionDate,
+        GrainStates.HomeCareAdmissionSource admissionSource,
+        string referringProviderId,
+        string referringProviderName,
+        string primaryDiagnosisCode,
+        string primaryDiagnosisText,
+        GrainStates.HomeCareLevelOfCare levelOfCare,
+        string clinicalNeedNarrative,
+        string primaryCaregiver,
+        string homeAddress);
+
+    /// <summary>Assigns (upserts) an interdisciplinary team member to an episode.</summary>
+    [RequiresSecurityKey(SecurityKeys.HBHC_MANAGER)]
+    Task AssignHomeCareTeamMemberAsync(
+        string episodeId, string providerId, string name, GrainStates.HomeCareDiscipline discipline, string roleTitle, bool isPrimary);
+
+    [RequiresSecurityKey(SecurityKeys.HBHC_MANAGER)]
+    Task RemoveHomeCareTeamMemberAsync(string episodeId, string providerId);
+
+    [RequiresSecurityKey(SecurityKeys.HBHC_MANAGER)]
+    Task UpdateHomeCareLevelOfCareAsync(string episodeId, GrainStates.HomeCareLevelOfCare levelOfCare);
+
+    [RequiresSecurityKey(SecurityKeys.HBHC_MANAGER)]
+    Task AddHomeCareSecondaryDiagnosisAsync(string episodeId, string diagnosis);
+
+    [RequiresSecurityKey(SecurityKeys.HBHC_MANAGER)]
+    Task PutHomeCareEpisodeOnHoldAsync(string episodeId, string reason);
+
+    [RequiresSecurityKey(SecurityKeys.HBHC_MANAGER)]
+    Task ReactivateHomeCareEpisodeAsync(string episodeId);
+
+    [RequiresSecurityKey(SecurityKeys.HBHC_MANAGER)]
+    Task DischargeFromHomeCareAsync(
+        string episodeId, DateTime dischargeDate, GrainStates.HomeCareDischargeReason reason, string notes);
+
+    /// <summary>Creates the interdisciplinary plan of care for an episode. Returns the new plan id.</summary>
+    [RequiresSecurityKey(SecurityKeys.HBHC_MANAGER)]
+    Task<string> CreateHomeCarePlanAsync(string episodeId, string establishedById, string establishedByName);
+
+    [RequiresSecurityKey(SecurityKeys.HBHC_MANAGER)]
+    Task AddHomeCarePlanProblemAsync(
+        string planId, string problem, string relatedTo, List<string> goals, List<string> interventions, GrainStates.HomeCareDiscipline responsibleDiscipline);
+
+    [RequiresSecurityKey(SecurityKeys.HBHC_MANAGER)]
+    Task ResolveHomeCarePlanProblemAsync(string planId, string problemId);
+
+    [RequiresSecurityKey(SecurityKeys.HBHC_MANAGER)]
+    Task ReviewHomeCarePlanAsync(string planId, DateTime reviewDate, DateTime? nextReviewDue);
+
+    /// <summary>Schedules a home visit for an episode. Returns the new visit id.</summary>
+    [RequiresSecurityKey(SecurityKeys.HBHC_MANAGER)]
+    Task<string> ScheduleHomeVisitAsync(
+        string episodeId, GrainStates.HomeCareDiscipline discipline, GrainStates.HomeVisitType visitType,
+        DateTime scheduledDateTime, string clinicianId, string clinicianName, string reason);
+
+    [RequiresSecurityKey(SecurityKeys.HBHC_MANAGER)]
+    Task StartHomeVisitAsync(string visitId);
+
+    [RequiresSecurityKey(SecurityKeys.HBHC_MANAGER)]
+    Task CompleteHomeVisitAsync(
+        string visitId, int durationMinutes, string vitalSigns, List<string> interventions, string summary, string noteId, DateTime? nextVisitDate);
+
+    [RequiresSecurityKey(SecurityKeys.HBHC_MANAGER)]
+    Task CancelHomeVisitAsync(string visitId, GrainStates.HomeVisitStatus status, string reason);
+
+    /// <summary>Records an HBPC comprehensive assessment for an episode. Returns the new assessment id.</summary>
+    [RequiresSecurityKey(SecurityKeys.HBHC_MANAGER)]
+    Task<string> RecordHomeCareAssessmentAsync(
+        string episodeId, string assessorId, string assessorName, DateTime assessmentDate, GrainStates.HbpcComprehensiveAssessment assessment);
+
+    /// <summary>Returns a single home-care episode.</summary>
+    Task<GrainStates.HomeCareEpisodeState> GetHomeCareEpisodeAsync(string episodeId);
+
+    /// <summary>The current Active home-care episode for this patient, or null.</summary>
+    Task<GrainStates.HomeCareEpisodeState?> GetActiveHomeCareEpisodeAsync();
+
+    /// <summary>All home-care episodes (any status) for this patient.</summary>
+    Task<List<GrainStates.HomeCareCensusEntry>> GetHomeCareEpisodesForPatientAsync();
+
+    Task<List<GrainStates.HomeVisitIndexEntry>> GetHomeVisitsForEpisodeAsync(string episodeId);
+    Task<GrainStates.HomeVisitState> GetHomeVisitAsync(string visitId);
+    Task<GrainStates.HomeCarePlanState> GetHomeCarePlanAsync(string planId);
+    Task<GrainStates.HomeCareAssessmentState> GetHomeCareAssessmentAsync(string assessmentId);
+    Task<List<GrainStates.HomeCareAssessmentState>> GetHomeCareAssessmentsForEpisodeAsync(string episodeId);
+
     // ─── Medicine (Procedures) — Files #691-699 — MDAPI.m, MDEV.m, MDEC.m ────────
 
     /// <summary>

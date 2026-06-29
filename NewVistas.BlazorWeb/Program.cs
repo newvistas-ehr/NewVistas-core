@@ -171,6 +171,7 @@ app.MapGet("/api/site/features", async (Orleans.IGrainFactory grains) =>
         "GPRA_REPORTING", "PCC_SURVEILLANCE", "ICARE_DASHBOARD", "APPOINTMENT_WAITLIST",
         "PROVIDER_AVAILABILITY", "PROVIDER_UNAVAILABILITY_BATCH", "PATIENT_SELF_SCHEDULING", "EXTERNAL_PHARMACY",
         "ONCOLOGY", "PRECISION_ONCOLOGY",
+        "HOME_BASED_CARE", "HOME_HEALTH_MEDICARE",
     };
     var enabled = new List<string>();
     foreach (string f in all)
