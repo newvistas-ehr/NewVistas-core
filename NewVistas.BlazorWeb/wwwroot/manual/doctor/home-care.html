@@ -1,0 +1,300 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Home-Based Care — Physician Manual — NewVistas</title>
+  <link rel="stylesheet" href="../assets/css/manual.css" />
+</head>
+<body>
+  <div class="topbar">
+    <div class="brand"><a href="../index.html">NewVistas</a> <span>· User Manual</span></div>
+    <div class="role-pill">🩺 Physician</div>
+  </div>
+
+  <div class="layout">
+    <nav class="sidebar">
+      <div class="section">Physician Manual</div>
+      <a href="index.html">Overview</a>
+      <a href="getting-started.html">Getting Started</a>
+      <div class="section">Chart &amp; Workflows</div>
+      <a href="cover-sheet.html">Cover Sheet</a>
+      <a href="problem-list.html">Problem List</a>
+      <a href="prescribing.html">Prescribing &amp; Safety Gate</a>
+      <a href="orders.html">Order Entry</a>
+      <a href="notes.html">Progress Notes</a>
+      <a href="consults.html">Consults</a>
+      <a href="labs.html">Labs</a>
+      <a href="allergies.html">Allergies</a>
+      <a href="immunizations.html">Immunizations</a>
+      <div class="section" data-flag="ONCOLOGY">Oncology</div>
+      <a href="oncology.html" data-flag="ONCOLOGY">Oncology / Tumor Registry</a>
+      <a href="radiation-therapy.html" data-flag="ONCOLOGY">Radiation Therapy</a>
+      <a href="cancer-registry.html" data-flag="ONCOLOGY">Cancer Registry</a>
+      <div class="section" data-flag="HOME_BASED_CARE">Home Care</div>
+      <a href="home-care.html" class="active" data-flag="HOME_BASED_CARE">Home-Based Care</a>
+      <div class="section">&nbsp;</div>
+      <a href="../index.html">← All roles</a>
+    </nav>
+
+    <main class="content">
+      <div class="crumb"><a href="../index.html">Manual</a> › <a href="index.html">Physician</a> › Home-Based Care</div>
+      <h1>Home-Based Care — HBPC &amp; Home Health</h1>
+      <p class="lead">
+        The Home-Based Care screen runs care delivered in the patient's home — from
+        longitudinal, team-based <strong>Home-Based Primary Care (HBPC)</strong> through
+        episodic <strong>Medicare skilled home health</strong>. Manage the facility
+        caseload, drive the in-home team's daily visit schedule, and open a patient's
+        episode to maintain the team, plan of care, home visits, assessments, and (for
+        Medicare) certification, OASIS, PDGM grouping, EVV, and billing.
+      </p>
+
+      <div class="callout note" data-flag="HOME_BASED_CARE">
+        <span class="ct">Edition feature</span>
+        Home-Based Care is a Modern-edition module (feature flag
+        <code>HOME_BASED_CARE</code>), with the Medicare skilled home-health layer
+        gated by <code>HOME_HEALTH_MEDICARE</code>. If a section appears dimmed on
+        your site, that feature is turned off for that deployment.
+      </div>
+
+      <h2>Open Home-Based Care</h2>
+      <ol class="steps">
+        <li>In the sidebar, under <strong>Home Care</strong>, click <kbd>Home-Based Care</kbd> (or go to <code>/home-care</code>).</li>
+        <li>The page opens on the <strong>Caseload</strong> tab — the facility roster and workload tiles.</li>
+        <li>Switch tabs with <kbd>Caseload</kbd>, <kbd>Today's Visits</kbd>, and <kbd>Episode Detail</kbd>.</li>
+      </ol>
+
+      <figure class="shot">
+        <img src="../assets/img/doctor/home-care-caseload.png" alt="Home-Based Care caseload: workload tiles and the facility roster" />
+        <figcaption>The Caseload tab — workload tiles across the top (Active, On-Hold, level mix, no-recent-visit, upcoming) above the filterable facility roster.</figcaption>
+      </figure>
+
+      <h2>Caseload</h2>
+      <p>
+        The <strong>Caseload</strong> tab is the program manager's view: the
+        facility-wide roster of active episodes with workload roll-ups. The tiles
+        across the top summarize the whole caseload at a glance.
+      </p>
+      <table>
+        <thead><tr><th>Tile</th><th>What it counts</th></tr></thead>
+        <tbody>
+          <tr><td>Active</td><td>Episodes currently being delivered.</td></tr>
+          <tr><td>On Hold</td><td>Episodes temporarily paused.</td></tr>
+          <tr><td>Basic</td><td>Episodes at the Basic level of care.</td></tr>
+          <tr><td>Enhanced</td><td>Episodes at the Enhanced level of care.</td></tr>
+          <tr><td>Palliative</td><td>Episodes at the Palliative level of care.</td></tr>
+          <tr><td>No Recent Visit</td><td>Episodes with no completed visit in 30 days — the outreach worklist.</td></tr>
+          <tr><td>Upcoming (7d)</td><td>Visits scheduled in the next seven days.</td></tr>
+        </tbody>
+      </table>
+      <ol class="steps">
+        <li>Use the <strong>Filter</strong> dropdown to narrow the roster: all active, no recent visit (30d), or by level of care (Basic / Enhanced / Palliative).</li>
+        <li>Click <kbd>Refresh</kbd> to re-pull the census.</li>
+        <li>Click any row to open that patient's episode in the <strong>Episode Detail</strong> tab.</li>
+      </ol>
+
+      <h2>Today's Visits</h2>
+      <p>
+        The <strong>Today's Visits</strong> tab is the cross-patient daily visit
+        schedule — the main view for the in-home mobile clients (Android / iPad).
+        It lists every home visit scheduled across patients in the coming days, with
+        the date/time, patient, discipline, visit type, clinician, and status.
+      </p>
+      <ol class="steps">
+        <li>Open the <kbd>Today's Visits</kbd> tab to see the rolling visit schedule.</li>
+        <li>Click a visit to jump to that patient's episode and document the encounter.</li>
+      </ol>
+
+      <h2>Episode Detail</h2>
+      <p>
+        Pick a patient — click a caseload row, click a visit, or type a Patient ID and
+        click <kbd>Load Episode</kbd> — to open <strong>Episode Detail</strong>. When a
+        patient has more than one episode, an <strong>episode selector</strong> appears
+        so you can switch between them (for example a current HBPC episode and an older
+        discharged Medicare one).
+      </p>
+
+      <figure class="shot">
+        <img src="../assets/img/doctor/home-care-episode.png" alt="Home-Based Care episode detail: team, plan of care, visits, assessments" />
+        <figcaption>An HBPC episode — the episode header, the interdisciplinary Team, the problem-oriented Plan of Care, scheduled and completed Visits, and the comprehensive Assessments.</figcaption>
+      </figure>
+
+      <h2>HBPC — Home-Based Primary Care</h2>
+      <p>
+        HBPC is <strong>longitudinal, team-based primary care delivered in the home</strong>
+        for patients for whom routine clinic visits are taxing. It is not the episodic
+        Medicare model — it continues for as long as the patient needs it.
+      </p>
+
+      <h3>Admit to HBPC</h3>
+      <ol class="steps">
+        <li>On a patient with no active episode, click <kbd>Admit to HBPC</kbd>.</li>
+        <li>Choose the <strong>program</strong> and <strong>admission source</strong>, the <strong>admission date</strong>, and the <strong>level of care</strong> (Basic / Enhanced / Palliative).</li>
+        <li>Record the <strong>referring provider</strong>, the <strong>primary diagnosis</strong> (ICD-10), a <strong>clinical-need narrative</strong>, the <strong>primary caregiver</strong>, and the <strong>home address</strong>.</li>
+        <li>Click <kbd>Admit</kbd>. The episode opens and joins the caseload.</li>
+      </ol>
+
+      <h3>The interdisciplinary Team</h3>
+      <p>
+        HBPC is delivered by an interdisciplinary team. Add each member with their
+        discipline and role; mark one as the primary contact.
+      </p>
+      <table>
+        <thead><tr><th>Discipline</th><th>Role on the team</th></tr></thead>
+        <tbody>
+          <tr><td>Physician / NP</td><td>Medical direction and primary-care oversight.</td></tr>
+          <tr><td>Skilled Nursing</td><td>Skilled assessments, medication review, wound/skin care.</td></tr>
+          <tr><td>PT / OT / SLP</td><td>Physical, occupational, and speech therapy in the home.</td></tr>
+          <tr><td>Home Health Aide</td><td>Personal care and supportive ADL assistance.</td></tr>
+          <tr><td>Medical Social Work (MSW)</td><td>Psychosocial support and resource coordination.</td></tr>
+          <tr><td>Dietitian</td><td>Nutrition assessment and counseling.</td></tr>
+          <tr><td>Pharmacy</td><td>Medication reconciliation and pharmacotherapy review.</td></tr>
+        </tbody>
+      </table>
+
+      <h3>The Plan of Care</h3>
+      <p>
+        The plan of care is <strong>problem-oriented</strong>. Create the plan, then add
+        each problem with its goals, interventions, and the <strong>responsible
+        discipline</strong>. Record reviews to keep the plan current; resolve a problem
+        when its goals are met.
+      </p>
+      <ol class="steps">
+        <li>Click <kbd>Create Plan of Care</kbd> and record who establishes it.</li>
+        <li>Click <kbd>Add Plan Problem</kbd>. Enter the <strong>problem</strong>, what it is <strong>related to</strong>, one or more <strong>goals</strong>, the <strong>interventions</strong>, and the <strong>responsible discipline</strong>.</li>
+        <li>Review the plan periodically; <strong>resolve</strong> a problem once its goals are met.</li>
+      </ol>
+
+      <h3>Home visits</h3>
+      <ol class="steps">
+        <li>Click <kbd>Schedule Visit</kbd>. Pick the <strong>discipline</strong>, <strong>visit type</strong>, <strong>date/time</strong>, <strong>clinician</strong>, and reason.</li>
+        <li>After the visit, click <kbd>Complete</kbd> on its row. Record the <strong>duration</strong>, <strong>vital signs</strong>, <strong>interventions</strong>, a <strong>summary</strong>, an optional note ID, and the next visit date.</li>
+        <li>Scheduled visits also surface on the <strong>Today's Visits</strong> tab for the in-home team.</li>
+      </ol>
+
+      <h3>The comprehensive assessment</h3>
+      <p>
+        Record an HBPC comprehensive assessment to capture the whole-person home picture.
+        It covers <strong>functional status / ADLs</strong>, <strong>instrumental ADLs</strong>,
+        <strong>home safety</strong>, <strong>caregiver support</strong>,
+        <strong>cognition / mental status</strong>, <strong>nutrition</strong>,
+        <strong>medication reconciliation</strong>, and <strong>fall risk</strong>, plus an
+        overall summary.
+      </p>
+
+      <h2 data-flag="HOME_HEALTH_MEDICARE">Medicare skilled home health</h2>
+      <p data-flag="HOME_HEALTH_MEDICARE">
+        On a Medicare skilled episode, a dedicated <strong>Medicare</strong> panel layers
+        the regulatory workflow onto the same episode and visits: eligibility →
+        certification → OASIS → PDGM grouping → EVV → billing.
+      </p>
+
+      <figure class="shot" data-flag="HOME_HEALTH_MEDICARE">
+        <img src="../assets/img/doctor/home-care-medicare.png" alt="Medicare panel: eligibility, certification, PDGM HIPPS, OASIS, and billing" />
+        <figcaption>The Medicare panel — eligibility gates, certification periods with their 30-day payment periods and PDGM HIPPS codes, OASIS assessments, and the NOA + claims billing record.</figcaption>
+      </figure>
+
+      <h3 data-flag="HOME_HEALTH_MEDICARE">Eligibility</h3>
+      <p data-flag="HOME_HEALTH_MEDICARE">
+        Set the two Medicare gates: the patient must be <strong>homebound</strong> (with a
+        justification) and have a <strong>skilled need</strong> (e.g. skilled nursing or
+        physical therapy).
+      </p>
+
+      <h3 data-flag="HOME_HEALTH_MEDICARE">Certification</h3>
+      <p data-flag="HOME_HEALTH_MEDICARE">
+        Open a <strong>60-day certification period</strong>; each period contains two
+        <strong>30-day payment periods</strong>. Record the <strong>certifying provider</strong>
+        and the <strong>face-to-face encounter</strong> date. Recertify to open subsequent
+        periods.
+      </p>
+
+      <h3 data-flag="HOME_HEALTH_MEDICARE">OASIS</h3>
+      <p data-flag="HOME_HEALTH_MEDICARE">
+        Record an <strong>OASIS-E2</strong> assessment at the appropriate time point —
+        Start of Care, Resumption, Recertification, Transfer, or Discharge. On save, the
+        assessment is <strong>scrubbed</strong> (validated); a clean scrub marks it
+        validated, while scrub issues are listed for correction.
+      </p>
+
+      <h3 data-flag="HOME_HEALTH_MEDICARE">PDGM grouping</h3>
+      <p data-flag="HOME_HEALTH_MEDICARE">
+        Compute the <strong>PDGM</strong> case-mix grouping for a 30-day payment period.
+        The grouper assembles a <strong>HIPPS code</strong> from five factors and flags a
+        <strong>LUPA</strong> (Low Utilization Payment Adjustment) when the visit count is
+        below threshold.
+      </p>
+      <table data-flag="HOME_HEALTH_MEDICARE">
+        <thead><tr><th>PDGM factor</th><th>What it reflects</th></tr></thead>
+        <tbody>
+          <tr><td>Admission source</td><td>Community vs. institutional (e.g. acute hospital).</td></tr>
+          <tr><td>Timing</td><td>Early (first period) vs. late.</td></tr>
+          <tr><td>Clinical grouping</td><td>The primary-diagnosis clinical category.</td></tr>
+          <tr><td>Functional level</td><td>Low / Medium / High, derived from OASIS items.</td></tr>
+          <tr><td>Comorbidity adjustment</td><td>None / Low / High, from secondary diagnoses.</td></tr>
+          <tr><td>LUPA flag</td><td>Marks a low-utilization period billed per-visit rather than as a full period.</td></tr>
+        </tbody>
+      </table>
+
+      <h3 data-flag="HOME_HEALTH_MEDICARE">EVV</h3>
+      <p data-flag="HOME_HEALTH_MEDICARE">
+        <strong>Electronic Visit Verification</strong> captures a visit <strong>check-in</strong>
+        and <strong>check-out</strong> with the location and capture method (e.g. GPS). The
+        in-home mobile client uses these to verify the visit actually occurred at the home.
+      </p>
+
+      <h3 data-flag="HOME_HEALTH_MEDICARE">Billing</h3>
+      <ol class="steps" data-flag="HOME_HEALTH_MEDICARE">
+        <li>Submit the <strong>Notice of Admission (NOA)</strong> — due within <strong>5 days</strong> of admission; a late submission is flagged.</li>
+        <li><strong>Generate a claim</strong> for a payment period from its PDGM grouping, then <strong>submit</strong> it. Each 30-day payment period bills its own claim.</li>
+      </ol>
+
+      <div class="callout note" data-flag="HOME_HEALTH_MEDICARE">
+        <span class="ct">Decision support, not the full CMS tables</span>
+        The PDGM grouper and the OASIS scrubber are <strong>representative
+        decision-support</strong> implementations — they illustrate the workflow and
+        case-mix logic, not the complete official CMS grouping tables or the full OASIS
+        edit specifications. Confirm payment-affecting values against the current CMS
+        guidance before billing.
+      </div>
+
+      <h2>Who can read and edit</h2>
+      <p>
+        Home-care data is <strong>readable by any clinician</strong> — the PCP and
+        specialists need to see the home-care picture for care coordination, so this is
+        not a privacy silo. <strong>Editing</strong> — admitting, managing the team and
+        plan, scheduling and documenting visits, and all Medicare operations —
+        <strong>requires the <code>HBHC MANAGER</code> security key</strong>, held by the
+        home-care team. In the demo, the <strong>Provider</strong> and <strong>Nurse</strong>
+        roles hold it.
+      </p>
+      <ol class="steps">
+        <li>To edit, sign in as a provider who holds the key — for the demo, user <code>DOCTOR1</code> (password <code>smythVista1</code>).</li>
+        <li>Clinicians without the key see the same data read-only; the edit actions are hidden.</li>
+      </ol>
+
+      <div class="callout tip">
+        <span class="ct">Try the demo</span>
+        Patient <strong>P9001 (SICK, EXTREME LEE)</strong> has <strong>two episodes</strong>.
+        A current <strong>2026 HBPC</strong> episode (Enhanced level, a 3-member team, a
+        plan with three problems, a comprehensive assessment, and home visits) and a
+        discharged <strong>2025 Medicare skilled</strong> episode after his cervical fusion
+        (eligibility → certification → OASIS-E2 → PDGM <strong>3RB31</strong> → EVV-verified
+        visits → NOA + claim). Open the <strong>Episode Detail</strong> tab on this patient
+        and use the episode selector to switch between them.
+      </div>
+
+      <div class="callout note">
+        <span class="ct">Where it shows up</span>
+        Home visits and assessments draw on the same chart you maintain elsewhere — the
+        <a href="problem-list.html">Problem List</a>, <a href="orders.html">orders</a>,
+        and <a href="notes.html">progress notes</a> — keeping the home-care episode
+        consistent with the rest of the record.
+      </div>
+
+      <footer>NewVistas User Manual · Physician · Home-Based Care</footer>
+    </main>
+  </div>
+  <script src="../assets/js/editions.js"></script>
+</body>
+</html>

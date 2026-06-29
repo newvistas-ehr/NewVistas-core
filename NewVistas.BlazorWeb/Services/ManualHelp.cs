@@ -60,6 +60,7 @@ public static class ManualHelp
             ["oncology"] = "oncology.html",
             ["radiation-therapy"] = "radiation-therapy.html",
             ["cancerregistry"] = "cancer-registry.html",
+            ["home-care"] = "home-care.html",
         },
         ["nurse"] = new()
         {
