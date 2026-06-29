@@ -133,4 +133,16 @@ public class OncologyTumorGrain : Grain, IOncologyTumorGrain
         _state.State.LastModifiedDate = DateTime.UtcNow;
         await _state.WriteStateAsync();
     }
+
+    public async Task AddBiomarkerAsync(TumorBiomarker biomarker)
+    {
+        if (string.IsNullOrEmpty(biomarker.BiomarkerId))
+            biomarker.BiomarkerId = Guid.NewGuid().ToString();
+        // Upsert by gene — a re-test of the same marker replaces the prior result so the
+        // molecular profile shows one current result per marker.
+        _state.State.Biomarkers.RemoveAll(b => string.Equals(b.Gene, biomarker.Gene, StringComparison.OrdinalIgnoreCase));
+        _state.State.Biomarkers.Add(biomarker);
+        _state.State.LastModifiedDate = DateTime.UtcNow;
+        await _state.WriteStateAsync();
+    }
 }

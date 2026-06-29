@@ -86,9 +86,11 @@ public class SiteParametersState
     ///                                    (Enhancement — VistA/RPMS dispense in-house + CMOP mail-order; ENABLED BY DEFAULT, see SiteFeatures)
     ///   "ONCOLOGY"                     — First-class oncology: tumor registry, staging, treatment episodes, radiation therapy, and the
     ///                                    NAACCR cancer-registry abstract (Modern enhancement; ENABLED BY DEFAULT, see SiteFeatures)
+    ///   "PRECISION_ONCOLOGY"           — Molecular biomarker profiling + precision-oncology therapy matching (biomarker → targeted/
+    ///                                    immunotherapy decision support) (Modern enhancement; ENABLED BY DEFAULT, see SiteFeatures)
     /// </summary>
     [Id(7)]
-    public HashSet<string> Features { get; set; } = new() { SiteFeatures.ExternalPharmacy, SiteFeatures.Oncology };
+    public HashSet<string> Features { get; set; } = new() { SiteFeatures.ExternalPharmacy, SiteFeatures.Oncology, SiteFeatures.PrecisionOncology };
 
     [Id(3)]
     public DateTime CreatedDate { get; set; } = DateTime.UtcNow;
@@ -122,4 +124,14 @@ public static class SiteFeatures
     /// Oncology data stays readable by any clinician; only editing requires the ONCO MANAGER key.
     /// </summary>
     public const string Oncology = "ONCOLOGY";
+
+    /// <summary>
+    /// Precision oncology — per-tumor molecular biomarker profiling (EGFR, ALK, PD-L1, MSI, TMB,
+    /// BRCA, …) and rule-based precision-oncology therapy matching (biomarker → targeted/immuno
+    /// therapy; read-only decision support, never auto-orders). The precision-medicine layer
+    /// beyond the classic tumor registry. A "Modern" enhancement, <b>enabled by default</b>; a
+    /// site running the classic registry only can turn it off
+    /// (<c>DisableFeatureAsync("PRECISION_ONCOLOGY")</c>).
+    /// </summary>
+    public const string PrecisionOncology = "PRECISION_ONCOLOGY";
 }

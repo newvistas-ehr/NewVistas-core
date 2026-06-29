@@ -62,4 +62,10 @@ public interface IOncologyTumorGrain : IGrainWithStringKey
 
     /// <summary>Appends a free-text comment to the tumor record.</summary>
     Task AddCommentAsync(string comment);
+
+    /// <summary>
+    /// Records a molecular biomarker result on the tumor's genomic profile (upsert by gene).
+    /// Drives precision-oncology therapy matching. PRECISION_ONCOLOGY feature.
+    /// </summary>
+    Task AddBiomarkerAsync(TumorBiomarker biomarker);
 }

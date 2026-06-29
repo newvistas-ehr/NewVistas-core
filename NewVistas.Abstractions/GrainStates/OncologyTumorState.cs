@@ -144,6 +144,13 @@ public class OncologyTumorState
 
     /// <summary>Date the tumor record was last modified. (.91)</summary>
     [Id(29)] public DateTime LastModifiedDate { get; set; } = DateTime.UtcNow;
+
+    /// <summary>
+    /// Molecular biomarker / genomic profile for this tumor. Input to precision-oncology
+    /// therapy matching (see <c>NewVistas.Abstractions.Clinical.PrecisionOncology</c>) — the
+    /// PRECISION_ONCOLOGY feature. (.60)
+    /// </summary>
+    [Id(30)] public List<TumorBiomarker> Biomarkers { get; set; } = new();
 }
 
 /// <summary>Summary entry stored in the per-patient tumor index.</summary>

@@ -2491,6 +2491,49 @@ public partial class PatientWorkflowGrain
     public Task<List<GrainStates.OncologyTumorIndexEntry>> GetActiveOncologyTumorsAsync()
         => OncTumorIndex().GetActiveTumorsAsync();
 
+    // ─── Precision oncology: molecular biomarkers + therapy matching ─────────
+
+    public async Task<string> RecordTumorBiomarkerAsync(
+        string tumorId,
+        string gene,
+        GrainStates.BiomarkerStatus status,
+        string result,
+        GrainStates.BiomarkerMethod method,
+        DateTime testDate,
+        string? lab,
+        string? comments)
+    {
+        var biomarker = new GrainStates.TumorBiomarker
+        {
+            BiomarkerId = $"ONC-BIOMARKER:{Guid.NewGuid()}",
+            Gene = gene,
+            Status = status,
+            Result = result,
+            Method = method,
+            TestDate = testDate,
+            Lab = lab ?? string.Empty,
+            Comments = comments ?? string.Empty
+        };
+        await OncTumor(tumorId).AddBiomarkerAsync(biomarker);
+        return biomarker.BiomarkerId;
+    }
+
+    public async Task<List<GrainStates.TumorBiomarker>> GetTumorBiomarkersAsync(string tumorId)
+    {
+        GrainStates.OncologyTumorState state = await OncTumor(tumorId).GetTumorAsync();
+        return state.Biomarkers;
+    }
+
+    /// <summary>
+    /// Read-only precision-oncology decision support: the targeted/immunotherapies indicated by
+    /// the tumor's positive biomarkers (curated knowledge base; never auto-orders).
+    /// </summary>
+    public async Task<List<Clinical.PrecisionTherapyMatch>> GetPrecisionOncologyMatchesAsync(string tumorId)
+    {
+        GrainStates.OncologyTumorState state = await OncTumor(tumorId).GetTumorAsync();
+        return Clinical.PrecisionOncology.Match(state.Biomarkers);
+    }
+
     public async Task<string> CreateOncologyTreatmentAsync(
         string tumorId,
         GrainStates.OncologyTreatmentType treatmentType,

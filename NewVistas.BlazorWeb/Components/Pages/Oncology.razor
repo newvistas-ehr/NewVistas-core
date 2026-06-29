@@ -8,6 +8,7 @@
 @using NewVistas.BlazorWeb.Services
 @using NewVistas.Abstractions.GrainInterfaces
 @using NewVistas.Abstractions.GrainStates
+@using NewVistas.Abstractions.Clinical
 @using NewVistas.Abstractions.Security
 @inject OrleansGrainService Grains
 @inject PatientContextService PatientContext
@@ -208,6 +209,120 @@
                                 <button class="btn btn-primary" @onclick="SubmitRecurrence">Record Recurrence</button>
                                 <button class="btn btn-secondary" @onclick="CloseAllPanels">Cancel</button>
                             </div>
+                        </div>
+                    }
+
+                    @* ── Precision-Oncology Molecular Profile (PRECISION_ONCOLOGY feature) ── *@
+                    @if (SecurityContext.IsFeatureEnabled("PRECISION_ONCOLOGY"))
+                    {
+                        <div class="molecular-panel">
+                            <h5>Molecular Profile</h5>
+                            @if (biomarkers == null)
+                            {
+                                <div class="loading">Loading biomarkers…</div>
+                            }
+                            else if (biomarkers.Count == 0)
+                            {
+                                <div class="empty-state">No biomarkers recorded for this tumor.</div>
+                            }
+                            else
+                            {
+                                <table class="data-table">
+                                    <thead>
+                                        <tr>
+                                            <th>Gene</th>
+                                            <th>Status</th>
+                                            <th>Result</th>
+                                            <th>Method</th>
+                                            <th>Test Date</th>
+                                            <th>Lab</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        @foreach (TumorBiomarker b in biomarkers)
+                                        {
+                                            <tr class="@(b.Status == BiomarkerStatus.Positive ? "biomarker-positive" : "")">
+                                                <td><strong>@b.Gene</strong></td>
+                                                <td><span class="badge @BiomarkerStatusBadge(b.Status)">@b.Status</span></td>
+                                                <td>@(string.IsNullOrWhiteSpace(b.Result) ? "—" : b.Result)</td>
+                                                <td>@b.Method</td>
+                                                <td>@b.TestDate.ToString("yyyy-MM-dd")</td>
+                                                <td>@(string.IsNullOrWhiteSpace(b.Lab) ? "—" : b.Lab)</td>
+                                            </tr>
+                                        }
+                                    </tbody>
+                                </table>
+                            }
+
+                            @if (CanEdit)
+                            {
+                                <div class="action-panel">
+                                    <h5>Add Biomarker</h5>
+                                    <div class="form-row">
+                                        <label>Gene / Marker</label>
+                                        <select @bind="bioGene">
+                                            @foreach (string marker in PrecisionOncology.KnownMarkers)
+                                            {
+                                                <option value="@marker">@marker</option>
+                                            }
+                                        </select>
+                                        <label>Status</label>
+                                        <select @bind="bioStatus">
+                                            @foreach (BiomarkerStatus s in Enum.GetValues<BiomarkerStatus>())
+                                            {
+                                                <option value="@s">@s</option>
+                                            }
+                                        </select>
+                                    </div>
+                                    <div class="form-row">
+                                        <label>Result</label>
+                                        <input @bind="bioResult" placeholder="e.g. exon 19 deletion, TPS 60%" />
+                                        <label>Method</label>
+                                        <select @bind="bioMethod">
+                                            @foreach (BiomarkerMethod m in Enum.GetValues<BiomarkerMethod>())
+                                            {
+                                                <option value="@m">@m</option>
+                                            }
+                                        </select>
+                                    </div>
+                                    <div class="form-row">
+                                        <label>Test Date</label>
+                                        <input type="date" @bind="bioTestDate" />
+                                        <label>Lab</label>
+                                        <input @bind="bioLab" placeholder="Performing laboratory" />
+                                    </div>
+                                    <div class="panel-btns">
+                                        <button class="btn btn-primary" @onclick="SubmitBiomarker">Add Biomarker</button>
+                                    </div>
+                                </div>
+                            }
+                        </div>
+
+                        <div class="molecular-panel">
+                            <h5>Precision-Oncology Matches</h5>
+                            @if (precisionMatches == null)
+                            {
+                                <div class="loading">Loading matches…</div>
+                            }
+                            else if (precisionMatches.Count == 0)
+                            {
+                                <div class="empty-state">No actionable biomarkers yet — record a positive biomarker to see matched targeted / immunotherapies.</div>
+                            }
+                            else
+                            {
+                                @foreach (PrecisionTherapyMatch m in precisionMatches)
+                                {
+                                    <div class="match-card">
+                                        <div class="match-header">
+                                            <strong>@m.TherapyClass</strong> <span class="match-agents">e.g. @m.ExampleAgents</span>
+                                            <span class="badge badge-info match-evidence">@m.Evidence</span>
+                                        </div>
+                                        <div class="match-marker">@m.Gene: @m.Finding</div>
+                                        <div class="match-context">@m.Context</div>
+                                    </div>
+                                }
+                            }
+                            <div class="match-disclaimer"><em>Decision support only — curated rule set; confirm against current NCCN guidelines / molecular tumor board.</em></div>
                         </div>
                     }
                 </div>
@@ -545,6 +660,17 @@
     .form-row input, .form-row select, .form-row textarea { flex: 1; padding: 0.35rem 0.5rem; border: 1px solid #d4d9e0; border-radius: 4px; font-size: 0.9rem; min-width: 120px; }
     .panel-btns { display: flex; gap: 0.5rem; margin-top: 0.75rem; }
     button:disabled { opacity: 0.5; cursor: not-allowed; }
+    .molecular-panel { background: #fbf9fd; border: 1px solid #d4d9e0; border-left: 4px solid #6b21a8; border-radius: 6px; padding: 1rem; margin-top: 0.75rem; }
+    .molecular-panel h5 { margin: 0 0 0.75rem; color: #6b21a8; }
+    .empty-state { padding: 0.75rem; color: #555; font-style: italic; }
+    .biomarker-positive { background: #f3e8ff !important; font-weight: 600; }
+    .match-card { background: #fff; border: 1px solid #d4d9e0; border-left: 4px solid #166534; border-radius: 6px; padding: 0.6rem 0.8rem; margin-bottom: 0.5rem; }
+    .match-header { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; color: #003f72; }
+    .match-agents { color: #555; font-size: 0.85rem; }
+    .match-evidence { margin-left: auto; }
+    .match-marker { font-size: 0.9rem; color: #333; margin-top: 0.25rem; }
+    .match-context { font-size: 0.8rem; color: #555; margin-top: 0.15rem; }
+    .match-disclaimer { font-size: 0.8rem; color: #777; margin-top: 0.5rem; }
 </style>
 
 @code {
@@ -563,6 +689,16 @@
     List<OncologyTreatmentSummary>? treatments;
     string? selectedTreatmentId;
     OncologyTreatmentDetail? selectedTreatment;
+
+    // Precision-oncology molecular profile (PRECISION_ONCOLOGY feature)
+    List<TumorBiomarker>? biomarkers;
+    List<PrecisionTherapyMatch>? precisionMatches;
+    string bioGene = PrecisionOncology.KnownMarkers.Count > 0 ? PrecisionOncology.KnownMarkers[0] : string.Empty;
+    BiomarkerStatus bioStatus = BiomarkerStatus.Positive;
+    string bioResult = string.Empty;
+    BiomarkerMethod bioMethod = BiomarkerMethod.NGS;
+    DateTime bioTestDate = DateTime.Today;
+    string bioLab = string.Empty;
 
     // Staging panel fields
     bool showStagingPanel;
@@ -626,6 +762,14 @@
         "Completed"    => "badge-neutral",
         "Discontinued" => "badge-warning",
         _              => "badge-neutral",
+    };
+
+    static string BiomarkerStatusBadge(BiomarkerStatus status) => status switch
+    {
+        BiomarkerStatus.Positive  => "badge-success",
+        BiomarkerStatus.Negative  => "badge-neutral",
+        BiomarkerStatus.Equivocal => "badge-warning",
+        _                         => "badge-info",
     };
 
     void SetTab(string tab)
@@ -694,8 +838,37 @@
                 s.RecurrenceDate, s.RecurrenceSite,
                 s.DateOfLastContact, s.TreatmentIds,
                 s.Comments, s.CreatedDate, s.LastModifiedDate);
+            await LoadMolecularProfile(tumorId);
         }
         catch { error = "Failed to load tumor detail."; }
+    }
+
+    async Task LoadMolecularProfile(string tumorId)
+    {
+        if (!SecurityContext.IsFeatureEnabled("PRECISION_ONCOLOGY")) return;
+        biomarkers = null; precisionMatches = null;
+        try
+        {
+            var workflow = Grains.GetGrain<IPatientWorkflowGrain>(patientId!.Trim());
+            biomarkers = await workflow.GetTumorBiomarkersAsync(tumorId);
+            precisionMatches = await workflow.GetPrecisionOncologyMatchesAsync(tumorId);
+        }
+        catch { error = "Failed to load molecular profile."; }
+    }
+
+    async Task SubmitBiomarker()
+    {
+        if (selectedTumorId == null || string.IsNullOrWhiteSpace(bioGene)) return;
+        try
+        {
+            var workflow = Grains.GetGrain<IPatientWorkflowGrain>(patientId!.Trim());
+            await workflow.RecordTumorBiomarkerAsync(selectedTumorId, bioGene, bioStatus, bioResult,
+                bioMethod, bioTestDate, bioLab, null);
+            successMsg = "Biomarker recorded.";
+            bioResult = string.Empty; bioLab = string.Empty; bioTestDate = DateTime.Today;
+            await LoadMolecularProfile(selectedTumorId);
+        }
+        catch { error = "Failed to record biomarker."; }
     }
 
     async Task SelectTreatment(string treatmentId)

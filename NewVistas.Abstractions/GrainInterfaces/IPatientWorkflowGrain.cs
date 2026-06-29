@@ -2244,6 +2244,30 @@ public interface IPatientWorkflowGrain : IGrainWithStringKey
     Task<List<GrainStates.OncologyTumorIndexEntry>> GetActiveOncologyTumorsAsync();
 
     /// <summary>
+    /// Records a molecular biomarker result on a tumor's genomic profile (PRECISION_ONCOLOGY).
+    /// Drives precision-oncology therapy matching. Returns the new biomarker ID.
+    /// </summary>
+    [RequiresSecurityKey(SecurityKeys.ONCO_MANAGER)]
+    Task<string> RecordTumorBiomarkerAsync(
+        string tumorId,
+        string gene,
+        GrainStates.BiomarkerStatus status,
+        string result,
+        GrainStates.BiomarkerMethod method,
+        DateTime testDate,
+        string? lab,
+        string? comments);
+
+    /// <summary>Returns the tumor's molecular biomarker panel. Readable by any clinician (reads are open).</summary>
+    Task<List<GrainStates.TumorBiomarker>> GetTumorBiomarkersAsync(string tumorId);
+
+    /// <summary>
+    /// Read-only precision-oncology decision support: the targeted/immunotherapies indicated by the
+    /// tumor's positive biomarkers (curated knowledge base; never auto-orders). Readable by any clinician.
+    /// </summary>
+    Task<List<Clinical.PrecisionTherapyMatch>> GetPrecisionOncologyMatchesAsync(string tumorId);
+
+    /// <summary>
     /// Creates a new oncology treatment episode linked to a tumor.
     /// Adds the treatment ID to the tumor record and the patient treatment index.
     /// Returns the new treatment ID. ONCTREAT.m CREATE.

@@ -362,4 +362,46 @@ public class OncologyWorkflowTests
         Assert.That(p1Tumors[0].PrimarySite, Is.EqualTo("C34.1"));
         Assert.That(p2Tumors[0].PrimarySite, Is.EqualTo("C50.9"));
     }
+
+    // ── Precision oncology: biomarkers + therapy matching ───────────────────────
+
+    [Test]
+    public async Task RecordTumorBiomarker_AppearsInProfile_AndMatchesTargetedTherapy()
+    {
+        string patientId = $"PATIENT-{Guid.NewGuid()}";
+        IPatientWorkflowGrain wf = Workflow(patientId);
+        string tumorId = await RegisterTumor(wf);
+
+        await wf.RecordTumorBiomarkerAsync(
+            tumorId, "EGFR", BiomarkerStatus.Positive, "exon 19 deletion",
+            BiomarkerMethod.NGS, new DateTime(2025, 4, 1), "FoundationOne CDx", null);
+
+        List<TumorBiomarker> profile = await wf.GetTumorBiomarkersAsync(tumorId);
+        Assert.That(profile, Has.Count.EqualTo(1));
+        Assert.That(profile[0].Gene, Is.EqualTo("EGFR"));
+        Assert.That(profile[0].Status, Is.EqualTo(BiomarkerStatus.Positive));
+
+        var matches = await wf.GetPrecisionOncologyMatchesAsync(tumorId);
+        Assert.That(matches.Any(m => m.TherapyClass.Contains("EGFR")), Is.True);
+        Assert.That(matches[0].Finding, Is.EqualTo("exon 19 deletion"));
+    }
+
+    [Test]
+    public async Task RecordTumorBiomarker_UpsertsByGene_NegativeProducesNoMatch()
+    {
+        string patientId = $"PATIENT-{Guid.NewGuid()}";
+        IPatientWorkflowGrain wf = Workflow(patientId);
+        string tumorId = await RegisterTumor(wf);
+
+        await wf.RecordTumorBiomarkerAsync(tumorId, "EGFR", BiomarkerStatus.Positive, "L858R", BiomarkerMethod.NGS, DateTime.UtcNow, null, null);
+        // Re-test the same gene → upsert (one current result per marker), now negative.
+        await wf.RecordTumorBiomarkerAsync(tumorId, "EGFR", BiomarkerStatus.Negative, "wild type", BiomarkerMethod.NGS, DateTime.UtcNow, null, null);
+
+        List<TumorBiomarker> profile = await wf.GetTumorBiomarkersAsync(tumorId);
+        Assert.That(profile, Has.Count.EqualTo(1));
+        Assert.That(profile[0].Status, Is.EqualTo(BiomarkerStatus.Negative));
+
+        var matches = await wf.GetPrecisionOncologyMatchesAsync(tumorId);
+        Assert.That(matches, Is.Empty);
+    }
 }
