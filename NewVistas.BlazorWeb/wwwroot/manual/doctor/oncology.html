@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Oncology — Physician Manual — NewVistas</title>
+  <link rel="stylesheet" href="../assets/css/manual.css" />
+</head>
+<body>
+  <div class="topbar">
+    <div class="brand"><a href="../index.html">NewVistas</a> <span>· User Manual</span></div>
+    <div class="role-pill">🩺 Physician</div>
+  </div>
+
+  <div class="layout">
+    <nav class="sidebar">
+      <div class="section">Physician Manual</div>
+      <a href="index.html">Overview</a>
+      <a href="getting-started.html">Getting Started</a>
+      <div class="section">Chart &amp; Workflows</div>
+      <a href="cover-sheet.html">Cover Sheet</a>
+      <a href="problem-list.html">Problem List</a>
+      <a href="prescribing.html">Prescribing &amp; Safety Gate</a>
+      <a href="orders.html">Order Entry</a>
+      <a href="notes.html">Progress Notes</a>
+      <a href="consults.html">Consults</a>
+      <a href="labs.html">Labs</a>
+      <a href="allergies.html">Allergies</a>
+      <a href="immunizations.html">Immunizations</a>
+      <div class="section" data-flag="ONCOLOGY">Oncology</div>
+      <a href="oncology.html" class="active" data-flag="ONCOLOGY">Oncology / Tumor Registry</a>
+      <a href="radiation-therapy.html" data-flag="ONCOLOGY">Radiation Therapy</a>
+      <a href="cancer-registry.html" data-flag="ONCOLOGY">Cancer Registry</a>
+      <div class="section">&nbsp;</div>
+      <a href="../index.html">← All roles</a>
+    </nav>
+
+    <main class="content">
+      <div class="crumb"><a href="../index.html">Manual</a> › <a href="index.html">Physician</a> › Oncology</div>
+      <h1>Oncology — Tumor Registry &amp; Precision Medicine</h1>
+      <p class="lead">
+        The Oncology screen brings the tumor registry, molecular profile, and
+        precision-oncology decision support together on one page. Register a
+        primary cancer, stage it, track disease status, record biomarkers, and
+        review the targeted and immunotherapy options matched to those biomarkers.
+      </p>
+
+      <div class="callout note" data-flag="ONCOLOGY">
+        <span class="ct">Edition feature</span>
+        Oncology is a first-class module in the Modern edition (feature flag
+        <code>ONCOLOGY</code>), with precision matching gated by
+        <code>PRECISION_ONCOLOGY</code>. If a section appears dimmed on your site,
+        the feature is turned off for that deployment.
+      </div>
+
+      <h2>Open Oncology</h2>
+      <ol class="steps">
+        <li>In the sidebar, under <strong>Clinical</strong>, click <kbd>Oncology</kbd> (or go to <code>/oncology</code>).</li>
+        <li>Confirm the patient in the patient bar, or pull one up from <a href="getting-started.html">Patient Lookup</a>.</li>
+        <li>The page opens on the <strong>Tumor Registry</strong>, with the <strong>Molecular Profile</strong> and <strong>Precision Matches</strong> below.</li>
+      </ol>
+
+      <figure class="shot">
+        <img src="../assets/img/doctor/oncology.png" alt="Oncology page: molecular profile and precision matches" />
+        <figcaption>The Oncology page — the tumor registry, the molecular profile, and the precision-oncology matches that a positive biomarker surfaces.</figcaption>
+      </figure>
+
+      <h2>The Tumor Registry</h2>
+      <p>
+        Register each primary cancer as its own tumor record. A patient may have
+        more than one primary; record each separately so staging and treatment
+        track to the right disease.
+      </p>
+      <ol class="steps">
+        <li>Click <kbd>Register Primary</kbd>.</li>
+        <li>Enter the <strong>primary site</strong> and the <strong>ICD-O-3 histology</strong> (morphology) code that describes the tumor type.</li>
+        <li>Record <strong>TNM staging</strong> — both <strong>clinical</strong> (cTNM) and <strong>pathologic</strong> (pTNM) where available — and the <strong>SEER summary stage</strong> (in situ / localized / regional / distant).</li>
+        <li>Set the <strong>disease status</strong> (e.g. active, in remission, recurrence) and update it as the course evolves.</li>
+        <li>Click <kbd>Save</kbd>. The tumor appears in the registry list with its stage and status.</li>
+      </ol>
+
+      <table>
+        <thead><tr><th>Field</th><th>What it captures</th></tr></thead>
+        <tbody>
+          <tr><td>Primary site</td><td>The anatomic site of origin of the tumor.</td></tr>
+          <tr><td>ICD-O-3 histology</td><td>Morphology / histologic type of the tumor.</td></tr>
+          <tr><td>TNM stage</td><td>Tumor / Node / Metastasis — recorded as clinical (cTNM) and pathologic (pTNM).</td></tr>
+          <tr><td>SEER summary stage</td><td>In situ, localized, regional, or distant spread.</td></tr>
+          <tr><td>Disease status</td><td>Active, in remission, or recurrence — tracked over time.</td></tr>
+        </tbody>
+      </table>
+
+      <h2>The Molecular Profile</h2>
+      <p data-flag="PRECISION_ONCOLOGY">
+        The molecular profile records the patient's biomarkers — the genes and
+        proteins that drive treatment selection. There is <strong>one current
+        result per gene</strong>: re-testing a gene <em>upserts</em> (replaces)
+        the prior result rather than stacking duplicates.
+      </p>
+      <ol class="steps" data-flag="PRECISION_ONCOLOGY">
+        <li>In the <strong>Molecular Profile</strong> section, click <kbd>Add Biomarker</kbd>.</li>
+        <li>Enter the <strong>gene</strong> (e.g. <code>BRAF</code>, <code>EGFR</code>, <code>PD-L1</code>).</li>
+        <li>Set the <strong>status</strong>: Positive, Negative, Equivocal, or Pending.</li>
+        <li>Enter the <strong>result</strong> detail (e.g. <code>V600E</code>, or a percent for an expression assay).</li>
+        <li>Choose the <strong>method</strong>: NGS, IHC, FISH, or PCR.</li>
+        <li>Click <kbd>Save</kbd>. The biomarker shows in the profile; re-testing the same gene later updates this single current result.</li>
+      </ol>
+
+      <table data-flag="PRECISION_ONCOLOGY">
+        <thead><tr><th>Field</th><th>Values</th></tr></thead>
+        <tbody>
+          <tr><td>Gene</td><td>e.g. BRAF, EGFR, ALK, KRAS, PD-L1, HER2.</td></tr>
+          <tr><td>Status</td><td>Positive / Negative / Equivocal / Pending.</td></tr>
+          <tr><td>Result</td><td>The specific finding (variant, score, or percent).</td></tr>
+          <tr><td>Method</td><td>NGS / IHC / FISH / PCR.</td></tr>
+        </tbody>
+      </table>
+
+      <h2>Precision-Oncology Matches</h2>
+      <p data-flag="PRECISION_ONCOLOGY">
+        When a biomarker is recorded <strong>Positive</strong>, the matcher
+        surfaces the targeted and immunotherapy options associated with that
+        finding. For example, <strong>BRAF V600E</strong> matches a
+        BRAF + MEK inhibitor combination, and <strong>PD-L1</strong> expression
+        matches a checkpoint inhibitor.
+      </p>
+
+      <div class="callout note" data-flag="PRECISION_ONCOLOGY">
+        <span class="ct">Decision support, not auto-ordering</span>
+        Precision matches are <strong>decision support only</strong> — NewVistas
+        never auto-orders a therapy. The matcher is a <strong>curated rule set</strong>;
+        always confirm against current <strong>NCCN guidelines</strong> and your
+        institution's <strong>molecular tumor board</strong> before acting on a match.
+      </div>
+
+      <h2>Who can read and edit</h2>
+      <p>
+        Oncology data is <strong>readable by any clinician</strong> — staging and
+        biomarkers inform care coordination across the chart, so this is not a
+        privacy silo the way Mental Health is. <strong>Editing</strong> the registry,
+        molecular profile, or matches <strong>requires the <code>ONCO MANAGER</code>
+        security key</strong>, which is held by oncologists.
+      </p>
+      <ol class="steps">
+        <li>To edit, sign in as an oncologist — for the demo, user <code>ONC1</code> (password <code>smythVista1</code>).</li>
+        <li>Clinicians without the key see the same data read-only; the edit actions are hidden.</li>
+      </ol>
+
+      <div class="callout tip">
+        <span class="ct">Try the demo</span>
+        Patient <strong>P9001 (SICK, EXTREME LEE)</strong> has a <strong>stage IIIB
+        melanoma</strong> with <strong>BRAF V600E</strong> and <strong>PD-L1 35%</strong>.
+        Open Oncology on this patient to see two matched therapies surface from the
+        molecular profile.
+      </div>
+
+      <div class="callout note">
+        <span class="ct">Where it shows up</span>
+        Active cancers also feed the <a href="cover-sheet.html">Cover Sheet</a>
+        summary, and a registered tumor is the starting point for
+        <a href="radiation-therapy.html">Radiation Therapy</a> courses and the
+        <a href="cancer-registry.html">Cancer Registry (NAACCR)</a> abstract.
+      </div>
+
+      <footer>NewVistas User Manual · Physician · Oncology</footer>
+    </main>
+  </div>
+  <script src="../assets/js/editions.js"></script>
+</body>
+</html>

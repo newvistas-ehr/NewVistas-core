@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Radiation Therapy — Physician Manual — NewVistas</title>
+  <link rel="stylesheet" href="../assets/css/manual.css" />
+</head>
+<body>
+  <div class="topbar">
+    <div class="brand"><a href="../index.html">NewVistas</a> <span>· User Manual</span></div>
+    <div class="role-pill">🩺 Physician</div>
+  </div>
+
+  <div class="layout">
+    <nav class="sidebar">
+      <div class="section">Physician Manual</div>
+      <a href="index.html">Overview</a>
+      <a href="getting-started.html">Getting Started</a>
+      <div class="section">Chart &amp; Workflows</div>
+      <a href="cover-sheet.html">Cover Sheet</a>
+      <a href="problem-list.html">Problem List</a>
+      <a href="prescribing.html">Prescribing &amp; Safety Gate</a>
+      <a href="orders.html">Order Entry</a>
+      <a href="notes.html">Progress Notes</a>
+      <a href="consults.html">Consults</a>
+      <a href="labs.html">Labs</a>
+      <a href="allergies.html">Allergies</a>
+      <a href="immunizations.html">Immunizations</a>
+      <div class="section" data-flag="ONCOLOGY">Oncology</div>
+      <a href="oncology.html" data-flag="ONCOLOGY">Oncology / Tumor Registry</a>
+      <a href="radiation-therapy.html" class="active" data-flag="ONCOLOGY">Radiation Therapy</a>
+      <a href="cancer-registry.html" data-flag="ONCOLOGY">Cancer Registry</a>
+      <div class="section">&nbsp;</div>
+      <a href="../index.html">← All roles</a>
+    </nav>
+
+    <main class="content">
+      <div class="crumb"><a href="../index.html">Manual</a> › <a href="index.html">Physician</a> › Radiation Therapy</div>
+      <h1>Radiation Therapy</h1>
+      <p class="lead">
+        Plan and track a course of external-beam or brachytherapy radiation for a
+        registered tumor — from prescription and CT simulation, through delivered
+        fractions, to completion. Each course captures its modality, intent,
+        dose plan, and care team.
+      </p>
+
+      <div class="callout note" data-flag="ONCOLOGY">
+        <span class="ct">Screenshot coming soon</span>
+        A walkthrough screenshot for this screen will be added in a future manual
+        update. The steps below follow the live <code>/radiation-therapy</code> page.
+      </div>
+
+      <h2>Open Radiation Therapy</h2>
+      <ol class="steps">
+        <li>In the sidebar, under <strong>Oncology</strong>, click <kbd>Radiation Therapy</kbd> (or go to <code>/radiation-therapy</code>).</li>
+        <li>Confirm the patient in the patient bar; the patient should already have a primary tumor registered in <a href="oncology.html">Oncology</a>.</li>
+        <li>Existing RT courses are listed with their modality, intent, and status.</li>
+      </ol>
+
+      <h2>Create an RT course</h2>
+      <ol class="steps">
+        <li>Click <kbd>New Course</kbd> and select the <strong>tumor</strong> the course treats.</li>
+        <li>Choose the <strong>modality</strong> and <strong>intent</strong> (see tables below).</li>
+        <li>Enter the <strong>prescribed dose</strong> in <code>cGy</code>, the <strong>number of fractions</strong>, and the <strong>dose per fraction</strong>, plus the <strong>beam energy</strong>.</li>
+        <li>Record the <strong>care team</strong> — radiation oncologist, medical physicist, dosimetrist, and the treatment <strong>machine</strong>.</li>
+        <li>Click <kbd>Save</kbd>. The course is created in a planning state.</li>
+      </ol>
+
+      <table>
+        <thead><tr><th>Modality</th><th>Notes</th></tr></thead>
+        <tbody>
+          <tr><td>3D photon</td><td>3D conformal external-beam photon therapy.</td></tr>
+          <tr><td>IMRT</td><td>Intensity-modulated radiation therapy.</td></tr>
+          <tr><td>VMAT</td><td>Volumetric-modulated arc therapy.</td></tr>
+          <tr><td>SRS</td><td>Stereotactic radiosurgery (cranial).</td></tr>
+          <tr><td>SBRT</td><td>Stereotactic body radiation therapy.</td></tr>
+          <tr><td>Proton</td><td>Proton-beam therapy.</td></tr>
+          <tr><td>Electron</td><td>Electron-beam therapy (superficial targets).</td></tr>
+          <tr><td>Brachytherapy</td><td>Internal / sealed-source radiation.</td></tr>
+        </tbody>
+      </table>
+
+      <table>
+        <thead><tr><th>Intent</th><th>Goal</th></tr></thead>
+        <tbody>
+          <tr><td>Curative</td><td>Definitive treatment aimed at cure.</td></tr>
+          <tr><td>Adjuvant</td><td>After primary therapy (e.g. surgery) to reduce recurrence.</td></tr>
+          <tr><td>Neoadjuvant</td><td>Before primary therapy to shrink the tumor.</td></tr>
+          <tr><td>Palliative</td><td>Symptom control rather than cure.</td></tr>
+          <tr><td>Prophylactic</td><td>Preventive (e.g. prophylactic cranial irradiation).</td></tr>
+        </tbody>
+      </table>
+
+      <h2>Simulation and starting the course</h2>
+      <ol class="steps">
+        <li>Record the <strong>CT simulation</strong> once the planning scan is done.</li>
+        <li>When treatment begins, click <kbd>Start Course</kbd>. The course moves to an in-progress state.</li>
+      </ol>
+
+      <h2>Track delivered fractions</h2>
+      <ol class="steps">
+        <li>As each fraction is delivered, record it on the course.</li>
+        <li>The course shows <strong>delivered vs. prescribed</strong> fractions and the cumulative dose.</li>
+      </ol>
+
+      <h2>Complete, discontinue, or hold</h2>
+      <ol class="steps">
+        <li><kbd>Complete</kbd> when the prescribed fractions are delivered.</li>
+        <li><kbd>Discontinue</kbd> to stop the course early (record the reason).</li>
+        <li><kbd>Hold</kbd> to pause delivery temporarily (e.g. for toxicity), then resume later.</li>
+      </ol>
+
+      <div class="callout note">
+        <span class="ct">Who can edit</span>
+        Creating and updating RT courses <strong>requires the <code>ONCO MANAGER</code>
+        security key</strong>. As with the rest of Oncology, the course is readable
+        by any clinician for care coordination but editable only by oncology staff.
+        For the demo, sign in as oncologist <code>ONC1</code> (password
+        <code>smythVista1</code>).
+      </div>
+
+      <footer>NewVistas User Manual · Physician · Radiation Therapy</footer>
+    </main>
+  </div>
+  <script src="../assets/js/editions.js"></script>
+</body>
+</html>

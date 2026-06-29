@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Cancer Registry (NAACCR) — Physician Manual — NewVistas</title>
+  <link rel="stylesheet" href="../assets/css/manual.css" />
+</head>
+<body>
+  <div class="topbar">
+    <div class="brand"><a href="../index.html">NewVistas</a> <span>· User Manual</span></div>
+    <div class="role-pill">🩺 Physician</div>
+  </div>
+
+  <div class="layout">
+    <nav class="sidebar">
+      <div class="section">Physician Manual</div>
+      <a href="index.html">Overview</a>
+      <a href="getting-started.html">Getting Started</a>
+      <div class="section">Chart &amp; Workflows</div>
+      <a href="cover-sheet.html">Cover Sheet</a>
+      <a href="problem-list.html">Problem List</a>
+      <a href="prescribing.html">Prescribing &amp; Safety Gate</a>
+      <a href="orders.html">Order Entry</a>
+      <a href="notes.html">Progress Notes</a>
+      <a href="consults.html">Consults</a>
+      <a href="labs.html">Labs</a>
+      <a href="allergies.html">Allergies</a>
+      <a href="immunizations.html">Immunizations</a>
+      <div class="section" data-flag="ONCOLOGY">Oncology</div>
+      <a href="oncology.html" data-flag="ONCOLOGY">Oncology / Tumor Registry</a>
+      <a href="radiation-therapy.html" data-flag="ONCOLOGY">Radiation Therapy</a>
+      <a href="cancer-registry.html" class="active" data-flag="ONCOLOGY">Cancer Registry</a>
+      <div class="section">&nbsp;</div>
+      <a href="../index.html">← All roles</a>
+    </nav>
+
+    <main class="content">
+      <div class="crumb"><a href="../index.html">Manual</a> › <a href="index.html">Physician</a> › Cancer Registry</div>
+      <h1>Cancer Registry (NAACCR)</h1>
+      <p class="lead">
+        Generate a NAACCR cancer abstract from a registered tumor, review it, and
+        submit it to a state or central cancer registry. The screen tracks the
+        abstract through its lifecycle, including accept and reject responses from
+        the receiving registry.
+      </p>
+
+      <div class="callout note" data-flag="ONCOLOGY">
+        <span class="ct">Screenshot coming soon</span>
+        A walkthrough screenshot for this screen will be added in a future manual
+        update. The steps below follow the live <code>/cancerregistry</code> page.
+      </div>
+
+      <h2>Open the Cancer Registry</h2>
+      <ol class="steps">
+        <li>In the sidebar, under <strong>Oncology</strong>, click <kbd>Cancer Registry</kbd> (or go to <code>/cancerregistry</code>).</li>
+        <li>Confirm the patient in the patient bar; the patient should have a primary tumor registered in <a href="oncology.html">Oncology</a>.</li>
+        <li>Existing abstracts are listed with their status and any registry response.</li>
+      </ol>
+
+      <h2>Generate an abstract</h2>
+      <ol class="steps">
+        <li>Click <kbd>Generate Abstract</kbd> and select the registered <strong>tumor</strong> to abstract.</li>
+        <li>NewVistas populates a <strong>NAACCR abstract</strong> from the tumor's registry data (site, histology, stage, and demographics).</li>
+        <li>Click <kbd>Save</kbd>. The abstract is created in a draft state.</li>
+      </ol>
+
+      <h2>Review and submit</h2>
+      <ol class="steps">
+        <li><strong>Review</strong> the generated abstract for completeness and accuracy.</li>
+        <li>Click <kbd>Submit</kbd> to transmit the abstract to the configured state or central cancer registry.</li>
+        <li>Record the registry's response — an <strong>accept</strong> closes the submission; a <strong>reject</strong> returns the abstract for correction and resubmission.</li>
+      </ol>
+
+      <div class="callout note">
+        <span class="ct">Certification context</span>
+        Transmission to cancer registries supports ONC certification criterion
+        <strong>§170.315(f)(4)</strong> — <em>Transmission to cancer registries</em>.
+        NAACCR is the standard record layout for reporting cancer cases to public
+        health registries.
+      </div>
+
+      <div class="callout note">
+        <span class="ct">Who can edit</span>
+        Generating and submitting abstracts <strong>requires the
+        <code>ONCO MANAGER</code> security key</strong>. The data is readable by any
+        clinician but editable only by oncology staff. For the demo, sign in as
+        oncologist <code>ONC1</code> (password <code>smythVista1</code>).
+      </div>
+
+      <footer>NewVistas User Manual · Physician · Cancer Registry</footer>
+    </main>
+  </div>
+  <script src="../assets/js/editions.js"></script>
+</body>
+</html>

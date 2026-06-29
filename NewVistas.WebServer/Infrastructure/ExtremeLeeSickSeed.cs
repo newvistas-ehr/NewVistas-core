@@ -978,7 +978,41 @@ PLAN:
                 melanomaId, "KIT", BiomarkerStatus.Negative, "wild type",
                 BiomarkerMethod.NGS, new DateTime(2024, 9, 1), "FoundationOne CDx", null);
 
-            logger.LogInformation("  + oncology: melanoma {Id} staged IIIB with molecular profile (BRAF V600E, PD-L1 35%)", melanomaId);
+            // Adjuvant radiation to the regional nodal basin after the stage IIIB nodal disease
+            // (a completed course — so the Radiation Therapy page is populated for the demo).
+            string rtCourseId = await wf.CreateRtCourseAsync(
+                courseName: "Adjuvant nodal RT — right axilla",
+                diagnosisCode: "C43.5",
+                diagnosisText: "Malignant melanoma of trunk",
+                treatmentSite: "Right axillary nodal basin",
+                laterality: RtLaterality.Right,
+                intent: RtIntent.Adjuvant,
+                modality: RtModality.IMRT,
+                prescribedDoseCgy: 4800,
+                fractionsPlanned: 20,
+                dosePerFractionCgy: 240,
+                beamEnergy: "6 MV",
+                oncologistId: "PROV-CURE", oncologistName: "Dr. Cure",
+                physicistId: null, physicistName: null,
+                dosimetristId: null, dosimetristName: null,
+                treatmentMachineId: null, treatmentMachineName: "TrueBeam STx",
+                planningNotes: "Adjuvant RT to the right axillary nodal basin following regional lymph-node involvement.");
+            await wf.RecordRtSimulationAsync(rtCourseId, new DateTime(2024, 9, 20), "CT simulation; immobilization in place.");
+            await wf.StartRtCourseAsync(rtCourseId, new DateTime(2024, 10, 1));
+            for (int fx = 1; fx <= 20; fx++)
+            {
+                await wf.RecordRtFractionAsync(rtCourseId, fx, new DateTime(2024, 10, 1).AddDays(fx - 1), 240,
+                    15, null, "TrueBeam STx", null, null, setupVerified: true, "CBCT", null, interrupted: false, null, null);
+            }
+            await wf.CompleteRtCourseAsync(rtCourseId, new DateTime(2024, 10, 28), "Completed 20/20 fractions; tolerated well.");
+
+            // NAACCR cancer-registry abstract for the reportable melanoma, submitted to the state registry
+            // (so the Cancer Registry page is populated for the demo).
+            string registryReportId = await wf.GenerateCancerRegistryReportAsync(
+                melanomaId, "NewVistas Medical Center", "REG-1", "Tumor Registrar");
+            await wf.SubmitCancerRegistryReportAsync(registryReportId, "Massachusetts Cancer Registry", "MCR-2024-009817");
+
+            logger.LogInformation("  + oncology: melanoma {Id} staged IIIB; molecular profile (BRAF V600E, PD-L1 35%); adjuvant nodal RT + NAACCR registry abstract", melanomaId);
 
             // ── Home-Based Care (HBPC) ──────────────────────────────────────────────
             // Mr. Sick fits HBPC: chronic low back pain + post-cervical-fusion mobility limits +

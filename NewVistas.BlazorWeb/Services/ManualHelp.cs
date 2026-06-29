@@ -34,7 +34,7 @@ public static class ManualHelp
         var set = new HashSet<string>(roles, StringComparer.OrdinalIgnoreCase);
         if (set.Contains("Administrator") || set.Contains("RegistrationClerk")) return "admin";
         if (set.Contains("Pharmacist")) return "pharmacist";
-        if (set.Contains("Provider") || set.Contains("Surgeon") || set.Contains("Radiologist") || set.Contains("MentalHealth")) return "doctor";
+        if (set.Contains("Provider") || set.Contains("Surgeon") || set.Contains("Radiologist") || set.Contains("MentalHealth") || set.Contains("Oncologist")) return "doctor";
         if (set.Contains("Nurse")) return "nurse";
         return "doctor";
     }
@@ -57,6 +57,9 @@ public static class ManualHelp
             ["labs"] = "labs.html",
             ["allergies"] = "allergies.html",
             ["immunizations"] = "immunizations.html",
+            ["oncology"] = "oncology.html",
+            ["radiation-therapy"] = "radiation-therapy.html",
+            ["cancerregistry"] = "cancer-registry.html",
         },
         ["nurse"] = new()
         {
