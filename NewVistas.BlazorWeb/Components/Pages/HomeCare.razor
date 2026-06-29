@@ -8,6 +8,7 @@
 @using NewVistas.BlazorWeb.Services
 @using NewVistas.Abstractions.GrainInterfaces
 @using NewVistas.Abstractions.GrainStates
+@using NewVistas.Abstractions.Clinical
 @using NewVistas.Abstractions.Security
 @inject OrleansGrainService Grains
 @inject PatientContextService PatientContext
@@ -189,6 +190,21 @@ else
         <!-- ── Episode Detail Tab ──────────────────────────────────────────── -->
         @if (activeTab == "episode")
         {
+            @if (!string.IsNullOrWhiteSpace(patientId) && patientEpisodes != null && patientEpisodes.Count > 0)
+            {
+                <div class="episode-selector">
+                    <label>Episodes</label>
+                    @foreach (HomeCareCensusEntry pe in patientEpisodes)
+                    {
+                        <button class="episode-chip @(episode != null && episode.EpisodeId == pe.EpisodeId ? "selected" : string.Empty)"
+                                @onclick="() => SelectEpisode(pe.EpisodeId)">
+                            @ProgramText(pe.ProgramType)
+                            <span class="badge @EpisodeStatusBadge(pe.Status)">@pe.Status</span>
+                            <span class="code">@pe.AdmissionDate.ToString("yyyy-MM-dd")</span>
+                        </button>
+                    }
+                </div>
+            }
             @if (string.IsNullOrWhiteSpace(patientId))
             {
                 <div class="empty-state">Enter a Patient ID above and click "Load Episode", or pick a patient from the Caseload tab.</div>
@@ -466,12 +482,14 @@ else
                                     <th>Clinician</th>
                                     <th>Status</th>
                                     <th>Duration</th>
+                                    @if (MedicareEnabled) { <th>EVV</th> }
                                     @if (CanEdit) { <th></th> }
                                 </tr>
                             </thead>
                             <tbody>
                                 @foreach (HomeVisitIndexEntry v in episodeVisits)
                                 {
+                                    HomeVisitState? vs = (visitDetails != null && visitDetails.TryGetValue(v.VisitId, out HomeVisitState? d)) ? d : null;
                                     <tr>
                                         <td>@v.ScheduledDateTime.ToString("yyyy-MM-dd HH:mm")</td>
                                         <td>@DisciplineText(v.Discipline)</td>
@@ -479,12 +497,41 @@ else
                                         <td>@(string.IsNullOrWhiteSpace(v.ClinicianName) ? "—" : v.ClinicianName)</td>
                                         <td><span class="badge @VisitStatusBadge(v.Status)">@v.Status</span></td>
                                         <td>@(v.DurationMinutes > 0 ? $"{v.DurationMinutes} min" : "—")</td>
+                                        @if (MedicareEnabled)
+                                        {
+                                            <td>
+                                                @if (vs != null && vs.CheckInTime.HasValue)
+                                                {
+                                                    <span class="evv-time">In @vs.CheckInTime.Value.ToString("HH:mm")</span>
+                                                    @if (vs.CheckOutTime.HasValue)
+                                                    {
+                                                        <span class="evv-time"> · Out @vs.CheckOutTime.Value.ToString("HH:mm")</span>
+                                                    }
+                                                    <span class="code">@vs.EvvMethod</span>
+                                                }
+                                                else
+                                                {
+                                                    <span class="code">—</span>
+                                                }
+                                            </td>
+                                        }
                                         @if (CanEdit)
                                         {
                                             <td>
                                                 @if (v.Status == HomeVisitStatus.Scheduled || v.Status == HomeVisitStatus.InProgress)
                                                 {
                                                     <button class="btn btn-secondary btn-sm" @onclick="() => OpenCompleteVisit(v.VisitId)">Complete</button>
+                                                }
+                                                @if (MedicareEnabled)
+                                                {
+                                                    @if (vs == null || !vs.CheckInTime.HasValue)
+                                                    {
+                                                        <button class="btn btn-secondary btn-sm" @onclick="() => OpenCheckIn(v.VisitId)">Check In</button>
+                                                    }
+                                                    else if (!vs.CheckOutTime.HasValue)
+                                                    {
+                                                        <button class="btn btn-secondary btn-sm" @onclick="() => OpenCheckOut(v.VisitId)">Check Out</button>
+                                                    }
                                                 }
                                             </td>
                                         }
@@ -551,6 +598,41 @@ else
                         </div>
                         <div class="panel-btns">
                             <button class="btn btn-primary" @onclick="SubmitCompleteVisit">Complete Visit</button>
+                            <button class="btn btn-secondary" @onclick="CloseAllPanels">Cancel</button>
+                        </div>
+                    </div>
+                }
+
+                @if (showCheckInPanel)
+                {
+                    <div class="action-panel">
+                        <h5>EVV Check In</h5>
+                        <div class="form-row">
+                            <label>Location</label><input @bind="evvLocation" placeholder="lat,long or address" />
+                            <label>Method</label>
+                            <select @bind="evvMethod">
+                                @foreach (EvvMethod m in Enum.GetValues<EvvMethod>())
+                                {
+                                    <option value="@m">@m</option>
+                                }
+                            </select>
+                        </div>
+                        <div class="panel-btns">
+                            <button class="btn btn-primary" @onclick="SubmitCheckIn">Check In</button>
+                            <button class="btn btn-secondary" @onclick="CloseAllPanels">Cancel</button>
+                        </div>
+                    </div>
+                }
+
+                @if (showCheckOutPanel)
+                {
+                    <div class="action-panel">
+                        <h5>EVV Check Out</h5>
+                        <div class="form-row">
+                            <label>Location</label><input @bind="evvLocation" placeholder="lat,long or address" />
+                        </div>
+                        <div class="panel-btns">
+                            <button class="btn btn-primary" @onclick="SubmitCheckOut">Check Out</button>
                             <button class="btn btn-secondary" @onclick="CloseAllPanels">Cancel</button>
                         </div>
                     </div>
@@ -624,6 +706,297 @@ else
                         <div class="panel-btns">
                             <button class="btn btn-primary" @onclick="SubmitAssessment">Record Assessment</button>
                             <button class="btn btn-secondary" @onclick="CloseAllPanels">Cancel</button>
+                        </div>
+                    </div>
+                }
+
+                @* ── Medicare Skilled Home Health (Phase 2) ── *@
+                @if (MedicareEnabled)
+                {
+                    <div class="detail-panel medicare-panel">
+                        <h4>Medicare Skilled Home Health</h4>
+
+                        @* ── Eligibility ── *@
+                        <div class="med-section">
+                            <h5>Eligibility</h5>
+                            <div class="detail-grid">
+                                <div>
+                                    <label>Homebound</label>
+                                    <span>
+                                        @if (episode.Eligibility.IsHomebound == true) { <span class="badge badge-success">Yes</span> }
+                                        else if (episode.Eligibility.IsHomebound == false) { <span class="badge badge-warning">No</span> }
+                                        else { <text>—</text> }
+                                    </span>
+                                </div>
+                                <div><label>Skilled Need</label><span>@(episode.Eligibility.SkilledNeed?.ToString() ?? "—")</span></div>
+                                <div class="full-width"><label>Homebound Justification</label><span>@(string.IsNullOrWhiteSpace(episode.Eligibility.HomeboundJustification) ? "—" : episode.Eligibility.HomeboundJustification)</span></div>
+                            </div>
+                            @if (CanEdit)
+                            {
+                                <button class="btn btn-primary btn-sm" @onclick="() => Toggle(ref showEligibilityPanel)">Set Eligibility</button>
+                            }
+                            @if (showEligibilityPanel)
+                            {
+                                <div class="action-panel">
+                                    <h5>Set Medicare Eligibility</h5>
+                                    <div class="form-row">
+                                        <label>Homebound</label><input type="checkbox" @bind="eligHomebound" />
+                                        <label>Skilled Need</label>
+                                        <select @bind="eligSkilledNeed">
+                                            @foreach (SkilledNeedType s in Enum.GetValues<SkilledNeedType>())
+                                            {
+                                                <option value="@s">@s</option>
+                                            }
+                                        </select>
+                                    </div>
+                                    <div class="form-row">
+                                        <label>Homebound Justification</label><textarea @bind="eligJustification" rows="2"></textarea>
+                                    </div>
+                                    <div class="panel-btns">
+                                        <button class="btn btn-primary" @onclick="SubmitEligibility">Save</button>
+                                        <button class="btn btn-secondary" @onclick="CloseAllPanels">Cancel</button>
+                                    </div>
+                                </div>
+                            }
+                        </div>
+
+                        @* ── Certification periods ── *@
+                        <div class="med-section">
+                            <h5>Certification Periods</h5>
+                            @if (episode.CertificationPeriods == null || episode.CertificationPeriods.Count == 0)
+                            {
+                                <div class="empty-state">No certification periods.</div>
+                            }
+                            else
+                            {
+                                @foreach (CertificationPeriod cp in episode.CertificationPeriods)
+                                {
+                                    <div class="problem-card">
+                                        <div class="problem-header">
+                                            <strong>@cp.StartDate.ToString("yyyy-MM-dd") – @cp.EndDate.ToString("yyyy-MM-dd")</strong>
+                                            @if (cp.IsRecertification) { <span class="badge badge-info">Recert</span> }
+                                            else { <span class="badge badge-success">Initial</span> }
+                                            <span class="problem-disc">Cert by @(string.IsNullOrWhiteSpace(cp.CertifyingProviderId) ? "—" : cp.CertifyingProviderId)</span>
+                                        </div>
+                                        <div class="problem-line"><em>Face-to-face:</em> @(cp.FaceToFaceEncounterDate.HasValue ? cp.FaceToFaceEncounterDate.Value.ToString("yyyy-MM-dd") : "—")</div>
+                                        @foreach (PaymentPeriod pp in cp.PaymentPeriods)
+                                        {
+                                            <div class="pay-period">
+                                                <div class="pay-header">
+                                                    <span><strong>30-day period</strong> @pp.StartDate.ToString("yyyy-MM-dd") – @pp.EndDate.ToString("yyyy-MM-dd")</span>
+                                                    @if (CanEdit)
+                                                    {
+                                                        <button class="btn btn-secondary btn-sm" @onclick="() => SubmitComputePdgm(cp.PeriodId, pp.PeriodId)">Compute PDGM</button>
+                                                    }
+                                                </div>
+                                                @if (pp.Grouping != null)
+                                                {
+                                                    <div class="pdgm-grid">
+                                                        <div><label>HIPPS</label><span class="hipps">@pp.Grouping.CaseMixGroup</span></div>
+                                                        <div><label>Clinical Grouping</label><span>@pp.Grouping.ClinicalGrouping</span></div>
+                                                        <div><label>Functional Level</label><span>@pp.Grouping.FunctionalLevel</span></div>
+                                                        <div><label>Comorbidity</label><span>@pp.Grouping.ComorbidityAdjustment</span></div>
+                                                        <div><label>Timing</label><span>@pp.Grouping.Timing</span></div>
+                                                        <div><label>Admission Source</label><span>@pp.Grouping.AdmissionSource</span></div>
+                                                        <div><label>LUPA</label><span>@if (pp.Grouping.IsLupa) { <span class="badge badge-warning">LUPA</span> } else { <span class="badge badge-success">Full</span> }</span></div>
+                                                    </div>
+                                                }
+                                                else
+                                                {
+                                                    <div class="problem-line"><em>PDGM not yet computed.</em></div>
+                                                }
+                                            </div>
+                                        }
+                                    </div>
+                                }
+                            }
+                            @if (CanEdit)
+                            {
+                                <button class="btn btn-primary btn-sm" @onclick="() => Toggle(ref showCertifyPanel)">Certify / Recertify</button>
+                            }
+                            @if (showCertifyPanel)
+                            {
+                                <div class="action-panel">
+                                    <h5>Certify / Recertify</h5>
+                                    <div class="form-row">
+                                        <ProviderPicker @bind-ProviderId="certProviderId" @bind-ProviderName="certProviderName" Label="Certifying Provider" DefaultToSelf="true" />
+                                    </div>
+                                    <div class="form-row">
+                                        <label>Period Start</label><input type="date" @bind="certPeriodStart" />
+                                        <label>Face-to-Face Date</label><input type="date" @bind="certFaceToFace" />
+                                    </div>
+                                    <div class="form-row">
+                                        <label>Recertification</label><input type="checkbox" @bind="certIsRecert" />
+                                    </div>
+                                    <div class="panel-btns">
+                                        <button class="btn btn-primary" @onclick="SubmitCertify">Certify</button>
+                                        <button class="btn btn-secondary" @onclick="CloseAllPanels">Cancel</button>
+                                    </div>
+                                </div>
+                            }
+                        </div>
+
+                        @* ── OASIS ── *@
+                        <div class="med-section">
+                            <h5>OASIS</h5>
+                            @{
+                                List<HomeCareAssessmentState> oasisAssessments =
+                                    assessments?.Where(a => a.Oasis != null).ToList() ?? new();
+                            }
+                            @if (oasisAssessments.Count == 0)
+                            {
+                                <div class="empty-state">No OASIS assessments recorded.</div>
+                            }
+                            else
+                            {
+                                @foreach (HomeCareAssessmentState a in oasisAssessments)
+                                {
+                                    <div class="problem-card">
+                                        <div class="problem-header">
+                                            <strong>@a.AssessmentType</strong>
+                                            <span class="code">@(a.Oasis!.Version)</span>
+                                            @if (a.Oasis.Validated) { <span class="badge badge-success">Validated</span> }
+                                            else { <span class="badge badge-warning">Unvalidated</span> }
+                                            <span class="problem-disc">@a.AssessmentDate.ToString("yyyy-MM-dd") · @a.AssessorName</span>
+                                        </div>
+                                    </div>
+                                }
+                            }
+                            @if (CanEdit)
+                            {
+                                <button class="btn btn-primary btn-sm" @onclick="() => Toggle(ref showOasisPanel)">Record OASIS</button>
+                            }
+                            @if (showOasisPanel)
+                            {
+                                <div class="action-panel">
+                                    <h5>Record OASIS Assessment</h5>
+                                    <div class="form-row">
+                                        <label>Assessment Type</label>
+                                        <select @bind="oasisType">
+                                            @foreach (HomeCareAssessmentType t in OasisAssessmentTypes)
+                                            {
+                                                <option value="@t">@t</option>
+                                            }
+                                        </select>
+                                        <label>Version</label><input @bind="oasisVersion" />
+                                    </div>
+                                    <div class="form-row">
+                                        <ProviderPicker @bind-ProviderId="oasisAssessorId" @bind-ProviderName="oasisAssessorName" Label="Assessor" DefaultToSelf="true" />
+                                    </div>
+                                    <div class="form-row">
+                                        <label>Date</label><input type="date" @bind="oasisDate" />
+                                        <label>Primary Dx (M1021)</label><input @bind="oasisPrimaryDx" placeholder="ICD-10" />
+                                    </div>
+                                    @foreach (string item in OasisItems.FunctionalItems)
+                                    {
+                                        <div class="form-row">
+                                            <label>@item @OasisItemLabel(item)</label>
+                                            <input type="number" min="0" max="6" value="@(oasisItems.TryGetValue(item, out int iv) ? iv : 0)"
+                                                   @onchange="(e) => SetOasisItem(item, e.Value?.ToString())" />
+                                        </div>
+                                    }
+                                    <div class="panel-btns">
+                                        <button class="btn btn-primary" @onclick="SubmitOasis">Record OASIS</button>
+                                        <button class="btn btn-secondary" @onclick="CloseAllPanels">Cancel</button>
+                                    </div>
+                                    @if (oasisScrubResult != null)
+                                    {
+                                        @if (oasisScrubResult.IsClean)
+                                        {
+                                            <div class="alert alert-success">OASIS scrub clean.</div>
+                                        }
+                                        else
+                                        {
+                                            <div class="alert alert-error">
+                                                <strong>Scrub issues:</strong>
+                                                <ul>
+                                                    @foreach (string issue in oasisScrubResult.Issues)
+                                                    {
+                                                        <li>@issue</li>
+                                                    }
+                                                </ul>
+                                            </div>
+                                        }
+                                    }
+                                </div>
+                            }
+                        </div>
+
+                        @* ── Billing ── *@
+                        <div class="med-section">
+                            <h5>Billing</h5>
+                            @if (billing == null)
+                            {
+                                <div class="empty-state">No billing record.</div>
+                            }
+                            else
+                            {
+                                <div class="detail-grid">
+                                    <div>
+                                        <label>Notice of Admission</label>
+                                        <span>
+                                            <span class="badge @NoaStatusBadge(billing.Noa.Status)">@billing.Noa.Status</span>
+                                            @if (billing.Noa.IsLate) { <span class="badge badge-warning">Late</span> }
+                                        </span>
+                                    </div>
+                                    <div><label>NOA Submitted</label><span>@(billing.Noa.SubmittedDate.HasValue ? billing.Noa.SubmittedDate.Value.ToString("yyyy-MM-dd") : "—")</span></div>
+                                    <div><label>NOA Control #</label><span>@(string.IsNullOrWhiteSpace(billing.Noa.ControlNumber) ? "—" : billing.Noa.ControlNumber)</span></div>
+                                </div>
+
+                                @if (billing.Claims == null || billing.Claims.Count == 0)
+                                {
+                                    <div class="empty-state">No claims generated.</div>
+                                }
+                                else
+                                {
+                                    <table class="data-table">
+                                        <thead>
+                                            <tr><th>HIPPS</th><th>LUPA</th><th>Status</th><th>Control #</th>@if (CanEdit) { <th></th> }</tr>
+                                        </thead>
+                                        <tbody>
+                                            @foreach (HomeHealthClaim c in billing.Claims)
+                                            {
+                                                <tr>
+                                                    <td><span class="hipps">@c.HippsCode</span></td>
+                                                    <td>@if (c.IsLupa) { <span class="badge badge-warning">LUPA</span> } else { <span class="code">—</span> }</td>
+                                                    <td><span class="badge @ClaimStatusBadge(c.Status)">@c.Status</span></td>
+                                                    <td>@(string.IsNullOrWhiteSpace(c.ControlNumber) ? "—" : c.ControlNumber)</td>
+                                                    @if (CanEdit)
+                                                    {
+                                                        <td>
+                                                            @if (c.Status == HomeHealthClaimStatus.Draft)
+                                                            {
+                                                                <button class="btn btn-secondary btn-sm" @onclick="() => SubmitClaim(c.ClaimId)">Submit Claim</button>
+                                                            }
+                                                        </td>
+                                                    }
+                                                </tr>
+                                            }
+                                        </tbody>
+                                    </table>
+                                }
+                            }
+                            @if (CanEdit)
+                            {
+                                <div class="detail-actions">
+                                    @if (billing == null || billing.Noa.Status == NoaStatus.NotSubmitted)
+                                    {
+                                        <button class="btn btn-primary btn-sm" @onclick="SubmitNoa">Submit NOA</button>
+                                    }
+                                    @if (episode.CertificationPeriods != null)
+                                    {
+                                        @foreach (CertificationPeriod cp in episode.CertificationPeriods)
+                                        {
+                                            @foreach (PaymentPeriod pp in cp.PaymentPeriods)
+                                            {
+                                                <button class="btn btn-secondary btn-sm" @onclick="() => SubmitGenerateClaim(cp.PeriodId, pp.PeriodId)">
+                                                    Generate Claim (@pp.StartDate.ToString("MM/dd"))
+                                                </button>
+                                            }
+                                        }
+                                    }
+                                </div>
+                            }
                         </div>
                     </div>
                 }
@@ -704,11 +1077,28 @@ else
     .problem-disc { color: #555; font-size: 0.82rem; }
     .problem-line { font-size: 0.85rem; color: #333; margin-top: 0.2rem; }
     button:disabled { opacity: 0.5; cursor: not-allowed; }
+    .episode-selector { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; margin: 0.5rem 0 0.25rem; }
+    .episode-selector label { font-size: 0.85rem; color: #333; }
+    .episode-chip { background: #fff; border: 1px solid #d4d9e0; border-radius: 16px; padding: 0.3rem 0.75rem; font-size: 0.82rem; cursor: pointer; display: inline-flex; align-items: center; gap: 0.35rem; }
+    .episode-chip:hover { background: #eaf2fb; }
+    .episode-chip.selected { border-color: #003f72; background: #eaf2fb; font-weight: 600; }
+    .medicare-panel { border-left: 4px solid #6b21a8; }
+    .med-section { margin-bottom: 1rem; }
+    .med-section h5 { margin: 0.5rem 0; color: #6b21a8; }
+    .pay-period { background: #fff; border: 1px dashed #d4d9e0; border-radius: 4px; padding: 0.5rem 0.6rem; margin-top: 0.4rem; }
+    .pay-header { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; flex-wrap: wrap; font-size: 0.85rem; }
+    .pdgm-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 0.4rem; margin-top: 0.5rem; }
+    .pdgm-grid div { background: #f9fafb; border: 1px solid #d4d9e0; border-radius: 4px; padding: 0.3rem 0.5rem; }
+    .pdgm-grid label { display: block; font-size: 0.72rem; color: #555; }
+    .pdgm-grid span { font-size: 0.85rem; color: #333; }
+    .hipps { font-family: monospace; font-weight: 700; color: #6b21a8; }
+    .evv-time { font-size: 0.8rem; color: #0e7490; }
 </style>
 
 @code {
     [SupplyParameterFromQuery] public string? patientId { get; set; }
     private bool CanEdit => SecurityContext.HasKey(SecurityKeys.HBHC_MANAGER);
+    private bool MedicareEnabled => SecurityContext.IsFeatureEnabled("HOME_HEALTH_MEDICARE");
 
     string activeTab = "caseload";
     string? error;
@@ -730,10 +1120,16 @@ else
     HomeCarePlanState? plan;
     List<HomeVisitIndexEntry>? episodeVisits;
     List<HomeCareAssessmentState>? assessments;
+    List<HomeCareCensusEntry>? patientEpisodes;
+
+    // ── Medicare (Phase 2) detail ──
+    HomeHealthBillingState? billing;
+    Dictionary<string, HomeVisitState>? visitDetails;
 
     // ── Action-panel toggles ──
     bool showAdmitPanel, showTeamPanel, showVisitPanel, showCompleteVisitPanel;
     bool showCreatePlanPanel, showPlanProblemPanel, showAssessPanel, showDischargePanel;
+    bool showEligibilityPanel, showCertifyPanel, showOasisPanel, showCheckInPanel, showCheckOutPanel;
 
     // ── Admit form ──
     HomeCareProgramType admitProgram = HomeCareProgramType.HomeBasedPrimaryCare;
@@ -783,6 +1179,42 @@ else
     HomeCareDischargeReason dischargeReason = HomeCareDischargeReason.GoalsMet;
     string dischargeNotes = string.Empty;
 
+    // ── Eligibility form ──
+    bool eligHomebound = true;
+    string eligJustification = string.Empty;
+    SkilledNeedType eligSkilledNeed = SkilledNeedType.SkilledNursing;
+
+    // ── Certify form ──
+    string? certProviderId;
+    string? certProviderName;
+    DateTime certPeriodStart = DateTime.Today;
+    DateTime? certFaceToFace = DateTime.Today;
+    bool certIsRecert;
+
+    // ── OASIS form ──
+    HomeCareAssessmentType oasisType = HomeCareAssessmentType.OasisStartOfCare;
+    string oasisVersion = "OASIS-E2";
+    string? oasisAssessorId;
+    string? oasisAssessorName;
+    DateTime oasisDate = DateTime.Today;
+    string oasisPrimaryDx = string.Empty;
+    readonly Dictionary<string, int> oasisItems = new();
+    OasisScrubResult? oasisScrubResult;
+
+    static readonly HomeCareAssessmentType[] OasisAssessmentTypes = new[]
+    {
+        HomeCareAssessmentType.OasisStartOfCare,
+        HomeCareAssessmentType.OasisResumption,
+        HomeCareAssessmentType.OasisRecertification,
+        HomeCareAssessmentType.OasisTransfer,
+        HomeCareAssessmentType.OasisDischarge,
+    };
+
+    // ── EVV form ──
+    string? evvVisitId;
+    string evvLocation = string.Empty;
+    EvvMethod evvMethod = EvvMethod.Gps;
+
     protected override async Task OnParametersSetAsync()
     {
         if (!SecurityContext.IsFeatureEnabled("HOME_BASED_CARE")) return;
@@ -817,6 +1249,7 @@ else
     {
         showAdmitPanel = showTeamPanel = showVisitPanel = showCompleteVisitPanel = false;
         showCreatePlanPanel = showPlanProblemPanel = showAssessPanel = showDischargePanel = false;
+        showEligibilityPanel = showCertifyPanel = showOasisPanel = showCheckInPanel = showCheckOutPanel = false;
     }
 
     // ── Display helpers ──
@@ -940,18 +1373,71 @@ else
         {
             PatientContext.SetPatient(patientId.Trim());
             var workflow = Grains.GetGrain<IPatientWorkflowGrain>(patientId.Trim());
-            episode = await workflow.GetActiveHomeCareEpisodeAsync();
-            plan = null; episodeVisits = null; assessments = null;
-            if (episode != null)
+            patientEpisodes = await workflow.GetHomeCareEpisodesForPatientAsync();
+            HomeCareEpisodeState? active = await workflow.GetActiveHomeCareEpisodeAsync();
+            string? targetId = active?.EpisodeId
+                ?? patientEpisodes?.OrderByDescending(e => e.AdmissionDate).FirstOrDefault()?.EpisodeId;
+            if (!string.IsNullOrWhiteSpace(targetId))
+                await LoadEpisodeById(workflow, targetId);
+            else
             {
-                episodeVisits = await workflow.GetHomeVisitsForEpisodeAsync(episode.EpisodeId);
-                assessments = await workflow.GetHomeCareAssessmentsForEpisodeAsync(episode.EpisodeId);
-                if (!string.IsNullOrWhiteSpace(episode.PlanOfCareId))
-                    plan = await workflow.GetHomeCarePlanAsync(episode.PlanOfCareId);
+                episode = null; plan = null; episodeVisits = null; assessments = null;
+                billing = null; visitDetails = null;
             }
         }
         catch { error = "Failed to load home-care episode."; }
         finally { episodeLoading = false; }
+    }
+
+    async Task SelectEpisode(string episodeId)
+    {
+        if (string.IsNullOrWhiteSpace(patientId)) return;
+        episodeLoading = true; error = null; successMsg = null;
+        CloseAllPanels();
+        try
+        {
+            var workflow = Grains.GetGrain<IPatientWorkflowGrain>(patientId.Trim());
+            await LoadEpisodeById(workflow, episodeId);
+        }
+        catch { error = "Failed to load home-care episode."; }
+        finally { episodeLoading = false; }
+    }
+
+    async Task LoadEpisodeById(IPatientWorkflowGrain workflow, string episodeId)
+    {
+        episode = await workflow.GetHomeCareEpisodeAsync(episodeId);
+        plan = null; episodeVisits = null; assessments = null;
+        billing = null; visitDetails = null;
+        if (episode != null)
+        {
+            episodeVisits = await workflow.GetHomeVisitsForEpisodeAsync(episode.EpisodeId);
+            assessments = await workflow.GetHomeCareAssessmentsForEpisodeAsync(episode.EpisodeId);
+            if (!string.IsNullOrWhiteSpace(episode.PlanOfCareId))
+                plan = await workflow.GetHomeCarePlanAsync(episode.PlanOfCareId);
+            if (MedicareEnabled)
+                await LoadMedicareData(workflow);
+        }
+    }
+
+    async Task LoadMedicareData(IPatientWorkflowGrain workflow)
+    {
+        if (episode == null) return;
+        try { billing = await workflow.GetHomeHealthBillingAsync(episode.EpisodeId); }
+        catch { billing = null; }
+        var details = new Dictionary<string, HomeVisitState>();
+        if (episodeVisits != null)
+        {
+            foreach (HomeVisitIndexEntry v in episodeVisits)
+            {
+                try
+                {
+                    HomeVisitState vs = await workflow.GetHomeVisitAsync(v.VisitId);
+                    if (vs != null) details[v.VisitId] = vs;
+                }
+                catch { /* skip unreadable visit */ }
+            }
+        }
+        visitDetails = details;
     }
 
     async Task SubmitAdmit()
@@ -1109,5 +1595,191 @@ else
             await LoadCaseload();
         }
         catch { error = "Failed to discharge from HBPC."; }
+    }
+
+    // ── Medicare (Phase 2) ──
+    static string OasisItemLabel(string item) => item switch
+    {
+        OasisItems.Grooming          => "Grooming",
+        OasisItems.UpperBodyDressing => "Upper-body dressing",
+        OasisItems.LowerBodyDressing => "Lower-body dressing",
+        OasisItems.Bathing           => "Bathing",
+        OasisItems.ToiletTransferring=> "Toilet transferring",
+        OasisItems.Transferring      => "Transferring",
+        OasisItems.Ambulation        => "Ambulation",
+        _ => string.Empty,
+    };
+
+    static string NoaStatusBadge(NoaStatus s) => s switch
+    {
+        NoaStatus.Submitted => "badge-info",
+        NoaStatus.Accepted  => "badge-success",
+        NoaStatus.Rejected  => "badge-warning",
+        _ => "badge-neutral",
+    };
+
+    static string ClaimStatusBadge(HomeHealthClaimStatus s) => s switch
+    {
+        HomeHealthClaimStatus.Submitted => "badge-info",
+        HomeHealthClaimStatus.Paid      => "badge-success",
+        HomeHealthClaimStatus.Denied    => "badge-warning",
+        _ => "badge-neutral",
+    };
+
+    void SetOasisItem(string item, string? raw)
+    {
+        if (int.TryParse(raw, out int n)) oasisItems[item] = n;
+        else oasisItems[item] = 0;
+    }
+
+    IPatientWorkflowGrain Workflow() => Grains.GetGrain<IPatientWorkflowGrain>(patientId!.Trim());
+
+    async Task ReloadEpisode()
+    {
+        if (episode == null) return;
+        var workflow = Workflow();
+        await LoadEpisodeById(workflow, episode.EpisodeId);
+    }
+
+    async Task SubmitEligibility()
+    {
+        if (episode == null) return;
+        try
+        {
+            await Workflow().SetHomeCareEligibilityAsync(episode.EpisodeId, eligHomebound, eligJustification, eligSkilledNeed);
+            successMsg = "Medicare eligibility saved.";
+            CloseAllPanels();
+            await ReloadEpisode();
+        }
+        catch { error = "Failed to save eligibility."; }
+    }
+
+    async Task SubmitCertify()
+    {
+        if (episode == null) return;
+        try
+        {
+            await Workflow().CertifyHomeCareEpisodeAsync(
+                episode.EpisodeId, certProviderId ?? string.Empty, certProviderName ?? string.Empty,
+                certPeriodStart, certFaceToFace, certIsRecert);
+            successMsg = certIsRecert ? "Episode recertified." : "Episode certified.";
+            CloseAllPanels();
+            await ReloadEpisode();
+        }
+        catch { error = "Failed to certify episode."; }
+    }
+
+    async Task SubmitComputePdgm(string certPeriodId, string paymentPeriodId)
+    {
+        if (episode == null) return;
+        try
+        {
+            await Workflow().ComputePdgmGroupingAsync(episode.EpisodeId, certPeriodId, paymentPeriodId);
+            successMsg = "PDGM grouping computed.";
+            await ReloadEpisode();
+        }
+        catch { error = "Failed to compute PDGM grouping."; }
+    }
+
+    async Task SubmitOasis()
+    {
+        if (episode == null) return;
+        try
+        {
+            var items = new Dictionary<string, string>();
+            foreach (string item in OasisItems.FunctionalItems)
+                items[item] = (oasisItems.TryGetValue(item, out int v) ? v : 0).ToString();
+            if (!string.IsNullOrWhiteSpace(oasisPrimaryDx))
+                items[OasisItems.PrimaryDiagnosis] = oasisPrimaryDx.Trim();
+
+            OasisRecordResult result = await Workflow().RecordOasisAsync(
+                episode.EpisodeId, oasisType, oasisVersion,
+                items, oasisAssessorId ?? string.Empty, oasisAssessorName ?? string.Empty, oasisDate);
+            oasisScrubResult = result.Scrub;
+            successMsg = "OASIS recorded.";
+            await ReloadEpisode();
+        }
+        catch { error = "Failed to record OASIS assessment."; }
+    }
+
+    void OpenCheckIn(string visitId)
+    {
+        CloseAllPanels();
+        evvVisitId = visitId;
+        evvLocation = string.Empty;
+        evvMethod = EvvMethod.Gps;
+        showCheckInPanel = true;
+    }
+
+    void OpenCheckOut(string visitId)
+    {
+        CloseAllPanels();
+        evvVisitId = visitId;
+        evvLocation = string.Empty;
+        showCheckOutPanel = true;
+    }
+
+    async Task SubmitCheckIn()
+    {
+        if (evvVisitId == null) return;
+        try
+        {
+            await Workflow().CheckInHomeVisitAsync(evvVisitId, evvLocation, evvMethod);
+            successMsg = "Visit checked in.";
+            CloseAllPanels();
+            evvVisitId = null;
+            await ReloadEpisode();
+        }
+        catch { error = "Failed to check in visit."; }
+    }
+
+    async Task SubmitCheckOut()
+    {
+        if (evvVisitId == null) return;
+        try
+        {
+            await Workflow().CheckOutHomeVisitAsync(evvVisitId, evvLocation);
+            successMsg = "Visit checked out.";
+            CloseAllPanels();
+            evvVisitId = null;
+            await ReloadEpisode();
+        }
+        catch { error = "Failed to check out visit."; }
+    }
+
+    async Task SubmitNoa()
+    {
+        if (episode == null) return;
+        try
+        {
+            await Workflow().SubmitHomeHealthNoticeOfAdmissionAsync(episode.EpisodeId, DateTime.Today);
+            successMsg = "Notice of Admission submitted.";
+            await ReloadEpisode();
+        }
+        catch { error = "Failed to submit Notice of Admission."; }
+    }
+
+    async Task SubmitGenerateClaim(string certPeriodId, string paymentPeriodId)
+    {
+        if (episode == null) return;
+        try
+        {
+            await Workflow().GenerateHomeHealthClaimAsync(episode.EpisodeId, certPeriodId, paymentPeriodId);
+            successMsg = "Claim generated.";
+            await ReloadEpisode();
+        }
+        catch { error = "Failed to generate claim."; }
+    }
+
+    async Task SubmitClaim(string claimId)
+    {
+        if (episode == null) return;
+        try
+        {
+            await Workflow().SubmitHomeHealthClaimAsync(episode.EpisodeId, claimId, DateTime.Today);
+            successMsg = "Claim submitted.";
+            await ReloadEpisode();
+        }
+        catch { error = "Failed to submit claim."; }
     }
 }

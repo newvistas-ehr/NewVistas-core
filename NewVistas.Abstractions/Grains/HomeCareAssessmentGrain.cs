@@ -48,5 +48,25 @@ public class HomeCareAssessmentGrain : Grain, IHomeCareAssessmentGrain
         await _state.WriteStateAsync();
     }
 
+    public async Task RecordOasisAsync(
+        string episodeId,
+        string patientId,
+        HomeCareAssessmentType assessmentType,
+        string assessorId,
+        string assessorName,
+        DateTime assessmentDate,
+        OasisDataSet oasis)
+    {
+        _state.State.EpisodeId = episodeId;
+        _state.State.PatientId = patientId;
+        _state.State.AssessmentType = assessmentType;
+        _state.State.AssessorId = assessorId;
+        _state.State.AssessorName = assessorName;
+        _state.State.AssessmentDate = assessmentDate;
+        _state.State.Oasis = oasis;
+        _state.State.LastModifiedDate = DateTime.UtcNow;
+        await _state.WriteStateAsync();
+    }
+
     public Task<HomeCareAssessmentState> GetAssessmentAsync() => Task.FromResult(_state.State);
 }

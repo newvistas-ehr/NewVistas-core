@@ -1,10 +1,29 @@
 # Home-Based Care (HBPC) — Design
 
-> **Status: IMPLEMENTED (Phase 1, 2026-06-29).** This is the agreed Phase 1 (VA Home-Based
-> Primary Care) design, deliberately shaped so that Phase 2 (full Medicare skilled home health —
-> OASIS / PDGM / certification / EVV / billing) bolts on without reworking the core grains.
-> See the [Phase 2 extension seams](#phase-2-the-medicare-extension-seams) for how each hook
-> lights up.
+> **Status: IMPLEMENTED — Phase 1 + Phase 2 (2026-06-29).** Phase 1 (VA Home-Based Primary Care)
+> was built as a GUID-keyed episode model shaped so Phase 2 (Medicare skilled home health) bolts
+> on without reworking the core grains — and Phase 2 has now been built by activating those
+> reserved seams. See the [Phase 2 extension seams](#phase-2-the-medicare-extension-seams) for how
+> each hook lit up.
+>
+> **Phase 2 implementation (Medicare skilled home health, flag `HOME_HEALTH_MEDICARE`, on by default):**
+> - **PDGM grouper** `Clinical.HomeHealthGrouper` — deterministic case-mix classifier (admission
+>   source × timing × clinical group × functional level × comorbidity → HIPPS-style code + LUPA).
+>   Curated/representative (like `PrecisionOncology`), NOT the full CMS 432-group table with weights.
+> - **OASIS** — `OasisDataSet` (versioned item dict) captured via `RecordOasisAsync` at the OASIS
+>   time points + `Clinical.OasisScrubber` (representative required/range validation). The functional
+>   items (M1800–M1860) drive the PDGM functional level.
+> - **Certification** — `CertifyHomeCareEpisodeAsync` opens 60-day periods (each with two 30-day
+>   payment periods) on the episode; homebound + skilled-need gates via `SetHomeCareEligibilityAsync`.
+> - **EVV** — `CheckIn/CheckOutHomeVisitAsync` (time/location/method) on visits.
+> - **Billing** — new `IHomeHealthBillingGrain` (`HHC-BILLING:{episodeId}`): NOA (late if >5 days)
+>   + per-period claims (HIPPS + LUPA), behind the `IHomeHealthClaimTransmitter` seam (optional —
+>   resolved from DI; records a stand-in control number when none is registered).
+> - Coverage: 15 grouper/scrubber unit tests + 9 Medicare workflow functional tests. Demo: P9001
+>   also has a 2025 post-cervical-fusion Medicare skilled episode (eligibility → cert → OASIS →
+>   PDGM → EVV visits → NOA + claim → discharged) alongside his 2026 HBPC episode.
+>
+> **Phase 1 implementation notes (delta from this design):**
 >
 > **Implementation notes (delta from this design):**
 > - A pre-existing, orphaned home-health module (`HBPCPatient`/`HHCVisit` grains keyed per-patient,

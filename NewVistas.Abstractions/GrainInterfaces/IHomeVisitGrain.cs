@@ -39,5 +39,12 @@ public interface IHomeVisitGrain : IGrainWithStringKey
     /// <summary>Records a non-completion (Cancelled / NoAnswer / PatientRefused) with a reason.</summary>
     Task CancelAsync(HomeVisitStatus status, string reason);
 
+    // ── Medicare (Phase 2): Electronic Visit Verification ──
+    /// <summary>EVV check-in: records arrival time, location, and method; marks the visit in-progress.</summary>
+    Task CheckInAsync(DateTime time, string location, EvvMethod method);
+
+    /// <summary>EVV check-out: records departure time and location.</summary>
+    Task CheckOutAsync(DateTime time, string location);
+
     Task<HomeVisitState> GetVisitAsync();
 }

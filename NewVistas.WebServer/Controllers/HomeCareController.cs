@@ -4,6 +4,7 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Authorization;
+using NewVistas.Abstractions.Clinical;
 using NewVistas.Abstractions.GrainInterfaces;
 using NewVistas.Abstractions.GrainStates;
 
@@ -538,6 +539,207 @@ public class HomeCareController : ControllerBase
         }
     }
 
+    // ─── Home Health — Medicare skilled (Phase 2 / HOME_HEALTH_MEDICARE) ─────
+    // Layers Medicare skilled home-health onto the HBPC episode/visit grains:
+    // eligibility gates → certification periods → OASIS → PDGM grouping → EVV →
+    // NOA + claims billing. Consumed by the in-home mobile app. Writes require the
+    // HBHC MANAGER security key (enforced grain-side); the billing read is open.
+
+    /// <summary>Sets the Medicare eligibility gates (homebound + skilled need) on an episode.</summary>
+    [HttpPut("{patientId}/episodes/{episodeId}/eligibility")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    public async Task<IActionResult> SetEligibility(
+        string patientId, string episodeId, [FromBody] HomeHealthEligibilityRequest request)
+    {
+        try
+        {
+            await GetWorkflow(patientId).SetHomeCareEligibilityAsync(
+                episodeId, request.IsHomebound, request.HomeboundJustification, request.SkilledNeed);
+            return NoContent();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error setting Medicare eligibility for episode {EpisodeId} for patient {PatientId}",
+                episodeId, patientId);
+            return StatusCode(500, "An error occurred while setting the home-health eligibility");
+        }
+    }
+
+    /// <summary>Opens (or recertifies) a 60-day certification period for the episode.</summary>
+    [HttpPost("{patientId}/episodes/{episodeId}/certify")]
+    [ProducesResponseType(typeof(CertifyEpisodeResponse), StatusCodes.Status201Created)]
+    public async Task<ActionResult<CertifyEpisodeResponse>> CertifyEpisode(
+        string patientId, string episodeId, [FromBody] CertifyEpisodeRequest request)
+    {
+        try
+        {
+            string certificationPeriodId = await GetWorkflow(patientId).CertifyHomeCareEpisodeAsync(
+                episodeId, request.CertifyingProviderId, request.CertifyingProviderName,
+                request.PeriodStart, request.FaceToFaceDate, request.IsRecertification);
+            return Created($"/api/homecare/{patientId}/episodes/{episodeId}/certifications/{certificationPeriodId}",
+                new CertifyEpisodeResponse { CertificationPeriodId = certificationPeriodId });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error certifying episode {EpisodeId} for patient {PatientId}",
+                episodeId, patientId);
+            return StatusCode(500, "An error occurred while certifying the home-health episode");
+        }
+    }
+
+    /// <summary>Records an OASIS assessment, scrubs it, and returns the assessment id + scrub issues.</summary>
+    [HttpPost("{patientId}/episodes/{episodeId}/oasis")]
+    [ProducesResponseType(typeof(OasisRecordResult), StatusCodes.Status200OK)]
+    public async Task<ActionResult<OasisRecordResult>> RecordOasis(
+        string patientId, string episodeId, [FromBody] RecordOasisRequest request)
+    {
+        try
+        {
+            OasisRecordResult result = await GetWorkflow(patientId).RecordOasisAsync(
+                episodeId, request.AssessmentType, request.OasisVersion, request.Items,
+                request.AssessorId, request.AssessorName, request.AssessmentDate);
+            return Ok(result);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error recording OASIS for episode {EpisodeId} for patient {PatientId}",
+                episodeId, patientId);
+            return StatusCode(500, "An error occurred while recording the OASIS assessment");
+        }
+    }
+
+    /// <summary>Computes and stores the PDGM case-mix grouping for a 30-day payment period.</summary>
+    [HttpPost("{patientId}/episodes/{episodeId}/certifications/{certId}/payment-periods/{ppId}/grouping")]
+    [ProducesResponseType(typeof(PdgmGroupingResult), StatusCodes.Status200OK)]
+    public async Task<ActionResult<PdgmGroupingResult>> ComputePdgmGrouping(
+        string patientId, string episodeId, string certId, string ppId)
+    {
+        try
+        {
+            PdgmGroupingResult result = await GetWorkflow(patientId).ComputePdgmGroupingAsync(episodeId, certId, ppId);
+            return Ok(result);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error computing PDGM grouping for payment period {PpId} (cert {CertId}, episode {EpisodeId}) for patient {PatientId}",
+                ppId, certId, episodeId, patientId);
+            return StatusCode(500, "An error occurred while computing the PDGM grouping");
+        }
+    }
+
+    /// <summary>EVV check-in for a home visit (time / location / capture method).</summary>
+    [HttpPost("{patientId}/visits/{visitId}/check-in")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    public async Task<IActionResult> CheckInVisit(
+        string patientId, string visitId, [FromBody] CheckInVisitRequest request)
+    {
+        try
+        {
+            await GetWorkflow(patientId).CheckInHomeVisitAsync(visitId, request.Location, request.Method);
+            return NoContent();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error checking in visit {VisitId} for patient {PatientId}", visitId, patientId);
+            return StatusCode(500, "An error occurred while checking in the home visit");
+        }
+    }
+
+    /// <summary>EVV check-out for a home visit.</summary>
+    [HttpPost("{patientId}/visits/{visitId}/check-out")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    public async Task<IActionResult> CheckOutVisit(
+        string patientId, string visitId, [FromBody] CheckOutVisitRequest request)
+    {
+        try
+        {
+            await GetWorkflow(patientId).CheckOutHomeVisitAsync(visitId, request.Location);
+            return NoContent();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error checking out visit {VisitId} for patient {PatientId}", visitId, patientId);
+            return StatusCode(500, "An error occurred while checking out the home visit");
+        }
+    }
+
+    /// <summary>Submits the Medicare Notice of Admission (NOA) for the episode.</summary>
+    [HttpPost("{patientId}/episodes/{episodeId}/billing/noa")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    public async Task<IActionResult> SubmitNoticeOfAdmission(
+        string patientId, string episodeId, [FromBody] SubmitNoaRequest request)
+    {
+        try
+        {
+            await GetWorkflow(patientId).SubmitHomeHealthNoticeOfAdmissionAsync(episodeId, request.SubmittedDate);
+            return NoContent();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error submitting Notice of Admission for episode {EpisodeId} for patient {PatientId}",
+                episodeId, patientId);
+            return StatusCode(500, "An error occurred while submitting the Notice of Admission");
+        }
+    }
+
+    /// <summary>Generates a Medicare claim for a payment period from its PDGM grouping. Returns the claim id.</summary>
+    [HttpPost("{patientId}/episodes/{episodeId}/billing/claims")]
+    [ProducesResponseType(typeof(GenerateClaimResponse), StatusCodes.Status201Created)]
+    public async Task<ActionResult<GenerateClaimResponse>> GenerateClaim(
+        string patientId, string episodeId, [FromBody] GenerateClaimRequest request)
+    {
+        try
+        {
+            string claimId = await GetWorkflow(patientId).GenerateHomeHealthClaimAsync(
+                episodeId, request.CertificationPeriodId, request.PaymentPeriodId);
+            return Created($"/api/homecare/{patientId}/episodes/{episodeId}/billing/claims/{claimId}",
+                new GenerateClaimResponse { ClaimId = claimId });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error generating Medicare claim for episode {EpisodeId} for patient {PatientId}",
+                episodeId, patientId);
+            return StatusCode(500, "An error occurred while generating the home-health claim");
+        }
+    }
+
+    /// <summary>Submits a generated Medicare claim.</summary>
+    [HttpPost("{patientId}/episodes/{episodeId}/billing/claims/{claimId}/submit")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    public async Task<IActionResult> SubmitClaim(
+        string patientId, string episodeId, string claimId, [FromBody] SubmitClaimRequest request)
+    {
+        try
+        {
+            await GetWorkflow(patientId).SubmitHomeHealthClaimAsync(episodeId, claimId, request.SubmittedDate);
+            return NoContent();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error submitting Medicare claim {ClaimId} for episode {EpisodeId} for patient {PatientId}",
+                claimId, episodeId, patientId);
+            return StatusCode(500, "An error occurred while submitting the home-health claim");
+        }
+    }
+
+    /// <summary>Returns the episode's Medicare billing record (NOA + claims).</summary>
+    [HttpGet("{patientId}/episodes/{episodeId}/billing")]
+    [ProducesResponseType(typeof(HomeHealthBillingState), StatusCodes.Status200OK)]
+    public async Task<ActionResult<HomeHealthBillingState>> GetBilling(string patientId, string episodeId)
+    {
+        try
+        {
+            HomeHealthBillingState billing = await GetWorkflow(patientId).GetHomeHealthBillingAsync(episodeId);
+            return Ok(billing);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error retrieving Medicare billing for episode {EpisodeId} for patient {PatientId}",
+                episodeId, patientId);
+            return StatusCode(500, "An error occurred while retrieving the home-health billing");
+        }
+    }
+
     // ─── Facility-wide Census / Caseload (singleton census grain) ────────────
 
     /// <summary>
@@ -771,4 +973,70 @@ public record RecordAssessmentRequest
 public record RecordAssessmentResponse
 {
     public string AssessmentId { get; init; } = string.Empty;
+}
+
+// ─── Home Health — Medicare skilled (Phase 2) DTOs ───────────────────────────
+
+public record HomeHealthEligibilityRequest
+{
+    public bool IsHomebound { get; init; }
+    public string HomeboundJustification { get; init; } = string.Empty;
+    public SkilledNeedType SkilledNeed { get; init; }
+}
+
+public record CertifyEpisodeRequest
+{
+    public string CertifyingProviderId { get; init; } = string.Empty;
+    public string CertifyingProviderName { get; init; } = string.Empty;
+    public DateTime PeriodStart { get; init; }
+    public DateTime? FaceToFaceDate { get; init; }
+    public bool IsRecertification { get; init; }
+}
+
+public record CertifyEpisodeResponse
+{
+    public string CertificationPeriodId { get; init; } = string.Empty;
+}
+
+public record RecordOasisRequest
+{
+    public HomeCareAssessmentType AssessmentType { get; init; }
+    public string OasisVersion { get; init; } = string.Empty;
+    /// <summary>OASIS item code → value (e.g. "M1830" → "03").</summary>
+    public Dictionary<string, string> Items { get; init; } = new();
+    public string AssessorId { get; init; } = string.Empty;
+    public string AssessorName { get; init; } = string.Empty;
+    public DateTime AssessmentDate { get; init; }
+}
+
+public record CheckInVisitRequest
+{
+    public string Location { get; init; } = string.Empty;
+    public EvvMethod Method { get; init; }
+}
+
+public record CheckOutVisitRequest
+{
+    public string Location { get; init; } = string.Empty;
+}
+
+public record SubmitNoaRequest
+{
+    public DateTime SubmittedDate { get; init; }
+}
+
+public record GenerateClaimRequest
+{
+    public string CertificationPeriodId { get; init; } = string.Empty;
+    public string PaymentPeriodId { get; init; } = string.Empty;
+}
+
+public record GenerateClaimResponse
+{
+    public string ClaimId { get; init; } = string.Empty;
+}
+
+public record SubmitClaimRequest
+{
+    public DateTime SubmittedDate { get; init; }
 }

@@ -2418,6 +2418,49 @@ public interface IPatientWorkflowGrain : IGrainWithStringKey
     Task<GrainStates.HomeCareAssessmentState> GetHomeCareAssessmentAsync(string assessmentId);
     Task<List<GrainStates.HomeCareAssessmentState>> GetHomeCareAssessmentsForEpisodeAsync(string episodeId);
 
+    // ─── Home Health — Medicare skilled (Phase 2 / HOME_HEALTH_MEDICARE) ─────────
+    // Layers on the HBPC episode/visit/assessment grains. Writes require HBHC MANAGER; reads open.
+
+    /// <summary>Sets the Medicare eligibility gates (homebound + skilled need) on an episode.</summary>
+    [RequiresSecurityKey(SecurityKeys.HBHC_MANAGER)]
+    Task SetHomeCareEligibilityAsync(string episodeId, bool isHomebound, string homeboundJustification, GrainStates.SkilledNeedType skilledNeed);
+
+    /// <summary>Opens a 60-day certification period (with two 30-day payment periods). Returns the cert-period id.</summary>
+    [RequiresSecurityKey(SecurityKeys.HBHC_MANAGER)]
+    Task<string> CertifyHomeCareEpisodeAsync(
+        string episodeId, string certifyingProviderId, string certifyingProviderName, DateTime periodStart, DateTime? faceToFaceDate, bool isRecertification);
+
+    /// <summary>Records an OASIS assessment, scrubs it, and returns the assessment id + scrub result.</summary>
+    [RequiresSecurityKey(SecurityKeys.HBHC_MANAGER)]
+    Task<Clinical.OasisRecordResult> RecordOasisAsync(
+        string episodeId, GrainStates.HomeCareAssessmentType assessmentType, string oasisVersion, Dictionary<string, string> items, string assessorId, string assessorName, DateTime assessmentDate);
+
+    /// <summary>Computes and stores the PDGM case-mix grouping for a 30-day payment period.</summary>
+    [RequiresSecurityKey(SecurityKeys.HBHC_MANAGER)]
+    Task<GrainStates.PdgmGroupingResult> ComputePdgmGroupingAsync(string episodeId, string certificationPeriodId, string paymentPeriodId);
+
+    /// <summary>EVV check-in for a visit (time/location/method).</summary>
+    [RequiresSecurityKey(SecurityKeys.HBHC_MANAGER)]
+    Task CheckInHomeVisitAsync(string visitId, string location, GrainStates.EvvMethod method);
+
+    /// <summary>EVV check-out for a visit.</summary>
+    [RequiresSecurityKey(SecurityKeys.HBHC_MANAGER)]
+    Task CheckOutHomeVisitAsync(string visitId, string location);
+
+    /// <summary>Submits the Notice of Admission for the episode.</summary>
+    [RequiresSecurityKey(SecurityKeys.HBHC_MANAGER)]
+    Task SubmitHomeHealthNoticeOfAdmissionAsync(string episodeId, DateTime submittedDate);
+
+    /// <summary>Generates a Medicare claim for a payment period from its PDGM grouping. Returns the claim id.</summary>
+    [RequiresSecurityKey(SecurityKeys.HBHC_MANAGER)]
+    Task<string> GenerateHomeHealthClaimAsync(string episodeId, string certificationPeriodId, string paymentPeriodId);
+
+    [RequiresSecurityKey(SecurityKeys.HBHC_MANAGER)]
+    Task SubmitHomeHealthClaimAsync(string episodeId, string claimId, DateTime submittedDate);
+
+    /// <summary>Returns the episode's Medicare billing (NOA + claims). Readable by any clinician.</summary>
+    Task<GrainStates.HomeHealthBillingState> GetHomeHealthBillingAsync(string episodeId);
+
     // ─── Medicine (Procedures) — Files #691-699 — MDAPI.m, MDEV.m, MDEC.m ────────
 
     /// <summary>

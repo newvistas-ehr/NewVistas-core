@@ -229,7 +229,7 @@ static partial class Program
         "rtChartStore", "rtChartIndexStore", "rtRequestStore", "rtRequestIndexStore",
         "gecAssessmentStore", "gecAssessmentIndexStore", "clcAdmissionStore", "clcAdmissionIndexStore",
         "homeCareEpisodeStore", "homeVisitStore", "homeVisitIndexStore",
-        "homeCarePlanStore", "homeCareAssessmentStore", "homeCareCensusStore",
+        "homeCarePlanStore", "homeCareAssessmentStore", "homeCareCensusStore", "homeHealthBillingStore",
         "irbStudyStore", "irbStudyIndexStore", "irbSubjectStore", "irbSubjectIndexStore",
         "autoInstrumentStore", "instrumentIndexStore", "instrumentMessageQueueStore",
         "autoVerifyRulesStore", "shippingManifestStore", "shippingConfigStore",

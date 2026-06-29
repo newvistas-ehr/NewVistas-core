@@ -88,5 +88,23 @@ public class HomeVisitGrain : Grain, IHomeVisitGrain
         await _state.WriteStateAsync();
     }
 
+    public async Task CheckInAsync(DateTime time, string location, EvvMethod method)
+    {
+        _state.State.CheckInTime = time;
+        _state.State.CheckInLocation = location;
+        _state.State.EvvMethod = method;
+        _state.State.Status = HomeVisitStatus.InProgress;
+        _state.State.LastModifiedDate = DateTime.UtcNow;
+        await _state.WriteStateAsync();
+    }
+
+    public async Task CheckOutAsync(DateTime time, string location)
+    {
+        _state.State.CheckOutTime = time;
+        _state.State.CheckOutLocation = location;
+        _state.State.LastModifiedDate = DateTime.UtcNow;
+        await _state.WriteStateAsync();
+    }
+
     public Task<HomeVisitState> GetVisitAsync() => Task.FromResult(_state.State);
 }

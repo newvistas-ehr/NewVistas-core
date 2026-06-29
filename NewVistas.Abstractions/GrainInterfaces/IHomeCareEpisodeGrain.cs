@@ -47,5 +47,12 @@ public interface IHomeCareEpisodeGrain : IGrainWithStringKey
     Task DischargeAsync(DateTime dischargeDate, HomeCareDischargeReason reason, string notes);
     Task MarkDeceasedAsync(DateTime date, string notes);
 
+    // ── Medicare (Phase 2): certification periods ──
+    /// <summary>Opens a 60-day certification period (with its 30-day payment periods) on the episode.</summary>
+    Task OpenCertificationPeriodAsync(CertificationPeriod period);
+
+    /// <summary>Stores the PDGM grouping result on a payment period within a certification period.</summary>
+    Task SetPaymentPeriodGroupingAsync(string certificationPeriodId, string paymentPeriodId, PdgmGroupingResult grouping);
+
     Task<HomeCareEpisodeState> GetEpisodeAsync();
 }

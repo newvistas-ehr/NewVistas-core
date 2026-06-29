@@ -170,5 +170,22 @@ public class HomeCareEpisodeGrain : Grain, IHomeCareEpisodeGrain
         await _state.WriteStateAsync();
     }
 
+    public async Task OpenCertificationPeriodAsync(CertificationPeriod period)
+    {
+        _state.State.CertificationPeriods.Add(period);
+        _state.State.LastModifiedDate = DateTime.UtcNow;
+        await _state.WriteStateAsync();
+    }
+
+    public async Task SetPaymentPeriodGroupingAsync(string certificationPeriodId, string paymentPeriodId, PdgmGroupingResult grouping)
+    {
+        CertificationPeriod? cert = _state.State.CertificationPeriods.FirstOrDefault(c => c.PeriodId == certificationPeriodId);
+        PaymentPeriod? pp = cert?.PaymentPeriods.FirstOrDefault(p => p.PeriodId == paymentPeriodId);
+        if (pp is null) return;
+        pp.Grouping = grouping;
+        _state.State.LastModifiedDate = DateTime.UtcNow;
+        await _state.WriteStateAsync();
+    }
+
     public Task<HomeCareEpisodeState> GetEpisodeAsync() => Task.FromResult(_state.State);
 }

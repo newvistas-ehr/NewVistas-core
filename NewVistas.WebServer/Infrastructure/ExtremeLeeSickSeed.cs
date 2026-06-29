@@ -1044,6 +1044,84 @@ PLAN:
 
             logger.LogInformation("  + home-based care: HBPC episode {Id} (3-member team, plan w/ 3 problems, comprehensive assessment, 2 completed visits + 1 upcoming)", hbpcEpisodeId);
 
+            // ── Home Health — Medicare skilled (Phase 2) ────────────────────────────
+            // A 2025 episodic Medicare skilled home-health episode after his Jan-2025 cervical
+            // fusion: homebound + skilled PT need, a 60-day certification, an OASIS Start-of-Care,
+            // a PDGM grouping, EVV-verified visits, a Notice of Admission + claim — then discharged
+            // (goals met). Distinct from his current longitudinal HBPC episode; together they show
+            // both home-care models on one familiar patient.
+            string medEpisodeId = await wf.AdmitToHomeCareAsync(
+                HomeCareProgramType.MedicareSkilledHomeHealth,
+                new DateTime(2025, 1, 20),
+                HomeCareAdmissionSource.AcuteHospital,
+                DrNotYouId, DrNotYou,
+                "M96.1", "Postlaminectomy syndrome, cervical region",
+                HomeCareLevelOfCare.Enhanced,
+                "Post-cervical-fusion; requires skilled PT and nursing in the home.",
+                "Wife (primary caregiver)",
+                "12 Shady Lane, Salem MA");
+
+            await wf.SetHomeCareEligibilityAsync(medEpisodeId, true,
+                "Leaving home requires a considerable and taxing effort post-fusion; ambulation limited.",
+                SkilledNeedType.PhysicalTherapy);
+            await wf.AddHomeCareSecondaryDiagnosisAsync(medEpisodeId, "E11.9");
+            await wf.AddHomeCareSecondaryDiagnosisAsync(medEpisodeId, "I10");
+            await wf.AssignHomeCareTeamMemberAsync(medEpisodeId, NurseRatchedId, NurseRatched, HomeCareDiscipline.SkilledNursing, "Skilled RN", true);
+            await wf.AssignHomeCareTeamMemberAsync(medEpisodeId, "PROV-STRETCH", "Dr. Stretch", HomeCareDiscipline.PhysicalTherapy, "Home PT", false);
+
+            string medCertId = await wf.CertifyHomeCareEpisodeAsync(medEpisodeId, DrNotYouId, DrNotYou,
+                new DateTime(2025, 1, 20), new DateTime(2025, 1, 15), isRecertification: false);
+
+            await wf.RecordOasisAsync(medEpisodeId, HomeCareAssessmentType.OasisStartOfCare, "OASIS-E2",
+                new Dictionary<string, string>
+                {
+                    ["M1021"] = "M96.1",  // primary diagnosis
+                    ["M1800"] = "1", ["M1810"] = "1", ["M1820"] = "1", ["M1830"] = "1",
+                    ["M1840"] = "1", ["M1850"] = "1", ["M1860"] = "2", ["M1033"] = "1"
+                },
+                NurseRatchedId, NurseRatched, new DateTime(2025, 1, 21));
+
+            // Skilled visits in the first payment period (EVV-verified on the SOC visit).
+            (DateTime date, HomeCareDiscipline disc, HomeVisitType vtype)[] medVisits =
+            {
+                (new DateTime(2025, 1, 21), HomeCareDiscipline.SkilledNursing, HomeVisitType.Initial),
+                (new DateTime(2025, 1, 24), HomeCareDiscipline.PhysicalTherapy, HomeVisitType.Routine),
+                (new DateTime(2025, 1, 28), HomeCareDiscipline.SkilledNursing, HomeVisitType.Routine),
+                (new DateTime(2025, 2, 4),  HomeCareDiscipline.PhysicalTherapy, HomeVisitType.Routine),
+                (new DateTime(2025, 2, 11), HomeCareDiscipline.PhysicalTherapy, HomeVisitType.Routine)
+            };
+            bool firstMedVisit = true;
+            foreach ((DateTime date, HomeCareDiscipline disc, HomeVisitType vtype) in medVisits)
+            {
+                bool isPt = disc == HomeCareDiscipline.PhysicalTherapy;
+                string mvid = await wf.ScheduleHomeVisitAsync(medEpisodeId, disc, vtype, date,
+                    isPt ? "PROV-STRETCH" : NurseRatchedId, isPt ? "Dr. Stretch" : NurseRatched, "Skilled home visit");
+                if (firstMedVisit)
+                {
+                    await wf.CheckInHomeVisitAsync(mvid, "Patient home — 12 Shady Lane", EvvMethod.Gps);
+                    await wf.CheckOutHomeVisitAsync(mvid, "Patient home — 12 Shady Lane");
+                    firstMedVisit = false;
+                }
+                await wf.CompleteHomeVisitAsync(mvid, 45, "Stable",
+                    new List<string> { isPt ? "Therapeutic exercise; gait training" : "Skilled assessment; wound/incision check" },
+                    "Visit completed per plan of care.", string.Empty, null);
+            }
+
+            // Compute the PDGM grouping for the first 30-day payment period, then bill it.
+            HomeCareEpisodeState medEpisode = await wf.GetHomeCareEpisodeAsync(medEpisodeId);
+            CertificationPeriod medCert = medEpisode.CertificationPeriods.First();
+            PaymentPeriod medPp1 = medCert.PaymentPeriods.First();
+            PdgmGroupingResult medGrouping = await wf.ComputePdgmGroupingAsync(medEpisodeId, medCert.PeriodId, medPp1.PeriodId);
+
+            await wf.SubmitHomeHealthNoticeOfAdmissionAsync(medEpisodeId, new DateTime(2025, 1, 23));
+            string medClaimId = await wf.GenerateHomeHealthClaimAsync(medEpisodeId, medCert.PeriodId, medPp1.PeriodId);
+            await wf.SubmitHomeHealthClaimAsync(medEpisodeId, medClaimId, new DateTime(2025, 2, 25));
+
+            await wf.DischargeFromHomeCareAsync(medEpisodeId, new DateTime(2025, 3, 20),
+                HomeCareDischargeReason.GoalsMet, "Skilled goals met; transitioned to outpatient PT.");
+
+            logger.LogInformation("  + home health (Medicare): episode {Id} certified, OASIS scrubbed, PDGM {Hipps} ({Group}), NOA + claim, discharged", medEpisodeId, medGrouping.CaseMixGroup, medGrouping.ClinicalGrouping);
+
             logger.LogInformation("Rich demo patient {Id} (SICK,EXTREME LEE) seeded successfully", Pid);
         }
         catch (Exception ex)

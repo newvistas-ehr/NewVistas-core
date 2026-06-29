@@ -21,5 +21,15 @@ public interface IHomeCareAssessmentGrain : IGrainWithStringKey
         DateTime assessmentDate,
         HbpcComprehensiveAssessment assessment);
 
+    /// <summary>Records an OASIS assessment (Phase 2) at a given OASIS time point.</summary>
+    Task RecordOasisAsync(
+        string episodeId,
+        string patientId,
+        HomeCareAssessmentType assessmentType,
+        string assessorId,
+        string assessorName,
+        DateTime assessmentDate,
+        OasisDataSet oasis);
+
     Task<HomeCareAssessmentState> GetAssessmentAsync();
 }

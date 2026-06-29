@@ -90,11 +90,11 @@ public class SiteParametersState
     ///                                    immunotherapy decision support) (Modern enhancement; ENABLED BY DEFAULT, see SiteFeatures)
     ///   "HOME_BASED_CARE"              — Home-Based Primary Care: episodes, interdisciplinary team, plan of care, home visits, and the
     ///                                    caseload/census (Modern enhancement; ENABLED BY DEFAULT, see SiteFeatures)
-    ///   "HOME_HEALTH_MEDICARE"         — Reserved (Phase 2): Medicare skilled home health on top of HBPC — OASIS, PDGM, certification,
-    ///                                    EVV, NOA billing (Modern enhancement; OFF by default — opt-in compliance layer)
+    ///   "HOME_HEALTH_MEDICARE"         — Medicare skilled home health on top of HBPC — OASIS, PDGM, certification, EVV, NOA billing
+    ///                                    (Modern enhancement; ENABLED BY DEFAULT for demos, see SiteFeatures)
     /// </summary>
     [Id(7)]
-    public HashSet<string> Features { get; set; } = new() { SiteFeatures.ExternalPharmacy, SiteFeatures.Oncology, SiteFeatures.PrecisionOncology, SiteFeatures.HomeBasedCare };
+    public HashSet<string> Features { get; set; } = new() { SiteFeatures.ExternalPharmacy, SiteFeatures.Oncology, SiteFeatures.PrecisionOncology, SiteFeatures.HomeBasedCare, SiteFeatures.HomeHealthMedicare };
 
     [Id(3)]
     public DateTime CreatedDate { get; set; } = DateTime.UtcNow;
@@ -151,11 +151,12 @@ public static class SiteFeatures
     public const string HomeBasedCare = "HOME_BASED_CARE";
 
     /// <summary>
-    /// Reserved (Phase 2): Medicare skilled home health layered on top of Home-Based Care —
-    /// certified 60-day periods, OASIS assessments, PDGM payment grouping, EVV, and NOA/claims
-    /// billing. A "Modern" enhancement, <b>OFF by default</b> (opt-in: it is a heavy compliance
-    /// surface). Enabling it activates the episodic/certification machinery and the
-    /// <c>MedicareSkilledHomeHealth</c> program type.
+    /// Medicare skilled home health layered on top of Home-Based Care — certified 60-day periods
+    /// (with 30-day payment periods), OASIS assessments + scrubbing, PDGM payment grouping, EVV,
+    /// and NOA/claims billing; activates the <c>MedicareSkilledHomeHealth</c> program type. A
+    /// "Modern" enhancement, <b>enabled by default</b> so it shows in demos. A pure VA/HBPC site
+    /// (no Medicare skilled benefit) can turn it off (<c>DisableFeatureAsync("HOME_HEALTH_MEDICARE")</c>),
+    /// leaving the longitudinal HBPC model from Phase 1.
     /// </summary>
     public const string HomeHealthMedicare = "HOME_HEALTH_MEDICARE";
 }
