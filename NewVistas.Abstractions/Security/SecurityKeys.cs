@@ -252,6 +252,18 @@ public static class SecurityKeys
     /// </summary>
     public const string YS_MH_INSTRUMENT = "YS MH INSTRUMENT";
 
+    // ─── Oncology (ONCO Package) ────────────────────────────────────────
+
+    /// <summary>
+    /// ONCO MANAGER — Oncology / tumor-registry management.
+    /// Required to register tumors, record staging, manage treatment episodes and
+    /// radiation-therapy courses, and generate/submit cancer-registry (NAACCR) abstracts.
+    /// Oncology data is <b>readable by any clinician</b> — it is part of the chart, not a
+    /// privacy silo like Mental Health — so only mutating operations require this key.
+    /// Held by oncologists (and tumor registrars).
+    /// </summary>
+    public const string ONCO_MANAGER = "ONCO MANAGER";
+
     // ─── System Administration (XU Package) ─────────────────────────────
 
     /// <summary>

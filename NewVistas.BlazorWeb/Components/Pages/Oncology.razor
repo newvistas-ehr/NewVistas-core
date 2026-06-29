@@ -8,8 +8,10 @@
 @using NewVistas.BlazorWeb.Services
 @using NewVistas.Abstractions.GrainInterfaces
 @using NewVistas.Abstractions.GrainStates
+@using NewVistas.Abstractions.Security
 @inject OrleansGrainService Grains
 @inject PatientContextService PatientContext
+@inject UserSecurityContext SecurityContext
 
 <PageTitle>Oncology / Tumor Registry</PageTitle>
 
@@ -30,11 +32,18 @@
     {
         <div class="alert alert-success">@successMsg</div>
     }
+    @if (!CanEdit)
+    {
+        <div class="alert alert-info">👁 Read-only — viewing oncology. Editing requires the ONCO MANAGER security key (oncologists).</div>
+    }
 
     <div class="tab-bar">
         <button class="tab @TabClass("registry")" @onclick='() => SetTab("registry")'>Tumor Registry</button>
         <button class="tab @TabClass("treatments")" @onclick='() => SetTab("treatments")'>Treatments</button>
-        <button class="tab @TabClass("register")" @onclick='() => SetTab("register")'>Register Tumor</button>
+        @if (CanEdit)
+        {
+            <button class="tab @TabClass("register")" @onclick='() => SetTab("register")'>Register Tumor</button>
+        }
     </div>
 
     <!-- ── Tumor Registry Tab ───────────────────────────────────────────── -->
@@ -122,11 +131,14 @@
                         }
                     </div>
 
-                    <div class="detail-actions">
-                        <button class="btn btn-primary" @onclick="() => showStagingPanel = !showStagingPanel">Record Staging</button>
-                        <button class="btn btn-primary" @onclick="() => showStatusPanel = !showStatusPanel">Update Status</button>
-                        <button class="btn btn-primary" @onclick="() => showRecurrencePanel = !showRecurrencePanel">Record Recurrence</button>
-                    </div>
+                    @if (CanEdit)
+                    {
+                        <div class="detail-actions">
+                            <button class="btn btn-primary" @onclick="() => showStagingPanel = !showStagingPanel">Record Staging</button>
+                            <button class="btn btn-primary" @onclick="() => showStatusPanel = !showStatusPanel">Update Status</button>
+                            <button class="btn btn-primary" @onclick="() => showRecurrencePanel = !showRecurrencePanel">Record Recurrence</button>
+                        </div>
+                    }
 
                     @if (showStagingPanel)
                     {
@@ -212,9 +224,12 @@
         }
         else if (treatments != null)
         {
-            <div class="tab-controls">
-                <button class="btn btn-primary" @onclick="() => showCreateTxPanel = !showCreateTxPanel">+ Add Treatment</button>
-            </div>
+            @if (CanEdit)
+            {
+                <div class="tab-controls">
+                    <button class="btn btn-primary" @onclick="() => showCreateTxPanel = !showCreateTxPanel">+ Add Treatment</button>
+                </div>
+            }
 
             <table class="data-table">
                 <thead>
@@ -268,13 +283,13 @@
                         }
                     </div>
 
-                    @if (selectedTreatment.Status == "Planned")
+                    @if (CanEdit && selectedTreatment.Status == "Planned")
                     {
                         <div class="detail-actions">
                             <button class="btn btn-primary" @onclick="() => showStartTxPanel = !showStartTxPanel">Start Treatment</button>
                         </div>
                     }
-                    @if (selectedTreatment.Status == "Active")
+                    @if (CanEdit && selectedTreatment.Status == "Active")
                     {
                         <div class="detail-actions">
                             <button class="btn btn-primary" @onclick="() => showResponsePanel = !showResponsePanel">Record Response</button>
@@ -436,7 +451,7 @@
     }
 
     <!-- ── Register Tumor Tab ──────────────────────────────────────────── -->
-    @if (activeTab == "register")
+    @if (CanEdit && activeTab == "register")
     {
         <div class="register-form">
             <h4>Register New Primary Tumor</h4>
@@ -534,6 +549,7 @@
 
 @code {
     [SupplyParameterFromQuery] public string? patientId { get; set; }
+    private bool CanEdit => SecurityContext.HasKey(SecurityKeys.ONCO_MANAGER);
     string activeTab = "registry";
     bool loading;
     bool registerLoading;

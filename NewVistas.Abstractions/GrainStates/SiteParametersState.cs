@@ -84,9 +84,11 @@ public class SiteParametersState
     ///   "PATIENT_SELF_SCHEDULING"      — Patient portal appointment self-scheduling (Enhancement — inspired by VAOS, not part of core VistA/RPMS)
     ///   "EXTERNAL_PHARMACY"            — Multiple outpatient pharmacies, patient-preferred pharmacy, and NCPDP SCRIPT e-prescribing
     ///                                    (Enhancement — VistA/RPMS dispense in-house + CMOP mail-order; ENABLED BY DEFAULT, see SiteFeatures)
+    ///   "ONCOLOGY"                     — First-class oncology: tumor registry, staging, treatment episodes, radiation therapy, and the
+    ///                                    NAACCR cancer-registry abstract (Modern enhancement; ENABLED BY DEFAULT, see SiteFeatures)
     /// </summary>
     [Id(7)]
-    public HashSet<string> Features { get; set; } = new() { SiteFeatures.ExternalPharmacy };
+    public HashSet<string> Features { get; set; } = new() { SiteFeatures.ExternalPharmacy, SiteFeatures.Oncology };
 
     [Id(3)]
     public DateTime CreatedDate { get; set; } = DateTime.UtcNow;
@@ -110,4 +112,14 @@ public static class SiteFeatures
     /// facility-only dispensing; inpatient orders always use the hospital pharmacy regardless.
     /// </summary>
     public const string ExternalPharmacy = "EXTERNAL_PHARMACY";
+
+    /// <summary>
+    /// First-class oncology — the tumor registry, staging, treatment episodes, radiation-therapy
+    /// courses, and the NAACCR cancer-registry abstract, surfaced as a dedicated Oncology area. A
+    /// "Modern" enhancement (beyond the classic VistA tumor-registry posture); <b>enabled by
+    /// default</b> (pre-seeded into <see cref="SiteParametersState.Features"/>) so it is present in
+    /// every demo. A pure VistA/RPMS site can turn it off (<c>DisableFeatureAsync("ONCOLOGY")</c>).
+    /// Oncology data stays readable by any clinician; only editing requires the ONCO MANAGER key.
+    /// </summary>
+    public const string Oncology = "ONCOLOGY";
 }

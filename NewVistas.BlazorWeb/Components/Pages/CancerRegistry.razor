@@ -8,18 +8,24 @@
 @using NewVistas.BlazorWeb.Services
 @using NewVistas.Abstractions.GrainInterfaces
 @using NewVistas.Abstractions.GrainStates
+@using NewVistas.Abstractions.Security
 @inject OrleansGrainService Grains
+@inject UserSecurityContext SecurityContext
 
 <PageTitle>Cancer Registry</PageTitle>
 <h1>Cancer Registry -- NAACCR Reporting</h1>
 
 @if (error != null) { <div class="alert alert-error">@error</div> }
 @if (success != null) { <div class="alert alert-success">@success</div> }
+@if (!CanEdit) { <div class="alert alert-info">👁 Read-only — viewing oncology. Editing requires the ONCO MANAGER security key (oncologists).</div> }
 
 <div class="tab-bar">
     <button class="tab @(activeTab == 0 ? "active" : "")" @onclick="() => activeTab = 0">Report List</button>
     <button class="tab @(activeTab == 1 ? "active" : "")" @onclick="() => activeTab = 1">Report Detail</button>
-    <button class="tab @(activeTab == 2 ? "active" : "")" @onclick="() => activeTab = 2">New Report</button>
+    @if (CanEdit)
+    {
+        <button class="tab @(activeTab == 2 ? "active" : "")" @onclick="() => activeTab = 2">New Report</button>
+    }
 </div>
 
 @* ── Report List Tab ── *@
@@ -102,7 +108,7 @@
                 @if (reportDetail.SubmittedDate != null) { <div><strong>Submitted:</strong> @reportDetail.SubmittedDate.Value.ToString("MM/dd/yyyy HH:mm")</div> }
             </div>
 
-            @if (reportDetail.Status == CancerRegistryReportStatus.Generated)
+            @if (CanEdit && reportDetail.Status == CancerRegistryReportStatus.Generated)
             {
                 <div class="action-section">
                     <h4>Submit to Registry</h4>
@@ -122,7 +128,7 @@
 }
 
 @* ── New Report Tab ── *@
-@if (activeTab == 2)
+@if (CanEdit && activeTab == 2)
 {
     <div class="form-section">
         <h3>Generate NAACCR Cancer Registry Report</h3>
@@ -155,6 +161,7 @@
 }
 
 @code {
+    private bool CanEdit => SecurityContext.HasKey(SecurityKeys.ONCO_MANAGER);
     private int activeTab;
     private string? error, success;
 

@@ -8,7 +8,9 @@
 @using NewVistas.BlazorWeb.Services
 @using NewVistas.Abstractions.GrainInterfaces
 @using NewVistas.Abstractions.GrainStates
+@using NewVistas.Abstractions.Security
 @inject OrleansGrainService Grains
+@inject UserSecurityContext SecurityContext
 
 <h2>Radiation Therapy</h2>
 
@@ -17,6 +19,11 @@
     <input @bind="patientId" placeholder="Enter patient ID" />
     <button @onclick="LoadCourses" disabled="@loading">Load</button>
 </div>
+
+@if (!CanEdit)
+{
+    <div class="readonly-banner">👁 Read-only — viewing oncology. Editing requires the ONCO MANAGER security key (oncologists).</div>
+}
 
 @if (error != null)
 {
@@ -28,7 +35,10 @@
     <div class="tabs">
         <button class="@TabClass(0)" @onclick="@(() => activeTab = 0)">Treatment Courses</button>
         <button class="@TabClass(1)" @onclick="@(() => { activeTab = 1; selectedCourseId = null; fractions = new(); })">Fractions</button>
-        <button class="@TabClass(2)" @onclick="@(() => activeTab = 2)">Create Course</button>
+        @if (CanEdit)
+        {
+            <button class="@TabClass(2)" @onclick="@(() => activeTab = 2)">Create Course</button>
+        }
     </div>
 
     @if (activeTab == 0)
@@ -150,7 +160,7 @@
         </div>
     }
 
-    @if (activeTab == 2)
+    @if (CanEdit && activeTab == 2)
     {
         <div class="tab-panel form-panel">
             <h3>Create Treatment Course</h3>
@@ -218,6 +228,7 @@
 }
 
 @code {
+    private bool CanEdit => SecurityContext.HasKey(SecurityKeys.ONCO_MANAGER);
     string? patientId;
     int activeTab = 0;
     bool loading = false;
@@ -401,4 +412,5 @@
     .empty { color: #888; font-style: italic; }
     .error { color: red; margin-top: 0.5rem; }
     .success { color: green; margin-top: 0.5rem; }
+    .readonly-banner { background: #eaf2fb; border: 1px solid #b3d4f5; color: #003f72; padding: 0.5rem 0.75rem; border-radius: 4px; margin-bottom: 1rem; font-size: 0.9rem; }
 </style>

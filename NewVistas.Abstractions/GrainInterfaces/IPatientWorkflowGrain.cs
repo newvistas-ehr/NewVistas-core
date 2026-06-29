@@ -2189,6 +2189,7 @@ public interface IPatientWorkflowGrain : IGrainWithStringKey
     /// Creates the tumor grain, adds to the patient index, and returns the new tumor ID.
     /// ONCRP.m REGISTER.
     /// </summary>
+    [RequiresSecurityKey(SecurityKeys.ONCO_MANAGER)]
     Task<string> RegisterOncologyTumorAsync(
         string primarySite,
         string primarySiteText,
@@ -2205,6 +2206,7 @@ public interface IPatientWorkflowGrain : IGrainWithStringKey
     /// Records TNM staging (clinical and/or pathologic) and SEER summary stage for a tumor.
     /// ONCS.m STAGE.
     /// </summary>
+    [RequiresSecurityKey(SecurityKeys.ONCO_MANAGER)]
     Task RecordOncologyStagingAsync(
         string tumorId,
         string? clinicalT,
@@ -2217,6 +2219,7 @@ public interface IPatientWorkflowGrain : IGrainWithStringKey
         string? seerSummaryStage);
 
     /// <summary>Updates the disease status of a tumor (e.g. remission, recurrence, deceased). ONCRP.m STATUS.</summary>
+    [RequiresSecurityKey(SecurityKeys.ONCO_MANAGER)]
     Task UpdateOncologyStatusAsync(
         string tumorId,
         GrainStates.OncologyStatus status,
@@ -2224,6 +2227,7 @@ public interface IPatientWorkflowGrain : IGrainWithStringKey
         string? notes);
 
     /// <summary>Records a disease recurrence with date and site. ONCRP.m RECUR.</summary>
+    [RequiresSecurityKey(SecurityKeys.ONCO_MANAGER)]
     Task RecordOncologyRecurrenceAsync(
         string tumorId,
         DateTime recurrenceDate,
@@ -2244,6 +2248,7 @@ public interface IPatientWorkflowGrain : IGrainWithStringKey
     /// Adds the treatment ID to the tumor record and the patient treatment index.
     /// Returns the new treatment ID. ONCTREAT.m CREATE.
     /// </summary>
+    [RequiresSecurityKey(SecurityKeys.ONCO_MANAGER)]
     Task<string> CreateOncologyTreatmentAsync(
         string tumorId,
         GrainStates.OncologyTreatmentType treatmentType,
@@ -2255,9 +2260,11 @@ public interface IPatientWorkflowGrain : IGrainWithStringKey
         string? notes);
 
     /// <summary>Marks a treatment as Active with an actual start date. ONCTREAT.m START.</summary>
+    [RequiresSecurityKey(SecurityKeys.ONCO_MANAGER)]
     Task StartOncologyTreatmentAsync(string treatmentId, DateTime startDate);
 
     /// <summary>Completes a treatment with end date and response assessment. ONCTREAT.m COMPLETE.</summary>
+    [RequiresSecurityKey(SecurityKeys.ONCO_MANAGER)]
     Task CompleteOncologyTreatmentAsync(
         string treatmentId,
         DateTime endDate,
@@ -2265,6 +2272,7 @@ public interface IPatientWorkflowGrain : IGrainWithStringKey
         string? notes);
 
     /// <summary>Discontinues a treatment early with end date and reason. ONCTREAT.m DISCONTINUE.</summary>
+    [RequiresSecurityKey(SecurityKeys.ONCO_MANAGER)]
     Task DiscontinueOncologyTreatmentAsync(
         string treatmentId,
         DateTime endDate,
@@ -2272,6 +2280,7 @@ public interface IPatientWorkflowGrain : IGrainWithStringKey
         string? notes);
 
     /// <summary>Records an interim response assessment without ending the treatment. ONCTREAT.m RESPONSE.</summary>
+    [RequiresSecurityKey(SecurityKeys.ONCO_MANAGER)]
     Task RecordOncologyResponseAsync(
         string treatmentId,
         GrainStates.TreatmentResponseAssessment responseAssessment,
@@ -2279,6 +2288,7 @@ public interface IPatientWorkflowGrain : IGrainWithStringKey
         string? notes);
 
     /// <summary>Updates the number of cycles completed for a chemotherapy/immunotherapy treatment.</summary>
+    [RequiresSecurityKey(SecurityKeys.ONCO_MANAGER)]
     Task UpdateOncologyCyclesAsync(string treatmentId, int cyclesCompleted);
 
     /// <summary>Returns the full state of a single treatment record.</summary>
@@ -2502,6 +2512,7 @@ public interface IPatientWorkflowGrain : IGrainWithStringKey
     /// Creates a new radiation therapy treatment course.
     /// Returns the new course ID.
     /// </summary>
+    [RequiresSecurityKey(SecurityKeys.ONCO_MANAGER)]
     Task<string> CreateRtCourseAsync(
         string courseName,
         string diagnosisCode,
@@ -2525,27 +2536,35 @@ public interface IPatientWorkflowGrain : IGrainWithStringKey
         string? planningNotes);
 
     /// <summary>Records CT simulation for an RT course.</summary>
+    [RequiresSecurityKey(SecurityKeys.ONCO_MANAGER)]
     Task RecordRtSimulationAsync(string courseId, DateTime simulationDate, string? planningNotes);
 
     /// <summary>Marks an RT course as active (first treatment delivered).</summary>
+    [RequiresSecurityKey(SecurityKeys.ONCO_MANAGER)]
     Task StartRtCourseAsync(string courseId, DateTime treatmentStartDate);
 
     /// <summary>Marks an RT course as completed.</summary>
+    [RequiresSecurityKey(SecurityKeys.ONCO_MANAGER)]
     Task CompleteRtCourseAsync(string courseId, DateTime completionDate, string? notes);
 
     /// <summary>Discontinues an RT course.</summary>
+    [RequiresSecurityKey(SecurityKeys.ONCO_MANAGER)]
     Task DiscontinueRtCourseAsync(string courseId, DateTime discontinuationDate, string reason, string? notes);
 
     /// <summary>Places an RT course on hold.</summary>
+    [RequiresSecurityKey(SecurityKeys.ONCO_MANAGER)]
     Task PlaceRtCourseOnHoldAsync(string courseId, string? reason);
 
     /// <summary>Resumes an RT course from hold.</summary>
+    [RequiresSecurityKey(SecurityKeys.ONCO_MANAGER)]
     Task ResumeRtCourseAsync(string courseId);
 
     /// <summary>Sets boost phase details for an RT course.</summary>
+    [RequiresSecurityKey(SecurityKeys.ONCO_MANAGER)]
     Task SetRtBoostAsync(string courseId, string boostSite, int boostDoseCgy, int boostFractionsPlanned);
 
     /// <summary>Sets brachytherapy details for an RT course.</summary>
+    [RequiresSecurityKey(SecurityKeys.ONCO_MANAGER)]
     Task SetRtBrachytherapyAsync(string courseId, GrainStates.BrachytherapyDoseRate doseRate, string? isotope);
 
     /// <summary>
@@ -2553,6 +2572,7 @@ public interface IPatientWorkflowGrain : IGrainWithStringKey
     /// Updates both the per-course treatment index and the course cumulative dose.
     /// Returns the new treatment ID.
     /// </summary>
+    [RequiresSecurityKey(SecurityKeys.ONCO_MANAGER)]
     Task<string> RecordRtFractionAsync(
         string courseId,
         int fractionNumber,
@@ -2574,6 +2594,7 @@ public interface IPatientWorkflowGrain : IGrainWithStringKey
     /// Records a skipped or cancelled fraction without updating dose totals.
     /// Returns the new treatment ID.
     /// </summary>
+    [RequiresSecurityKey(SecurityKeys.ONCO_MANAGER)]
     Task<string> RecordRtSkippedFractionAsync(
         string courseId,
         int fractionNumber,
@@ -3228,6 +3249,7 @@ public interface IPatientWorkflowGrain : IGrainWithStringKey
     /// Generate a NAACCR cancer registry abstract from an oncology tumor record.
     /// §170.315(f)(4) — Transmission to cancer registries.
     /// </summary>
+    [RequiresSecurityKey(SecurityKeys.ONCO_MANAGER)]
     Task<string> GenerateCancerRegistryReportAsync(
         string tumorId,
         string reportingFacility,
@@ -3241,12 +3263,15 @@ public interface IPatientWorkflowGrain : IGrainWithStringKey
     Task<string> GetCancerRegistryNaaccrAbstractAsync(string reportId);
 
     /// <summary>Submit a cancer registry report to a named registry.</summary>
+    [RequiresSecurityKey(SecurityKeys.ONCO_MANAGER)]
     Task SubmitCancerRegistryReportAsync(string reportId, string registryName, string? confirmationNumber);
 
     /// <summary>Record acceptance of a cancer registry report.</summary>
+    [RequiresSecurityKey(SecurityKeys.ONCO_MANAGER)]
     Task AcceptCancerRegistryReportAsync(string reportId, string? registryResponse);
 
     /// <summary>Record rejection of a cancer registry report.</summary>
+    [RequiresSecurityKey(SecurityKeys.ONCO_MANAGER)]
     Task RejectCancerRegistryReportAsync(string reportId, string rejectionReason);
 
     // ─── Patient Merge (Site Flavor — PATIENT_MERGE feature) ────────────

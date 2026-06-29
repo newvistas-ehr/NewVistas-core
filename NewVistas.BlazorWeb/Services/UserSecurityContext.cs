@@ -17,6 +17,7 @@ public sealed class UserSecurityContext
 {
     private HashSet<string> _keys = [];
     private HashSet<MenuArea> _accessibleAreas = [MenuArea.General];
+    private HashSet<string> _features = [];
 
     /// <summary>The user's security keys, fetched once from the server.</summary>
     public IReadOnlySet<string> SecurityKeys => _keys;
@@ -46,7 +47,19 @@ public sealed class UserSecurityContext
         {
             // Leave IsInitialized=false on failure so the menu can retry (e.g., from
             // MainLayout) rather than silently collapsing to General-only for the session.
+            return;
         }
+
+        // Site feature flags (ONCOLOGY, EXTERNAL_PHARMACY, …) — cached so the nav can gate
+        // Modern/RPMS sections with a sync check, like the security keys. Best-effort: a
+        // failure here must not undo the keys above, so it's a separate try (a flag-gated
+        // section just won't show).
+        try
+        {
+            ISiteParametersGrain site = grains.GetGrain<ISiteParametersGrain>("SITE:DEFAULT");
+            _features = [.. (await site.GetParametersAsync()).Features];
+        }
+        catch { /* leave _features empty */ }
     }
 
     /// <summary>
@@ -64,12 +77,20 @@ public sealed class UserSecurityContext
     public bool HasKey(string key) => _keys.Contains(key);
 
     /// <summary>
+    /// Check if a site feature flag is enabled for this site (e.g. <c>SiteFeatures.Oncology</c>).
+    /// O(1) lookup against the site's cached <c>Features</c> set. Lets the role-scoped nav and
+    /// pages gate Modern/RPMS areas without an async grain call on every render.
+    /// </summary>
+    public bool IsFeatureEnabled(string flag) => _features.Contains(flag);
+
+    /// <summary>
     /// Clear cached state on logout.
     /// </summary>
     public void Clear()
     {
         _keys = [];
         _accessibleAreas = [MenuArea.General];
+        _features = [];
         IsInitialized = false;
     }
 }

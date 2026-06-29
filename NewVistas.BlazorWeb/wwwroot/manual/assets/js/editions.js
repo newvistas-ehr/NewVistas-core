@@ -14,7 +14,7 @@
     PHARMACY_POS: "rpms", GPRA_REPORTING: "rpms", PCC_SURVEILLANCE: "rpms",
     ICARE_DASHBOARD: "rpms", APPOINTMENT_WAITLIST: "rpms",
     PROVIDER_AVAILABILITY: "modern", PROVIDER_UNAVAILABILITY_BATCH: "modern",
-    PATIENT_SELF_SCHEDULING: "modern", EXTERNAL_PHARMACY: "modern"
+    PATIENT_SELF_SCHEDULING: "modern", EXTERNAL_PHARMACY: "modern", ONCOLOGY: "modern"
   };
 
   fetch("/api/site/features", { headers: { Accept: "application/json" } })

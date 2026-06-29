@@ -391,7 +391,7 @@ static async Task<Dictionary<int, string>> SeedDemoUsersAsync(IServiceProvider s
     [
         "Provider", "Nurse", "Pharmacist", "RegistrationClerk", "OrderEntry",
         "LabTechnician", "Radiologist", "Surgeon", "MentalHealth", "SocialWorker",
-        "Dietitian", "Administrator", "ChiefOfStaff", "PrivacyOfficer", "ARSupervisor"
+        "Dietitian", "Administrator", "ChiefOfStaff", "PrivacyOfficer", "ARSupervisor", "Oncologist"
     ];
 
     foreach (string role in allRoles)
@@ -486,6 +486,14 @@ static async Task<Dictionary<int, string>> SeedDemoUsersAsync(IServiceProvider s
             "Radiologist", "MD", "RADIOLOGY", "PHYSICIAN", "STAFF", "CT/MRI"),
         ("RAD5", "ROBINSON,AMY S", ["Radiologist", "Provider"],
             "Radiologist", "MD", "RADIOLOGY", "PHYSICIAN", "STAFF", "Mammography"),
+
+        // Oncologists (3)
+        ("ONC1", "BENNETT,SARAH J", ["Oncologist", "Provider", "OrderEntry"],
+            "Medical Oncologist", "MD", "ONCOLOGY", "PHYSICIAN", "STAFF", "Medical Oncology"),
+        ("ONC2", "OKAFOR,DANIEL E", ["Oncologist", "Provider", "OrderEntry"],
+            "Hematologist-Oncologist", "MD", "ONCOLOGY", "PHYSICIAN", "STAFF", "Hematology-Oncology"),
+        ("ONC3", "REYES,MARIA L", ["Oncologist", "Provider", "OrderEntry"],
+            "Radiation Oncologist", "MD", "RADIATION ONCOLOGY", "PHYSICIAN", "STAFF", "Radiation Oncology"),
 
         // Registration Clerks (5)
         ("CLERK1", "MARTINEZ,ANA P", ["RegistrationClerk", "OrderEntry"],
@@ -694,6 +702,7 @@ static async Task SeedDemoSecurityKeysAsync(IServiceProvider services)
         ["Administrator"]     = [SecurityKeys.XUMGR, SecurityKeys.XUAUDIT, SecurityKeys.DG_SENSITIVITY],
         ["RegistrationClerk"] = [SecurityKeys.SD_SCHEDULING, SecurityKeys.DG_ADMIT],
         ["MentalHealth"]      = [SecurityKeys.PROVIDER, SecurityKeys.TIU_SIGN, SecurityKeys.YS_MH_INSTRUMENT],
+        ["Oncologist"]        = [SecurityKeys.PROVIDER, SecurityKeys.ORES, SecurityKeys.TIU_SIGN, SecurityKeys.GMRA_ALLERGY, SecurityKeys.GMRV_VITALS, SecurityKeys.GMPL_PROBLEM, SecurityKeys.ONCO_MANAGER],
     };
 
     var users = userManager.Users.ToList();
