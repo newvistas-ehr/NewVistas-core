@@ -943,6 +943,43 @@ PLAN:
 5. VA radiological testing — patient to look into what the Navy letter was offering.",
                 "Low back pain — HPI, exam, assessment, plan", DrCannotId, DrCannot, "Primary Care", pcVisit, new DateTime(2026, 6, 16));
 
+            // ── Oncology: a BRAF-mutant cutaneous melanoma with a molecular profile ──
+            // Ties to his documented skin-cancer history (basal-cell excision + melanoma)
+            // and exercises the precision-oncology layer end-to-end: the registered tumor
+            // is staged, then a BRAF V600E and a PD-L1 result drive matched targeted +
+            // immunotherapy decision support on the Oncology page. (Runs under the
+            // SYSTEM-SEED XUPROG context set above, so the ONCO MANAGER-gated writes pass.)
+            string melanomaId = await wf.RegisterOncologyTumorAsync(
+                primarySite: "C43.5",
+                primarySiteText: "Malignant melanoma of trunk",
+                histology: "8720/3",
+                histologyText: "Malignant melanoma, NOS",
+                laterality: TumorLaterality.NotApplicable,
+                dateOfDiagnosis: new DateTime(2024, 8, 15),
+                diagnosisBasis: DiagnosisBasis.HistologyOfPrimary,
+                sequenceNumber: 1,
+                oncologistId: "PROV-CURE",
+                oncologistName: "Dr. Cure");
+
+            await wf.RecordOncologyStagingAsync(
+                melanomaId,
+                clinicalT: "cT3b", clinicalN: "cN1", clinicalM: "cM0",
+                pathologicT: "pT3b", pathologicN: "pN1a", pathologicM: "pM0",
+                stageGroup: "IIIB", seerSummaryStage: "3");
+
+            await wf.RecordTumorBiomarkerAsync(
+                melanomaId, "BRAF", BiomarkerStatus.Positive, "V600E",
+                BiomarkerMethod.NGS, new DateTime(2024, 9, 1), "FoundationOne CDx",
+                "Activating mutation — actionable.");
+            await wf.RecordTumorBiomarkerAsync(
+                melanomaId, "PD-L1", BiomarkerStatus.Positive, "TPS 35%",
+                BiomarkerMethod.IHC, new DateTime(2024, 9, 1), "PathGroup", null);
+            await wf.RecordTumorBiomarkerAsync(
+                melanomaId, "KIT", BiomarkerStatus.Negative, "wild type",
+                BiomarkerMethod.NGS, new DateTime(2024, 9, 1), "FoundationOne CDx", null);
+
+            logger.LogInformation("  + oncology: melanoma {Id} staged IIIB with molecular profile (BRAF V600E, PD-L1 35%)", melanomaId);
+
             logger.LogInformation("Rich demo patient {Id} (SICK,EXTREME LEE) seeded successfully", Pid);
         }
         catch (Exception ex)
