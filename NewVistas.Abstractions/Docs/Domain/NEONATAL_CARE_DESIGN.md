@@ -1,6 +1,6 @@
 # Neonatal Care — Design
 
-> **Status: DESIGN → being built (2026-06-29).** Closes the gap surfaced when surveying maternity:
+> **Status: IMPLEMENTED & smoke-verified (2026-06-29).** Closes the gap surfaced when surveying maternity:
 > the existing OB module ([PregnancyState.cs](../../GrainStates/PregnancyState.cs)) carries the
 > birth through the **mother's** delivery record (infant sex, birth weight, APGAR) but the baby
 > then disappears — no chart of their own, no neonatal assessment, no newborn screening, no nursery.
