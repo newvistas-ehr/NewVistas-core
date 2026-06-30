@@ -106,6 +106,14 @@ public class PregnancyGrain : Grain, IPregnancyGrain
         await _state.WriteStateAsync();
     }
 
+    public async Task AddNewbornIdAsync(string newbornId)
+    {
+        if (!_state.State.NewbornIds.Contains(newbornId))
+            _state.State.NewbornIds.Add(newbornId);
+        _state.State.LastModifiedDate = DateTime.UtcNow;
+        await _state.WriteStateAsync();
+    }
+
     public async Task RecordPostpartumAsync(PostpartumInfo postpartum)
     {
         _state.State.Postpartum = postpartum;

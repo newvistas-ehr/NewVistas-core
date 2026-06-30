@@ -197,6 +197,18 @@
             </NavLink>
             }
 
+            @* Neonatal / Newborn Nursery — extends the OB module (NEONATAL_CARE site flag).
+               Writes are OPEN like OB, so gated on the flag only, not a security key. *@
+            @if (SecurityContext.HasAccess(MenuArea.Clinical) && SecurityContext.IsFeatureEnabled("NEONATAL_CARE"))
+            {
+            <div class="nav-divider"></div>
+            <div class="nav-section-title">Neonatal</div>
+            <NavLink class="nav-item" href="/neonatal">
+                <span class="nav-icon">👶</span>
+                <span class="nav-label">Neonatal / Nursery</span>
+            </NavLink>
+            }
+
             @if (SecurityContext.HasAccess(MenuArea.Nursing))
             {
             <div class="nav-divider"></div>

@@ -187,6 +187,7 @@ static partial class Program
         "womensHealthNotificationStore", "womensHealthIndexStore",
         "pregnancyStore", "pregnancyIndexStore",
         "prenatalVisitStore", "prenatalVisitIndexStore",
+        "newbornStore", "newbornNurseryStore",
         "saEpisodeStore", "saEpisodeIndexStore",
         "saVisitStore", "saVisitIndexStore",
         "posClaimStore", "posClaimIndexStore",

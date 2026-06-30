@@ -301,6 +301,7 @@ using (var scope = app.Services.CreateScope())
     // find him by name, and see him in "My Patients" within seconds, while the P1..P500
     // cohort streams in behind. Both calls are idempotent.
     await ExtremeLeeSickSeed.SeedAsync(grainFactory, seedLogger);
+    await MaternalNewbornSeed.SeedAsync(grainFactory, seedLogger);   // P9002 mother + newborn (maternity + neonatal demo)
     await SeedDemoCareTeamsAsync(app.Services, seedLogger);   // assigns P9001 now; P1..P30 skipped until imported
 
     // Auto-import demo patients if none exist

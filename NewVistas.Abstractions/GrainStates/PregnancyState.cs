@@ -357,6 +357,12 @@ public class PregnancyState
     /// <summary>Date pregnancy record was last modified.</summary>
     [Id(23)]
     public DateTime LastModifiedDate { get; set; } = DateTime.UtcNow;
+
+    // ── Neonatal link ───────────────────────────────────────────────────────
+
+    /// <summary>Newborn record ids (NEONATE:{guid}) delivered from this pregnancy — supports multiples.</summary>
+    [Id(24)]
+    public List<string> NewbornIds { get; set; } = new();
 }
 
 // ── Prenatal Visit State ─────────────────────────────────────────────────────

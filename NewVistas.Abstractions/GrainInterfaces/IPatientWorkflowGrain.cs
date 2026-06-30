@@ -1711,6 +1711,59 @@ public interface IPatientWorkflowGrain : IGrainWithStringKey
     /// <summary>Returns the count of prenatal visits for a pregnancy.</summary>
     Task<int> GetPrenatalVisitCountAsync(string pregnancyId);
 
+    // ─── Neonatal / Newborn Nursery (NEONATAL_CARE — extends the OB module) ─────
+    // Writes open / reads open, matching the OB module this extends. The newborn is registered
+    // from one of this patient's (the mother's) pregnancies; facility nursery census is the
+    // singleton INewbornNurseryGrain.
+
+    /// <summary>Registers a newborn delivered from a pregnancy and links it back. Returns the newborn id.</summary>
+    Task<string> RegisterNewbornFromDeliveryAsync(
+        string pregnancyId,
+        string name,
+        GrainStates.NewbornSex sex,
+        DateTime birthDateTime,
+        int gestationalAgeWeeks,
+        int gestationalAgeDays,
+        GrainStates.DeliveryMethod deliveryMethod,
+        int? birthWeightGrams,
+        decimal? lengthCm,
+        decimal? headCircumferenceCm,
+        int? apgar1Min,
+        int? apgar5Min,
+        int? apgar10Min,
+        int multipleBirthOrder,
+        int multipleBirthTotal,
+        string attendingProviderId,
+        string attendingProviderName,
+        string birthLocationName);
+
+    Task RecordNewbornExamAsync(string newbornId, GrainStates.NewbornExam exam);
+
+    Task RecordNewbornScreeningAsync(
+        string newbornId, GrainStates.NewbornScreeningType type, GrainStates.NewbornScreeningResult result,
+        string valueText, DateTime? performedDate, string performedBy, string notes);
+
+    Task AddNewbornMeasurementAsync(
+        string newbornId, DateTime measuredAt, int? weightGrams, GrainStates.NewbornFeedingType feedingType,
+        decimal? bilirubinMgDl, string feedingNotes, string notes);
+
+    Task SetNewbornNurseryLevelAsync(string newbornId, GrainStates.NurseryLevelOfCare level, string reason);
+
+    Task TransferNewbornAsync(string newbornId, string toLocation, string reason);
+
+    Task DischargeNewbornAsync(
+        string newbornId, DateTime dischargeDateTime, int? dischargeWeightGrams,
+        GrainStates.NewbornFeedingType dischargeFeeding, string disposition, string followUpPlan, bool carSeatTestPassed);
+
+    /// <summary>Returns a single newborn record.</summary>
+    Task<GrainStates.NewbornState> GetNewbornAsync(string newbornId);
+
+    /// <summary>Returns the newborns delivered from a given pregnancy.</summary>
+    Task<List<GrainStates.NewbornState>> GetNewbornsForPregnancyAsync(string pregnancyId);
+
+    /// <summary>Returns all newborns delivered from this patient's pregnancies (newest first).</summary>
+    Task<List<GrainStates.NewbornState>> GetNewbornsForMotherAsync();
+
     // ─── Substance Abuse Treatment (RPMS CDMIS — File #9002170, additive feature) ──
 
     /// <summary>Creates a SA treatment episode and returns the episode ID.</summary>

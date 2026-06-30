@@ -1,0 +1,1035 @@
+@* Copyright 2026 Merrimack Valley Software Works, LLC. All rights reserved. *@
+@* This Source Code Form is subject to the terms of the Mozilla Public *@
+@* License, v. 2.0. If a copy of the MPL was not distributed with this *@
+@* file, You can obtain one at https://mozilla.org/MPL/2.0/.            *@
+@page "/neonatal"
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+@rendermode InteractiveServer
+@using NewVistas.BlazorWeb.Services
+@using NewVistas.Abstractions.GrainInterfaces
+@using NewVistas.Abstractions.GrainStates
+@using NewVistas.Abstractions.Security
+@inject OrleansGrainService Grains
+@inject PatientContextService PatientContext
+@inject UserSecurityContext SecurityContext
+
+<PageTitle>Neonatal / Newborn Nursery</PageTitle>
+
+@if (!SecurityContext.IsFeatureEnabled("NEONATAL_CARE"))
+{
+    <div class="neo-container">
+        <div class="alert alert-info">Neonatal / Newborn Nursery is not enabled at this site.</div>
+    </div>
+}
+else
+{
+    <div class="neo-container">
+        <div class="neo-header">
+            <h2>Neonatal / Newborn Nursery</h2>
+            <div class="lookup-bar">
+                <input @bind="newbornId" placeholder="Newborn ID" class="lookup-input" />
+                <button class="btn btn-primary" @onclick="LoadNewbornFromInput">Open Newborn</button>
+            </div>
+        </div>
+
+        @if (error != null)
+        {
+            <div class="alert alert-error">@error</div>
+        }
+        @if (successMsg != null)
+        {
+            <div class="alert alert-success">@successMsg</div>
+        }
+
+        <div class="tab-bar">
+            <button class="tab @TabClass("nursery")" @onclick='() => SetTab("nursery")'>Nursery</button>
+            <button class="tab @TabClass("newborn")" @onclick='() => SetTab("newborn")'>Newborn Detail</button>
+        </div>
+
+        <!-- ── Nursery Tab ─────────────────────────────────────────────────────── -->
+        @if (activeTab == "nursery")
+        {
+            @if (rosterLoading)
+            {
+                <div class="loading">Loading nursery census…</div>
+            }
+            else
+            {
+                @if (roster != null)
+                {
+                    <div class="stat-cards">
+                        <div class="stat-card well">
+                            <span class="stat-num">@CountByLevel(NurseryLevelOfCare.WellNewborn)</span>
+                            <span class="stat-lbl">Well-Newborn (I)</span>
+                        </div>
+                        <div class="stat-card special">
+                            <span class="stat-num">@CountByLevel(NurseryLevelOfCare.SpecialCareLevelII)</span>
+                            <span class="stat-lbl">Special-Care (II)</span>
+                        </div>
+                        <div class="stat-card nicu">
+                            <span class="stat-num">@CountByLevel(NurseryLevelOfCare.NicuLevelIII)</span>
+                            <span class="stat-lbl">NICU (III)</span>
+                        </div>
+                        <div class="stat-card regional">
+                            <span class="stat-num">@CountByLevel(NurseryLevelOfCare.NicuRegionalLevelIV)</span>
+                            <span class="stat-lbl">Regional (IV)</span>
+                        </div>
+                        <div class="stat-card pending">
+                            <span class="stat-num">@roster.Sum(e => e.PendingScreenCount)</span>
+                            <span class="stat-lbl">Pending Screens</span>
+                        </div>
+                    </div>
+                }
+
+                <div class="filter-bar">
+                    <label>Filter</label>
+                    <select @bind="rosterFilter" @bind:after="ApplyRosterFilter">
+                        <option value="all">All active</option>
+                        <option value="pending">Pending screens</option>
+                        <option value="WellNewborn">Level: Well-Newborn (I)</option>
+                        <option value="SpecialCareLevelII">Level: Special-Care (II)</option>
+                        <option value="NicuLevelIII">Level: NICU (III)</option>
+                        <option value="NicuRegionalLevelIV">Level: Regional (IV)</option>
+                    </select>
+                    <button class="btn btn-secondary" @onclick="LoadRoster">Refresh</button>
+                </div>
+
+                @if (roster == null || roster.Count == 0)
+                {
+                    <div class="empty-state">No newborns match this filter.</div>
+                }
+                else
+                {
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th>Newborn</th>
+                                <th>Sex</th>
+                                <th>GA (wks)</th>
+                                <th>Birth Weight</th>
+                                <th>Nursery Level</th>
+                                <th>Pending Screens</th>
+                                <th>Attending</th>
+                                <th>Status</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (NewbornNurseryEntry e in roster)
+                            {
+                                <tr class="clickable-row" @onclick="() => OpenNewborn(e.NewbornId, e.MotherPatientId)">
+                                    <td>@e.NewbornName <span class="code">@e.NewbornId</span></td>
+                                    <td>@SexText(e.Sex)</td>
+                                    <td>@e.GestationalAgeWeeks</td>
+                                    <td>@WeightText(e.BirthWeightGrams)</td>
+                                    <td>@LevelText(e.NurseryLevel)</td>
+                                    <td>
+                                        @if (e.PendingScreenCount > 0)
+                                        {
+                                            <span class="badge badge-warning">@e.PendingScreenCount pending</span>
+                                        }
+                                        else
+                                        {
+                                            <span class="badge badge-success">Complete</span>
+                                        }
+                                    </td>
+                                    <td>@(string.IsNullOrWhiteSpace(e.AttendingProviderName) ? "—" : e.AttendingProviderName)</td>
+                                    <td><span class="badge @NewbornStatusBadge(e.Status)">@e.Status</span></td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                }
+            }
+
+            <!-- ── Register newborn entry ── -->
+            <div class="tab-controls">
+                <button class="btn btn-primary" @onclick="() => Toggle(ref showRegisterPanel)">Register Newborn</button>
+            </div>
+            @if (showRegisterPanel)
+            {
+                <div class="action-panel">
+                    <h5>Register Newborn from Delivery</h5>
+                    <div class="form-row">
+                        <label>Mother Patient ID</label><input @bind="regMotherId" />
+                        <label>Pregnancy ID</label><input @bind="regPregnancyId" />
+                    </div>
+                    <div class="form-row">
+                        <label>Newborn Name</label><input @bind="regName" placeholder="BABY GIRL SMITH" />
+                        <label>Sex</label>
+                        <select @bind="regSex">
+                            @foreach (NewbornSex s in Enum.GetValues<NewbornSex>())
+                            {
+                                <option value="@s">@SexText(s)</option>
+                            }
+                        </select>
+                    </div>
+                    <div class="form-row">
+                        <label>Birth Date / Time</label><input type="datetime-local" @bind="regBirthDateTime" />
+                        <label>Delivery Method</label>
+                        <select @bind="regDeliveryMethod">
+                            @foreach (DeliveryMethod m in Enum.GetValues<DeliveryMethod>())
+                            {
+                                <option value="@m">@m</option>
+                            }
+                        </select>
+                    </div>
+                    <div class="form-row">
+                        <label>GA Weeks</label><input type="number" min="0" max="45" @bind="regGaWeeks" />
+                        <label>GA Days</label><input type="number" min="0" max="6" @bind="regGaDays" />
+                    </div>
+                    <div class="form-row">
+                        <label>Birth Weight (g)</label><input type="number" min="0" @bind="regBirthWeight" />
+                        <label>Length (cm)</label><input type="number" step="0.1" @bind="regLength" />
+                        <label>Head Circ (cm)</label><input type="number" step="0.1" @bind="regHeadCirc" />
+                    </div>
+                    <div class="form-row">
+                        <label>APGAR 1 min</label><input type="number" min="0" max="10" @bind="regApgar1" />
+                        <label>APGAR 5 min</label><input type="number" min="0" max="10" @bind="regApgar5" />
+                        <label>APGAR 10 min</label><input type="number" min="0" max="10" @bind="regApgar10" />
+                    </div>
+                    <div class="form-row">
+                        <label>Multiple Birth Order</label><input type="number" min="1" @bind="regMultipleOrder" />
+                        <label>Multiple Birth Total</label><input type="number" min="1" @bind="regMultipleTotal" />
+                    </div>
+                    <div class="form-row">
+                        <label>Attending ID</label><input @bind="regAttendingId" />
+                        <label>Attending Name</label><input @bind="regAttendingName" />
+                    </div>
+                    <div class="form-row">
+                        <label>Birth Location</label><input @bind="regBirthLocation" />
+                    </div>
+                    <div class="panel-btns">
+                        <button class="btn btn-primary" @onclick="SubmitRegister">Register</button>
+                        <button class="btn btn-secondary" @onclick="CloseAllPanels">Cancel</button>
+                    </div>
+                </div>
+            }
+        }
+
+        <!-- ── Newborn Detail Tab ──────────────────────────────────────────────── -->
+        @if (activeTab == "newborn")
+        {
+            @if (string.IsNullOrWhiteSpace(newbornId))
+            {
+                <div class="empty-state">Enter a Newborn ID above and click "Open Newborn", or pick a newborn from the Nursery tab.</div>
+            }
+            else if (newbornLoading)
+            {
+                <div class="loading">Loading newborn…</div>
+            }
+            else if (newborn == null)
+            {
+                <div class="empty-state">No newborn record for @newbornId.</div>
+            }
+            else
+            {
+                @* ── Header ── *@
+                <div class="detail-panel">
+                    <h4>@newborn.Name</h4>
+                    <div class="detail-grid">
+                        <div><label>Sex</label><span>@SexText(newborn.Sex)</span></div>
+                        <div><label>Birth Date / Time</label><span>@newborn.BirthDateTime.ToString("yyyy-MM-dd HH:mm")</span></div>
+                        <div>
+                            <label>Mother</label>
+                            <span>
+                                @if (!string.IsNullOrWhiteSpace(newborn.MotherPatientId))
+                                {
+                                    <a href="/patient-summary?patientId=@newborn.MotherPatientId">@newborn.MotherPatientId</a>
+                                }
+                                else { <text>—</text> }
+                            </span>
+                        </div>
+                        <div><label>Attending</label><span>@(string.IsNullOrWhiteSpace(newborn.AttendingProviderName) ? "—" : newborn.AttendingProviderName)</span></div>
+                        <div><label>Birth Location</label><span>@(string.IsNullOrWhiteSpace(newborn.BirthLocationName) ? "—" : newborn.BirthLocationName)</span></div>
+                        <div><label>Status</label><span><span class="badge @NewbornStatusBadge(newborn.Status)">@newborn.Status</span></span></div>
+                        @if (newborn.MultipleBirthTotal > 1)
+                        {
+                            <div><label>Multiple Birth</label><span>@newborn.MultipleBirthOrder of @newborn.MultipleBirthTotal</span></div>
+                        }
+                    </div>
+                </div>
+
+                @* ── Birth & classification ── *@
+                <div class="detail-panel">
+                    <h4>Birth &amp; Classification</h4>
+                    <div class="detail-grid">
+                        <div>
+                            <label>Gestational Age</label>
+                            <span>@newborn.GestationalAgeWeeks wks @newborn.GestationalAgeDays d
+                                <span class="badge badge-info">@ClassificationText(newborn.GestationalAgeClassification)</span></span>
+                        </div>
+                        <div>
+                            <label>Birth Weight</label>
+                            <span>@WeightText(newborn.BirthWeightGrams)
+                                <span class="badge badge-info">@WeightCategoryText(newborn.BirthWeightCategory)</span></span>
+                        </div>
+                        <div>
+                            <label>Size for GA</label>
+                            <span><span class="badge @SgaBadge(newborn.SizeForGestationalAge)">@SgaText(newborn.SizeForGestationalAge)</span></span>
+                        </div>
+                        <div><label>Length</label><span>@(newborn.LengthCm.HasValue ? $"{newborn.LengthCm} cm" : "—")</span></div>
+                        <div><label>Head Circumference</label><span>@(newborn.HeadCircumferenceCm.HasValue ? $"{newborn.HeadCircumferenceCm} cm" : "—")</span></div>
+                        <div><label>APGAR (1 / 5 / 10)</label><span>@ApgarText(newborn.Apgar1Min) / @ApgarText(newborn.Apgar5Min) / @ApgarText(newborn.Apgar10Min)</span></div>
+                        <div><label>Delivery Method</label><span>@newborn.DeliveryMethod</span></div>
+                        <div>
+                            <label>Resuscitation</label>
+                            <span>
+                                @if (newborn.ResuscitationProvided)
+                                {
+                                    <span class="badge badge-warning">Yes</span>
+                                    @if (!string.IsNullOrWhiteSpace(newborn.ResuscitationDetail)) { <text> @newborn.ResuscitationDetail</text> }
+                                }
+                                else { <span class="badge badge-success">No</span> }
+                            </span>
+                        </div>
+                        <div><label>Blood Type</label><span>@(string.IsNullOrWhiteSpace(newborn.BloodType) ? "—" : newborn.BloodType)</span></div>
+                    </div>
+                    <div class="detail-actions">
+                        <button class="btn btn-primary" @onclick="() => Toggle(ref showLevelPanel)">Set Nursery Level</button>
+                    </div>
+                    <div class="problem-line"><em>Current nursery level:</em> @LevelText(newborn.NurseryLevel)
+                        @if (!string.IsNullOrWhiteSpace(newborn.NurseryLevelReason)) { <text> — @newborn.NurseryLevelReason</text> }</div>
+                </div>
+
+                @if (showLevelPanel)
+                {
+                    <div class="action-panel">
+                        <h5>Set Nursery Level</h5>
+                        <div class="form-row">
+                            <label>Level</label>
+                            <select @bind="levelValue">
+                                @foreach (NurseryLevelOfCare l in Enum.GetValues<NurseryLevelOfCare>())
+                                {
+                                    <option value="@l">@LevelText(l)</option>
+                                }
+                            </select>
+                            <label>Reason</label><input @bind="levelReason" />
+                        </div>
+                        <div class="panel-btns">
+                            <button class="btn btn-primary" @onclick="SubmitLevel">Set Level</button>
+                            <button class="btn btn-secondary" @onclick="CloseAllPanels">Cancel</button>
+                        </div>
+                    </div>
+                }
+
+                @* ── Newborn exam ── *@
+                <div class="detail-panel">
+                    <h4>Newborn Exam</h4>
+                    @if (string.IsNullOrWhiteSpace(newborn.Exam.ExaminerName) && newborn.Exam.ExamDate == null
+                         && string.IsNullOrWhiteSpace(newborn.Exam.Impression))
+                    {
+                        <div class="empty-state">No exam recorded.</div>
+                    }
+                    else
+                    {
+                        <div class="exam-meta">
+                            Examined by @(string.IsNullOrWhiteSpace(newborn.Exam.ExaminerName) ? "—" : newborn.Exam.ExaminerName)
+                            @if (newborn.Exam.ExamDate.HasValue) { <text> on @newborn.Exam.ExamDate.Value.ToString("yyyy-MM-dd")</text> }
+                        </div>
+                        <div class="detail-grid">
+                            @ExamField("General", newborn.Exam.General)
+                            @ExamField("HEENT", newborn.Exam.Heent)
+                            @ExamField("Cardiac", newborn.Exam.Cardiac)
+                            @ExamField("Respiratory", newborn.Exam.Respiratory)
+                            @ExamField("Abdomen", newborn.Exam.Abdomen)
+                            @ExamField("Genitourinary", newborn.Exam.Genitourinary)
+                            @ExamField("Musculoskeletal", newborn.Exam.Musculoskeletal)
+                            @ExamField("Neurologic", newborn.Exam.Neurologic)
+                            @ExamField("Skin", newborn.Exam.Skin)
+                        </div>
+                        @if (!string.IsNullOrWhiteSpace(newborn.Exam.Impression))
+                        {
+                            <div class="problem-line"><em>Impression:</em> @newborn.Exam.Impression</div>
+                        }
+                    }
+                    <div class="detail-actions">
+                        <button class="btn btn-primary" @onclick="() => Toggle(ref showExamPanel)">Record Exam</button>
+                    </div>
+                </div>
+
+                @if (showExamPanel)
+                {
+                    <div class="action-panel">
+                        <h5>Record Newborn Exam</h5>
+                        <div class="form-row">
+                            <label>Examiner Name</label><input @bind="examExaminer" />
+                            <label>Exam Date</label><input type="date" @bind="examDate" />
+                        </div>
+                        <div class="form-row"><label>General</label><input @bind="examGeneral" /></div>
+                        <div class="form-row"><label>HEENT</label><input @bind="examHeent" /></div>
+                        <div class="form-row"><label>Cardiac</label><input @bind="examCardiac" /></div>
+                        <div class="form-row"><label>Respiratory</label><input @bind="examRespiratory" /></div>
+                        <div class="form-row"><label>Abdomen</label><input @bind="examAbdomen" /></div>
+                        <div class="form-row"><label>Genitourinary</label><input @bind="examGenitourinary" /></div>
+                        <div class="form-row"><label>Musculoskeletal</label><input @bind="examMusculoskeletal" /></div>
+                        <div class="form-row"><label>Neurologic</label><input @bind="examNeurologic" /></div>
+                        <div class="form-row"><label>Skin</label><input @bind="examSkin" /></div>
+                        <div class="form-row"><label>Impression</label><textarea @bind="examImpression" rows="2"></textarea></div>
+                        <div class="panel-btns">
+                            <button class="btn btn-primary" @onclick="SubmitExam">Record Exam</button>
+                            <button class="btn btn-secondary" @onclick="CloseAllPanels">Cancel</button>
+                        </div>
+                    </div>
+                }
+
+                @* ── Screening ── *@
+                <div class="detail-panel">
+                    <h4>Screening</h4>
+                    <table class="data-table">
+                        <thead>
+                            <tr><th>Screen</th><th>Result</th><th>Value</th><th>Performed</th><th>By</th></tr>
+                        </thead>
+                        <tbody>
+                            @foreach (NewbornScreeningType st in ScreeningOrder)
+                            {
+                                NewbornScreeningEntry? sc = newborn.Screenings.FirstOrDefault(x => x.ScreeningType == st);
+                                <tr>
+                                    <td>@ScreeningText(st)</td>
+                                    <td><span class="badge @ScreeningResultBadge(sc?.Result ?? NewbornScreeningResult.Pending)">@(sc?.Result ?? NewbornScreeningResult.Pending)</span></td>
+                                    <td>@(string.IsNullOrWhiteSpace(sc?.ValueText) ? "—" : sc!.ValueText)</td>
+                                    <td>@(sc?.PerformedDate?.ToString("yyyy-MM-dd") ?? "—")</td>
+                                    <td>@(string.IsNullOrWhiteSpace(sc?.PerformedBy) ? "—" : sc!.PerformedBy)</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                    <div class="detail-actions">
+                        <button class="btn btn-primary" @onclick="() => Toggle(ref showScreenPanel)">Record Screening</button>
+                    </div>
+                </div>
+
+                @if (showScreenPanel)
+                {
+                    <div class="action-panel">
+                        <h5>Record Screening</h5>
+                        <div class="form-row">
+                            <label>Screen Type</label>
+                            <select @bind="screenType">
+                                @foreach (NewbornScreeningType t in Enum.GetValues<NewbornScreeningType>())
+                                {
+                                    <option value="@t">@ScreeningText(t)</option>
+                                }
+                            </select>
+                            <label>Result</label>
+                            <select @bind="screenResult">
+                                @foreach (NewbornScreeningResult r in Enum.GetValues<NewbornScreeningResult>())
+                                {
+                                    <option value="@r">@r</option>
+                                }
+                            </select>
+                        </div>
+                        <div class="form-row">
+                            <label>Value</label><input @bind="screenValue" placeholder="e.g. TSB 7.2 mg/dL, low-risk zone" />
+                            <label>Performed Date</label><input type="date" @bind="screenDate" />
+                        </div>
+                        <div class="form-row">
+                            <label>Performed By</label><input @bind="screenBy" />
+                            <label>Notes</label><input @bind="screenNotes" />
+                        </div>
+                        <div class="panel-btns">
+                            <button class="btn btn-primary" @onclick="SubmitScreening">Record Screening</button>
+                            <button class="btn btn-secondary" @onclick="CloseAllPanels">Cancel</button>
+                        </div>
+                    </div>
+                }
+
+                @* ── Measurements ── *@
+                <div class="detail-panel">
+                    <h4>Measurements</h4>
+                    @if (newborn.Measurements == null || newborn.Measurements.Count == 0)
+                    {
+                        <div class="empty-state">No measurements recorded.</div>
+                    }
+                    else
+                    {
+                        <table class="data-table">
+                            <thead>
+                                <tr><th>When</th><th>Weight</th><th>Feeding</th><th>Bilirubin</th><th>Notes</th></tr>
+                            </thead>
+                            <tbody>
+                                @foreach (NewbornMeasurement m in newborn.Measurements.OrderByDescending(x => x.MeasuredAt))
+                                {
+                                    <tr>
+                                        <td>@m.MeasuredAt.ToString("yyyy-MM-dd HH:mm")</td>
+                                        <td>@WeightText(m.WeightGrams)</td>
+                                        <td>@FeedingText(m.FeedingType)@(string.IsNullOrWhiteSpace(m.FeedingNotes) ? "" : $" ({m.FeedingNotes})")</td>
+                                        <td>@(m.BilirubinMgDl.HasValue ? $"{m.BilirubinMgDl} mg/dL" : "—")</td>
+                                        <td>@(string.IsNullOrWhiteSpace(m.Notes) ? "—" : m.Notes)</td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    }
+                    <div class="detail-actions">
+                        <button class="btn btn-primary" @onclick="() => Toggle(ref showMeasurePanel)">Add Measurement</button>
+                    </div>
+                </div>
+
+                @if (showMeasurePanel)
+                {
+                    <div class="action-panel">
+                        <h5>Add Measurement</h5>
+                        <div class="form-row">
+                            <label>Measured At</label><input type="datetime-local" @bind="measAt" />
+                            <label>Weight (g)</label><input type="number" min="0" @bind="measWeight" />
+                        </div>
+                        <div class="form-row">
+                            <label>Feeding Type</label>
+                            <select @bind="measFeeding">
+                                @foreach (NewbornFeedingType f in Enum.GetValues<NewbornFeedingType>())
+                                {
+                                    <option value="@f">@FeedingText(f)</option>
+                                }
+                            </select>
+                            <label>Bilirubin (mg/dL)</label><input type="number" step="0.1" @bind="measBili" />
+                        </div>
+                        <div class="form-row">
+                            <label>Feeding Notes</label><input @bind="measFeedingNotes" />
+                            <label>Notes</label><input @bind="measNotes" />
+                        </div>
+                        <div class="panel-btns">
+                            <button class="btn btn-primary" @onclick="SubmitMeasurement">Add Measurement</button>
+                            <button class="btn btn-secondary" @onclick="CloseAllPanels">Cancel</button>
+                        </div>
+                    </div>
+                }
+
+                @* ── Discharge ── *@
+                <div class="detail-panel">
+                    <h4>Discharge</h4>
+                    @if (newborn.Status == NewbornStatus.Discharged && newborn.DischargeDateTime.HasValue)
+                    {
+                        <div class="detail-grid">
+                            <div><label>Discharge Date / Time</label><span>@newborn.DischargeDateTime.Value.ToString("yyyy-MM-dd HH:mm")</span></div>
+                            <div><label>Discharge Weight</label><span>@WeightText(newborn.DischargeWeightGrams)</span></div>
+                            <div><label>Discharge Feeding</label><span>@FeedingText(newborn.DischargeFeeding)</span></div>
+                            <div><label>Disposition</label><span>@(string.IsNullOrWhiteSpace(newborn.DischargeDisposition) ? "—" : newborn.DischargeDisposition)</span></div>
+                            <div><label>Car-Seat Test</label><span>@(newborn.CarSeatTestPassed ? "Passed" : "Not passed")</span></div>
+                            <div class="full-width"><label>Follow-Up Plan</label><span>@(string.IsNullOrWhiteSpace(newborn.FollowUpPlan) ? "—" : newborn.FollowUpPlan)</span></div>
+                        </div>
+                    }
+                    else if (newborn.Status == NewbornStatus.Transferred)
+                    {
+                        <div class="problem-line"><em>Transferred</em>@(string.IsNullOrWhiteSpace(newborn.TransferLocation) ? "" : $" to {newborn.TransferLocation}")</div>
+                    }
+                    else
+                    {
+                        <div class="empty-state">Newborn has not been discharged.</div>
+                        <div class="detail-actions">
+                            <button class="btn btn-primary" @onclick="() => Toggle(ref showDischargePanel)">Discharge</button>
+                        </div>
+                    }
+                </div>
+
+                @if (showDischargePanel)
+                {
+                    <div class="action-panel">
+                        <h5>Discharge Newborn</h5>
+                        <div class="form-row">
+                            <label>Discharge Date / Time</label><input type="datetime-local" @bind="dischargeAt" />
+                            <label>Discharge Weight (g)</label><input type="number" min="0" @bind="dischargeWeight" />
+                        </div>
+                        <div class="form-row">
+                            <label>Discharge Feeding</label>
+                            <select @bind="dischargeFeeding">
+                                @foreach (NewbornFeedingType f in Enum.GetValues<NewbornFeedingType>())
+                                {
+                                    <option value="@f">@FeedingText(f)</option>
+                                }
+                            </select>
+                            <label>Car-Seat Test Passed</label><input type="checkbox" @bind="dischargeCarSeat" />
+                        </div>
+                        <div class="form-row">
+                            <label>Disposition</label><input @bind="dischargeDisposition" />
+                        </div>
+                        <div class="form-row">
+                            <label>Follow-Up Plan</label><textarea @bind="dischargeFollowUp" rows="2"></textarea>
+                        </div>
+                        <div class="panel-btns">
+                            <button class="btn btn-primary" @onclick="SubmitDischarge">Discharge</button>
+                            <button class="btn btn-secondary" @onclick="CloseAllPanels">Cancel</button>
+                        </div>
+                    </div>
+                }
+            }
+        }
+    </div>
+}
+
+<style>
+    /* Canonical interaction classes (lookup-bar, lookup-input, tab-bar, tab, btn,
+       btn-primary, btn-secondary, alert, alert-*, data-table, badge, badge-*) are
+       defined once in app.css. Only page-specific styles live here. */
+    .neo-container { max-width: 1200px; margin: 0 auto; padding: 1rem; font-family: sans-serif; }
+    .neo-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 1rem; }
+    .neo-header h2 { margin: 0; color: #003f72; }
+    .loading { padding: 2rem; text-align: center; color: #555; }
+    .stat-cards { display: flex; gap: 1rem; margin-bottom: 1rem; flex-wrap: wrap; }
+    .stat-card { background: #fff; border: 1px solid #d4d9e0; border-radius: 8px; padding: 0.75rem 1.25rem; text-align: center; min-width: 100px; }
+    .stat-card.well { border-color: #166534; }
+    .stat-card.special { border-color: #b45309; }
+    .stat-card.nicu { border-color: #b91c1c; }
+    .stat-card.regional { border-color: #6b21a8; }
+    .stat-card.pending { border-color: #0e7490; }
+    .stat-num { display: block; font-size: 1.8rem; font-weight: 700; color: #003f72; }
+    .stat-lbl { font-size: 0.78rem; color: #555; }
+    .filter-bar { display: flex; align-items: center; gap: 0.6rem; margin-bottom: 0.75rem; flex-wrap: wrap; }
+    .filter-bar label { font-size: 0.85rem; color: #333; }
+    .filter-bar select { padding: 0.35rem 0.5rem; border: 1px solid #d4d9e0; border-radius: 4px; font-size: 0.9rem; }
+    .clickable-row { cursor: pointer; }
+    .clickable-row:hover { background: #eaf2fb; }
+    .code { font-size: 0.75rem; color: #555; margin-left: 4px; }
+    .detail-panel { background: #f9fafb; border: 1px solid #d4d9e0; border-radius: 8px; padding: 1rem; margin-top: 0.75rem; }
+    .detail-panel h4 { margin: 0 0 0.75rem; color: #003f72; }
+    .detail-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 0.5rem; margin-bottom: 0.75rem; }
+    .detail-grid div { background: #fff; border: 1px solid #d4d9e0; border-radius: 4px; padding: 0.4rem 0.6rem; }
+    .detail-grid label { display: block; font-size: 0.75rem; color: #555; margin-bottom: 2px; }
+    .detail-grid span { font-size: 0.9rem; color: #333; }
+    .full-width { grid-column: 1 / -1; }
+    .detail-actions { display: flex; gap: 0.5rem; flex-wrap: wrap; margin: 0.25rem 0; }
+    .tab-controls { margin: 0.75rem 0; }
+    .action-panel { background: #f4f6f9; border: 1px solid #d4d9e0; border-radius: 6px; padding: 1rem; margin-top: 0.75rem; }
+    .action-panel h5 { margin: 0 0 0.75rem; color: #003f72; }
+    .form-row { display: flex; align-items: center; gap: 0.6rem; margin-bottom: 0.6rem; flex-wrap: wrap; }
+    .form-row label { font-size: 0.85rem; color: #333; min-width: 150px; }
+    .form-row input:not([type=checkbox]), .form-row select, .form-row textarea { flex: 1; padding: 0.35rem 0.5rem; border: 1px solid #d4d9e0; border-radius: 4px; font-size: 0.9rem; min-width: 120px; }
+    .panel-btns { display: flex; gap: 0.5rem; margin-top: 0.75rem; }
+    .empty-state { padding: 0.75rem; color: #555; font-style: italic; }
+    .exam-meta { font-size: 0.85rem; color: #555; margin-bottom: 0.5rem; }
+    .problem-line { font-size: 0.85rem; color: #333; margin-top: 0.2rem; }
+    button:disabled { opacity: 0.5; cursor: not-allowed; }
+</style>
+
+@code {
+    [SupplyParameterFromQuery] public string? newbornId { get; set; }
+    [SupplyParameterFromQuery] public string? motherPatientId { get; set; }
+
+    // Neonatal extends the OB module: writes are OPEN (no security key). The whole page is gated
+    // on the NEONATAL_CARE site flag above; every signed-in user can use the forms. No CanEdit.
+
+    string activeTab = "nursery";
+    string? error;
+    string? successMsg;
+
+    // ── Nursery roster ──
+    bool rosterLoading;
+    string rosterFilter = "all";
+    List<NewbornNurseryEntry>? roster;
+
+    // ── Newborn detail ──
+    bool newbornLoading;
+    NewbornState? newborn;
+
+    // ── Action-panel toggles ──
+    bool showRegisterPanel, showLevelPanel, showExamPanel, showScreenPanel, showMeasurePanel, showDischargePanel;
+
+    // ── Register form ──
+    string regMotherId = string.Empty, regPregnancyId = string.Empty, regName = string.Empty;
+    NewbornSex regSex = NewbornSex.Unknown;
+    DateTime regBirthDateTime = DateTime.Now;
+    DeliveryMethod regDeliveryMethod = DeliveryMethod.SpontaneousVaginal;
+    int regGaWeeks = 39, regGaDays;
+    int? regBirthWeight;
+    decimal? regLength, regHeadCirc;
+    int? regApgar1, regApgar5, regApgar10;
+    int regMultipleOrder = 1, regMultipleTotal = 1;
+    string regAttendingId = string.Empty, regAttendingName = string.Empty, regBirthLocation = string.Empty;
+
+    // ── Nursery-level form ──
+    NurseryLevelOfCare levelValue = NurseryLevelOfCare.WellNewborn;
+    string levelReason = string.Empty;
+
+    // ── Exam form ──
+    string examExaminer = string.Empty;
+    DateTime examDate = DateTime.Today;
+    string examGeneral = string.Empty, examHeent = string.Empty, examCardiac = string.Empty;
+    string examRespiratory = string.Empty, examAbdomen = string.Empty, examGenitourinary = string.Empty;
+    string examMusculoskeletal = string.Empty, examNeurologic = string.Empty, examSkin = string.Empty;
+    string examImpression = string.Empty;
+
+    // ── Screening form ──
+    NewbornScreeningType screenType = NewbornScreeningType.MetabolicBloodSpot;
+    NewbornScreeningResult screenResult = NewbornScreeningResult.Pass;
+    string screenValue = string.Empty, screenBy = string.Empty, screenNotes = string.Empty;
+    DateTime? screenDate = DateTime.Today;
+
+    // ── Measurement form ──
+    DateTime measAt = DateTime.Now;
+    int? measWeight;
+    NewbornFeedingType measFeeding = NewbornFeedingType.Breast;
+    decimal? measBili;
+    string measFeedingNotes = string.Empty, measNotes = string.Empty;
+
+    // ── Discharge form ──
+    DateTime dischargeAt = DateTime.Now;
+    int? dischargeWeight;
+    NewbornFeedingType dischargeFeeding = NewbornFeedingType.Breast;
+    bool dischargeCarSeat;
+    string dischargeDisposition = string.Empty, dischargeFollowUp = string.Empty;
+
+    static readonly NewbornScreeningType[] ScreeningOrder = new[]
+    {
+        NewbornScreeningType.MetabolicBloodSpot,
+        NewbornScreeningType.CriticalCongenitalHeartDisease,
+        NewbornScreeningType.Hearing,
+        NewbornScreeningType.Bilirubin,
+        NewbornScreeningType.Glucose,
+    };
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (!SecurityContext.IsFeatureEnabled("NEONATAL_CARE")) return;
+        if (roster == null && activeTab == "nursery")
+            await LoadRoster();
+        if (!string.IsNullOrWhiteSpace(newbornId) && newborn == null && !newbornLoading)
+        {
+            activeTab = "newborn";
+            await LoadNewborn();
+        }
+    }
+
+    string TabClass(string tab) => activeTab == tab ? "active" : string.Empty;
+
+    async Task SetTab(string tab)
+    {
+        activeTab = tab;
+        error = null; successMsg = null;
+        CloseAllPanels();
+        if (tab == "nursery" && roster == null) await LoadRoster();
+        else if (tab == "newborn" && !string.IsNullOrWhiteSpace(newbornId) && newborn == null) await LoadNewborn();
+    }
+
+    void Toggle(ref bool flag)
+    {
+        bool target = !flag;
+        CloseAllPanels();
+        flag = target;
+    }
+
+    void CloseAllPanels()
+    {
+        showRegisterPanel = showLevelPanel = showExamPanel = false;
+        showScreenPanel = showMeasurePanel = showDischargePanel = false;
+    }
+
+    // ── Nursery roster ──
+    async Task LoadRoster()
+    {
+        rosterLoading = true; error = null;
+        try
+        {
+            await ApplyRosterFilter();
+        }
+        catch { error = "Failed to load nursery census."; }
+        finally { rosterLoading = false; }
+    }
+
+    async Task ApplyRosterFilter()
+    {
+        try
+        {
+            var nursery = Grains.GetGrain<INewbornNurseryGrain>("NEONATE-NURSERY:DEFAULT");
+            roster = rosterFilter switch
+            {
+                "pending"               => await nursery.GetWithPendingScreensAsync(),
+                "WellNewborn"           => await nursery.GetByLevelAsync(NurseryLevelOfCare.WellNewborn),
+                "SpecialCareLevelII"    => await nursery.GetByLevelAsync(NurseryLevelOfCare.SpecialCareLevelII),
+                "NicuLevelIII"          => await nursery.GetByLevelAsync(NurseryLevelOfCare.NicuLevelIII),
+                "NicuRegionalLevelIV"   => await nursery.GetByLevelAsync(NurseryLevelOfCare.NicuRegionalLevelIV),
+                _                       => await nursery.GetActiveAsync(),
+            };
+        }
+        catch { error = "Failed to filter nursery census."; }
+    }
+
+    int CountByLevel(NurseryLevelOfCare level) =>
+        roster?.Count(e => e.NurseryLevel == level) ?? 0;
+
+    async Task OpenNewborn(string id, string? motherId)
+    {
+        newbornId = id;
+        if (!string.IsNullOrWhiteSpace(motherId)) motherPatientId = motherId;
+        activeTab = "newborn";
+        await LoadNewborn();
+    }
+
+    async Task LoadNewbornFromInput()
+    {
+        if (string.IsNullOrWhiteSpace(newbornId)) return;
+        activeTab = "newborn";
+        await LoadNewborn();
+    }
+
+    // ── Newborn detail ──
+    async Task LoadNewborn()
+    {
+        if (string.IsNullOrWhiteSpace(newbornId)) return;
+        newbornLoading = true; error = null; successMsg = null;
+        CloseAllPanels();
+        try
+        {
+            // The newborn is read via the mother's workflow grain. If we don't yet know the mother
+            // (e.g. a raw deep-link), fall back to the roster entry to recover MotherPatientId.
+            string? motherId = motherPatientId;
+            if (string.IsNullOrWhiteSpace(motherId))
+            {
+                roster ??= await Grains.GetGrain<INewbornNurseryGrain>("NEONATE-NURSERY:DEFAULT").GetAllAsync();
+                motherId = roster?.FirstOrDefault(e => e.NewbornId == newbornId)?.MotherPatientId;
+            }
+            if (string.IsNullOrWhiteSpace(motherId))
+            {
+                newborn = null;
+                error = "Could not resolve the mother for this newborn. Open it from the Nursery tab.";
+                return;
+            }
+            motherPatientId = motherId;
+            var workflow = Grains.GetGrain<IPatientWorkflowGrain>(motherId.Trim());
+            newborn = await workflow.GetNewbornAsync(newbornId.Trim());
+        }
+        catch { error = "Failed to load newborn."; newborn = null; }
+        finally { newbornLoading = false; }
+    }
+
+    async Task ReloadNewborn()
+    {
+        if (string.IsNullOrWhiteSpace(motherPatientId) || string.IsNullOrWhiteSpace(newbornId)) return;
+        var workflow = Grains.GetGrain<IPatientWorkflowGrain>(motherPatientId.Trim());
+        newborn = await workflow.GetNewbornAsync(newbornId.Trim());
+    }
+
+    IPatientWorkflowGrain MotherWorkflow() => Grains.GetGrain<IPatientWorkflowGrain>(motherPatientId!.Trim());
+
+    // ── Register ──
+    async Task SubmitRegister()
+    {
+        if (string.IsNullOrWhiteSpace(regMotherId) || string.IsNullOrWhiteSpace(regPregnancyId))
+        {
+            error = "Mother Patient ID and Pregnancy ID are required."; return;
+        }
+        try
+        {
+            var workflow = Grains.GetGrain<IPatientWorkflowGrain>(regMotherId.Trim());
+            string id = await workflow.RegisterNewbornFromDeliveryAsync(
+                regPregnancyId.Trim(), regName, regSex, regBirthDateTime,
+                regGaWeeks, regGaDays, regDeliveryMethod,
+                regBirthWeight, regLength, regHeadCirc,
+                regApgar1, regApgar5, regApgar10,
+                regMultipleOrder, regMultipleTotal,
+                regAttendingId, regAttendingName, regBirthLocation);
+            successMsg = "Newborn registered.";
+            CloseAllPanels();
+            await LoadRoster();
+            newbornId = id;
+            motherPatientId = regMotherId.Trim();
+            activeTab = "newborn";
+            await LoadNewborn();
+        }
+        catch { error = "Failed to register newborn."; }
+    }
+
+    // ── Nursery level ──
+    async Task SubmitLevel()
+    {
+        if (newborn == null) return;
+        try
+        {
+            await MotherWorkflow().SetNewbornNurseryLevelAsync(newbornId!.Trim(), levelValue, levelReason);
+            successMsg = "Nursery level set.";
+            levelReason = string.Empty;
+            CloseAllPanels();
+            await ReloadNewborn();
+            await LoadRoster();
+        }
+        catch { error = "Failed to set nursery level."; }
+    }
+
+    // ── Exam ──
+    async Task SubmitExam()
+    {
+        if (newborn == null) return;
+        try
+        {
+            var exam = new NewbornExam
+            {
+                General = examGeneral,
+                Heent = examHeent,
+                Cardiac = examCardiac,
+                Respiratory = examRespiratory,
+                Abdomen = examAbdomen,
+                Genitourinary = examGenitourinary,
+                Musculoskeletal = examMusculoskeletal,
+                Neurologic = examNeurologic,
+                Skin = examSkin,
+                Impression = examImpression,
+                ExaminerName = examExaminer,
+                ExamDate = examDate,
+            };
+            await MotherWorkflow().RecordNewbornExamAsync(newbornId!.Trim(), exam);
+            successMsg = "Exam recorded.";
+            CloseAllPanels();
+            await ReloadNewborn();
+        }
+        catch { error = "Failed to record exam."; }
+    }
+
+    // ── Screening ──
+    async Task SubmitScreening()
+    {
+        if (newborn == null) return;
+        try
+        {
+            await MotherWorkflow().RecordNewbornScreeningAsync(
+                newbornId!.Trim(), screenType, screenResult, screenValue, screenDate, screenBy, screenNotes);
+            successMsg = "Screening recorded.";
+            screenValue = screenBy = screenNotes = string.Empty;
+            CloseAllPanels();
+            await ReloadNewborn();
+            await LoadRoster();
+        }
+        catch { error = "Failed to record screening."; }
+    }
+
+    // ── Measurement ──
+    async Task SubmitMeasurement()
+    {
+        if (newborn == null) return;
+        try
+        {
+            await MotherWorkflow().AddNewbornMeasurementAsync(
+                newbornId!.Trim(), measAt, measWeight, measFeeding, measBili, measFeedingNotes, measNotes);
+            successMsg = "Measurement added.";
+            measWeight = null; measBili = null; measFeedingNotes = measNotes = string.Empty;
+            CloseAllPanels();
+            await ReloadNewborn();
+        }
+        catch { error = "Failed to add measurement."; }
+    }
+
+    // ── Discharge ──
+    async Task SubmitDischarge()
+    {
+        if (newborn == null) return;
+        try
+        {
+            await MotherWorkflow().DischargeNewbornAsync(
+                newbornId!.Trim(), dischargeAt, dischargeWeight, dischargeFeeding,
+                dischargeDisposition, dischargeFollowUp, dischargeCarSeat);
+            successMsg = "Newborn discharged.";
+            CloseAllPanels();
+            await ReloadNewborn();
+            await LoadRoster();
+        }
+        catch { error = "Failed to discharge newborn."; }
+    }
+
+    // ── Display helpers ──
+    RenderFragment ExamField(string label, string value) => builder =>
+    {
+        if (string.IsNullOrWhiteSpace(value)) return;
+        builder.OpenElement(0, "div");
+        builder.OpenElement(1, "label");
+        builder.AddContent(2, label);
+        builder.CloseElement();
+        builder.OpenElement(3, "span");
+        builder.AddContent(4, value);
+        builder.CloseElement();
+        builder.CloseElement();
+    };
+
+    static string SexText(NewbornSex s) => s switch
+    {
+        NewbornSex.Male      => "Male",
+        NewbornSex.Female    => "Female",
+        NewbornSex.Ambiguous => "Ambiguous",
+        _ => "Unknown",
+    };
+
+    static string WeightText(int? grams) => grams.HasValue ? $"{grams} g" : "—";
+
+    static string ApgarText(int? score) => score.HasValue ? score.Value.ToString() : "—";
+
+    static string LevelText(NurseryLevelOfCare l) => l switch
+    {
+        NurseryLevelOfCare.WellNewborn         => "Well-Newborn (I)",
+        NurseryLevelOfCare.SpecialCareLevelII  => "Special-Care (II)",
+        NurseryLevelOfCare.NicuLevelIII        => "NICU (III)",
+        NurseryLevelOfCare.NicuRegionalLevelIV => "Regional NICU (IV)",
+        _ => l.ToString(),
+    };
+
+    static string ClassificationText(GestationalAgeClassification c) => c switch
+    {
+        GestationalAgeClassification.ExtremelyPreterm => "Extremely Preterm",
+        GestationalAgeClassification.VeryPreterm      => "Very Preterm",
+        GestationalAgeClassification.Preterm          => "Preterm",
+        GestationalAgeClassification.LatePreterm      => "Late Preterm",
+        GestationalAgeClassification.Term             => "Term",
+        GestationalAgeClassification.PostTerm         => "Post-Term",
+        _ => "Unknown",
+    };
+
+    static string WeightCategoryText(BirthWeightCategory c) => c switch
+    {
+        BirthWeightCategory.ExtremelyLowBirthWeight => "ELBW",
+        BirthWeightCategory.VeryLowBirthWeight      => "VLBW",
+        BirthWeightCategory.LowBirthWeight          => "LBW",
+        BirthWeightCategory.Normal                  => "Normal",
+        BirthWeightCategory.Macrosomia              => "Macrosomia",
+        _ => "Unknown",
+    };
+
+    static string SgaText(SizeForGestationalAge s) => s switch
+    {
+        SizeForGestationalAge.SmallForGestationalAge       => "SGA",
+        SizeForGestationalAge.AppropriateForGestationalAge => "AGA",
+        SizeForGestationalAge.LargeForGestationalAge       => "LGA",
+        _ => "Unknown",
+    };
+
+    static string SgaBadge(SizeForGestationalAge s) => s switch
+    {
+        SizeForGestationalAge.AppropriateForGestationalAge => "badge-success",
+        SizeForGestationalAge.SmallForGestationalAge       => "badge-warning",
+        SizeForGestationalAge.LargeForGestationalAge       => "badge-warning",
+        _ => "badge-neutral",
+    };
+
+    static string ScreeningText(NewbornScreeningType t) => t switch
+    {
+        NewbornScreeningType.MetabolicBloodSpot             => "Metabolic Blood-Spot (RUSP)",
+        NewbornScreeningType.CriticalCongenitalHeartDisease => "Critical Congenital Heart Disease (CCHD)",
+        NewbornScreeningType.Hearing                        => "Hearing (OAE / ABR)",
+        NewbornScreeningType.Bilirubin                      => "Bilirubin",
+        NewbornScreeningType.Glucose                        => "Glucose",
+        _ => t.ToString(),
+    };
+
+    static string ScreeningResultBadge(NewbornScreeningResult r) => r switch
+    {
+        NewbornScreeningResult.Pass         => "badge-success",
+        NewbornScreeningResult.ReferOrFail  => "badge-warning",
+        NewbornScreeningResult.Inconclusive => "badge-warning",
+        NewbornScreeningResult.Pending      => "badge-info",
+        NewbornScreeningResult.NotDone      => "badge-neutral",
+        _ => "badge-neutral",
+    };
+
+    static string FeedingText(NewbornFeedingType f) => f switch
+    {
+        NewbornFeedingType.Breast  => "Breast",
+        NewbornFeedingType.Formula => "Formula",
+        NewbornFeedingType.Mixed   => "Mixed",
+        NewbornFeedingType.IvTpn   => "IV / TPN",
+        NewbornFeedingType.Npo     => "NPO",
+        _ => f.ToString(),
+    };
+
+    static string NewbornStatusBadge(NewbornStatus s) => s switch
+    {
+        NewbornStatus.Admitted    => "badge-success",
+        NewbornStatus.Discharged  => "badge-neutral",
+        NewbornStatus.Transferred => "badge-info",
+        NewbornStatus.Deceased    => "badge-neutral",
+        _ => "badge-neutral",
+    };
+}

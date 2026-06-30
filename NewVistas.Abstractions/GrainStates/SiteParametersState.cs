@@ -92,9 +92,11 @@ public class SiteParametersState
     ///                                    caseload/census (Modern enhancement; ENABLED BY DEFAULT, see SiteFeatures)
     ///   "HOME_HEALTH_MEDICARE"         — Medicare skilled home health on top of HBPC — OASIS, PDGM, certification, EVV, NOA billing
     ///                                    (Modern enhancement; ENABLED BY DEFAULT for demos, see SiteFeatures)
+    ///   "NEONATAL_CARE"                — Newborn nursery on top of the OB module — newborn chart, gestational-age/growth classification,
+    ///                                    newborn screening, nursery census (Modern enhancement; ENABLED BY DEFAULT, see SiteFeatures)
     /// </summary>
     [Id(7)]
-    public HashSet<string> Features { get; set; } = new() { SiteFeatures.ExternalPharmacy, SiteFeatures.Oncology, SiteFeatures.PrecisionOncology, SiteFeatures.HomeBasedCare, SiteFeatures.HomeHealthMedicare };
+    public HashSet<string> Features { get; set; } = new() { SiteFeatures.ExternalPharmacy, SiteFeatures.Oncology, SiteFeatures.PrecisionOncology, SiteFeatures.HomeBasedCare, SiteFeatures.HomeHealthMedicare, SiteFeatures.NeonatalCare };
 
     [Id(3)]
     public DateTime CreatedDate { get; set; } = DateTime.UtcNow;
@@ -159,4 +161,15 @@ public static class SiteFeatures
     /// leaving the longitudinal HBPC model from Phase 1.
     /// </summary>
     public const string HomeHealthMedicare = "HOME_HEALTH_MEDICARE";
+
+    /// <summary>
+    /// Neonatal care — a newborn nursery layered on top of the OB/prenatal module. Each newborn
+    /// (registered from the mother's delivery) gets its own chart: birth data with gestational-age,
+    /// birth-weight and size-for-gestational-age classification, the newborn exam, newborn screening
+    /// (metabolic / CCHD / hearing / bilirubin), interval weight &amp; feeding, a nursery level of care,
+    /// and discharge — plus a facility nursery census. A "Modern" enhancement, <b>enabled by
+    /// default</b> so it appears in demos; a site can turn it off
+    /// (<c>DisableFeatureAsync("NEONATAL_CARE")</c>), leaving the maternal OB record only.
+    /// </summary>
+    public const string NeonatalCare = "NEONATAL_CARE";
 }

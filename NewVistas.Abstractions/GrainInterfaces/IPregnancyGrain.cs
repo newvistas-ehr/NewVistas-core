@@ -49,6 +49,9 @@ public interface IPregnancyGrain : IGrainWithStringKey
     /// <summary>Records delivery information and transitions status.</summary>
     Task RecordDeliveryAsync(GrainStates.DeliveryInfo delivery, GrainStates.PregnancyOutcome outcome);
 
+    /// <summary>Links a newborn record (NEONATE:{guid}) delivered from this pregnancy (supports multiples).</summary>
+    Task AddNewbornIdAsync(string newbornId);
+
     /// <summary>Records postpartum follow-up information.</summary>
     Task RecordPostpartumAsync(GrainStates.PostpartumInfo postpartum);
 

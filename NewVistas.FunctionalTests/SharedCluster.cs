@@ -256,6 +256,8 @@ public static class SharedCluster
             siloBuilder.AddMemoryGrainStorage("homeCareAssessmentStore");
             siloBuilder.AddMemoryGrainStorage("homeCareCensusStore");
             siloBuilder.AddMemoryGrainStorage("homeHealthBillingStore");
+            siloBuilder.AddMemoryGrainStorage("newbornStore");
+            siloBuilder.AddMemoryGrainStorage("newbornNurseryStore");
             siloBuilder.AddMemoryGrainStorage("healthFactorStore");
             siloBuilder.AddMemoryGrainStorage("healthSummaryIndexStore");
             siloBuilder.AddMemoryGrainStorage("healthSummaryStore");
