@@ -276,6 +276,152 @@ public class NeonatalController : ControllerBase
         }
     }
 
+    // ─── NICU depth (Phase 2): respiratory / phototherapy / problems / nutrition / procedures ──
+
+    /// <summary>Records a respiratory-support change for a newborn (closes the prior open episode).</summary>
+    [HttpPost("{motherPatientId}/newborns/{newbornId}/respiratory-support")]
+    [ProducesResponseType(StatusCodes.Status201Created)]
+    public async Task<IActionResult> RecordRespiratorySupport(
+        string motherPatientId, string newbornId, [FromBody] NewbornRespiratorySupportRequest request)
+    {
+        try
+        {
+            await GetWorkflow(motherPatientId).RecordNewbornRespiratorySupportAsync(
+                newbornId, request.SupportType, request.FiO2Percent, request.Settings,
+                request.RecordedAt ?? DateTime.UtcNow, request.Notes);
+            return Created($"/api/neonatal/{motherPatientId}/newborns/{newbornId}", null);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error recording respiratory support for newborn {NewbornId} for mother {MotherPatientId}",
+                newbornId, motherPatientId);
+            return StatusCode(500, "An error occurred while recording the respiratory support");
+        }
+    }
+
+    /// <summary>Starts a phototherapy episode for hyperbilirubinemia.</summary>
+    [HttpPost("{motherPatientId}/newborns/{newbornId}/phototherapy/start")]
+    [ProducesResponseType(StatusCodes.Status201Created)]
+    public async Task<IActionResult> StartPhototherapy(
+        string motherPatientId, string newbornId, [FromBody] StartNewbornPhototherapyRequest request)
+    {
+        try
+        {
+            await GetWorkflow(motherPatientId).StartNewbornPhototherapyAsync(
+                newbornId, request.Intensity, request.Indication, request.BilirubinAtStartMgDl,
+                request.StartedAt ?? DateTime.UtcNow, request.Notes);
+            return Created($"/api/neonatal/{motherPatientId}/newborns/{newbornId}", null);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error starting phototherapy for newborn {NewbornId} for mother {MotherPatientId}",
+                newbornId, motherPatientId);
+            return StatusCode(500, "An error occurred while starting the phototherapy");
+        }
+    }
+
+    /// <summary>Ends the open phototherapy episode for a newborn.</summary>
+    [HttpPost("{motherPatientId}/newborns/{newbornId}/phototherapy/end")]
+    [ProducesResponseType(StatusCodes.Status201Created)]
+    public async Task<IActionResult> EndPhototherapy(
+        string motherPatientId, string newbornId, [FromBody] EndNewbornPhototherapyRequest request)
+    {
+        try
+        {
+            await GetWorkflow(motherPatientId).EndNewbornPhototherapyAsync(
+                newbornId, request.EndedAt ?? DateTime.UtcNow, request.Notes);
+            return Created($"/api/neonatal/{motherPatientId}/newborns/{newbornId}", null);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error ending phototherapy for newborn {NewbornId} for mother {MotherPatientId}",
+                newbornId, motherPatientId);
+            return StatusCode(500, "An error occurred while ending the phototherapy");
+        }
+    }
+
+    /// <summary>Adds an active neonatal problem. Returns the problem id.</summary>
+    [HttpPost("{motherPatientId}/newborns/{newbornId}/problems")]
+    [ProducesResponseType(typeof(NewbornProblemResponse), StatusCodes.Status201Created)]
+    public async Task<ActionResult<NewbornProblemResponse>> AddProblem(
+        string motherPatientId, string newbornId, [FromBody] AddNewbornProblemRequest request)
+    {
+        try
+        {
+            string problemId = await GetWorkflow(motherPatientId).AddNewbornProblemAsync(
+                newbornId, request.Problem, request.Icd10Code, request.OnsetDate, request.Notes);
+            return Created($"/api/neonatal/{motherPatientId}/newborns/{newbornId}",
+                new NewbornProblemResponse { ProblemId = problemId });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error adding problem for newborn {NewbornId} for mother {MotherPatientId}",
+                newbornId, motherPatientId);
+            return StatusCode(500, "An error occurred while adding the newborn problem");
+        }
+    }
+
+    /// <summary>Resolves an active neonatal problem.</summary>
+    [HttpPost("{motherPatientId}/newborns/{newbornId}/problems/{problemId}/resolve")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    public async Task<IActionResult> ResolveProblem(string motherPatientId, string newbornId, string problemId)
+    {
+        try
+        {
+            await GetWorkflow(motherPatientId).ResolveNewbornProblemAsync(newbornId, problemId);
+            return NoContent();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error resolving problem {ProblemId} for newborn {NewbornId} for mother {MotherPatientId}",
+                problemId, newbornId, motherPatientId);
+            return StatusCode(500, "An error occurred while resolving the newborn problem");
+        }
+    }
+
+    /// <summary>Records a neonatal nutrition / fluid entry.</summary>
+    [HttpPost("{motherPatientId}/newborns/{newbornId}/nutrition")]
+    [ProducesResponseType(StatusCodes.Status201Created)]
+    public async Task<IActionResult> RecordNutrition(
+        string motherPatientId, string newbornId, [FromBody] NewbornNutritionRequest request)
+    {
+        try
+        {
+            await GetWorkflow(motherPatientId).RecordNewbornNutritionAsync(
+                newbornId, request.RecordedAt ?? DateTime.UtcNow, request.Route,
+                request.TotalFluidMlPerKgPerDay, request.Detail, request.Notes);
+            return Created($"/api/neonatal/{motherPatientId}/newborns/{newbornId}", null);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error recording nutrition for newborn {NewbornId} for mother {MotherPatientId}",
+                newbornId, motherPatientId);
+            return StatusCode(500, "An error occurred while recording the newborn nutrition");
+        }
+    }
+
+    /// <summary>Records a NICU bedside procedure. Returns the procedure id.</summary>
+    [HttpPost("{motherPatientId}/newborns/{newbornId}/procedures")]
+    [ProducesResponseType(typeof(NewbornProcedureResponse), StatusCodes.Status201Created)]
+    public async Task<ActionResult<NewbornProcedureResponse>> RecordProcedure(
+        string motherPatientId, string newbornId, [FromBody] NewbornProcedureRequest request)
+    {
+        try
+        {
+            string procedureId = await GetWorkflow(motherPatientId).RecordNewbornProcedureAsync(
+                newbornId, request.ProcedureType, request.PerformedAt ?? DateTime.UtcNow,
+                request.PerformedBy, request.Notes);
+            return Created($"/api/neonatal/{motherPatientId}/newborns/{newbornId}",
+                new NewbornProcedureResponse { ProcedureId = procedureId });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error recording procedure for newborn {NewbornId} for mother {MotherPatientId}",
+                newbornId, motherPatientId);
+            return StatusCode(500, "An error occurred while recording the newborn procedure");
+        }
+    }
+
     // ─── Facility-wide Nursery Census (singleton nursery grain) ──────────────
 
     /// <summary>
@@ -419,4 +565,65 @@ public record DischargeNewbornRequest
     public string Disposition { get; init; } = string.Empty;
     public string FollowUpPlan { get; init; } = string.Empty;
     public bool CarSeatTestPassed { get; init; }
+}
+
+// ─── NICU depth (Phase 2) DTOs ───────────────────────────────────────────────
+
+public record NewbornRespiratorySupportRequest
+{
+    public RespiratorySupportType SupportType { get; init; }
+    public int? FiO2Percent { get; init; }
+    public string Settings { get; init; } = string.Empty;
+    public DateTime? RecordedAt { get; init; }
+    public string Notes { get; init; } = string.Empty;
+}
+
+public record StartNewbornPhototherapyRequest
+{
+    public PhototherapyIntensity Intensity { get; init; }
+    public string Indication { get; init; } = string.Empty;
+    public decimal? BilirubinAtStartMgDl { get; init; }
+    public DateTime? StartedAt { get; init; }
+    public string Notes { get; init; } = string.Empty;
+}
+
+public record EndNewbornPhototherapyRequest
+{
+    public DateTime? EndedAt { get; init; }
+    public string Notes { get; init; } = string.Empty;
+}
+
+public record AddNewbornProblemRequest
+{
+    public string Problem { get; init; } = string.Empty;
+    public string Icd10Code { get; init; } = string.Empty;
+    public DateTime? OnsetDate { get; init; }
+    public string Notes { get; init; } = string.Empty;
+}
+
+public record NewbornProblemResponse
+{
+    public string ProblemId { get; init; } = string.Empty;
+}
+
+public record NewbornNutritionRequest
+{
+    public DateTime? RecordedAt { get; init; }
+    public NeonatalNutritionRoute Route { get; init; }
+    public int? TotalFluidMlPerKgPerDay { get; init; }
+    public string Detail { get; init; } = string.Empty;
+    public string Notes { get; init; } = string.Empty;
+}
+
+public record NewbornProcedureRequest
+{
+    public NeonatalProcedureType ProcedureType { get; init; }
+    public DateTime? PerformedAt { get; init; }
+    public string PerformedBy { get; init; } = string.Empty;
+    public string Notes { get; init; } = string.Empty;
+}
+
+public record NewbornProcedureResponse
+{
+    public string ProcedureId { get; init; } = string.Empty;
 }

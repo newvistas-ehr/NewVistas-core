@@ -105,4 +105,53 @@ public class NeonatalClassifierTests
     public void ClassifySizeForGestationalAge_NullGrams_Unknown()
         => Assert.That(NeonatalClassifier.ClassifySizeForGestationalAge(39, null),
             Is.EqualTo(SizeForGestationalAge.Unknown));
+
+    // ── WeightPercentileForGestationalAge (NICU interval growth, Phase 2) ─────────
+    // Band at 39 wks: P10 = 2850 g, P90 = 3900 g. At 42 wks: P10 = 3100 g, P90 = 4250 g.
+
+    [Test]
+    public void WeightPercentileForGestationalAge_At39w_Sga1500g_ReturnsTenOrBelow()
+        => Assert.That(NeonatalClassifier.WeightPercentileForGestationalAge(39, 1500),
+            Is.LessThanOrEqualTo(10).And.GreaterThanOrEqualTo(1));
+
+    [Test]
+    public void WeightPercentileForGestationalAge_At39w_Aga3300g_BetweenTenAndNinety()
+        => Assert.That(NeonatalClassifier.WeightPercentileForGestationalAge(39, 3300),
+            Is.GreaterThan(10).And.LessThan(90));
+
+    [Test]
+    public void WeightPercentileForGestationalAge_At39w_Lga4500g_ReturnsNinetyOrAbove()
+        => Assert.That(NeonatalClassifier.WeightPercentileForGestationalAge(39, 4500),
+            Is.GreaterThanOrEqualTo(90).And.LessThanOrEqualTo(99));
+
+    [Test]
+    public void WeightPercentileForGestationalAge_At39w_ExactlyP10Boundary_ReturnsTen()
+        => Assert.That(NeonatalClassifier.WeightPercentileForGestationalAge(39, 2850),
+            Is.EqualTo(10));
+
+    [Test]
+    public void WeightPercentileForGestationalAge_NullGrams_ReturnsMinusOne()
+        => Assert.That(NeonatalClassifier.WeightPercentileForGestationalAge(39, null),
+            Is.EqualTo(-1));
+
+    [Test]
+    public void WeightPercentileForGestationalAge_NonPositiveGrams_ReturnsMinusOne()
+        => Assert.That(NeonatalClassifier.WeightPercentileForGestationalAge(39, 0),
+            Is.EqualTo(-1));
+
+    [Test]
+    public void WeightPercentileForGestationalAge_GaBelow24Weeks_ReturnsMinusOne()
+        => Assert.That(NeonatalClassifier.WeightPercentileForGestationalAge(23, 600),
+            Is.EqualTo(-1));
+
+    [Test]
+    public void WeightPercentileForGestationalAge_GaAbove42w_ClampsToFortyTwoBand()
+    {
+        // 44 weeks clamps to the 42-week band (P10 = 3100); a weight exactly at P10 → 10.
+        Assert.That(NeonatalClassifier.WeightPercentileForGestationalAge(44, 3100),
+            Is.EqualTo(10));
+        // 44 weeks and 42 weeks resolve to the same band, so the same grams → the same percentile.
+        Assert.That(NeonatalClassifier.WeightPercentileForGestationalAge(44, 3600),
+            Is.EqualTo(NeonatalClassifier.WeightPercentileForGestationalAge(42, 3600)));
+    }
 }

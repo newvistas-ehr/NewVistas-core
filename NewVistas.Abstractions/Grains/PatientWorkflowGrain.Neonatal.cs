@@ -35,6 +35,9 @@ public partial class PatientWorkflowGrain
             NewbornScreeningEntry? s = n.Screenings.FirstOrDefault(x => x.ScreeningType == t);
             return s is null || s.Result == NewbornScreeningResult.Pending;
         });
+        bool onSupport = n.RespiratorySupport.LastOrDefault(e => e.EndedAt == null)
+            is { SupportType: not RespiratorySupportType.RoomAir };
+        int activeProblems = n.Problems.Count(p => p.Status == NeonatalProblemStatus.Active);
         await Nursery().UpsertEntryAsync(new NewbornNurseryEntry
         {
             NewbornId = n.NewbornId,
@@ -47,7 +50,9 @@ public partial class PatientWorkflowGrain
             NurseryLevel = n.NurseryLevel,
             Status = n.Status,
             AttendingProviderName = n.AttendingProviderName,
-            PendingScreenCount = pending
+            PendingScreenCount = pending,
+            OnRespiratorySupport = onSupport,
+            ActiveProblemCount = activeProblems
         });
     }
 

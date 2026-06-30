@@ -1764,6 +1764,34 @@ public interface IPatientWorkflowGrain : IGrainWithStringKey
     /// <summary>Returns all newborns delivered from this patient's pregnancies (newest first).</summary>
     Task<List<GrainStates.NewbornState>> GetNewbornsForMotherAsync();
 
+    // ─── Neonatal NICU depth (Phase 2) — respiratory / phototherapy / problems / nutrition / procedures ──
+
+    /// <summary>Records a respiratory-support change for a newborn (closes the prior open episode).</summary>
+    Task RecordNewbornRespiratorySupportAsync(
+        string newbornId, GrainStates.RespiratorySupportType supportType, int? fiO2Percent,
+        string settings, DateTime recordedAt, string notes);
+
+    Task StartNewbornPhototherapyAsync(
+        string newbornId, GrainStates.PhototherapyIntensity intensity, string indication,
+        decimal? bilirubinAtStartMgDl, DateTime startedAt, string notes);
+
+    Task EndNewbornPhototherapyAsync(string newbornId, DateTime endedAt, string notes);
+
+    /// <summary>Adds an active neonatal problem and returns its id.</summary>
+    Task<string> AddNewbornProblemAsync(
+        string newbornId, string problem, string icd10Code, DateTime? onsetDate, string notes);
+
+    Task ResolveNewbornProblemAsync(string newbornId, string problemId);
+
+    Task RecordNewbornNutritionAsync(
+        string newbornId, DateTime recordedAt, GrainStates.NeonatalNutritionRoute route,
+        int? totalFluidMlPerKgPerDay, string detail, string notes);
+
+    /// <summary>Records a NICU bedside procedure and returns its id.</summary>
+    Task<string> RecordNewbornProcedureAsync(
+        string newbornId, GrainStates.NeonatalProcedureType procedureType, DateTime performedAt,
+        string performedBy, string notes);
+
     // ─── Substance Abuse Treatment (RPMS CDMIS — File #9002170, additive feature) ──
 
     /// <summary>Creates a SA treatment episode and returns the episode ID.</summary>

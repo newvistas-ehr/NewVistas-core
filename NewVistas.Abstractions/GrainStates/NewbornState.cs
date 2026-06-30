@@ -202,6 +202,13 @@ public class NewbornState
 
     [Id(41)] public DateTime CreatedDate { get; set; } = DateTime.UtcNow;
     [Id(42)] public DateTime LastModifiedDate { get; set; } = DateTime.UtcNow;
+
+    // ── NICU depth (Phase 2) ─────────────────────────────────────────────────
+    [Id(43)] public List<RespiratorySupportEntry> RespiratorySupport { get; set; } = new();
+    [Id(44)] public List<PhototherapyEntry> Phototherapy { get; set; } = new();
+    [Id(45)] public List<NeonatalProblemEntry> Problems { get; set; } = new();
+    [Id(46)] public List<NeonatalNutritionEntry> Nutrition { get; set; } = new();
+    [Id(47)] public List<NeonatalProcedureEntry> Procedures { get; set; } = new();
 }
 
 /// <summary>Summary entry for the nursery census/board.</summary>
@@ -220,6 +227,10 @@ public class NewbornNurseryEntry
     [Id(9)] public string AttendingProviderName { get; set; } = string.Empty;
     /// <summary>Universal screens not yet resulted (Pending) — drives the nursery to-do.</summary>
     [Id(10)] public int PendingScreenCount { get; set; }
+    /// <summary>True when on respiratory support beyond room air (NICU acuity indicator).</summary>
+    [Id(11)] public bool OnRespiratorySupport { get; set; }
+    /// <summary>Count of active neonatal problems.</summary>
+    [Id(12)] public int ActiveProblemCount { get; set; }
 }
 
 /// <summary>Persistent state for the singleton nursery census grain.</summary>

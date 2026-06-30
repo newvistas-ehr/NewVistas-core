@@ -1,6 +1,6 @@
 # Neonatal Care — Design
 
-> **Status: IMPLEMENTED & smoke-verified (2026-06-29).** Closes the gap surfaced when surveying maternity:
+> **Status: Phase 1 IMPLEMENTED & smoke-verified (2026-06-29); Phase 2 (NICU depth) IMPLEMENTED & smoke-verified (2026-06-30).** Closes the gap surfaced when surveying maternity:
 > the existing OB module ([PregnancyState.cs](../../GrainStates/PregnancyState.cs)) carries the
 > birth through the **mother's** delivery record (infant sex, birth weight, APGAR) but the baby
 > then disappears — no chart of their own, no neonatal assessment, no newborn screening, no nursery.
@@ -14,9 +14,10 @@ data, a gestational-age/growth classification, the newborn physical exam, **newb
 **nursery level of care**, and discharge. It links back to the mother's pregnancy (supporting
 multiples) and is surfaced as a **nursery census/board**.
 
-This is the *well-newborn + universal-screening + nursery* scope. Deep NICU intensive care
-(ventilation, surfactant, TPN orders, detailed phototherapy/exchange protocols) is explicitly
-**Phase 2** — the level-of-care field and the measurement/screening lists are shaped to grow into it.
+Phase 1 is the *well-newborn + universal-screening + nursery* scope. **Phase 2 (NICU depth) is now
+implemented** — respiratory-support timeline, phototherapy, a neonatal problem list, parenteral/
+enteral nutrition, bedside procedures, and a Fenton-style growth percentile — see
+[**Phase 2 — NICU depth**](#phase-2--nicu-depth-implemented) below.
 
 ## VistA / RPMS heritage
 
@@ -81,7 +82,7 @@ Hearing, Bilirubin, Glucose)*, `Result` *(enum: Pass, ReferOrFail, Pending, Inco
 
 `NewbornNurseryEntry` (census) — `NewbornId`, `NewbornName`, `MotherPatientId`, `Sex`, `BirthDateTime`,
 `GestationalAgeWeeks`, `BirthWeightGrams`, `NurseryLevel`, `Status`, `AttendingProviderName`,
-`PendingScreenCount`.
+`PendingScreenCount`, `OnRespiratorySupport`, `ActiveProblemCount` *(last two: Phase 2 acuity)*.
 
 ### `Clinical.NeonatalClassifier`
 
@@ -133,10 +134,35 @@ exam, the three universal screens (metabolic pending→sent, CCHD pass, hearing 
 Well-Newborn level, and discharge home breastfeeding with a 2-day follow-up. This populates the previously
 empty **Prenatal** pages *and* the new **Neonatal** page in one coherent story.
 
+---
+
+## Phase 2 — NICU depth (implemented)
+
+Phase 2 adds the intensive-care depth a Level II–IV nursery needs, as **clinical depth within the same
+module** — *not* a separate edition. There is **no new feature flag** (it stays under `NEONATAL_CARE`)
+and **no new key** (open access, like the rest of neonatal/OB). Rationale: unlike home-care Phase 2
+(Medicare — a genuinely different billing/operating model that earned its own flag), a sicker baby just
+uses more of the same neonatal workflow. All Phase 2 data hangs off the existing `INewbornGrain`
+(no new grains, no new stores).
+
+**State (`NewbornNicuState.cs`, five lists on `NewbornState` `[Id 43–47]`):**
+- `RespiratorySupportEntry` — a support **timeline**: `SupportType` *(RoomAir → NasalCannula → HighFlowNasalCannula → Cpap → Nippv → ConventionalVentilation → Hfov → Ecmo)*, `FiO2Percent`, `Settings`, `RecordedAt`, `EndedAt?`, `Notes`. Recording a new state auto-closes the prior open episode.
+- `PhototherapyEntry` — `Intensity` *(Single/Double/Triple/Intensive)*, `Indication`, `BilirubinAtStartMgDl`, `StartedAt`, `EndedAt?` (null = active).
+- `NeonatalProblemEntry` — `Problem`, `Icd10Code`, `OnsetDate`, `Status` *(Active/Resolved)*, `Notes` (a neonatal problem list, e.g. RDS/jaundice/apnea of prematurity).
+- `NeonatalNutritionEntry` — `Route` *(Npo/IvFluids/Tpn/EnteralGavage/EnteralOral/Mixed)*, `TotalFluidMlPerKgPerDay`, `Detail` (TPN composition / feed orders).
+- `NeonatalProcedureEntry` — `ProcedureType` *(Intubation/Surfactant/UVC/UAC/PICC/LP/Exchange-or-Blood-Transfusion/Other)*, `PerformedAt`, `PerformedBy`, `Notes`.
+
+**Census acuity:** `NewbornNurseryEntry` gains `OnRespiratorySupport` (latest open episode is beyond room air) and `ActiveProblemCount`, refreshed on every support/problem write so the board flags NICU acuity at a glance.
+
+**Classifier:** `NeonatalClassifier.WeightPercentileForGestationalAge(gaWeeks, grams)` — a coarse Fenton-style growth percentile (1–99, or −1 unknown) from the same representative band table, for interval growth tracking. Curated, *not* the full Fenton 2013 curves (honest scope boundary, like the rest of the classifier).
+
+**Workflow (`PatientWorkflowGrain.NeonatalNicu.cs`):** `RecordNewbornRespiratorySupportAsync`, `Start/EndNewbornPhototherapyAsync`, `Add/ResolveNewbornProblemAsync`, `RecordNewbornNutritionAsync`, `RecordNewbornProcedureAsync` — acuity-changing writes refresh the census. **REST:** 7 POST endpoints under `api/neonatal/{motherPatientId}/newborns/{newbornId}/…`. **Blazor:** five new panels in the Newborn-Detail tab (each table + inline add form), a "Current support" banner, board acuity badges + an "On Support" tile, and a `%ile (GA)` column on Measurements. **Tests:** 8 percentile unit tests + 8 NICU-workflow functional tests (incl. the auto-close + census-acuity behaviors).
+
+**Phase 2 demo — P9003 "PRETERM, PAULA":** a second maternal-newborn story alongside P9002, exercising the whole NICU layer — a 30+2-week / 1300 g (VLBW, **Very Preterm / AGA**) infant in a **Level III** NICU: ventilator→CPAP timeline, surfactant + UVC/UAC + intubation procedures, a 4-problem list (RDS / prematurity / preterm jaundice / apnea of prematurity, ICD-10 `P22.0` / `P07.33` / `P59.0` / `P28.41`), active double phototherapy, and starter→advancing TPN with trophic feeds. The nursery board now spans the full acuity range (term well-newborn ↔ NICU III).
+
 ## Open / deferred
-- **Phase 2 (NICU depth):** the `NurseryLevel` + measurement/screening lists grow into ventilation/
-  respiratory support, TPN/feeding orders, phototherapy/bilirubin protocol, and gestational-age growth
-  curves (Fenton). Reserved by the level-of-care enum already going to IV.
+- **Phase 3 (mobile):** an Android device for the nursery/NICU is the same Phase-3 plan as home care; the `api/neonatal` REST is already complete for it.
+- **NICU extras:** CAR-T-style depth doesn't apply, but cooling/therapeutic-hypothermia protocols, ventilator-trend charts, and the full Fenton growth curves are natural follow-ons.
 - **Full patient promotion:** `NewbornPatientId` is reserved so a newborn can become a first-class
   registered patient (own demographics/MRN) rather than a chart hanging off the mother.
 - **Linkage from OB UI:** a "Register newborn" action on the delivery form (Prenatal page) — nice-to-have.

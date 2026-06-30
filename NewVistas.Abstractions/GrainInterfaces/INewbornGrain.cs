@@ -53,5 +53,15 @@ public interface INewbornGrain : IGrainWithStringKey
         string followUpPlan,
         bool carSeatTestPassed);
 
+    // ── NICU depth (Phase 2) ──────────────────────────────────────────────
+    /// <summary>Records a respiratory-support change (closes the previous open episode).</summary>
+    Task RecordRespiratorySupportAsync(RespiratorySupportEntry entry);
+    Task StartPhototherapyAsync(PhototherapyEntry entry);
+    Task EndPhototherapyAsync(DateTime endedAt, string notes);
+    Task AddProblemAsync(NeonatalProblemEntry problem);
+    Task ResolveProblemAsync(string problemId);
+    Task AddNutritionAsync(NeonatalNutritionEntry entry);
+    Task AddProcedureAsync(NeonatalProcedureEntry procedure);
+
     Task<NewbornState> GetAsync();
 }

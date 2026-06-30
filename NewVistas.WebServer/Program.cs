@@ -302,6 +302,7 @@ using (var scope = app.Services.CreateScope())
     // cohort streams in behind. Both calls are idempotent.
     await ExtremeLeeSickSeed.SeedAsync(grainFactory, seedLogger);
     await MaternalNewbornSeed.SeedAsync(grainFactory, seedLogger);   // P9002 mother + newborn (maternity + neonatal demo)
+    await PretermNicuSeed.SeedAsync(grainFactory, seedLogger);       // P9003 mother + preterm NICU newborn (Phase 2 NICU depth)
     await SeedDemoCareTeamsAsync(app.Services, seedLogger);   // assigns P9001 now; P1..P30 skipped until imported
 
     // Auto-import demo patients if none exist

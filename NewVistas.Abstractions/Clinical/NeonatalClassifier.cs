@@ -57,4 +57,20 @@ public static class NeonatalClassifier
         if (grams > p90) return SizeForGestationalAge.LargeForGestationalAge;
         return SizeForGestationalAge.AppropriateForGestationalAge;
     }
+
+    /// <summary>
+    /// Approximate weight-for-gestational-age percentile (1–99) from the representative band table — a
+    /// coarse Fenton-style growth estimate for interval growth tracking (NICU, Phase 2), NOT the full
+    /// Fenton 2013 curves. Returns -1 when unknown.
+    /// </summary>
+    public static int WeightPercentileForGestationalAge(int gaWeeks, int? grams)
+    {
+        if (grams is null or <= 0 || gaWeeks < 24) return -1;
+        int g = grams.Value;
+        int ga = Math.Clamp(gaWeeks, 24, 42);
+        (int _, int p10, int p90) = Bands.First(b => b.Ga == ga);
+        if (g <= p10) return Math.Clamp(10 * g / Math.Max(1, p10), 1, 10);
+        if (g >= p90) return Math.Clamp(90 + 9 * (g - p90) / Math.Max(1, p90), 90, 99);
+        return Math.Clamp(10 + 80 * (g - p10) / Math.Max(1, p90 - p10), 10, 90);
+    }
 }

@@ -139,5 +139,72 @@ public class NewbornGrain : Grain, INewbornGrain
         await _state.WriteStateAsync();
     }
 
+    // ── NICU depth (Phase 2) ──────────────────────────────────────────────
+
+    public async Task RecordRespiratorySupportAsync(RespiratorySupportEntry entry)
+    {
+        // Close the previous still-open support episode at this entry's time.
+        RespiratorySupportEntry? prev = _state.State.RespiratorySupport.LastOrDefault(e => e.EndedAt == null);
+        if (prev is not null && entry.RecordedAt > prev.RecordedAt)
+            prev.EndedAt = entry.RecordedAt;
+        _state.State.RespiratorySupport.Add(entry);
+        _state.State.LastModifiedDate = DateTime.UtcNow;
+        await _state.WriteStateAsync();
+    }
+
+    public async Task StartPhototherapyAsync(PhototherapyEntry entry)
+    {
+        _state.State.Phototherapy.Add(entry);
+        _state.State.LastModifiedDate = DateTime.UtcNow;
+        await _state.WriteStateAsync();
+    }
+
+    public async Task EndPhototherapyAsync(DateTime endedAt, string notes)
+    {
+        PhototherapyEntry? open = _state.State.Phototherapy.LastOrDefault(p => p.EndedAt == null);
+        if (open is not null)
+        {
+            open.EndedAt = endedAt;
+            if (!string.IsNullOrWhiteSpace(notes))
+                open.Notes = string.IsNullOrEmpty(open.Notes) ? notes : $"{open.Notes}\n{notes}";
+        }
+        _state.State.LastModifiedDate = DateTime.UtcNow;
+        await _state.WriteStateAsync();
+    }
+
+    public async Task AddProblemAsync(NeonatalProblemEntry problem)
+    {
+        if (string.IsNullOrEmpty(problem.ProblemId))
+            problem.ProblemId = Guid.NewGuid().ToString();
+        _state.State.Problems.Add(problem);
+        _state.State.LastModifiedDate = DateTime.UtcNow;
+        await _state.WriteStateAsync();
+    }
+
+    public async Task ResolveProblemAsync(string problemId)
+    {
+        NeonatalProblemEntry? p = _state.State.Problems.FirstOrDefault(x => x.ProblemId == problemId);
+        if (p is null) return;
+        p.Status = NeonatalProblemStatus.Resolved;
+        _state.State.LastModifiedDate = DateTime.UtcNow;
+        await _state.WriteStateAsync();
+    }
+
+    public async Task AddNutritionAsync(NeonatalNutritionEntry entry)
+    {
+        _state.State.Nutrition.Add(entry);
+        _state.State.LastModifiedDate = DateTime.UtcNow;
+        await _state.WriteStateAsync();
+    }
+
+    public async Task AddProcedureAsync(NeonatalProcedureEntry procedure)
+    {
+        if (string.IsNullOrEmpty(procedure.ProcedureId))
+            procedure.ProcedureId = Guid.NewGuid().ToString();
+        _state.State.Procedures.Add(procedure);
+        _state.State.LastModifiedDate = DateTime.UtcNow;
+        await _state.WriteStateAsync();
+    }
+
     public Task<NewbornState> GetAsync() => Task.FromResult(_state.State);
 }

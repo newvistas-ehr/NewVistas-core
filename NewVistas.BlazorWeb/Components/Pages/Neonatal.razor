@@ -9,6 +9,7 @@
 @using NewVistas.Abstractions.GrainInterfaces
 @using NewVistas.Abstractions.GrainStates
 @using NewVistas.Abstractions.Security
+@using NewVistas.Abstractions.Clinical
 @inject OrleansGrainService Grains
 @inject PatientContextService PatientContext
 @inject UserSecurityContext SecurityContext
@@ -78,6 +79,10 @@ else
                             <span class="stat-num">@roster.Sum(e => e.PendingScreenCount)</span>
                             <span class="stat-lbl">Pending Screens</span>
                         </div>
+                        <div class="stat-card support">
+                            <span class="stat-num">@roster.Count(e => e.OnRespiratorySupport)</span>
+                            <span class="stat-lbl">On Support</span>
+                        </div>
                     </div>
                 }
 
@@ -109,6 +114,7 @@ else
                                 <th>Birth Weight</th>
                                 <th>Nursery Level</th>
                                 <th>Pending Screens</th>
+                                <th>Acuity</th>
                                 <th>Attending</th>
                                 <th>Status</th>
                             </tr>
@@ -130,6 +136,20 @@ else
                                         else
                                         {
                                             <span class="badge badge-success">Complete</span>
+                                        }
+                                    </td>
+                                    <td>
+                                        @if (e.OnRespiratorySupport)
+                                        {
+                                            <span class="badge badge-danger">On support</span>
+                                        }
+                                        @if (e.ActiveProblemCount > 0)
+                                        {
+                                            <span class="badge badge-warning">@e.ActiveProblemCount active</span>
+                                        }
+                                        @if (!e.OnRespiratorySupport && e.ActiveProblemCount == 0)
+                                        {
+                                            <span class="badge badge-success">Stable</span>
                                         }
                                     </td>
                                     <td>@(string.IsNullOrWhiteSpace(e.AttendingProviderName) ? "—" : e.AttendingProviderName)</td>
@@ -444,7 +464,7 @@ else
                     {
                         <table class="data-table">
                             <thead>
-                                <tr><th>When</th><th>Weight</th><th>Feeding</th><th>Bilirubin</th><th>Notes</th></tr>
+                                <tr><th>When</th><th>Weight</th><th>%ile (GA)</th><th>Feeding</th><th>Bilirubin</th><th>Notes</th></tr>
                             </thead>
                             <tbody>
                                 @foreach (NewbornMeasurement m in newborn.Measurements.OrderByDescending(x => x.MeasuredAt))
@@ -452,6 +472,7 @@ else
                                     <tr>
                                         <td>@m.MeasuredAt.ToString("yyyy-MM-dd HH:mm")</td>
                                         <td>@WeightText(m.WeightGrams)</td>
+                                        <td>@PercentileText(m.WeightGrams)</td>
                                         <td>@FeedingText(m.FeedingType)@(string.IsNullOrWhiteSpace(m.FeedingNotes) ? "" : $" ({m.FeedingNotes})")</td>
                                         <td>@(m.BilirubinMgDl.HasValue ? $"{m.BilirubinMgDl} mg/dL" : "—")</td>
                                         <td>@(string.IsNullOrWhiteSpace(m.Notes) ? "—" : m.Notes)</td>
@@ -489,6 +510,351 @@ else
                         </div>
                         <div class="panel-btns">
                             <button class="btn btn-primary" @onclick="SubmitMeasurement">Add Measurement</button>
+                            <button class="btn btn-secondary" @onclick="CloseAllPanels">Cancel</button>
+                        </div>
+                    </div>
+                }
+
+                @* ── Respiratory support ── *@
+                <div class="detail-panel">
+                    <h4>Respiratory Support</h4>
+                    @{ RespiratorySupportEntry? currentResp = newborn.RespiratorySupport
+                           .Where(r => r.EndedAt == null)
+                           .OrderByDescending(r => r.RecordedAt)
+                           .FirstOrDefault(); }
+                    <div class="problem-line">
+                        <em>Current support:</em>
+                        @if (currentResp != null && currentResp.SupportType != RespiratorySupportType.RoomAir)
+                        {
+                            <span class="badge badge-danger">@RespSupportText(currentResp.SupportType)</span>
+                            @if (currentResp.FiO2Percent.HasValue) { <text> @(currentResp.FiO2Percent)% FiO2</text> }
+                            @if (!string.IsNullOrWhiteSpace(currentResp.Settings)) { <text> — @currentResp.Settings</text> }
+                        }
+                        else
+                        {
+                            <span class="badge badge-success">Room air</span>
+                        }
+                    </div>
+                    @if (newborn.RespiratorySupport == null || newborn.RespiratorySupport.Count == 0)
+                    {
+                        <div class="empty-state">No respiratory-support changes recorded.</div>
+                    }
+                    else
+                    {
+                        <table class="data-table">
+                            <thead>
+                                <tr><th>When</th><th>Type</th><th>FiO2</th><th>Settings</th><th>Ended</th><th>Notes</th></tr>
+                            </thead>
+                            <tbody>
+                                @foreach (RespiratorySupportEntry r in newborn.RespiratorySupport.OrderByDescending(x => x.RecordedAt))
+                                {
+                                    <tr>
+                                        <td>@r.RecordedAt.ToString("yyyy-MM-dd HH:mm")</td>
+                                        <td>
+                                            <span class="badge @RespSupportBadge(r.SupportType)">@RespSupportText(r.SupportType)</span>
+                                        </td>
+                                        <td>@(r.FiO2Percent.HasValue ? $"{r.FiO2Percent}%" : "—")</td>
+                                        <td>@(string.IsNullOrWhiteSpace(r.Settings) ? "—" : r.Settings)</td>
+                                        <td>@(r.EndedAt?.ToString("yyyy-MM-dd HH:mm") ?? "—")</td>
+                                        <td>@(string.IsNullOrWhiteSpace(r.Notes) ? "—" : r.Notes)</td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    }
+                    <div class="detail-actions">
+                        <button class="btn btn-primary" @onclick="() => Toggle(ref showRespPanel)">Record Respiratory Support</button>
+                    </div>
+                </div>
+
+                @if (showRespPanel)
+                {
+                    <div class="action-panel">
+                        <h5>Record Respiratory Support</h5>
+                        <div class="form-row">
+                            <label>Recorded At</label><input type="datetime-local" @bind="respAt" />
+                            <label>Support Type</label>
+                            <select @bind="respType">
+                                @foreach (RespiratorySupportType t in Enum.GetValues<RespiratorySupportType>())
+                                {
+                                    <option value="@t">@RespSupportText(t)</option>
+                                }
+                            </select>
+                        </div>
+                        <div class="form-row">
+                            <label>FiO2 (%)</label><input type="number" min="21" max="100" @bind="respFiO2" />
+                            <label>Settings</label><input @bind="respSettings" placeholder="e.g. CPAP +6, RR 30" />
+                        </div>
+                        <div class="form-row">
+                            <label>Notes</label><input @bind="respNotes" />
+                        </div>
+                        <div class="panel-btns">
+                            <button class="btn btn-primary" @onclick="SubmitRespiratory">Record</button>
+                            <button class="btn btn-secondary" @onclick="CloseAllPanels">Cancel</button>
+                        </div>
+                    </div>
+                }
+
+                @* ── Phototherapy ── *@
+                <div class="detail-panel">
+                    <h4>Phototherapy</h4>
+                    @if (newborn.Phototherapy == null || newborn.Phototherapy.Count == 0)
+                    {
+                        <div class="empty-state">No phototherapy episodes recorded.</div>
+                    }
+                    else
+                    {
+                        <table class="data-table">
+                            <thead>
+                                <tr><th>Started</th><th>Intensity</th><th>Indication</th><th>Bili@@Start</th><th>Ended</th><th></th></tr>
+                            </thead>
+                            <tbody>
+                                @foreach (PhototherapyEntry p in newborn.Phototherapy.OrderByDescending(x => x.StartedAt))
+                                {
+                                    <tr>
+                                        <td>@p.StartedAt.ToString("yyyy-MM-dd HH:mm")</td>
+                                        <td><span class="badge badge-info">@PhototherapyText(p.Intensity)</span></td>
+                                        <td>@(string.IsNullOrWhiteSpace(p.Indication) ? "—" : p.Indication)</td>
+                                        <td>@(p.BilirubinAtStartMgDl.HasValue ? $"{p.BilirubinAtStartMgDl} mg/dL" : "—")</td>
+                                        <td>
+                                            @if (p.EndedAt.HasValue)
+                                            {
+                                                @p.EndedAt.Value.ToString("yyyy-MM-dd HH:mm")
+                                            }
+                                            else
+                                            {
+                                                <span class="badge badge-warning">Active</span>
+                                            }
+                                        </td>
+                                        <td>
+                                            @if (!p.EndedAt.HasValue)
+                                            {
+                                                <button class="btn btn-secondary" @onclick="() => OpenEndPhototherapy()">End</button>
+                                            }
+                                        </td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    }
+                    <div class="detail-actions">
+                        <button class="btn btn-primary" @onclick="() => Toggle(ref showPhotoPanel)">Start Phototherapy</button>
+                    </div>
+                </div>
+
+                @if (showPhotoPanel)
+                {
+                    <div class="action-panel">
+                        <h5>Start Phototherapy</h5>
+                        <div class="form-row">
+                            <label>Started At</label><input type="datetime-local" @bind="photoStartedAt" />
+                            <label>Intensity</label>
+                            <select @bind="photoIntensity">
+                                @foreach (PhototherapyIntensity i in Enum.GetValues<PhototherapyIntensity>())
+                                {
+                                    <option value="@i">@PhototherapyText(i)</option>
+                                }
+                            </select>
+                        </div>
+                        <div class="form-row">
+                            <label>Indication</label><input @bind="photoIndication" placeholder="e.g. hyperbilirubinemia, TSB above threshold" />
+                            <label>Bilirubin @@ Start (mg/dL)</label><input type="number" step="0.1" @bind="photoBili" />
+                        </div>
+                        <div class="form-row">
+                            <label>Notes</label><input @bind="photoNotes" />
+                        </div>
+                        <div class="panel-btns">
+                            <button class="btn btn-primary" @onclick="SubmitStartPhototherapy">Start</button>
+                            <button class="btn btn-secondary" @onclick="CloseAllPanels">Cancel</button>
+                        </div>
+                    </div>
+                }
+
+                @if (showEndPhotoPanel)
+                {
+                    <div class="action-panel">
+                        <h5>End Phototherapy</h5>
+                        <div class="form-row">
+                            <label>Ended At</label><input type="datetime-local" @bind="photoEndedAt" />
+                            <label>Notes</label><input @bind="photoEndNotes" />
+                        </div>
+                        <div class="panel-btns">
+                            <button class="btn btn-primary" @onclick="SubmitEndPhototherapy">End Phototherapy</button>
+                            <button class="btn btn-secondary" @onclick="CloseAllPanels">Cancel</button>
+                        </div>
+                    </div>
+                }
+
+                @* ── Neonatal problems ── *@
+                <div class="detail-panel">
+                    <h4>Neonatal Problems</h4>
+                    @if (newborn.Problems == null || newborn.Problems.Count == 0)
+                    {
+                        <div class="empty-state">No neonatal problems recorded.</div>
+                    }
+                    else
+                    {
+                        <table class="data-table">
+                            <thead>
+                                <tr><th>Problem</th><th>ICD-10</th><th>Onset</th><th>Status</th><th>Notes</th><th></th></tr>
+                            </thead>
+                            <tbody>
+                                @foreach (NeonatalProblemEntry pr in newborn.Problems
+                                    .OrderBy(x => x.Status == NeonatalProblemStatus.Active ? 0 : 1)
+                                    .ThenByDescending(x => x.OnsetDate ?? DateTime.MinValue))
+                                {
+                                    <tr>
+                                        <td>@pr.Problem</td>
+                                        <td>@(string.IsNullOrWhiteSpace(pr.Icd10Code) ? "—" : pr.Icd10Code)</td>
+                                        <td>@(pr.OnsetDate?.ToString("yyyy-MM-dd") ?? "—")</td>
+                                        <td><span class="badge @ProblemStatusBadge(pr.Status)">@pr.Status</span></td>
+                                        <td>@(string.IsNullOrWhiteSpace(pr.Notes) ? "—" : pr.Notes)</td>
+                                        <td>
+                                            @if (pr.Status == NeonatalProblemStatus.Active)
+                                            {
+                                                <button class="btn btn-secondary" @onclick="() => SubmitResolveProblem(pr.ProblemId)">Resolve</button>
+                                            }
+                                        </td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    }
+                    <div class="detail-actions">
+                        <button class="btn btn-primary" @onclick="() => Toggle(ref showProblemPanel)">Add Problem</button>
+                    </div>
+                </div>
+
+                @if (showProblemPanel)
+                {
+                    <div class="action-panel">
+                        <h5>Add Neonatal Problem</h5>
+                        <div class="form-row">
+                            <label>Problem</label><input @bind="problemText" placeholder="e.g. Respiratory distress syndrome" />
+                            <label>ICD-10</label><input @bind="problemIcd10" placeholder="e.g. P22.0" />
+                        </div>
+                        <div class="form-row">
+                            <label>Onset Date</label><input type="date" @bind="problemOnset" />
+                            <label>Notes</label><input @bind="problemNotes" />
+                        </div>
+                        <div class="panel-btns">
+                            <button class="btn btn-primary" @onclick="SubmitAddProblem">Add Problem</button>
+                            <button class="btn btn-secondary" @onclick="CloseAllPanels">Cancel</button>
+                        </div>
+                    </div>
+                }
+
+                @* ── Nutrition ── *@
+                <div class="detail-panel">
+                    <h4>Nutrition</h4>
+                    @if (newborn.Nutrition == null || newborn.Nutrition.Count == 0)
+                    {
+                        <div class="empty-state">No nutrition records.</div>
+                    }
+                    else
+                    {
+                        <table class="data-table">
+                            <thead>
+                                <tr><th>When</th><th>Route</th><th>mL/kg/day</th><th>Detail</th><th>Notes</th></tr>
+                            </thead>
+                            <tbody>
+                                @foreach (NeonatalNutritionEntry n in newborn.Nutrition.OrderByDescending(x => x.RecordedAt))
+                                {
+                                    <tr>
+                                        <td>@n.RecordedAt.ToString("yyyy-MM-dd HH:mm")</td>
+                                        <td><span class="badge badge-info">@NutritionRouteText(n.Route)</span></td>
+                                        <td>@(n.TotalFluidMlPerKgPerDay.HasValue ? n.TotalFluidMlPerKgPerDay.ToString() : "—")</td>
+                                        <td>@(string.IsNullOrWhiteSpace(n.Detail) ? "—" : n.Detail)</td>
+                                        <td>@(string.IsNullOrWhiteSpace(n.Notes) ? "—" : n.Notes)</td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    }
+                    <div class="detail-actions">
+                        <button class="btn btn-primary" @onclick="() => Toggle(ref showNutritionPanel)">Record Nutrition</button>
+                    </div>
+                </div>
+
+                @if (showNutritionPanel)
+                {
+                    <div class="action-panel">
+                        <h5>Record Nutrition</h5>
+                        <div class="form-row">
+                            <label>Recorded At</label><input type="datetime-local" @bind="nutritionAt" />
+                            <label>Route</label>
+                            <select @bind="nutritionRoute">
+                                @foreach (NeonatalNutritionRoute r in Enum.GetValues<NeonatalNutritionRoute>())
+                                {
+                                    <option value="@r">@NutritionRouteText(r)</option>
+                                }
+                            </select>
+                        </div>
+                        <div class="form-row">
+                            <label>Total Fluid (mL/kg/day)</label><input type="number" min="0" @bind="nutritionFluid" />
+                            <label>Detail</label><input @bind="nutritionDetail" placeholder="e.g. EBM 20 mL q3h gavage" />
+                        </div>
+                        <div class="form-row">
+                            <label>Notes</label><input @bind="nutritionNotes" />
+                        </div>
+                        <div class="panel-btns">
+                            <button class="btn btn-primary" @onclick="SubmitNutrition">Record</button>
+                            <button class="btn btn-secondary" @onclick="CloseAllPanels">Cancel</button>
+                        </div>
+                    </div>
+                }
+
+                @* ── Procedures ── *@
+                <div class="detail-panel">
+                    <h4>Procedures</h4>
+                    @if (newborn.Procedures == null || newborn.Procedures.Count == 0)
+                    {
+                        <div class="empty-state">No procedures recorded.</div>
+                    }
+                    else
+                    {
+                        <table class="data-table">
+                            <thead>
+                                <tr><th>When</th><th>Procedure</th><th>By</th><th>Notes</th></tr>
+                            </thead>
+                            <tbody>
+                                @foreach (NeonatalProcedureEntry pc in newborn.Procedures.OrderByDescending(x => x.PerformedAt))
+                                {
+                                    <tr>
+                                        <td>@pc.PerformedAt.ToString("yyyy-MM-dd HH:mm")</td>
+                                        <td>@ProcedureText(pc.ProcedureType)</td>
+                                        <td>@(string.IsNullOrWhiteSpace(pc.PerformedBy) ? "—" : pc.PerformedBy)</td>
+                                        <td>@(string.IsNullOrWhiteSpace(pc.Notes) ? "—" : pc.Notes)</td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    }
+                    <div class="detail-actions">
+                        <button class="btn btn-primary" @onclick="() => Toggle(ref showProcedurePanel)">Record Procedure</button>
+                    </div>
+                </div>
+
+                @if (showProcedurePanel)
+                {
+                    <div class="action-panel">
+                        <h5>Record Procedure</h5>
+                        <div class="form-row">
+                            <label>Performed At</label><input type="datetime-local" @bind="procedureAt" />
+                            <label>Procedure</label>
+                            <select @bind="procedureType">
+                                @foreach (NeonatalProcedureType t in Enum.GetValues<NeonatalProcedureType>())
+                                {
+                                    <option value="@t">@ProcedureText(t)</option>
+                                }
+                            </select>
+                        </div>
+                        <div class="form-row">
+                            <label>Performed By</label><input @bind="procedureBy" />
+                            <label>Notes</label><input @bind="procedureNotes" />
+                        </div>
+                        <div class="panel-btns">
+                            <button class="btn btn-primary" @onclick="SubmitProcedure">Record</button>
                             <button class="btn btn-secondary" @onclick="CloseAllPanels">Cancel</button>
                         </div>
                     </div>
@@ -571,6 +937,7 @@ else
     .stat-card.nicu { border-color: #b91c1c; }
     .stat-card.regional { border-color: #6b21a8; }
     .stat-card.pending { border-color: #0e7490; }
+    .stat-card.support { border-color: #b91c1c; }
     .stat-num { display: block; font-size: 1.8rem; font-weight: 700; color: #003f72; }
     .stat-lbl { font-size: 0.78rem; color: #555; }
     .filter-bar { display: flex; align-items: center; gap: 0.6rem; margin-bottom: 0.75rem; flex-wrap: wrap; }
@@ -622,6 +989,7 @@ else
 
     // ── Action-panel toggles ──
     bool showRegisterPanel, showLevelPanel, showExamPanel, showScreenPanel, showMeasurePanel, showDischargePanel;
+    bool showRespPanel, showPhotoPanel, showEndPhotoPanel, showProblemPanel, showNutritionPanel, showProcedurePanel;
 
     // ── Register form ──
     string regMotherId = string.Empty, regPregnancyId = string.Empty, regName = string.Empty;
@@ -667,6 +1035,35 @@ else
     bool dischargeCarSeat;
     string dischargeDisposition = string.Empty, dischargeFollowUp = string.Empty;
 
+    // ── Respiratory-support form ──
+    DateTime respAt = DateTime.Now;
+    RespiratorySupportType respType = RespiratorySupportType.RoomAir;
+    int? respFiO2;
+    string respSettings = string.Empty, respNotes = string.Empty;
+
+    // ── Phototherapy form ──
+    DateTime photoStartedAt = DateTime.Now;
+    PhototherapyIntensity photoIntensity = PhototherapyIntensity.Single;
+    string photoIndication = string.Empty, photoNotes = string.Empty;
+    decimal? photoBili;
+    DateTime photoEndedAt = DateTime.Now;
+    string photoEndNotes = string.Empty;
+
+    // ── Neonatal-problem form ──
+    string problemText = string.Empty, problemIcd10 = string.Empty, problemNotes = string.Empty;
+    DateTime? problemOnset = DateTime.Today;
+
+    // ── Nutrition form ──
+    DateTime nutritionAt = DateTime.Now;
+    NeonatalNutritionRoute nutritionRoute = NeonatalNutritionRoute.EnteralOral;
+    int? nutritionFluid;
+    string nutritionDetail = string.Empty, nutritionNotes = string.Empty;
+
+    // ── Procedure form ──
+    DateTime procedureAt = DateTime.Now;
+    NeonatalProcedureType procedureType = NeonatalProcedureType.Intubation;
+    string procedureBy = string.Empty, procedureNotes = string.Empty;
+
     static readonly NewbornScreeningType[] ScreeningOrder = new[]
     {
         NewbornScreeningType.MetabolicBloodSpot,
@@ -710,6 +1107,8 @@ else
     {
         showRegisterPanel = showLevelPanel = showExamPanel = false;
         showScreenPanel = showMeasurePanel = showDischargePanel = false;
+        showRespPanel = showPhotoPanel = showEndPhotoPanel = false;
+        showProblemPanel = showNutritionPanel = showProcedurePanel = false;
     }
 
     // ── Nursery roster ──
@@ -922,6 +1321,123 @@ else
         catch { error = "Failed to discharge newborn."; }
     }
 
+    // ── Respiratory support ──
+    async Task SubmitRespiratory()
+    {
+        if (newborn == null) return;
+        try
+        {
+            await MotherWorkflow().RecordNewbornRespiratorySupportAsync(
+                newbornId!.Trim(), respType, respFiO2, respSettings, respAt, respNotes);
+            successMsg = "Respiratory support recorded.";
+            respFiO2 = null; respSettings = respNotes = string.Empty;
+            CloseAllPanels();
+            await ReloadNewborn();
+            await LoadRoster();
+        }
+        catch { error = "Failed to record respiratory support."; }
+    }
+
+    // ── Phototherapy ──
+    async Task SubmitStartPhototherapy()
+    {
+        if (newborn == null) return;
+        try
+        {
+            await MotherWorkflow().StartNewbornPhototherapyAsync(
+                newbornId!.Trim(), photoIntensity, photoIndication, photoBili, photoStartedAt, photoNotes);
+            successMsg = "Phototherapy started.";
+            photoIndication = photoNotes = string.Empty; photoBili = null;
+            CloseAllPanels();
+            await ReloadNewborn();
+        }
+        catch { error = "Failed to start phototherapy."; }
+    }
+
+    void OpenEndPhototherapy()
+    {
+        photoEndedAt = DateTime.Now;
+        photoEndNotes = string.Empty;
+        Toggle(ref showEndPhotoPanel);
+    }
+
+    async Task SubmitEndPhototherapy()
+    {
+        if (newborn == null) return;
+        try
+        {
+            await MotherWorkflow().EndNewbornPhototherapyAsync(newbornId!.Trim(), photoEndedAt, photoEndNotes);
+            successMsg = "Phototherapy ended.";
+            photoEndNotes = string.Empty;
+            CloseAllPanels();
+            await ReloadNewborn();
+        }
+        catch { error = "Failed to end phototherapy."; }
+    }
+
+    // ── Neonatal problems ──
+    async Task SubmitAddProblem()
+    {
+        if (newborn == null) return;
+        if (string.IsNullOrWhiteSpace(problemText)) { error = "Problem text is required."; return; }
+        try
+        {
+            await MotherWorkflow().AddNewbornProblemAsync(
+                newbornId!.Trim(), problemText, problemIcd10, problemOnset, problemNotes);
+            successMsg = "Problem added.";
+            problemText = problemIcd10 = problemNotes = string.Empty;
+            CloseAllPanels();
+            await ReloadNewborn();
+            await LoadRoster();
+        }
+        catch { error = "Failed to add problem."; }
+    }
+
+    async Task SubmitResolveProblem(string problemId)
+    {
+        if (newborn == null) return;
+        try
+        {
+            await MotherWorkflow().ResolveNewbornProblemAsync(newbornId!.Trim(), problemId);
+            successMsg = "Problem resolved.";
+            await ReloadNewborn();
+            await LoadRoster();
+        }
+        catch { error = "Failed to resolve problem."; }
+    }
+
+    // ── Nutrition ──
+    async Task SubmitNutrition()
+    {
+        if (newborn == null) return;
+        try
+        {
+            await MotherWorkflow().RecordNewbornNutritionAsync(
+                newbornId!.Trim(), nutritionAt, nutritionRoute, nutritionFluid, nutritionDetail, nutritionNotes);
+            successMsg = "Nutrition recorded.";
+            nutritionFluid = null; nutritionDetail = nutritionNotes = string.Empty;
+            CloseAllPanels();
+            await ReloadNewborn();
+        }
+        catch { error = "Failed to record nutrition."; }
+    }
+
+    // ── Procedures ──
+    async Task SubmitProcedure()
+    {
+        if (newborn == null) return;
+        try
+        {
+            await MotherWorkflow().RecordNewbornProcedureAsync(
+                newbornId!.Trim(), procedureType, procedureAt, procedureBy, procedureNotes);
+            successMsg = "Procedure recorded.";
+            procedureBy = procedureNotes = string.Empty;
+            CloseAllPanels();
+            await ReloadNewborn();
+        }
+        catch { error = "Failed to record procedure."; }
+    }
+
     // ── Display helpers ──
     RenderFragment ExamField(string label, string value) => builder =>
     {
@@ -1032,4 +1548,73 @@ else
         NewbornStatus.Deceased    => "badge-neutral",
         _ => "badge-neutral",
     };
+
+    static string RespSupportText(RespiratorySupportType t) => t switch
+    {
+        RespiratorySupportType.RoomAir                 => "Room Air",
+        RespiratorySupportType.NasalCannula            => "Nasal Cannula",
+        RespiratorySupportType.HighFlowNasalCannula    => "High-Flow Nasal Cannula",
+        RespiratorySupportType.Cpap                    => "CPAP",
+        RespiratorySupportType.Nippv                   => "NIPPV",
+        RespiratorySupportType.ConventionalVentilation => "Conventional Ventilation",
+        RespiratorySupportType.Hfov                    => "HFOV",
+        RespiratorySupportType.Ecmo                    => "ECMO",
+        _ => t.ToString(),
+    };
+
+    static string RespSupportBadge(RespiratorySupportType t) => t switch
+    {
+        RespiratorySupportType.RoomAir              => "badge-success",
+        RespiratorySupportType.NasalCannula         => "badge-info",
+        RespiratorySupportType.HighFlowNasalCannula => "badge-warning",
+        _ => "badge-danger",
+    };
+
+    static string PhototherapyText(PhototherapyIntensity i) => i switch
+    {
+        PhototherapyIntensity.Single    => "Single",
+        PhototherapyIntensity.Double    => "Double",
+        PhototherapyIntensity.Triple    => "Triple",
+        PhototherapyIntensity.Intensive => "Intensive",
+        _ => i.ToString(),
+    };
+
+    static string ProblemStatusBadge(NeonatalProblemStatus s) => s switch
+    {
+        NeonatalProblemStatus.Active   => "badge-warning",
+        NeonatalProblemStatus.Resolved => "badge-neutral",
+        _ => "badge-neutral",
+    };
+
+    static string NutritionRouteText(NeonatalNutritionRoute r) => r switch
+    {
+        NeonatalNutritionRoute.Npo           => "NPO",
+        NeonatalNutritionRoute.IvFluids      => "IV Fluids",
+        NeonatalNutritionRoute.Tpn           => "TPN",
+        NeonatalNutritionRoute.EnteralGavage => "Enteral (Gavage)",
+        NeonatalNutritionRoute.EnteralOral   => "Enteral (Oral)",
+        NeonatalNutritionRoute.Mixed         => "Mixed",
+        _ => r.ToString(),
+    };
+
+    static string ProcedureText(NeonatalProcedureType t) => t switch
+    {
+        NeonatalProcedureType.Intubation               => "Intubation",
+        NeonatalProcedureType.SurfactantAdministration => "Surfactant Administration",
+        NeonatalProcedureType.UmbilicalVenousCatheter  => "Umbilical Venous Catheter (UVC)",
+        NeonatalProcedureType.UmbilicalArterialCatheter => "Umbilical Arterial Catheter (UAC)",
+        NeonatalProcedureType.PiccLine                 => "PICC Line",
+        NeonatalProcedureType.LumbarPuncture           => "Lumbar Puncture",
+        NeonatalProcedureType.ExchangeTransfusion      => "Exchange Transfusion",
+        NeonatalProcedureType.BloodTransfusion         => "Blood Transfusion",
+        NeonatalProcedureType.Other                    => "Other",
+        _ => t.ToString(),
+    };
+
+    string PercentileText(int? grams)
+    {
+        if (newborn == null) return "—";
+        int p = NeonatalClassifier.WeightPercentileForGestationalAge(newborn.GestationalAgeWeeks, grams);
+        return p < 0 ? "—" : $"{p}%";
+    }
 }
