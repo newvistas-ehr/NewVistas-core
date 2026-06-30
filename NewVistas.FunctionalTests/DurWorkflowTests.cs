@@ -79,11 +79,12 @@ public class DurWorkflowTests
         Assert.That(state.PatientId, Is.EqualTo(patientId));
         Assert.That(state.PrescriptionId, Is.EqualTo("RX-002"));
         Assert.That(state.DrugName, Is.EqualTo("AMLODIPINE 5MG"));
-        // Should have all 11 check types
-        Assert.That(state.Checks, Has.Count.EqualTo(11));
+        // Should have all 12 check types (incl. the pharmacogenomic drug-gene check)
+        Assert.That(state.Checks, Has.Count.EqualTo(12));
         Assert.That(state.Checks.Select(c => c.CheckType), Does.Contain(DurCheckType.DuplicateDrug));
         Assert.That(state.Checks.Select(c => c.CheckType), Does.Contain(DurCheckType.DrugAllergyContraindication));
         Assert.That(state.Checks.Select(c => c.CheckType), Does.Contain(DurCheckType.ControlledSubstance));
+        Assert.That(state.Checks.Select(c => c.CheckType), Does.Contain(DurCheckType.Pharmacogenomic));
     }
 
     // ─── Duplicate Drug Detection ───────────────────────────────────────────

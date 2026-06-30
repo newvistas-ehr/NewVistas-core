@@ -94,9 +94,11 @@ public class SiteParametersState
     ///                                    (Modern enhancement; ENABLED BY DEFAULT for demos, see SiteFeatures)
     ///   "NEONATAL_CARE"                — Newborn nursery on top of the OB module — newborn chart, gestational-age/growth classification,
     ///                                    newborn screening, nursery census (Modern enhancement; ENABLED BY DEFAULT, see SiteFeatures)
+    ///   "PHARMACOGENOMICS"             — Coded pharmacogenomic gene results (star-allele diplotype + CPIC phenotype) that drive drug-gene
+    ///                                    decision support in the DUR engine (Modern enhancement; ENABLED BY DEFAULT, see SiteFeatures)
     /// </summary>
     [Id(7)]
-    public HashSet<string> Features { get; set; } = new() { SiteFeatures.ExternalPharmacy, SiteFeatures.Oncology, SiteFeatures.PrecisionOncology, SiteFeatures.HomeBasedCare, SiteFeatures.HomeHealthMedicare, SiteFeatures.NeonatalCare };
+    public HashSet<string> Features { get; set; } = new() { SiteFeatures.ExternalPharmacy, SiteFeatures.Oncology, SiteFeatures.PrecisionOncology, SiteFeatures.HomeBasedCare, SiteFeatures.HomeHealthMedicare, SiteFeatures.NeonatalCare, SiteFeatures.Pharmacogenomics };
 
     [Id(3)]
     public DateTime CreatedDate { get; set; } = DateTime.UtcNow;
@@ -172,4 +174,15 @@ public static class SiteFeatures
     /// (<c>DisableFeatureAsync("NEONATAL_CARE")</c>), leaving the maternal OB record only.
     /// </summary>
     public const string NeonatalCare = "NEONATAL_CARE";
+
+    /// <summary>
+    /// Pharmacogenomics (PGx) — coded gene results (star-allele diplotype + CPIC phenotype) returned
+    /// from a genotyping lab, stored as discrete data so drug-gene decision support fires at
+    /// prescribing time. The DUR engine matches each prescription against the patient's PGx profile
+    /// (curated CPIC/FDA knowledge base) so a contraindication (e.g. CYP2C19 poor metabolizer →
+    /// clopidogrel, HLA-B*57:01 → abacavir) surfaces alongside drug-drug / drug-allergy checks. A
+    /// "Modern" enhancement, <b>enabled by default</b> so it appears in demos; a site can turn it off
+    /// (<c>DisableFeatureAsync("PHARMACOGENOMICS")</c>), and the DUR PGx check becomes a no-op.
+    /// </summary>
+    public const string Pharmacogenomics = "PHARMACOGENOMICS";
 }

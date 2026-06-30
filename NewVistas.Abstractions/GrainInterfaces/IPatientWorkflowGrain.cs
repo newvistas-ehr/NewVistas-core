@@ -2348,6 +2348,28 @@ public interface IPatientWorkflowGrain : IGrainWithStringKey
     /// </summary>
     Task<List<Clinical.PrecisionTherapyMatch>> GetPrecisionOncologyMatchesAsync(string tumorId);
 
+    // ─── Pharmacogenomics (PGx) — drug-gene decision support (PHARMACOGENOMICS) ───
+    // Coded gene results (star-allele diplotype + CPIC phenotype) feed the DUR engine so a drug-gene
+    // contraindication surfaces at prescribing time alongside drug-drug / drug-allergy checks.
+    // Reads + writes open (flag-gated); genetic data is sensitive — a write key is a reasonable
+    // future hardening (matches the neonatal/OB open posture, not the oncology key-gate).
+
+    /// <summary>Records (upserts by gene) a pharmacogenomic result; returns the result id.</summary>
+    Task<string> RecordPharmacogenomicResultAsync(
+        string gene, string diplotype, GrainStates.PgxPhenotype phenotype, decimal? activityScore,
+        DateTime? testDate, string lab, string method, string notes, string recordedBy);
+
+    Task RemovePharmacogenomicResultAsync(string gene);
+
+    /// <summary>The patient's pharmacogenomic profile (one coded result per gene).</summary>
+    Task<GrainStates.PharmacogenomicsState> GetPharmacogenomicProfileAsync();
+
+    /// <summary>Drug-gene implications across the patient's whole profile (worst action first).</summary>
+    Task<List<Clinical.PgxRecommendation>> GetPharmacogenomicRecommendationsAsync();
+
+    /// <summary>Drug-gene recommendations for a specific drug (the "check a drug" lookup).</summary>
+    Task<List<Clinical.PgxRecommendation>> CheckDrugPharmacogenomicsAsync(string drugName);
+
     /// <summary>
     /// Creates a new oncology treatment episode linked to a tumor.
     /// Adds the treatment ID to the tumor record and the patient treatment index.

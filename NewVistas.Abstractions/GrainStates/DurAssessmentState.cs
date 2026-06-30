@@ -43,7 +43,10 @@ public enum DurCheckType
     HepaticAdjustment = 9,
 
     /// <summary>Controlled substance DEA schedule enforcement (PSOORED.m DEA checks).</summary>
-    ControlledSubstance = 10
+    ControlledSubstance = 10,
+
+    /// <summary>Drug-gene (pharmacogenomic) contraindication from the patient's PGx profile (CPIC/FDA).</summary>
+    Pharmacogenomic = 11
 }
 
 /// <summary>

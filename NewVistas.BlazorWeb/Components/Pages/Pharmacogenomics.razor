@@ -1,0 +1,400 @@
+@* Copyright 2026 Merrimack Valley Software Works, LLC. All rights reserved. *@
+@* This Source Code Form is subject to the terms of the Mozilla Public *@
+@* License, v. 2.0. If a copy of the MPL was not distributed with this *@
+@* file, You can obtain one at https://mozilla.org/MPL/2.0/.            *@
+@page "/pharmacogenomics"
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+@rendermode InteractiveServer
+@using NewVistas.BlazorWeb.Services
+@using NewVistas.Abstractions.GrainInterfaces
+@using NewVistas.Abstractions.GrainStates
+@using NewVistas.Abstractions.Clinical
+@using PgxKb = NewVistas.Abstractions.Clinical.Pharmacogenomics
+@inject OrleansGrainService Grains
+@inject PatientContextService PatientContext
+@inject UserSecurityContext SecurityContext
+
+<PageTitle>Pharmacogenomics (PGx)</PageTitle>
+
+@if (!SecurityContext.IsFeatureEnabled("PHARMACOGENOMICS"))
+{
+    <div class="pgx-container">
+        <div class="alert alert-info">Pharmacogenomics (PGx) is not enabled at this site.</div>
+    </div>
+}
+else
+{
+    <div class="pgx-container">
+        <h1>🧬 Pharmacogenomics (PGx)</h1>
+
+        <PatientBar @bind-PatientId="patientId" Loading="loading" OnLoad="LoadAll" />
+
+        @if (error != null) { <div class="alert alert-error">@error</div> }
+        @if (successMsg != null) { <div class="alert alert-success">@successMsg</div> }
+
+        @if (string.IsNullOrWhiteSpace(patientId))
+        {
+            <div class="empty-state">Select a patient to view their pharmacogenomic profile and drug-gene decision support.</div>
+        }
+        else
+        {
+            @* ── Panel 1: Drug-gene alerts / implications ─────────────────────────── *@
+            <div class="pgx-panel pgx-alerts">
+                <h3>Drug-Gene Alerts</h3>
+                @if (loading)
+                {
+                    <div class="loading">Loading drug-gene implications…</div>
+                }
+                else if (recommendations == null || recommendations.Count == 0)
+                {
+                    <div class="empty-state">No actionable drug-gene interactions for this patient's recorded results.</div>
+                }
+                else
+                {
+                    @foreach (PgxRecommendation r in recommendations)
+                    {
+                        @Card(r)
+                    }
+                }
+                <div class="pgx-disclaimer"><em>Decision support only — curated CPIC/FDA-aligned rule set; confirm against current CPIC guidelines / a clinical pharmacist.</em></div>
+            </div>
+
+            @* ── Panel 2: Check a drug ────────────────────────────────────────────── *@
+            <div class="pgx-panel">
+                <h3>Check a Drug</h3>
+                <div class="form-row">
+                    <label>Drug</label>
+                    <input @bind="checkDrug" list="pgx-known-drugs" placeholder="e.g. clopidogrel, codeine, warfarin" />
+                    <button class="btn btn-primary" @onclick="SubmitCheckDrug" disabled="@checkLoading">
+                        @(checkLoading ? "Checking…" : "Check")
+                    </button>
+                </div>
+                <datalist id="pgx-known-drugs">
+                    @foreach (string d in PgxKb.KnownDrugs)
+                    {
+                        <option value="@d" />
+                    }
+                </datalist>
+
+                @if (checkResults != null)
+                {
+                    @if (checkResults.Count == 0)
+                    {
+                        <div class="empty-state">No pharmacogenomic concern for @checkedDrugLabel.</div>
+                    }
+                    else
+                    {
+                        @foreach (PgxRecommendation r in checkResults)
+                        {
+                            @Card(r)
+                        }
+                    }
+                }
+            </div>
+
+            @* ── Panel 3: Genotype profile ────────────────────────────────────────── *@
+            <div class="pgx-panel">
+                <h3>Genotype Profile</h3>
+                @if (loading)
+                {
+                    <div class="loading">Loading genotype profile…</div>
+                }
+                else if (profile == null || profile.Results.Count == 0)
+                {
+                    <div class="empty-state">No pharmacogenomic results recorded.</div>
+                }
+                else
+                {
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th>Gene</th>
+                                <th>Diplotype</th>
+                                <th>Phenotype</th>
+                                <th>Activity Score</th>
+                                <th>Status</th>
+                                <th>Test Date</th>
+                                <th>Lab</th>
+                                <th>Method</th>
+                                <th></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (PgxResultEntry e in profile.Results.OrderBy(x => x.Gene, StringComparer.OrdinalIgnoreCase))
+                            {
+                                <tr>
+                                    <td><strong>@e.Gene</strong></td>
+                                    <td>@(string.IsNullOrWhiteSpace(e.Diplotype) ? "—" : e.Diplotype)</td>
+                                    <td>@PgxKb.PhenotypeLabel(e.Phenotype)</td>
+                                    <td>@(e.ActivityScore.HasValue ? e.ActivityScore.Value.ToString("0.##") : "—")</td>
+                                    <td><span class="badge @ResultStatusBadge(e.Status)">@e.Status</span></td>
+                                    <td>@(e.TestDate?.ToString("yyyy-MM-dd") ?? "—")</td>
+                                    <td>@(string.IsNullOrWhiteSpace(e.Lab) ? "—" : e.Lab)</td>
+                                    <td>@(string.IsNullOrWhiteSpace(e.Method) ? "—" : e.Method)</td>
+                                    <td>
+                                        <button class="btn btn-secondary" @onclick="() => SubmitRemoveResult(e.Gene)">Remove</button>
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                }
+
+                <div class="detail-actions">
+                    <button class="btn btn-primary" @onclick="() => showAddPanel = !showAddPanel">@(showAddPanel ? "Close" : "Add Result")</button>
+                </div>
+
+                @if (showAddPanel)
+                {
+                    <div class="action-panel">
+                        <h5>Record Pharmacogenomic Result</h5>
+                        <div class="form-row">
+                            <label>Gene</label>
+                            <select @bind="addGene">
+                                @foreach (string g in PgxKb.KnownGenes)
+                                {
+                                    <option value="@g">@g</option>
+                                }
+                            </select>
+                            <label>Diplotype</label>
+                            <input @bind="addDiplotype" placeholder="e.g. *2/*2, positive" />
+                        </div>
+                        <div class="form-row">
+                            <label>Phenotype</label>
+                            <select @bind="addPhenotype">
+                                @foreach (PgxPhenotype p in Enum.GetValues<PgxPhenotype>())
+                                {
+                                    <option value="@p">@PgxKb.PhenotypeLabel(p)</option>
+                                }
+                            </select>
+                            <label>Activity Score</label>
+                            <input type="number" step="0.5" @bind="addActivityScore" placeholder="optional (CYP2D6)" />
+                        </div>
+                        <div class="form-row">
+                            <label>Test Date</label>
+                            <input type="date" @bind="addTestDate" />
+                            <label>Lab</label>
+                            <input @bind="addLab" placeholder="Performing laboratory" />
+                        </div>
+                        <div class="form-row">
+                            <label>Method</label>
+                            <input @bind="addMethod" placeholder="e.g. Targeted genotyping, NGS PGx panel" />
+                            <label>Notes</label>
+                            <input @bind="addNotes" />
+                        </div>
+                        <div class="panel-btns">
+                            <button class="btn btn-primary" @onclick="SubmitAddResult" disabled="@(addLoading || string.IsNullOrWhiteSpace(addGene))">
+                                @(addLoading ? "Recording…" : "Record Result")
+                            </button>
+                            <button class="btn btn-secondary" @onclick="() => showAddPanel = false">Cancel</button>
+                        </div>
+                    </div>
+                }
+            </div>
+        }
+    </div>
+}
+
+<style>
+    /* Canonical interaction classes (btn, btn-primary, btn-secondary, alert, alert-*,
+       data-table, badge, badge-*) are defined once in app.css. Only page-specific
+       styles live here. */
+    .pgx-container { max-width: 1100px; margin: 0 auto; padding: 1rem; font-family: sans-serif; }
+    .pgx-container h1 { color: #003f72; }
+    .loading { padding: 1.5rem; text-align: center; color: #555; }
+    .empty-state { padding: 0.75rem; color: #555; font-style: italic; }
+    .pgx-panel { background: #f9fafb; border: 1px solid #d4d9e0; border-radius: 8px; padding: 1rem; margin-top: 1rem; }
+    .pgx-panel h3 { margin: 0 0 0.75rem; color: #003f72; }
+    .pgx-alerts { border-left: 4px solid #b91c1c; }
+    .pgx-disclaimer { font-size: 0.8rem; color: #777; margin-top: 0.5rem; }
+    .form-row { display: flex; align-items: center; gap: 0.6rem; margin-bottom: 0.6rem; flex-wrap: wrap; }
+    .form-row label { font-size: 0.85rem; color: #333; min-width: 110px; }
+    .form-row input, .form-row select { flex: 1; padding: 0.35rem 0.5rem; border: 1px solid #d4d9e0; border-radius: 4px; font-size: 0.9rem; min-width: 120px; }
+    .form-row button { flex: 0 0 auto; }
+    .detail-actions { display: flex; gap: 0.5rem; flex-wrap: wrap; margin: 0.5rem 0; }
+    .action-panel { background: #f4f6f9; border: 1px solid #d4d9e0; border-radius: 6px; padding: 1rem; margin-top: 0.75rem; }
+    .action-panel h5 { margin: 0 0 0.75rem; color: #003f72; }
+    .panel-btns { display: flex; gap: 0.5rem; margin-top: 0.75rem; }
+    button:disabled { opacity: 0.5; cursor: not-allowed; }
+    /* Drug-gene recommendation cards */
+    .pgx-card { background: #fff; border: 1px solid #d4d9e0; border-left: 4px solid #999; border-radius: 6px; padding: 0.6rem 0.8rem; margin-bottom: 0.5rem; }
+    .pgx-card.border-danger { border-left-color: #b91c1c; }
+    .pgx-card.border-warning { border-left-color: #b45309; }
+    .pgx-card.border-info { border-left-color: #0e7490; }
+    .pgx-card.border-neutral { border-left-color: #999; }
+    .pgx-card-header { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; }
+    .pgx-drug { color: #003f72; text-transform: capitalize; font-size: 1rem; }
+    .pgx-source { margin-left: auto; font-size: 0.8rem; color: #555; }
+    .pgx-gene-line { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; margin-top: 0.3rem; font-size: 0.85rem; }
+    .pgx-gene { font-weight: 600; color: #333; }
+    .pgx-pheno { color: #6b21a8; }
+    .pgx-diplotype { color: #555; font-family: monospace; }
+    .pgx-class { color: #777; font-style: italic; }
+    .pgx-rec { font-size: 0.9rem; color: #333; margin-top: 0.35rem; }
+</style>
+
+@code {
+    [SupplyParameterFromQuery] public string? patientId { get; set; }
+
+    // PGx writes are OPEN (flag-gated); the whole page is gated on the PHARMACOGENOMICS site flag
+    // above. Every signed-in user can use the forms (matches the neonatal/OB open posture).
+
+    bool loading;
+    string? error;
+    string? successMsg;
+
+    PharmacogenomicsState? profile;
+    List<PgxRecommendation>? recommendations;
+
+    // ── Check-a-drug ──
+    string checkDrug = string.Empty;
+    string checkedDrugLabel = string.Empty;
+    bool checkLoading;
+    List<PgxRecommendation>? checkResults;
+
+    // ── Add-result form ──
+    bool showAddPanel, addLoading;
+    string addGene = PgxKb.KnownGenes.Count > 0 ? PgxKb.KnownGenes[0] : string.Empty;
+    string addDiplotype = string.Empty;
+    PgxPhenotype addPhenotype = PgxPhenotype.NormalMetabolizer;
+    decimal? addActivityScore;
+    DateTime? addTestDate = DateTime.Today;
+    string addLab = string.Empty, addMethod = string.Empty, addNotes = string.Empty;
+
+    // Drug-gene recommendation card, shared by the alerts panel and the check-a-drug panel.
+    RenderFragment Card(PgxRecommendation r) =>
+        @<div class="pgx-card @ActionBorder(r.Action)">
+            <div class="pgx-card-header">
+                <strong class="pgx-drug">@r.Drug</strong>
+                <span class="badge @ActionBadge(r.Action)">@ActionText(r.Action)</span>
+                <span class="pgx-source">CPIC/FDA @r.Strength</span>
+            </div>
+            <div class="pgx-gene-line">
+                <span class="pgx-gene">@r.Gene</span>
+                <span class="pgx-pheno">@r.PhenotypeLabel</span>
+                @if (!string.IsNullOrWhiteSpace(r.Diplotype))
+                {
+                    <span class="pgx-diplotype">@r.Diplotype</span>
+                }
+                @if (!string.IsNullOrWhiteSpace(r.DrugClass))
+                {
+                    <span class="pgx-class">@r.DrugClass</span>
+                }
+            </div>
+            <div class="pgx-rec">@r.Recommendation</div>
+        </div>;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (!SecurityContext.IsFeatureEnabled("PHARMACOGENOMICS")) return;
+        if (string.IsNullOrWhiteSpace(patientId) && !string.IsNullOrWhiteSpace(PatientContext.PatientId))
+            patientId = PatientContext.PatientId;
+        if (!string.IsNullOrWhiteSpace(patientId) && profile == null)
+            await LoadAll();
+    }
+
+    async Task LoadAll()
+    {
+        if (string.IsNullOrWhiteSpace(patientId)) return;
+        loading = true; error = null;
+        try
+        {
+            IPatientWorkflowGrain workflow = Grains.GetGrain<IPatientWorkflowGrain>(patientId.Trim());
+            profile = await workflow.GetPharmacogenomicProfileAsync();
+            recommendations = await workflow.GetPharmacogenomicRecommendationsAsync();
+            PatientContext.SetPatient(patientId.Trim());
+        }
+        catch { error = "Failed to load pharmacogenomic profile."; }
+        finally { loading = false; }
+    }
+
+    async Task SubmitCheckDrug()
+    {
+        if (string.IsNullOrWhiteSpace(patientId) || string.IsNullOrWhiteSpace(checkDrug)) return;
+        checkLoading = true; error = null;
+        try
+        {
+            IPatientWorkflowGrain workflow = Grains.GetGrain<IPatientWorkflowGrain>(patientId.Trim());
+            checkedDrugLabel = checkDrug.Trim();
+            checkResults = await workflow.CheckDrugPharmacogenomicsAsync(checkDrug.Trim());
+        }
+        catch { error = "Failed to check drug."; }
+        finally { checkLoading = false; }
+    }
+
+    async Task SubmitAddResult()
+    {
+        if (string.IsNullOrWhiteSpace(patientId) || string.IsNullOrWhiteSpace(addGene)) return;
+        addLoading = true; error = null; successMsg = null;
+        try
+        {
+            IPatientWorkflowGrain workflow = Grains.GetGrain<IPatientWorkflowGrain>(patientId.Trim());
+            await workflow.RecordPharmacogenomicResultAsync(
+                addGene.Trim(), addDiplotype.Trim(), addPhenotype, addActivityScore,
+                addTestDate, addLab.Trim(), addMethod.Trim(), addNotes.Trim(),
+                Grains.CurrentUserName ?? "Provider");
+            successMsg = $"Recorded {addGene} result.";
+            addDiplotype = addLab = addMethod = addNotes = string.Empty;
+            addActivityScore = null; addTestDate = DateTime.Today;
+            addPhenotype = PgxPhenotype.NormalMetabolizer;
+            showAddPanel = false;
+            await LoadAll();
+        }
+        catch { error = "Failed to record result."; }
+        finally { addLoading = false; }
+    }
+
+    async Task SubmitRemoveResult(string gene)
+    {
+        if (string.IsNullOrWhiteSpace(patientId) || string.IsNullOrWhiteSpace(gene)) return;
+        error = null; successMsg = null;
+        try
+        {
+            IPatientWorkflowGrain workflow = Grains.GetGrain<IPatientWorkflowGrain>(patientId.Trim());
+            await workflow.RemovePharmacogenomicResultAsync(gene);
+            successMsg = $"Removed {gene} result.";
+            await LoadAll();
+        }
+        catch { error = "Failed to remove result."; }
+    }
+
+    // ── Action → display helpers ──
+    static string ActionText(PgxActionCategory a) => a switch
+    {
+        PgxActionCategory.Standard            => "Standard",
+        PgxActionCategory.UseWithCaution      => "Use with caution",
+        PgxActionCategory.AdjustDose          => "Adjust dose",
+        PgxActionCategory.ConsiderAlternative => "Consider alternative",
+        PgxActionCategory.Avoid               => "Avoid",
+        PgxActionCategory.Contraindicated     => "Contraindicated",
+        _                                     => a.ToString(),
+    };
+
+    static string ActionBadge(PgxActionCategory a) => a switch
+    {
+        PgxActionCategory.Contraindicated     => "badge-danger",
+        PgxActionCategory.Avoid               => "badge-danger",
+        PgxActionCategory.ConsiderAlternative => "badge-warning",
+        PgxActionCategory.AdjustDose          => "badge-warning",
+        PgxActionCategory.UseWithCaution      => "badge-info",
+        _                                     => "badge-neutral",
+    };
+
+    static string ActionBorder(PgxActionCategory a) => a switch
+    {
+        PgxActionCategory.Contraindicated     => "border-danger",
+        PgxActionCategory.Avoid               => "border-danger",
+        PgxActionCategory.ConsiderAlternative => "border-warning",
+        PgxActionCategory.AdjustDose          => "border-warning",
+        PgxActionCategory.UseWithCaution      => "border-info",
+        _                                     => "border-neutral",
+    };
+
+    static string ResultStatusBadge(PgxResultStatus s) => s switch
+    {
+        PgxResultStatus.Final      => "badge-success",
+        PgxResultStatus.Pending    => "badge-warning",
+        PgxResultStatus.Superseded => "badge-neutral",
+        _                          => "badge-neutral",
+    };
+}

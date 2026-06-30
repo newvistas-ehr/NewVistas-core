@@ -533,6 +533,61 @@ public partial class PatientWorkflowGrain
             });
         }
 
+        // ── 12. Pharmacogenomic (Drug-Gene) Check (CPIC/FDA) ─────────────────
+        // Reads the patient's coded PGx profile and matches the drug against the curated
+        // pharmacogenomics knowledge base. An Avoid/Contraindicated pairing FAILS (holds the fill,
+        // pharmacist-overridable like any other DUR fail); a dose-adjust/alternative pairing warns.
+        PharmacogenomicsState pgxProfile = await Pgx().GetAsync();
+        if (pgxProfile.Results.Count == 0)
+        {
+            checks.Add(new DurCheckResult
+            {
+                CheckType = DurCheckType.Pharmacogenomic,
+                Outcome = DurOutcome.NotApplicable,
+                Severity = "None",
+                Message = "No pharmacogenomic results on file.",
+            });
+        }
+        else
+        {
+            List<Clinical.PgxRecommendation> pgxMatches = Clinical.Pharmacogenomics
+                .MatchDrug(pgxProfile.Results, drugName)
+                .Where(r => r.Action != PgxActionCategory.Standard)
+                .ToList();
+
+            if (pgxMatches.Count == 0)
+            {
+                checks.Add(new DurCheckResult
+                {
+                    CheckType = DurCheckType.Pharmacogenomic,
+                    Outcome = DurOutcome.Pass,
+                    Severity = "None",
+                    Message = $"No pharmacogenomic concern for {drugName} across {pgxProfile.Results.Count} gene result(s).",
+                });
+            }
+            else
+            {
+                Clinical.PgxRecommendation worst = pgxMatches[0]; // MatchDrug returns worst action first
+                bool blocks = worst.Action is PgxActionCategory.Avoid or PgxActionCategory.Contraindicated;
+                string severity = worst.Action switch
+                {
+                    PgxActionCategory.Contraindicated or PgxActionCategory.Avoid => "Significant",
+                    PgxActionCategory.ConsiderAlternative or PgxActionCategory.AdjustDose => "Moderate",
+                    _ => "Minor"
+                };
+                checks.Add(new DurCheckResult
+                {
+                    CheckType = DurCheckType.Pharmacogenomic,
+                    Outcome = blocks ? DurOutcome.Fail : DurOutcome.Warning,
+                    Severity = severity,
+                    Message = $"Pharmacogenomic alert ({worst.Gene} {worst.PhenotypeLabel}): {worst.Recommendation}",
+                    Details = $"{worst.Drug} — {worst.Action} (CPIC {worst.Strength}; {worst.Source})"
+                        + (pgxMatches.Count > 1 ? $"; +{pgxMatches.Count - 1} more drug-gene pairing(s)" : string.Empty),
+                    ConflictingEntityName = worst.Gene,
+                });
+            }
+        }
+
         // ── Create DUR Assessment grain ─────────────────────────────────────
         string assessmentId = $"DUR:{Guid.NewGuid()}";
         IDurAssessmentGrain grain = DurAssessment(assessmentId);

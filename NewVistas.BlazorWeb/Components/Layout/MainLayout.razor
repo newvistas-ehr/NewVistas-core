@@ -185,6 +185,19 @@
             </NavLink>
             }
 
+            @* Pharmacogenomics (PGx) — Modern module gated on the PHARMACOGENOMICS site flag.
+               Drug-gene decision support; writes are OPEN like neonatal/OB, so gated on the
+               flag only, not a security key. *@
+            @if (SecurityContext.HasAccess(MenuArea.Clinical) && SecurityContext.IsFeatureEnabled("PHARMACOGENOMICS"))
+            {
+            <div class="nav-divider"></div>
+            <div class="nav-section-title">Pharmacogenomics</div>
+            <NavLink class="nav-item" href="/pharmacogenomics">
+                <span class="nav-icon">🧬</span>
+                <span class="nav-label">Pharmacogenomics</span>
+            </NavLink>
+            }
+
             @* Home-Based Care (HBPC) — Modern module gated on the HOME_BASED_CARE site flag.
                Shown to any clinician; the page is read-only unless the user holds HBHC MANAGER. *@
             @if (SecurityContext.HasAccess(MenuArea.Clinical) && SecurityContext.IsFeatureEnabled("HOME_BASED_CARE"))
