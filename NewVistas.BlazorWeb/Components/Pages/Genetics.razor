@@ -1,0 +1,802 @@
+@* Copyright 2026 Merrimack Valley Software Works, LLC. All rights reserved. *@
+@* This Source Code Form is subject to the terms of the Mozilla Public *@
+@* License, v. 2.0. If a copy of the MPL was not distributed with this *@
+@* file, You can obtain one at https://mozilla.org/MPL/2.0/.            *@
+@page "/genetics"
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+@rendermode InteractiveServer
+@using NewVistas.BlazorWeb.Services
+@using NewVistas.Abstractions.GrainInterfaces
+@using NewVistas.Abstractions.GrainStates
+@using NewVistas.Abstractions.Clinical
+@inject OrleansGrainService Grains
+@inject PatientContextService PatientContext
+@inject UserSecurityContext SecurityContext
+
+<PageTitle>Genetics &amp; Family History</PageTitle>
+
+@if (!SecurityContext.IsFeatureEnabled("HEREDITARY_GENETICS"))
+{
+    <div class="gen-container">
+        <div class="alert alert-info">Hereditary Genetics &amp; Family History is not enabled at this site.</div>
+    </div>
+}
+else
+{
+    <div class="gen-container">
+        <h1>🧬 Genetics &amp; Family History</h1>
+
+        <PatientBar @bind-PatientId="patientId" Loading="loading" OnLoad="LoadAll" />
+
+        @if (error != null) { <div class="alert alert-error">@error</div> }
+        @if (successMsg != null) { <div class="alert alert-success">@successMsg</div> }
+
+        @if (string.IsNullOrWhiteSpace(patientId))
+        {
+            <div class="empty-state">Select a patient to view their hereditary-risk assessment, genetic test results, and family history.</div>
+        }
+        else
+        {
+            @* ── Tabs ──────────────────────────────────────────────────────────────── *@
+            <div class="gen-tabs">
+                <button class="gen-tab @(activeTab == Tab.Risk ? "active" : "")" @onclick="() => activeTab = Tab.Risk">Hereditary Risk</button>
+                <button class="gen-tab @(activeTab == Tab.Results ? "active" : "")" @onclick="() => activeTab = Tab.Results">Genetic Results</button>
+                <button class="gen-tab @(activeTab == Tab.Family ? "active" : "")" @onclick="() => activeTab = Tab.Family">Family History</button>
+            </div>
+
+            @if (loading)
+            {
+                <div class="loading">Loading genetics record…</div>
+            }
+            else if (activeTab == Tab.Risk)
+            {
+                @* ── Tab 1: Hereditary Risk assessment ──────────────────────────────── *@
+                <div class="gen-panel gen-alerts">
+                    <h3>Hereditary-Syndrome Findings</h3>
+                    @if (findings == null || findings.Count == 0)
+                    {
+                        <div class="empty-state">No hereditary-syndrome findings.</div>
+                    }
+                    else
+                    {
+                        @foreach (HereditaryFinding f in findings)
+                        {
+                            <div class="gen-card @ClassificationBorder(f.Classification)">
+                                <div class="gen-card-header">
+                                    <strong class="gen-gene">@f.Gene</strong>
+                                    <span class="badge @ClassificationBadge(f.Classification)">@ClassificationText(f.Classification)</span>
+                                    @if (!string.IsNullOrWhiteSpace(f.Source))
+                                    {
+                                        <span class="gen-source">@f.Source</span>
+                                    }
+                                </div>
+                                @if (!string.IsNullOrWhiteSpace(f.Variant))
+                                {
+                                    <div class="gen-variant">@f.Variant</div>
+                                }
+                                <div class="gen-syndrome"><strong>@f.Syndrome</strong> &middot; <span class="gen-inh">@f.Inheritance</span></div>
+                                @if (!string.IsNullOrWhiteSpace(f.Management))
+                                {
+                                    <div class="gen-mgmt">@f.Management</div>
+                                }
+                            </div>
+                        }
+                    }
+                </div>
+
+                <div class="gen-panel gen-warnings">
+                    <h3>Family-History Red Flags</h3>
+                    @if (riskFlags == null || riskFlags.Count == 0)
+                    {
+                        <div class="empty-state">No family-history red flags.</div>
+                    }
+                    else
+                    {
+                        @foreach (FamilyRiskFlag flag in riskFlags)
+                        {
+                            <div class="gen-card border-warning">
+                                <div class="gen-card-header">
+                                    <strong class="gen-pattern">@flag.Pattern</strong>
+                                </div>
+                                @if (!string.IsNullOrWhiteSpace(flag.Detail))
+                                {
+                                    <div class="gen-detail">@flag.Detail</div>
+                                }
+                                @if (!string.IsNullOrWhiteSpace(flag.Recommendation))
+                                {
+                                    <div class="gen-rec">@flag.Recommendation</div>
+                                }
+                            </div>
+                        }
+                    }
+                </div>
+
+                <div class="gen-disclaimer"><em>Decision support only — curated NCCN/ACMG-aligned rule set (representative, not the full NCCN / Amsterdam II criteria); confirm against current guidelines / a genetic counselor. Never auto-orders.</em></div>
+            }
+            else if (activeTab == Tab.Results)
+            {
+                @* ── Tab 2: Genetic Results ─────────────────────────────────────────── *@
+                <div class="gen-panel">
+                    <div class="gen-panel-head">
+                        <h3>Genetic Test Reports</h3>
+                        <button class="btn btn-primary" @onclick="() => showAddReport = !showAddReport">@(showAddReport ? "Close" : "Add Report")</button>
+                    </div>
+
+                    @if (showAddReport)
+                    {
+                        <div class="action-panel">
+                            <h5>Record Genetic Test Report</h5>
+                            <div class="form-row">
+                                <label>Test / Panel</label>
+                                <input @bind="rTestName" placeholder="e.g. Hereditary Cancer Panel (Invitae)" />
+                                <label>Lab</label>
+                                <input @bind="rLab" placeholder="Performing laboratory" />
+                            </div>
+                            <div class="form-row">
+                                <label>Method</label>
+                                <select @bind="rMethod">
+                                    @foreach (GeneticTestMethod m in Enum.GetValues<GeneticTestMethod>())
+                                    {
+                                        <option value="@m">@MethodLabel(m)</option>
+                                    }
+                                </select>
+                                <label>Overall Result</label>
+                                <select @bind="rResult">
+                                    @foreach (GeneticReportResult res in Enum.GetValues<GeneticReportResult>())
+                                    {
+                                        <option value="@res">@ReportResultText(res)</option>
+                                    }
+                                </select>
+                            </div>
+                            <div class="form-row">
+                                <label>Indication</label>
+                                <input @bind="rIndication" placeholder="Clinical indication" />
+                                <label>Ordering Provider</label>
+                                <input @bind="rOrderingProvider" />
+                            </div>
+                            <div class="form-row">
+                                <label>Collection Date</label>
+                                <input type="date" @bind="rCollectionDate" />
+                                <label>Report Date</label>
+                                <input type="date" @bind="rReportDate" />
+                            </div>
+                            <div class="form-row">
+                                <label>Notes</label>
+                                <input @bind="rNotes" />
+                            </div>
+                            <div class="panel-btns">
+                                <button class="btn btn-primary" @onclick="SubmitAddReport" disabled="@(addLoading || string.IsNullOrWhiteSpace(rTestName))">
+                                    @(addLoading ? "Recording…" : "Record Report")
+                                </button>
+                                <button class="btn btn-secondary" @onclick="() => showAddReport = false">Cancel</button>
+                            </div>
+                        </div>
+                    }
+
+                    @if (profile == null || profile.Reports.Count == 0)
+                    {
+                        <div class="empty-state">No genetic test reports recorded.</div>
+                    }
+                    else
+                    {
+                        @foreach (GeneticTestReport rep in profile.Reports.OrderByDescending(x => x.ReportDate ?? x.RecordedDate))
+                        {
+                            <div class="gen-report">
+                                <div class="gen-report-head">
+                                    <strong class="gen-report-name">@rep.TestName</strong>
+                                    <span class="badge @ReportResultBadge(rep.OverallResult)">@ReportResultText(rep.OverallResult)</span>
+                                    <button class="btn btn-secondary" @onclick="() => SubmitRemoveReport(rep.ReportId)">Remove</button>
+                                </div>
+                                <div class="gen-report-meta">
+                                    @if (!string.IsNullOrWhiteSpace(rep.Lab)) { <span>@rep.Lab</span> }
+                                    <span>@MethodLabel(rep.Method)</span>
+                                    @if (!string.IsNullOrWhiteSpace(rep.Indication)) { <span>Indication: @rep.Indication</span> }
+                                    <span>Reported: @(rep.ReportDate?.ToString("yyyy-MM-dd") ?? "—")</span>
+                                    @if (!string.IsNullOrWhiteSpace(rep.OrderingProvider)) { <span>Ordered by: @rep.OrderingProvider</span> }
+                                </div>
+                                @if (!string.IsNullOrWhiteSpace(rep.Notes))
+                                {
+                                    <div class="gen-report-notes">@rep.Notes</div>
+                                }
+
+                                @if (rep.Variants.Count > 0)
+                                {
+                                    <table class="data-table">
+                                        <thead>
+                                            <tr>
+                                                <th>Gene</th>
+                                                <th>HGVS</th>
+                                                <th>Transcript</th>
+                                                <th>Classification</th>
+                                                <th>Zygosity</th>
+                                                <th>Origin</th>
+                                                <th>ClinVar / dbSNP</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            @foreach (GeneticVariant v in rep.Variants)
+                                            {
+                                                <tr>
+                                                    <td><strong>@v.Gene</strong></td>
+                                                    <td>
+                                                        <div class="gen-hgvs">@(string.IsNullOrWhiteSpace(v.HgvsCoding) ? "—" : v.HgvsCoding)</div>
+                                                        @if (!string.IsNullOrWhiteSpace(v.HgvsProtein))
+                                                        {
+                                                            <div class="gen-hgvs-prot">@v.HgvsProtein</div>
+                                                        }
+                                                    </td>
+                                                    <td>@(string.IsNullOrWhiteSpace(v.Transcript) ? "—" : v.Transcript)</td>
+                                                    <td><span class="badge @ClassificationBadge(v.Classification)">@ClassificationText(v.Classification)</span></td>
+                                                    <td>@v.Zygosity</td>
+                                                    <td>@v.Origin</td>
+                                                    <td>
+                                                        @if (!string.IsNullOrWhiteSpace(v.ClinVarId)) { <div>@v.ClinVarId</div> }
+                                                        @if (!string.IsNullOrWhiteSpace(v.DbSnpId)) { <div>@v.DbSnpId</div> }
+                                                        @if (string.IsNullOrWhiteSpace(v.ClinVarId) && string.IsNullOrWhiteSpace(v.DbSnpId)) { <text>—</text> }
+                                                    </td>
+                                                </tr>
+                                            }
+                                        </tbody>
+                                    </table>
+                                }
+                                else
+                                {
+                                    <div class="empty-state">No reportable variants recorded.</div>
+                                }
+
+                                <div class="detail-actions">
+                                    <button class="btn btn-secondary" @onclick="() => ToggleAddVariant(rep.ReportId)">
+                                        @(addVariantReportId == rep.ReportId ? "Close" : "Add Variant")
+                                    </button>
+                                </div>
+
+                                @if (addVariantReportId == rep.ReportId)
+                                {
+                                    <div class="action-panel">
+                                        <h5>Add Reportable Variant</h5>
+                                        <div class="form-row">
+                                            <label>Gene</label>
+                                            <input @bind="vGene" list="gen-known-genes" placeholder="e.g. BRCA1" />
+                                            <label>Transcript</label>
+                                            <input @bind="vTranscript" placeholder="e.g. NM_007294.4" />
+                                        </div>
+                                        <datalist id="gen-known-genes">
+                                            @foreach (string g in HereditaryRisk.KnownGenes)
+                                            {
+                                                <option value="@g" />
+                                            }
+                                        </datalist>
+                                        <div class="form-row">
+                                            <label>HGVS Coding</label>
+                                            <input @bind="vHgvsCoding" placeholder="e.g. c.68_69delAG" />
+                                            <label>HGVS Protein</label>
+                                            <input @bind="vHgvsProtein" placeholder="e.g. p.Glu23ValfsTer17" />
+                                        </div>
+                                        <div class="form-row">
+                                            <label>Classification</label>
+                                            <select @bind="vClassification">
+                                                @foreach (VariantClassification c in Enum.GetValues<VariantClassification>())
+                                                {
+                                                    <option value="@c">@ClassificationText(c)</option>
+                                                }
+                                            </select>
+                                            <label>Zygosity</label>
+                                            <select @bind="vZygosity">
+                                                @foreach (VariantZygosity z in Enum.GetValues<VariantZygosity>())
+                                                {
+                                                    <option value="@z">@z</option>
+                                                }
+                                            </select>
+                                        </div>
+                                        <div class="form-row">
+                                            <label>Origin</label>
+                                            <select @bind="vOrigin">
+                                                @foreach (VariantOrigin o in Enum.GetValues<VariantOrigin>())
+                                                {
+                                                    <option value="@o">@o</option>
+                                                }
+                                            </select>
+                                            <label>ClinVar ID</label>
+                                            <input @bind="vClinVarId" placeholder="e.g. VCV000017661" />
+                                        </div>
+                                        <div class="form-row">
+                                            <label>dbSNP rsID</label>
+                                            <input @bind="vDbSnpId" placeholder="e.g. rs80357914" />
+                                            <label>Notes</label>
+                                            <input @bind="vNotes" />
+                                        </div>
+                                        <div class="panel-btns">
+                                            <button class="btn btn-primary" @onclick="SubmitAddVariant" disabled="@(addLoading || string.IsNullOrWhiteSpace(vGene))">
+                                                @(addLoading ? "Adding…" : "Add Variant")
+                                            </button>
+                                            <button class="btn btn-secondary" @onclick="() => addVariantReportId = null">Cancel</button>
+                                        </div>
+                                    </div>
+                                }
+                            </div>
+                        }
+                    }
+                </div>
+            }
+            else if (activeTab == Tab.Family)
+            {
+                @* ── Tab 3: Family History ──────────────────────────────────────────── *@
+                <div class="gen-panel">
+                    <div class="gen-panel-head">
+                        <h3>Family Members</h3>
+                        <button class="btn btn-primary" @onclick="() => showAddMember = !showAddMember">@(showAddMember ? "Close" : "Add Relative")</button>
+                    </div>
+
+                    @if (showAddMember)
+                    {
+                        <div class="action-panel">
+                            <h5>Add Relative</h5>
+                            <div class="form-row">
+                                <label>Relationship</label>
+                                <select @bind="mRelationship">
+                                    @foreach (FamilyRelationship r in Enum.GetValues<FamilyRelationship>())
+                                    {
+                                        <option value="@r">@r</option>
+                                    }
+                                </select>
+                                <label>Name</label>
+                                <input @bind="mName" placeholder="optional" />
+                            </div>
+                            <div class="form-row">
+                                <label>Sex</label>
+                                <input @bind="mSex" placeholder="M / F / etc." />
+                                <label>Vital Status</label>
+                                <select @bind="mVitalStatus">
+                                    @foreach (FamilyVitalStatus vs in Enum.GetValues<FamilyVitalStatus>())
+                                    {
+                                        <option value="@vs">@vs</option>
+                                    }
+                                </select>
+                            </div>
+                            <div class="form-row">
+                                <label>Age (if alive)</label>
+                                <input type="number" @bind="mAgeYears" placeholder="optional" />
+                                <label>Age at Death</label>
+                                <input type="number" @bind="mAgeAtDeath" placeholder="optional" />
+                            </div>
+                            <div class="form-row">
+                                <label>Cause of Death</label>
+                                <input @bind="mCauseOfDeath" placeholder="optional" />
+                                <label>Notes</label>
+                                <input @bind="mNotes" />
+                            </div>
+                            <div class="panel-btns">
+                                <button class="btn btn-primary" @onclick="SubmitAddMember" disabled="@addLoading">
+                                    @(addLoading ? "Adding…" : "Add Relative")
+                                </button>
+                                <button class="btn btn-secondary" @onclick="() => showAddMember = false">Cancel</button>
+                            </div>
+                        </div>
+                    }
+
+                    @if (family == null || family.Members.Count == 0)
+                    {
+                        <div class="empty-state">No family history recorded.</div>
+                    }
+                    else
+                    {
+                        <table class="data-table">
+                            <thead>
+                                <tr>
+                                    <th>Relationship</th>
+                                    <th>Sex</th>
+                                    <th>Vital Status</th>
+                                    <th>Age</th>
+                                    <th>Conditions</th>
+                                    <th>Cause of Death</th>
+                                    <th></th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (FamilyMemberHistoryEntry mem in family.Members)
+                                {
+                                    <tr>
+                                        <td>
+                                            <strong>@mem.Relationship</strong>
+                                            @if (!string.IsNullOrWhiteSpace(mem.Name)) { <div class="gen-mem-name">@mem.Name</div> }
+                                        </td>
+                                        <td>@(string.IsNullOrWhiteSpace(mem.Sex) ? "—" : mem.Sex)</td>
+                                        <td>@mem.VitalStatus</td>
+                                        <td>
+                                            @if (mem.VitalStatus == FamilyVitalStatus.Deceased)
+                                            {
+                                                <text>@(mem.AgeAtDeath.HasValue ? $"d. {mem.AgeAtDeath}" : "—")</text>
+                                            }
+                                            else
+                                            {
+                                                <text>@(mem.AgeYears?.ToString() ?? "—")</text>
+                                            }
+                                        </td>
+                                        <td>
+                                            @if (mem.Conditions.Count == 0)
+                                            {
+                                                <text>—</text>
+                                            }
+                                            else
+                                            {
+                                                @foreach (FamilyConditionEntry c in mem.Conditions)
+                                                {
+                                                    <div class="gen-cond">
+                                                        @c.Condition@(c.AgeAtDiagnosis is int a and > 0 ? $" (dx {a})" : "")
+                                                    </div>
+                                                }
+                                            }
+                                        </td>
+                                        <td>@(string.IsNullOrWhiteSpace(mem.CauseOfDeath) ? "—" : mem.CauseOfDeath)</td>
+                                        <td>
+                                            <button class="btn btn-secondary" @onclick="() => ToggleAddCondition(mem.MemberId)">
+                                                @(addConditionMemberId == mem.MemberId ? "Close" : "Add Condition")
+                                            </button>
+                                            <button class="btn btn-secondary" @onclick="() => SubmitRemoveMember(mem.MemberId)">Remove</button>
+                                        </td>
+                                    </tr>
+                                    @if (addConditionMemberId == mem.MemberId)
+                                    {
+                                        <tr>
+                                            <td colspan="7">
+                                                <div class="action-panel">
+                                                    <h5>Add Condition to @mem.Relationship</h5>
+                                                    <div class="form-row">
+                                                        <label>Condition</label>
+                                                        <input @bind="cCondition" placeholder="e.g. Breast cancer" />
+                                                        <label>Code</label>
+                                                        <input @bind="cCode" placeholder="SNOMED/ICD (optional)" />
+                                                    </div>
+                                                    <div class="form-row">
+                                                        <label>Age at Diagnosis</label>
+                                                        <input type="number" @bind="cAgeAtDiagnosis" placeholder="optional" />
+                                                        <label>Notes</label>
+                                                        <input @bind="cNotes" />
+                                                    </div>
+                                                    <div class="panel-btns">
+                                                        <button class="btn btn-primary" @onclick="SubmitAddCondition" disabled="@(addLoading || string.IsNullOrWhiteSpace(cCondition))">
+                                                            @(addLoading ? "Adding…" : "Add Condition")
+                                                        </button>
+                                                        <button class="btn btn-secondary" @onclick="() => addConditionMemberId = null">Cancel</button>
+                                                    </div>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    }
+                                }
+                            </tbody>
+                        </table>
+                    }
+                </div>
+            }
+        }
+    </div>
+}
+
+<style>
+    /* Canonical interaction classes (btn, btn-primary, btn-secondary, alert, alert-*,
+       data-table, badge, badge-*) are defined once in app.css. Only page-specific
+       styles live here. */
+    .gen-container { max-width: 1100px; margin: 0 auto; padding: 1rem; font-family: sans-serif; }
+    .gen-container h1 { color: #003f72; }
+    .loading { padding: 1.5rem; text-align: center; color: #555; }
+    .empty-state { padding: 0.75rem; color: #555; font-style: italic; }
+    .gen-tabs { display: flex; gap: 0.25rem; border-bottom: 2px solid #d4d9e0; margin-top: 1rem; }
+    .gen-tab { background: none; border: none; padding: 0.6rem 1.1rem; cursor: pointer; font-size: 0.95rem; color: #555; border-bottom: 3px solid transparent; margin-bottom: -2px; }
+    .gen-tab:hover { color: #003f72; }
+    .gen-tab.active { color: #003f72; font-weight: 600; border-bottom-color: #003f72; }
+    .gen-panel { background: #f9fafb; border: 1px solid #d4d9e0; border-radius: 8px; padding: 1rem; margin-top: 1rem; }
+    .gen-panel h3 { margin: 0 0 0.75rem; color: #003f72; }
+    .gen-panel-head { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 0.5rem; }
+    .gen-panel-head h3 { margin: 0; }
+    .gen-alerts { border-left: 4px solid #b91c1c; }
+    .gen-warnings { border-left: 4px solid #b45309; }
+    .gen-disclaimer { font-size: 0.8rem; color: #777; margin-top: 0.5rem; }
+    .form-row { display: flex; align-items: center; gap: 0.6rem; margin-bottom: 0.6rem; flex-wrap: wrap; }
+    .form-row label { font-size: 0.85rem; color: #333; min-width: 110px; }
+    .form-row input, .form-row select { flex: 1; padding: 0.35rem 0.5rem; border: 1px solid #d4d9e0; border-radius: 4px; font-size: 0.9rem; min-width: 120px; }
+    .detail-actions { display: flex; gap: 0.5rem; flex-wrap: wrap; margin: 0.5rem 0; }
+    .action-panel { background: #f4f6f9; border: 1px solid #d4d9e0; border-radius: 6px; padding: 1rem; margin-top: 0.75rem; }
+    .action-panel h5 { margin: 0 0 0.75rem; color: #003f72; }
+    .panel-btns { display: flex; gap: 0.5rem; margin-top: 0.75rem; }
+    button:disabled { opacity: 0.5; cursor: not-allowed; }
+    /* Finding / red-flag cards */
+    .gen-card { background: #fff; border: 1px solid #d4d9e0; border-left: 4px solid #999; border-radius: 6px; padding: 0.6rem 0.8rem; margin-bottom: 0.5rem; }
+    .gen-card.border-danger { border-left-color: #b91c1c; }
+    .gen-card.border-warning { border-left-color: #b45309; }
+    .gen-card.border-info { border-left-color: #0e7490; }
+    .gen-card.border-neutral { border-left-color: #999; }
+    .gen-card-header { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; }
+    .gen-gene { color: #003f72; font-size: 1rem; }
+    .gen-pattern { color: #003f72; font-size: 1rem; }
+    .gen-source { margin-left: auto; font-size: 0.8rem; color: #555; }
+    .gen-variant { font-family: monospace; color: #555; margin-top: 0.3rem; font-size: 0.85rem; }
+    .gen-syndrome { margin-top: 0.3rem; font-size: 0.9rem; color: #333; }
+    .gen-inh { color: #6b21a8; }
+    .gen-mgmt, .gen-detail, .gen-rec { font-size: 0.9rem; color: #333; margin-top: 0.35rem; }
+    .gen-rec { color: #003f72; }
+    /* Reports */
+    .gen-report { background: #fff; border: 1px solid #d4d9e0; border-radius: 6px; padding: 0.8rem; margin-top: 0.75rem; }
+    .gen-report-head { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; }
+    .gen-report-name { color: #003f72; font-size: 1rem; }
+    .gen-report-head button { margin-left: auto; }
+    .gen-report-meta { display: flex; gap: 0.9rem; flex-wrap: wrap; margin-top: 0.35rem; font-size: 0.82rem; color: #555; }
+    .gen-report-notes { font-size: 0.85rem; color: #444; margin-top: 0.35rem; font-style: italic; }
+    .gen-report .data-table { margin-top: 0.6rem; }
+    .gen-hgvs { font-family: monospace; }
+    .gen-hgvs-prot { font-family: monospace; color: #6b21a8; font-size: 0.85rem; }
+    .gen-mem-name { font-size: 0.8rem; color: #555; }
+    .gen-cond { font-size: 0.88rem; }
+</style>
+
+@code {
+    [SupplyParameterFromQuery] public string? patientId { get; set; }
+
+    // Hereditary genetics writes are OPEN (flag-gated); the whole page is gated on the
+    // HEREDITARY_GENETICS site flag above. Every signed-in user can use the forms (matches the
+    // pharmacogenomics / neonatal / OB open posture). No security key.
+
+    enum Tab { Risk, Results, Family }
+    Tab activeTab = Tab.Risk;
+
+    bool loading;
+    string? error;
+    string? successMsg;
+
+    GenomicsState? profile;
+    List<HereditaryFinding>? findings;
+    FamilyHistoryState? family;
+    List<FamilyRiskFlag>? riskFlags;
+
+    // ── Add-report form ──
+    bool showAddReport;
+    string rTestName = string.Empty, rLab = string.Empty, rIndication = string.Empty, rNotes = string.Empty;
+    string rOrderingProvider = string.Empty;
+    GeneticTestMethod rMethod = GeneticTestMethod.NextGenSequencing;
+    GeneticReportResult rResult = GeneticReportResult.Pending;
+    DateTime? rCollectionDate;
+    DateTime? rReportDate = DateTime.Today;
+
+    // ── Add-variant form ──
+    string? addVariantReportId;
+    string vGene = string.Empty, vHgvsCoding = string.Empty, vHgvsProtein = string.Empty, vTranscript = string.Empty;
+    string vClinVarId = string.Empty, vDbSnpId = string.Empty, vNotes = string.Empty;
+    VariantClassification vClassification = VariantClassification.UncertainSignificance;
+    VariantZygosity vZygosity = VariantZygosity.Heterozygous;
+    VariantOrigin vOrigin = VariantOrigin.Germline;
+
+    // ── Add-member form ──
+    bool showAddMember;
+    FamilyRelationship mRelationship = FamilyRelationship.Mother;
+    string mName = string.Empty, mSex = string.Empty, mCauseOfDeath = string.Empty, mNotes = string.Empty;
+    FamilyVitalStatus mVitalStatus = FamilyVitalStatus.Alive;
+    int? mAgeYears;
+    int? mAgeAtDeath;
+
+    // ── Add-condition form ──
+    string? addConditionMemberId;
+    string cCondition = string.Empty, cCode = string.Empty, cNotes = string.Empty;
+    int? cAgeAtDiagnosis;
+
+    bool addLoading;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (!SecurityContext.IsFeatureEnabled("HEREDITARY_GENETICS")) return;
+        if (string.IsNullOrWhiteSpace(patientId) && !string.IsNullOrWhiteSpace(PatientContext.PatientId))
+            patientId = PatientContext.PatientId;
+        if (!string.IsNullOrWhiteSpace(patientId) && profile == null)
+            await LoadAll();
+    }
+
+    async Task LoadAll()
+    {
+        if (string.IsNullOrWhiteSpace(patientId)) return;
+        loading = true; error = null;
+        try
+        {
+            IPatientWorkflowGrain workflow = Grains.GetGrain<IPatientWorkflowGrain>(patientId.Trim());
+            profile = await workflow.GetGenomicsProfileAsync();
+            findings = await workflow.GetHereditaryFindingsAsync();
+            family = await workflow.GetFamilyHistoryAsync();
+            riskFlags = await workflow.GetFamilyRiskFlagsAsync();
+            if (string.IsNullOrWhiteSpace(rOrderingProvider))
+                rOrderingProvider = Grains.CurrentUserName ?? "Provider";
+            PatientContext.SetPatient(patientId.Trim());
+        }
+        catch { error = "Failed to load genetics record."; }
+        finally { loading = false; }
+    }
+
+    // ── Reports ──
+    async Task SubmitAddReport()
+    {
+        if (string.IsNullOrWhiteSpace(patientId) || string.IsNullOrWhiteSpace(rTestName)) return;
+        addLoading = true; error = null; successMsg = null;
+        try
+        {
+            IPatientWorkflowGrain workflow = Grains.GetGrain<IPatientWorkflowGrain>(patientId.Trim());
+            string provider = string.IsNullOrWhiteSpace(rOrderingProvider) ? (Grains.CurrentUserName ?? "Provider") : rOrderingProvider.Trim();
+            await workflow.RecordGeneticTestReportAsync(
+                rTestName.Trim(), rLab.Trim(), rMethod, rIndication.Trim(),
+                rCollectionDate, rReportDate, rResult,
+                provider, rNotes.Trim(), Grains.CurrentUserName ?? "Provider");
+            successMsg = $"Recorded report {rTestName}.";
+            rTestName = rLab = rIndication = rNotes = string.Empty;
+            rMethod = GeneticTestMethod.NextGenSequencing;
+            rResult = GeneticReportResult.Pending;
+            rCollectionDate = null; rReportDate = DateTime.Today;
+            showAddReport = false;
+            await LoadAll();
+        }
+        catch { error = "Failed to record report."; }
+        finally { addLoading = false; }
+    }
+
+    async Task SubmitRemoveReport(string reportId)
+    {
+        if (string.IsNullOrWhiteSpace(patientId) || string.IsNullOrWhiteSpace(reportId)) return;
+        error = null; successMsg = null;
+        try
+        {
+            IPatientWorkflowGrain workflow = Grains.GetGrain<IPatientWorkflowGrain>(patientId.Trim());
+            await workflow.RemoveGeneticReportAsync(reportId);
+            successMsg = "Removed report.";
+            if (addVariantReportId == reportId) addVariantReportId = null;
+            await LoadAll();
+        }
+        catch { error = "Failed to remove report."; }
+    }
+
+    void ToggleAddVariant(string reportId)
+    {
+        addVariantReportId = addVariantReportId == reportId ? null : reportId;
+        vGene = vHgvsCoding = vHgvsProtein = vTranscript = vClinVarId = vDbSnpId = vNotes = string.Empty;
+        vClassification = VariantClassification.UncertainSignificance;
+        vZygosity = VariantZygosity.Heterozygous;
+        vOrigin = VariantOrigin.Germline;
+    }
+
+    async Task SubmitAddVariant()
+    {
+        if (string.IsNullOrWhiteSpace(patientId) || string.IsNullOrWhiteSpace(addVariantReportId) || string.IsNullOrWhiteSpace(vGene)) return;
+        addLoading = true; error = null; successMsg = null;
+        try
+        {
+            IPatientWorkflowGrain workflow = Grains.GetGrain<IPatientWorkflowGrain>(patientId.Trim());
+            await workflow.AddGeneticVariantAsync(
+                addVariantReportId, vGene.Trim(), vHgvsCoding.Trim(), vHgvsProtein.Trim(), vTranscript.Trim(),
+                vClassification, vZygosity, vOrigin, vClinVarId.Trim(), vDbSnpId.Trim(), vNotes.Trim());
+            successMsg = $"Added {vGene} variant.";
+            addVariantReportId = null;
+            await LoadAll();
+        }
+        catch { error = "Failed to add variant."; }
+        finally { addLoading = false; }
+    }
+
+    // ── Family members ──
+    async Task SubmitAddMember()
+    {
+        if (string.IsNullOrWhiteSpace(patientId)) return;
+        addLoading = true; error = null; successMsg = null;
+        try
+        {
+            IPatientWorkflowGrain workflow = Grains.GetGrain<IPatientWorkflowGrain>(patientId.Trim());
+            await workflow.AddFamilyMemberAsync(
+                mRelationship, mName.Trim(), mSex.Trim(), mVitalStatus,
+                mAgeYears, mAgeAtDeath, mCauseOfDeath.Trim(), mNotes.Trim());
+            successMsg = $"Added {mRelationship}.";
+            mName = mSex = mCauseOfDeath = mNotes = string.Empty;
+            mRelationship = FamilyRelationship.Mother;
+            mVitalStatus = FamilyVitalStatus.Alive;
+            mAgeYears = null; mAgeAtDeath = null;
+            showAddMember = false;
+            await LoadAll();
+        }
+        catch { error = "Failed to add relative."; }
+        finally { addLoading = false; }
+    }
+
+    async Task SubmitRemoveMember(string memberId)
+    {
+        if (string.IsNullOrWhiteSpace(patientId) || string.IsNullOrWhiteSpace(memberId)) return;
+        error = null; successMsg = null;
+        try
+        {
+            IPatientWorkflowGrain workflow = Grains.GetGrain<IPatientWorkflowGrain>(patientId.Trim());
+            await workflow.RemoveFamilyMemberAsync(memberId);
+            successMsg = "Removed relative.";
+            if (addConditionMemberId == memberId) addConditionMemberId = null;
+            await LoadAll();
+        }
+        catch { error = "Failed to remove relative."; }
+    }
+
+    void ToggleAddCondition(string memberId)
+    {
+        addConditionMemberId = addConditionMemberId == memberId ? null : memberId;
+        cCondition = cCode = cNotes = string.Empty;
+        cAgeAtDiagnosis = null;
+    }
+
+    async Task SubmitAddCondition()
+    {
+        if (string.IsNullOrWhiteSpace(patientId) || string.IsNullOrWhiteSpace(addConditionMemberId) || string.IsNullOrWhiteSpace(cCondition)) return;
+        addLoading = true; error = null; successMsg = null;
+        try
+        {
+            IPatientWorkflowGrain workflow = Grains.GetGrain<IPatientWorkflowGrain>(patientId.Trim());
+            await workflow.AddFamilyConditionAsync(addConditionMemberId, cCondition.Trim(), cCode.Trim(), cAgeAtDiagnosis, cNotes.Trim());
+            successMsg = "Added condition.";
+            addConditionMemberId = null;
+            await LoadAll();
+        }
+        catch { error = "Failed to add condition."; }
+        finally { addLoading = false; }
+    }
+
+    // ── Display helpers ──
+    static string ClassificationText(VariantClassification c) => c switch
+    {
+        VariantClassification.Pathogenic            => "Pathogenic",
+        VariantClassification.LikelyPathogenic      => "Likely pathogenic",
+        VariantClassification.UncertainSignificance => "VUS",
+        VariantClassification.LikelyBenign          => "Likely benign",
+        VariantClassification.Benign                => "Benign",
+        _                                           => "Unknown",
+    };
+
+    static string ClassificationBadge(VariantClassification c) => c switch
+    {
+        VariantClassification.Pathogenic            => "badge-danger",
+        VariantClassification.LikelyPathogenic      => "badge-danger",
+        VariantClassification.UncertainSignificance => "badge-warning",
+        VariantClassification.LikelyBenign          => "badge-info",
+        VariantClassification.Benign                => "badge-success",
+        _                                           => "badge-neutral",
+    };
+
+    static string ClassificationBorder(VariantClassification c) => c switch
+    {
+        VariantClassification.Pathogenic            => "border-danger",
+        VariantClassification.LikelyPathogenic      => "border-danger",
+        VariantClassification.UncertainSignificance => "border-warning",
+        VariantClassification.LikelyBenign          => "border-info",
+        _                                           => "border-neutral",
+    };
+
+    static string ReportResultText(GeneticReportResult r) => r switch
+    {
+        GeneticReportResult.Pending                        => "Pending",
+        GeneticReportResult.Negative                       => "Negative",
+        GeneticReportResult.PositivePathogenic             => "Positive (pathogenic)",
+        GeneticReportResult.VariantOfUncertainSignificance => "VUS only",
+        GeneticReportResult.CarrierDetected                => "Carrier detected",
+        GeneticReportResult.Indeterminate                  => "Indeterminate",
+        _                                                  => r.ToString(),
+    };
+
+    static string ReportResultBadge(GeneticReportResult r) => r switch
+    {
+        GeneticReportResult.PositivePathogenic             => "badge-danger",
+        GeneticReportResult.CarrierDetected                => "badge-warning",
+        GeneticReportResult.VariantOfUncertainSignificance => "badge-warning",
+        GeneticReportResult.Negative                       => "badge-success",
+        GeneticReportResult.Pending                        => "badge-info",
+        _                                                  => "badge-neutral",
+    };
+
+    static string MethodLabel(GeneticTestMethod m) => m switch
+    {
+        GeneticTestMethod.NextGenSequencing       => "Next-gen sequencing",
+        GeneticTestMethod.SangerSequencing        => "Sanger sequencing",
+        GeneticTestMethod.Mlpa                     => "MLPA (del/dup)",
+        GeneticTestMethod.Microarray              => "Microarray (CMA)",
+        GeneticTestMethod.Karyotype               => "Karyotype",
+        GeneticTestMethod.FishAnalysis            => "FISH",
+        GeneticTestMethod.PolymeraseChainReaction => "PCR",
+        GeneticTestMethod.Other                   => "Other",
+        _                                         => "Unknown",
+    };
+}

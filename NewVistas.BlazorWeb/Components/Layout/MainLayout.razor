@@ -198,6 +198,20 @@
             </NavLink>
             }
 
+            @* Hereditary Genetics & Family History — Modern module gated on the HEREDITARY_GENETICS
+               site flag. Genetic test reports + structured family history + curated hereditary-risk
+               assessment; writes are OPEN like pharmacogenomics/neonatal/OB, so gated on the flag
+               only, not a security key. *@
+            @if (SecurityContext.HasAccess(MenuArea.Clinical) && SecurityContext.IsFeatureEnabled("HEREDITARY_GENETICS"))
+            {
+            <div class="nav-divider"></div>
+            <div class="nav-section-title">Genetics</div>
+            <NavLink class="nav-item" href="/genetics">
+                <span class="nav-icon">🧬</span>
+                <span class="nav-label">Genetics &amp; Family Hx</span>
+            </NavLink>
+            }
+
             @* Home-Based Care (HBPC) — Modern module gated on the HOME_BASED_CARE site flag.
                Shown to any clinician; the page is read-only unless the user holds HBHC MANAGER. *@
             @if (SecurityContext.HasAccess(MenuArea.Clinical) && SecurityContext.IsFeatureEnabled("HOME_BASED_CARE"))

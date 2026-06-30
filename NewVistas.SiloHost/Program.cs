@@ -189,6 +189,7 @@ static partial class Program
         "prenatalVisitStore", "prenatalVisitIndexStore",
         "newbornStore", "newbornNurseryStore",
         "pharmacogenomicsStore",
+        "genomicsStore", "familyHistoryStore",
         "saEpisodeStore", "saEpisodeIndexStore",
         "saVisitStore", "saVisitIndexStore",
         "posClaimStore", "posClaimIndexStore",

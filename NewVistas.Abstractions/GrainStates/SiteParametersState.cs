@@ -96,9 +96,11 @@ public class SiteParametersState
     ///                                    newborn screening, nursery census (Modern enhancement; ENABLED BY DEFAULT, see SiteFeatures)
     ///   "PHARMACOGENOMICS"             — Coded pharmacogenomic gene results (star-allele diplotype + CPIC phenotype) that drive drug-gene
     ///                                    decision support in the DUR engine (Modern enhancement; ENABLED BY DEFAULT, see SiteFeatures)
+    ///   "HEREDITARY_GENETICS"          — Interpreted genetic test reports + coded variants (HGVS/ClinVar), structured family history, and a
+    ///                                    hereditary-risk assessment (germline variant→syndrome; family-history→referral) (Modern; ENABLED BY DEFAULT)
     /// </summary>
     [Id(7)]
-    public HashSet<string> Features { get; set; } = new() { SiteFeatures.ExternalPharmacy, SiteFeatures.Oncology, SiteFeatures.PrecisionOncology, SiteFeatures.HomeBasedCare, SiteFeatures.HomeHealthMedicare, SiteFeatures.NeonatalCare, SiteFeatures.Pharmacogenomics };
+    public HashSet<string> Features { get; set; } = new() { SiteFeatures.ExternalPharmacy, SiteFeatures.Oncology, SiteFeatures.PrecisionOncology, SiteFeatures.HomeBasedCare, SiteFeatures.HomeHealthMedicare, SiteFeatures.NeonatalCare, SiteFeatures.Pharmacogenomics, SiteFeatures.HereditaryGenetics };
 
     [Id(3)]
     public DateTime CreatedDate { get; set; } = DateTime.UtcNow;
@@ -185,4 +187,16 @@ public static class SiteFeatures
     /// (<c>DisableFeatureAsync("PHARMACOGENOMICS")</c>), and the DUR PGx check becomes a no-op.
     /// </summary>
     public const string Pharmacogenomics = "PHARMACOGENOMICS";
+
+    /// <summary>
+    /// Hereditary genetics &amp; family history — interpreted genetic test reports with coded reportable
+    /// variants (HGVS nomenclature, ClinVar/ACMG classification, germline vs somatic) stored as
+    /// first-class data rather than opaque lab text, plus a structured family history. A curated
+    /// hereditary-risk knowledge base derives the hereditary syndrome from a pathogenic germline
+    /// variant (BRCA→HBOC, MLH1→Lynch, …) and red-flag patterns from the family history (early-onset
+    /// breast cancer, ovarian cancer, Lynch clustering, …) that warrant a genetics referral. A
+    /// "Modern" enhancement, <b>enabled by default</b> so it appears in demos; a site can turn it off
+    /// (<c>DisableFeatureAsync("HEREDITARY_GENETICS")</c>).
+    /// </summary>
+    public const string HereditaryGenetics = "HEREDITARY_GENETICS";
 }

@@ -2370,6 +2370,49 @@ public interface IPatientWorkflowGrain : IGrainWithStringKey
     /// <summary>Drug-gene recommendations for a specific drug (the "check a drug" lookup).</summary>
     Task<List<Clinical.PgxRecommendation>> CheckDrugPharmacogenomicsAsync(string drugName);
 
+    // ─── Hereditary genetics & family history (HEREDITARY_GENETICS) ──────────────
+    // Interpreted genetic test reports + coded reportable variants (HGVS/ClinVar) and structured
+    // family history, with a curated hereditary-risk assessment (germline variant → syndrome; family
+    // history → referral red-flags). Reads + writes open (flag-gated), per the genetics blueprint's
+    // results-back / referral-out model. Read-only decision support — never auto-orders.
+
+    /// <summary>Records a genetic test report (with any variants); returns the report id.</summary>
+    Task<string> RecordGeneticTestReportAsync(
+        string testName, string lab, GrainStates.GeneticTestMethod method, string indication,
+        DateTime? collectionDate, DateTime? reportDate, GrainStates.GeneticReportResult overallResult,
+        string orderingProvider, string notes, string recordedBy);
+
+    /// <summary>Adds a reportable variant to an existing report.</summary>
+    Task AddGeneticVariantAsync(
+        string reportId, string gene, string hgvsCoding, string hgvsProtein, string transcript,
+        GrainStates.VariantClassification classification, GrainStates.VariantZygosity zygosity,
+        GrainStates.VariantOrigin origin, string clinVarId, string dbSnpId, string notes);
+
+    Task RemoveGeneticReportAsync(string reportId);
+
+    /// <summary>The patient's genomics record (genetic test reports + variants).</summary>
+    Task<GrainStates.GenomicsState> GetGenomicsProfileAsync();
+
+    /// <summary>Hereditary-syndrome findings from the patient's germline variants (curated KB).</summary>
+    Task<List<Clinical.HereditaryFinding>> GetHereditaryFindingsAsync();
+
+    /// <summary>Adds a family member entry; returns the member id.</summary>
+    Task<string> AddFamilyMemberAsync(
+        GrainStates.FamilyRelationship relationship, string name, string sex,
+        GrainStates.FamilyVitalStatus vitalStatus, int? ageYears, int? ageAtDeath,
+        string causeOfDeath, string notes);
+
+    /// <summary>Adds a condition to an existing family member.</summary>
+    Task AddFamilyConditionAsync(string memberId, string condition, string code, int? ageAtDiagnosis, string notes);
+
+    Task RemoveFamilyMemberAsync(string memberId);
+
+    /// <summary>The patient's structured family history.</summary>
+    Task<GrainStates.FamilyHistoryState> GetFamilyHistoryAsync();
+
+    /// <summary>Hereditary-cancer red-flag patterns in the family history (referral decision support).</summary>
+    Task<List<Clinical.FamilyRiskFlag>> GetFamilyRiskFlagsAsync();
+
     /// <summary>
     /// Creates a new oncology treatment episode linked to a tumor.
     /// Adds the treatment ID to the tumor record and the patient treatment index.
