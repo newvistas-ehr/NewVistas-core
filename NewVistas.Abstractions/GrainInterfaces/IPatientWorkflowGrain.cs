@@ -31,6 +31,16 @@ public interface IPatientWorkflowGrain : IGrainWithStringKey
 
     Task<GrainStates.CoverSheetState> GetCoverSheetAsync();
 
+    /// <summary>
+    /// A specialty-shaped cover sheet composed from a layout (General / Oncology / Procedural). Reads
+    /// only the sections the layout declares (+ a demographics/CWAD/allergies safety spine). Pass
+    /// null/"auto" for <paramref name="layoutId"/> to resolve per-patient-then-viewer: the patient's
+    /// clinical context sets the loudest default, the <paramref name="viewerRole"/> (provider
+    /// service/specialty, File #200) picks the lens among the relevant layouts. Gated by the
+    /// SPECIALTY_COVERSHEET feature. See SPECIALTY_COVERSHEET_PROTOTYPE.md.
+    /// </summary>
+    Task<GrainStates.SpecialtyCoverSheet> GetSpecialtyCoverSheetAsync(string? layoutId, string? viewerRole);
+
     // ─── Patient Demographics (DPT file #2, ORWPT.m SELECT) ─────────────
 
     Task<GrainStates.PatientState> GetPatientAsync();

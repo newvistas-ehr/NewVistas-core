@@ -98,9 +98,11 @@ public class SiteParametersState
     ///                                    decision support in the DUR engine (Modern enhancement; ENABLED BY DEFAULT, see SiteFeatures)
     ///   "HEREDITARY_GENETICS"          — Interpreted genetic test reports + coded variants (HGVS/ClinVar), structured family history, and a
     ///                                    hereditary-risk assessment (germline variant→syndrome; family-history→referral) (Modern; ENABLED BY DEFAULT)
+    ///   "SPECIALTY_COVERSHEET"         — The cover sheet as a composition of sections driven by a layout (General/Oncology/Procedural), resolved
+    ///                                    per-patient-then-viewer, over a non-suppressible safety spine (Modern; ENABLED BY DEFAULT, see SiteFeatures)
     /// </summary>
     [Id(7)]
-    public HashSet<string> Features { get; set; } = new() { SiteFeatures.ExternalPharmacy, SiteFeatures.Oncology, SiteFeatures.PrecisionOncology, SiteFeatures.HomeBasedCare, SiteFeatures.HomeHealthMedicare, SiteFeatures.NeonatalCare, SiteFeatures.Pharmacogenomics, SiteFeatures.HereditaryGenetics };
+    public HashSet<string> Features { get; set; } = new() { SiteFeatures.ExternalPharmacy, SiteFeatures.Oncology, SiteFeatures.PrecisionOncology, SiteFeatures.HomeBasedCare, SiteFeatures.HomeHealthMedicare, SiteFeatures.NeonatalCare, SiteFeatures.Pharmacogenomics, SiteFeatures.HereditaryGenetics, SiteFeatures.SpecialtyCoverSheet };
 
     [Id(3)]
     public DateTime CreatedDate { get; set; } = DateTime.UtcNow;
@@ -199,4 +201,15 @@ public static class SiteFeatures
     /// (<c>DisableFeatureAsync("HEREDITARY_GENETICS")</c>).
     /// </summary>
     public const string HereditaryGenetics = "HEREDITARY_GENETICS";
+
+    /// <summary>
+    /// Specialty cover sheet — the cover sheet as a composition of sections driven by a layout
+    /// (General / Oncology / Procedural) rather than one fixed layout for everyone. The layout is
+    /// resolved <b>per-patient-then-viewer</b> (the patient's clinical context sets the loudest
+    /// default; the viewer's provider service/specialty picks the lens among the relevant layouts),
+    /// and every layout renders over a non-suppressible safety spine (demographics/CWAD/allergies). A
+    /// "Modern" enhancement, <b>enabled by default</b>; a site can turn it off
+    /// (<c>DisableFeatureAsync("SPECIALTY_COVERSHEET")</c>), leaving the classic single-layout cover sheet.
+    /// </summary>
+    public const string SpecialtyCoverSheet = "SPECIALTY_COVERSHEET";
 }

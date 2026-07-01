@@ -305,6 +305,7 @@ using (var scope = app.Services.CreateScope())
     await PretermNicuSeed.SeedAsync(grainFactory, seedLogger);       // P9003 mother + preterm NICU newborn (Phase 2 NICU depth)
     await PharmacogenomicsSeed.SeedAsync(grainFactory, seedLogger);  // P9001 PGx profile (drug-gene DUR demo)
     await HereditaryGeneticsSeed.SeedAsync(grainFactory, seedLogger);// P9004 hereditary cancer (germline + family history)
+    await SpecialtyCoverSheetSeed.SeedAsync(grainFactory, seedLogger); // P9001 rotator-cuff surgery + shoulder MRI (specialty cover-sheet prototype)
     await SeedDemoCareTeamsAsync(app.Services, seedLogger);   // assigns P9001 now; P1..P30 skipped until imported
 
     // Auto-import demo patients if none exist

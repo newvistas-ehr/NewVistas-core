@@ -1,0 +1,412 @@
+@* Copyright 2026 Merrimack Valley Software Works, LLC. All rights reserved. *@
+@* This Source Code Form is subject to the terms of the Mozilla Public *@
+@* License, v. 2.0. If a copy of the MPL was not distributed with this *@
+@* file, You can obtain one at https://mozilla.org/MPL/2.0/.            *@
+@page "/coversheet-preview"
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+@rendermode InteractiveServer
+@using NewVistas.BlazorWeb.Services
+@using NewVistas.Abstractions.GrainInterfaces
+@using NewVistas.Abstractions.GrainStates
+@using NewVistas.Abstractions.Clinical
+@inject OrleansGrainService Grains
+@inject PatientContextService PatientContext
+@inject UserSecurityContext SecurityContext
+
+<PageTitle>Cover Sheet (Specialty)</PageTitle>
+
+@if (!SecurityContext.IsFeatureEnabled("SPECIALTY_COVERSHEET"))
+{
+    <div class="csp-container"><div class="alert alert-info">The specialty cover sheet is not enabled at this site.</div></div>
+}
+else
+{
+<div class="csp-container">
+    <h1>🗂️ Cover Sheet <span class="csp-specialty">specialty</span></h1>
+    <p class="csp-sub">Composed from a layout resolved <strong>per-patient-then-viewer</strong> — the patient's clinical context sets the loudest default, your provider role picks the lens — over a non-suppressible safety spine (demographics · CWAD · allergies). Switch layouts to compare specialty shapes.</p>
+
+    <PatientBar @bind-PatientId="patientId" Loading="loading" OnLoad="LoadAll" />
+
+    @if (error != null) { <div class="alert alert-error">@error</div> }
+
+    @if (string.IsNullOrWhiteSpace(patientId))
+    {
+        <div class="empty-state">Select a patient to preview specialty cover-sheet layouts.</div>
+    }
+    else
+    {
+        <div class="csp-switch">
+            <span class="csp-switch-label">Layout</span>
+            @foreach (var opt in LayoutOptions)
+            {
+                <button class="csp-tab @(selectedLayout == opt.Id ? "active" : "")" @onclick="() => Switch(opt.Id)">@opt.Label</button>
+            }
+        </div>
+
+        @if (loading) { <div class="loading">Composing cover sheet…</div> }
+        else if (cs != null)
+        {
+            <div class="csp-head">
+                <div><strong>@cs.LayoutName</strong> <span class="csp-reason">— @cs.LayoutReason</span></div>
+                <div class="csp-meta">@(string.IsNullOrWhiteSpace(viewerRole) ? "" : $"viewing as {viewerRole} · ")@cs.SectionsLoaded sections loaded · refreshed @cs.LastRefreshed.ToLocalTime().ToString("t")</div>
+            </div>
+
+            @if (!string.IsNullOrWhiteSpace(cs.ContextBanner))
+            {
+                <div class="csp-banner">⚠ @cs.ContextBanner</div>
+            }
+
+            @* ── Safety spine (always shown, no layout can remove) ── *@
+            <div class="csp-spine">
+                <div class="csp-spine-row">
+                    <span class="csp-name">@cs.Demographics.Name</span>
+                    <span class="csp-demo">@cs.Demographics.Sex@(cs.Demographics.Age is int age ? $" · {age} y" : "")</span>
+                    <span class="csp-cwad">CWAD: @(string.IsNullOrEmpty(cs.Cwad.ToString()) ? "—" : cs.Cwad.ToString())</span>
+                </div>
+                <div class="csp-allergies">
+                    <strong>Allergies:</strong>
+                    @if (cs.Allergies.Count == 0)
+                    {
+                        <span class="csp-nka">No known allergies</span>
+                    }
+                    else
+                    {
+                        @foreach (var al in cs.Allergies)
+                        {
+                            <span class="csp-allergy">@al.Allergen@(string.IsNullOrWhiteSpace(al.Severity) ? "" : $" ({al.Severity})")</span>
+                        }
+                    }
+                </div>
+            </div>
+
+            @* ── Sections in layout order ── *@
+            @foreach (var sec in cs.Sections)
+            {
+                <div class="csp-section @(sec.Prominent ? "prominent" : "")">
+                    <h3>@sec.Title @if (sec.Prominent) { <span class="csp-star">★</span> }</h3>
+                    @RenderSection(sec.SectionKey)
+                </div>
+            }
+        }
+    }
+</div>
+}
+
+@code {
+    [SupplyParameterFromQuery] public string? patientId { get; set; }
+    private string selectedLayout = "auto";
+    private SpecialtyCoverSheet? cs;
+    private bool loading;
+    private string? error;
+    private string? viewerRole;         // provider service/specialty (File #200) — the "-then-viewer" input
+    private bool viewerRoleResolved;
+
+    private record LayoutOpt(string Id, string Label);
+    private static readonly LayoutOpt[] LayoutOptions =
+    {
+        new("auto", "Auto"),
+        new(CoverSheetLayouts.General, "General (PCP)"),
+        new(CoverSheetLayouts.Oncology, "Oncology"),
+        new(CoverSheetLayouts.Procedural, "Procedural"),
+    };
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (string.IsNullOrWhiteSpace(patientId) && !string.IsNullOrWhiteSpace(PatientContext.PatientId))
+            patientId = PatientContext.PatientId;
+        if (!string.IsNullOrWhiteSpace(patientId) && cs == null)
+            await LoadAll();
+    }
+
+    async Task Switch(string layoutId)
+    {
+        selectedLayout = layoutId;
+        await LoadAll();
+    }
+
+    async Task LoadAll()
+    {
+        if (string.IsNullOrWhiteSpace(patientId)) return;
+        loading = true; error = null;
+        try
+        {
+            await EnsureViewerRoleAsync();
+            IPatientWorkflowGrain workflow = Grains.GetGrain<IPatientWorkflowGrain>(patientId.Trim());
+            string? layoutArg = selectedLayout == "auto" ? null : selectedLayout;
+            cs = await workflow.GetSpecialtyCoverSheetAsync(layoutArg, viewerRole);
+            PatientContext.SetPatient(patientId.Trim());
+        }
+        catch { error = "Failed to compose cover sheet."; }
+        finally { loading = false; }
+    }
+
+    // The viewer's role for per-patient-then-viewer resolution comes from the logged-in provider's
+    // File #200 record (ServiceSection/Specialty) — a provider attribute, not the unified-person layer.
+    async Task EnsureViewerRoleAsync()
+    {
+        if (viewerRoleResolved) return;
+        viewerRoleResolved = true;
+        try
+        {
+            string? uid = Grains.CurrentUserId;
+            if (!string.IsNullOrWhiteSpace(uid))
+            {
+                // The provider's File #200 staff record is keyed "USER:{userId}" (see AuthController /
+                // SeedDemoUsersAsync), NOT the raw user id.
+                var person = await Grains.GetGrain<INewPersonGrain>($"USER:{uid}").GetPersonAsync();
+                viewerRole = !string.IsNullOrWhiteSpace(person.ServiceSection) ? person.ServiceSection : person.Specialty;
+            }
+        }
+        catch { /* leave null → patient-context-only resolution */ }
+    }
+
+    private RenderFragment RenderSection(string key) => key switch
+    {
+        CoverSheetSections.Oncology => OncologySection,
+        CoverSheetSections.Procedures => ProceduresSection,
+        CoverSheetSections.Imaging => ImagingSection,
+        CoverSheetSections.Pgx => PgxSection,
+        CoverSheetSections.Problems => ProblemsSection,
+        CoverSheetSections.Medications => MedicationsSection,
+        CoverSheetSections.Reminders => RemindersSection,
+        CoverSheetSections.Labs => LabsSection,
+        CoverSheetSections.Vitals => VitalsSection,
+        CoverSheetSections.Visits => VisitsSection,
+        CoverSheetSections.Orders => OrdersSection,
+        CoverSheetSections.Consults => ConsultsSection,
+        _ => EmptySection
+    };
+
+    private RenderFragment EmptySection => @<span class="csp-empty">—</span>;
+
+    private RenderFragment OncologySection => @<div>
+        @if (cs!.OncologyTumors.Count == 0) { <span class="csp-empty">No oncology on file.</span> }
+        else
+        {
+            @foreach (var t in cs.OncologyTumors)
+            {
+                <div class="csp-onco">
+                    <div class="csp-onco-hdr">
+                        <span class="csp-onco-site">@t.PrimarySite</span>
+                        @if (!string.IsNullOrWhiteSpace(t.StageGroup)) { <span class="csp-badge stage">Stage @t.StageGroup</span> }
+                        <span class="csp-badge status">@t.Status</span>
+                    </div>
+                    <div class="csp-onco-line">@t.Histology · dx @t.DateOfDiagnosis.ToShortDateString() · @(t.OncologistName ?? "—")</div>
+                    <div class="csp-onco-line"><strong>Treatment:</strong> @t.CurrentTreatment</div>
+                    @if (t.Biomarkers.Count > 0)
+                    {
+                        <div class="csp-onco-line"><strong>Molecular:</strong> @string.Join(" · ", t.Biomarkers)</div>
+                    }
+                    @if (t.PrecisionMatches.Count > 0)
+                    {
+                        <div class="csp-matches">
+                            @foreach (var m in t.PrecisionMatches) { <span class="csp-badge match">@m</span> }
+                        </div>
+                    }
+                </div>
+            }
+        }
+    </div>;
+
+    private RenderFragment ProceduresSection => @<div>
+        @if (cs!.UpcomingProcedures.Count == 0) { <span class="csp-empty">No upcoming procedures.</span> }
+        else
+        {
+            <table class="csp-table"><thead><tr><th>Procedure</th><th>Date</th><th>Surgeon</th><th>Specialty</th><th>Status</th></tr></thead>
+            <tbody>
+                @foreach (var s in cs.UpcomingProcedures)
+                {
+                    <tr><td>@s.PrincipalProcedure</td><td>@s.DateOfOperation.ToShortDateString()</td><td>@(s.SurgeonName ?? "—")</td><td>@(s.SurgicalSpecialty ?? "—")</td><td>@s.Status</td></tr>
+                }
+            </tbody></table>
+        }
+    </div>;
+
+    private RenderFragment ImagingSection => @<div>
+        @if (cs!.LatestImaging.Count == 0) { <span class="csp-empty">No imaging on file.</span> }
+        else
+        {
+            @foreach (var im in cs.LatestImaging)
+            {
+                <div class="csp-img">
+                    <div class="csp-img-hdr"><span class="csp-img-name">@im.ProcedureName</span> <span class="csp-badge type">@im.ImagingType</span> <span class="csp-img-date">@(im.ExamDateTime?.ToShortDateString() ?? "—")</span></div>
+                    @if (!string.IsNullOrWhiteSpace(im.Impression))
+                    {
+                        <div class="csp-img-impression"><strong>Impression:</strong> @im.Impression</div>
+                    }
+                    <div class="csp-img-by">@(im.InterpretingPhysicianName ?? im.RequestingProviderName ?? "")</div>
+                </div>
+            }
+        }
+    </div>;
+
+    private RenderFragment PgxSection => @<div>
+        @if (cs!.PgxAlerts.Count == 0) { <span class="csp-empty">No actionable pharmacogenomic alerts.</span> }
+        else
+        {
+            @foreach (var a in cs.PgxAlerts) { <span class="csp-badge pgx">@a</span> }
+        }
+    </div>;
+
+    private RenderFragment ProblemsSection => @<div>
+        @if (cs!.ActiveProblems.Count == 0) { <span class="csp-empty">No active problems.</span> }
+        else
+        {
+            <table class="csp-table"><thead><tr><th>Problem</th><th>Code</th><th>Status</th><th>Onset</th></tr></thead>
+            <tbody>
+                @foreach (var p in cs.ActiveProblems)
+                {
+                    <tr><td>@p.Diagnosis</td><td>@(p.DiagnosisCode ?? "—")</td><td>@p.Status</td><td>@(p.DateOfOnset?.ToShortDateString() ?? "—")</td></tr>
+                }
+            </tbody></table>
+        }
+    </div>;
+
+    private RenderFragment MedicationsSection => @<div>
+        @if (cs!.ActiveMedications.Count == 0) { <span class="csp-empty">No active medications.</span> }
+        else
+        {
+            <table class="csp-table"><thead><tr><th>Drug</th><th>Sig</th><th>Status</th></tr></thead>
+            <tbody>
+                @foreach (var m in cs.ActiveMedications)
+                {
+                    <tr><td>@m.DrugName</td><td>@(m.Sig ?? "—")</td><td>@m.Status</td></tr>
+                }
+            </tbody></table>
+        }
+    </div>;
+
+    private RenderFragment RemindersSection => @<div>
+        @if (cs!.ClinicalReminders.Count == 0) { <span class="csp-empty">No reminders due.</span> }
+        else
+        {
+            <table class="csp-table"><thead><tr><th>Reminder</th><th>Status</th><th>Due</th></tr></thead>
+            <tbody>
+                @foreach (var r in cs.ClinicalReminders)
+                {
+                    <tr><td>@r.ReminderName</td><td>@r.Status</td><td>@(r.DueDate?.ToShortDateString() ?? "—")</td></tr>
+                }
+            </tbody></table>
+        }
+    </div>;
+
+    private RenderFragment LabsSection => @<div>
+        @if (cs!.RecentLabs.Count == 0) { <span class="csp-empty">No recent labs.</span> }
+        else
+        {
+            <table class="csp-table"><thead><tr><th>Test</th><th>Result</th><th>Flag</th><th>Date</th></tr></thead>
+            <tbody>
+                @foreach (var l in cs.RecentLabs)
+                {
+                    <tr><td>@l.TestName</td><td>@l.ResultValue @l.Units</td><td>@(l.Flag ?? "")</td><td>@(l.CollectionDate?.ToShortDateString() ?? "—")</td></tr>
+                }
+            </tbody></table>
+        }
+    </div>;
+
+    private RenderFragment VitalsSection => @<div>
+        @if (cs!.RecentVitals.Count == 0) { <span class="csp-empty">No recent vitals.</span> }
+        else
+        {
+            <table class="csp-table"><thead><tr><th>Vital</th><th>Value</th><th>Taken</th></tr></thead>
+            <tbody>
+                @foreach (var v in cs.RecentVitals)
+                {
+                    <tr><td>@v.VitalType</td><td>@v.Value @v.Units</td><td>@v.DateTimeTaken.ToShortDateString()</td></tr>
+                }
+            </tbody></table>
+        }
+    </div>;
+
+    private RenderFragment VisitsSection => @<div>
+        @if (cs!.RecentVisits.Count == 0) { <span class="csp-empty">No recent visits.</span> }
+        else
+        {
+            <table class="csp-table"><thead><tr><th>Clinic</th><th>Date</th><th>Status</th><th>Provider</th></tr></thead>
+            <tbody>
+                @foreach (var v in cs.RecentVisits)
+                {
+                    <tr><td>@(v.ClinicName ?? "—")</td><td>@v.AppointmentDateTime.ToShortDateString()</td><td>@v.Status</td><td>@(v.ProviderName ?? "—")</td></tr>
+                }
+            </tbody></table>
+        }
+    </div>;
+
+    private RenderFragment OrdersSection => @<div>
+        @if (cs!.ActiveOrders.Count == 0) { <span class="csp-empty">No active orders.</span> }
+        else
+        {
+            <table class="csp-table"><thead><tr><th>Order</th><th>Type</th><th>Status</th></tr></thead>
+            <tbody>
+                @foreach (var o in cs.ActiveOrders)
+                {
+                    <tr><td>@o.OrderText</td><td>@o.OrderType</td><td>@o.Status</td></tr>
+                }
+            </tbody></table>
+        }
+    </div>;
+
+    private RenderFragment ConsultsSection => @<div>
+        @if (cs!.ActiveConsults.Count == 0) { <span class="csp-empty">No active consults.</span> }
+        else
+        {
+            <table class="csp-table"><thead><tr><th>To service</th><th>Status</th></tr></thead>
+            <tbody>
+                @foreach (var c in cs.ActiveConsults)
+                {
+                    <tr><td>@c.ToService</td><td>@c.Status</td></tr>
+                }
+            </tbody></table>
+        }
+    </div>;
+}
+
+<style>
+    .csp-container { max-width: 1200px; }
+    .csp-container h1 { color: #003f72; }
+    .csp-specialty { font-size: 0.5em; background: #eaf2fb; color: #003f72; padding: 2px 8px; border-radius: 10px; vertical-align: middle; font-weight: 600; border: 1px solid #b9d3ef; }
+    .csp-sub { color: #556; margin: -0.4rem 0 1rem; font-size: 0.9rem; }
+    .csp-switch { display: flex; align-items: center; gap: 0.4rem; margin: 0.8rem 0; }
+    .csp-switch-label { font-weight: 600; color: #445; margin-right: 0.3rem; }
+    .csp-tab { border: 1px solid #c5d3e3; background: #fff; color: #003f72; padding: 0.4rem 0.9rem; border-radius: 6px; cursor: pointer; font-weight: 600; }
+    .csp-tab.active { background: #003f72; color: #fff; border-color: #003f72; }
+    .csp-head { display: flex; justify-content: space-between; align-items: baseline; margin: 0.6rem 0 0.4rem; }
+    .csp-reason { color: #667; font-style: italic; }
+    .csp-meta { color: #889; font-size: 0.82rem; }
+    .csp-banner { background: #fdecea; border: 1px solid #f5b7b1; color: #922b21; padding: 0.6rem 0.9rem; border-radius: 6px; font-weight: 600; margin-bottom: 0.8rem; }
+    .csp-spine { background: #eef3f9; border: 1px solid #c5d3e3; border-radius: 8px; padding: 0.7rem 0.95rem; margin-bottom: 1rem; }
+    .csp-spine-row { display: flex; gap: 1.2rem; align-items: baseline; }
+    .csp-name { font-weight: 800; color: #003f72; font-size: 1.05rem; }
+    .csp-demo { color: #556; }
+    .csp-cwad { margin-left: auto; font-weight: 700; color: #922b21; letter-spacing: 1px; }
+    .csp-allergies { margin-top: 0.4rem; padding-top: 0.4rem; border-top: 1px dashed #c5d3e3; }
+    .csp-allergy { display: inline-block; background: #fdecea; color: #922b21; border: 1px solid #f5b7b1; border-radius: 4px; padding: 1px 8px; margin: 0 4px 4px 0; font-size: 0.84rem; font-weight: 600; }
+    .csp-nka { color: #587; font-weight: 600; }
+    .csp-section { border: 1px solid #e2e8f0; border-radius: 8px; padding: 0.6rem 0.95rem 0.85rem; margin-bottom: 0.75rem; }
+    .csp-section h3 { margin: 0.1rem 0 0.5rem; font-size: 1rem; color: #34495e; }
+    .csp-section.prominent { border-left: 5px solid #003f72; background: #f7fafd; }
+    .csp-section.prominent h3 { color: #003f72; font-size: 1.12rem; }
+    .csp-star { color: #e0a800; }
+    .csp-empty { color: #99a; font-style: italic; }
+    .csp-table { width: 100%; border-collapse: collapse; font-size: 0.86rem; }
+    .csp-table th { text-align: left; color: #667; font-weight: 600; border-bottom: 1px solid #e2e8f0; padding: 3px 8px; }
+    .csp-table td { padding: 3px 8px; border-bottom: 1px solid #f1f4f8; }
+    .csp-onco { border: 1px solid #dbe4f0; border-radius: 6px; padding: 0.5rem 0.7rem; margin-bottom: 0.4rem; }
+    .csp-onco-hdr { display: flex; gap: 0.5rem; align-items: center; }
+    .csp-onco-site { font-weight: 700; color: #003f72; }
+    .csp-onco-line { color: #445; font-size: 0.88rem; margin-top: 2px; }
+    .csp-matches { margin-top: 0.4rem; }
+    .csp-badge { display: inline-block; border-radius: 4px; padding: 1px 8px; margin: 0 4px 4px 0; font-size: 0.8rem; font-weight: 600; }
+    .csp-badge.stage { background: #eaf2fb; color: #003f72; border: 1px solid #b9d3ef; }
+    .csp-badge.status { background: #eafaf1; color: #1e7e46; border: 1px solid #a9dfc0; }
+    .csp-badge.match { background: #f0eafa; color: #5b3ea6; border: 1px solid #cdbde9; }
+    .csp-badge.type { background: #eef3f9; color: #445; border: 1px solid #c5d3e3; }
+    .csp-badge.pgx { background: #fff4e0; color: #8a5a00; border: 1px solid #f0d190; }
+    .csp-img { border: 1px solid #dbe4f0; border-radius: 6px; padding: 0.5rem 0.7rem; margin-bottom: 0.4rem; }
+    .csp-img-hdr { display: flex; gap: 0.5rem; align-items: center; }
+    .csp-img-name { font-weight: 700; color: #003f72; }
+    .csp-img-date { color: #889; font-size: 0.82rem; }
+    .csp-img-impression { color: #333; font-size: 0.9rem; margin-top: 3px; }
+    .csp-img-by { color: #889; font-size: 0.8rem; margin-top: 2px; }
+    .empty-state, .loading { color: #667; padding: 1rem 0; }
+</style>

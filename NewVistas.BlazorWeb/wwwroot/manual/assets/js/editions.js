@@ -16,7 +16,7 @@
     PROVIDER_AVAILABILITY: "modern", PROVIDER_UNAVAILABILITY_BATCH: "modern",
     PATIENT_SELF_SCHEDULING: "modern", EXTERNAL_PHARMACY: "modern", ONCOLOGY: "modern", PRECISION_ONCOLOGY: "modern",
     HOME_BASED_CARE: "modern", HOME_HEALTH_MEDICARE: "modern", NEONATAL_CARE: "modern",
-    PHARMACOGENOMICS: "modern", HEREDITARY_GENETICS: "modern"
+    PHARMACOGENOMICS: "modern", HEREDITARY_GENETICS: "modern", SPECIALTY_COVERSHEET: "modern"
   };
 
   fetch("/api/site/features", { headers: { Accept: "application/json" } })

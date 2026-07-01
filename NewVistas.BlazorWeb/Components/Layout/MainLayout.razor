@@ -56,6 +56,13 @@
                 <span class="nav-icon">📋</span>
                 <span class="nav-label">Cover Sheet</span>
             </NavLink>
+            @if (SecurityContext.IsFeatureEnabled("SPECIALTY_COVERSHEET"))
+            {
+                <NavLink class="nav-item" href="/coversheet-preview">
+                    <span class="nav-icon">🗂️</span>
+                    <span class="nav-label">Cover Sheet (Specialty)</span>
+                </NavLink>
+            }
             <NavLink class="nav-item" href="/patient-summary">
                 <span class="nav-icon">🧠</span>
                 <span class="nav-label">AI Summary</span>
