@@ -524,6 +524,14 @@ public class PatientState : EventSourcedStateBase
     public string? Icn { get; set; }
 
     /// <summary>
+    /// Person anchor (ADR-002) — the human this chart belongs to. Null until linked. Set via
+    /// <c>PersonGrain.LinkPatientAsync</c>. Lets cross-role lookups discover that this patient is also
+    /// a staff member and/or a relative on another chart. Additive overlay — does NOT replace Icn/Dfn.
+    /// </summary>
+    [Id(83)]
+    public string? PersonId { get; set; }
+
+    /// <summary>
     /// Quick flag indicating whether this patient record is marked as sensitive.
     /// Mirrors PAC grain for cover sheet display. (DG SENSITIVITY .01)
     /// </summary>

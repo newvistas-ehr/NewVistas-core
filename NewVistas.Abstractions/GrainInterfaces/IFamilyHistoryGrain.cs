@@ -18,6 +18,9 @@ public interface IFamilyHistoryGrain : IGrainWithStringKey
     /// <summary>Adds a condition to an existing family member.</summary>
     Task AddConditionAsync(string memberId, FamilyConditionEntry condition);
 
+    /// <summary>Links (or clears, when null/empty) a family member to a Person anchor (ADR-002).</summary>
+    Task SetMemberPersonLinkAsync(string memberId, string? personId);
+
     Task RemoveMemberAsync(string memberId);
 
     Task<FamilyHistoryState> GetAsync();

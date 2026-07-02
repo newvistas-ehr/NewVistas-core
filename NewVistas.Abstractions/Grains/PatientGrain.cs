@@ -50,6 +50,13 @@ public class PatientGrain : Grain, IPatientGrain
         return Task.FromResult(_state.State);
     }
 
+    public async Task SetPersonIdAsync(string? personId)
+    {
+        _state.State.PersonId = personId;
+        _state.State.LastModifiedDate = DateTime.UtcNow;
+        await _state.WriteStateAsync();
+    }
+
     public async Task<PatientState> UpdateDemographicsAsync(
         string name,
         string sex,

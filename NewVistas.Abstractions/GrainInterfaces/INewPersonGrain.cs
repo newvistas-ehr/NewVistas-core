@@ -32,6 +32,13 @@ public interface INewPersonGrain : IGrainWithStringKey
     Task<GrainStates.NewPersonState> GetPersonAsync();
 
     /// <summary>
+    /// Sets (or clears, when null) the Person anchor for this staff record (ADR-002). Called by
+    /// <c>PersonGrain.LinkStaffAsync</c>/<c>UnlinkStaffAsync</c>. Additive — touches only
+    /// <c>NewPersonState.PersonId</c>.
+    /// </summary>
+    Task SetPersonIdAsync(string? personId);
+
+    /// <summary>
     /// Initialize or update the core identity fields.
     /// Called when a user account is first created or when admin updates staff record.
     /// </summary>

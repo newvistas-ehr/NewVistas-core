@@ -48,6 +48,15 @@ public class FamilyHistoryGrain : Grain, IFamilyHistoryGrain
         await _state.WriteStateAsync();
     }
 
+    public async Task SetMemberPersonLinkAsync(string memberId, string? personId)
+    {
+        FamilyMemberHistoryEntry? member = _state.State.Members.FirstOrDefault(m => m.MemberId == memberId);
+        if (member is null) return;
+        member.LinkedPersonId = personId ?? string.Empty;
+        _state.State.LastModifiedDate = DateTime.UtcNow;
+        await _state.WriteStateAsync();
+    }
+
     public async Task RemoveMemberAsync(string memberId)
     {
         int removed = _state.State.Members.RemoveAll(m => m.MemberId == memberId);

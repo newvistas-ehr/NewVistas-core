@@ -2423,6 +2423,20 @@ public interface IPatientWorkflowGrain : IGrainWithStringKey
     /// <summary>Hereditary-cancer red-flag patterns in the family history (referral decision support).</summary>
     Task<List<Clinical.FamilyRiskFlag>> GetFamilyRiskFlagsAsync();
 
+    // ─── Person identity (ADR-002) — cross-role anchor, from the patient side ──────
+
+    /// <summary>This chart's Person anchor if one is linked; else null. (Cross-role detail gated in Phase 4.)</summary>
+    Task<GrainStates.PersonState?> GetPatientPersonAsync();
+
+    /// <summary>Bootstraps a Person from this patient's demographics and links the chart (idempotent); returns the PersonId.</summary>
+    Task<string> CreateOrGetPersonForPatientAsync(string facilityId, GrainStates.PersonLinkConfidence confidence, string byUser);
+
+    /// <summary>Links an already-created Person to this chart (registrar-confirmed).</summary>
+    Task LinkPatientToPersonAsync(string personId, string facilityId, GrainStates.PersonLinkConfidence confidence, string byUser);
+
+    /// <summary>Links a family-history relative on this chart to a known Person (+ records the reverse appearance).</summary>
+    Task LinkFamilyMemberToPersonAsync(string memberId, string personId, string byUser);
+
     /// <summary>
     /// Creates a new oncology treatment episode linked to a tumor.
     /// Adds the treatment ID to the tumor record and the patient treatment index.

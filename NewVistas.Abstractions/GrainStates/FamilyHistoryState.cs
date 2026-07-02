@@ -70,6 +70,12 @@ public class FamilyMemberHistoryEntry
     [Id(7)] public string CauseOfDeath { get; set; } = string.Empty;
     [Id(8)] public List<FamilyConditionEntry> Conditions { get; set; } = new();
     [Id(9)] public string Notes { get; set; } = string.Empty;
+    /// <summary>
+    /// Person anchor (ADR-002) — set when this relative is confirmed to be a known Person (e.g. a
+    /// relative who is also a patient here). Empty = a described entity only (the default). Enables
+    /// cascade testing: "this mother is patient X, a confirmed carrier."
+    /// </summary>
+    [Id(10)] public string LinkedPersonId { get; set; } = string.Empty;
 }
 
 /// <summary>

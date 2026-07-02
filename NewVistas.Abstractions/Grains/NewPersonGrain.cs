@@ -57,6 +57,13 @@ public class NewPersonGrain : Grain, INewPersonGrain
 
     public Task<NewPersonState> GetPersonAsync() => Task.FromResult(_state.State);
 
+    public async Task SetPersonIdAsync(string? personId)
+    {
+        _state.State.PersonId = personId;
+        _state.State.LastModifiedDate = DateTime.UtcNow;
+        await _state.WriteStateAsync();
+    }
+
     public async Task UpdateProfileAsync(
         string name,
         string? title,

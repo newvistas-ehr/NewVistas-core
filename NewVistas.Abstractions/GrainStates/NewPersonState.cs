@@ -183,6 +183,14 @@ public class NewPersonState
     /// </summary>
     [Id(23)]
     public string DefaultWardName { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Person anchor (ADR-002) — the human this staff record is. Null until linked. Set via
+    /// <c>PersonGrain.LinkStaffAsync</c>. Lets cross-role lookups discover that this staff member is
+    /// also a patient (an "employee-patient" — sensitive; see ADR-002 Phase 4). Additive overlay.
+    /// </summary>
+    [Id(24)]
+    public string? PersonId { get; set; }
 }
 
 /// <summary>

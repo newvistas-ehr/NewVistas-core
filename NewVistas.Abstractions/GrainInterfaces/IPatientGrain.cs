@@ -19,6 +19,13 @@ public interface IPatientGrain : IGrainWithStringKey
     Task<GrainStates.PatientState> GetPatientAsync();
 
     /// <summary>
+    /// Sets (or clears, when null) the Person anchor for this chart (ADR-002). Called by
+    /// <c>PersonGrain.LinkPatientAsync</c>/<c>UnlinkPatientAsync</c> so the back-pointer never drifts
+    /// from the Person's role list. Additive — touches only <c>PatientState.PersonId</c>.
+    /// </summary>
+    Task SetPersonIdAsync(string? personId);
+
+    /// <summary>
     /// Updates the patient demographic information
     /// </summary>
     Task<PatientState> UpdateDemographicsAsync(
