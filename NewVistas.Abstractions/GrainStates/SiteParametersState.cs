@@ -100,9 +100,11 @@ public class SiteParametersState
     ///                                    hereditary-risk assessment (germline variant→syndrome; family-history→referral) (Modern; ENABLED BY DEFAULT)
     ///   "SPECIALTY_COVERSHEET"         — The cover sheet as a composition of sections driven by a layout (General/Oncology/Procedural), resolved
     ///                                    per-patient-then-viewer, over a non-suppressible safety spine (Modern; ENABLED BY DEFAULT, see SiteFeatures)
+    ///   "PERSON_IDENTITY"              — Person anchor unifying one human across patient/staff/relative roles (ADR-002): cross-role view, link
+    ///                                    workflow, employee-patient privacy guard, cascade opportunities (Modern; ENABLED BY DEFAULT, see SiteFeatures)
     /// </summary>
     [Id(7)]
-    public HashSet<string> Features { get; set; } = new() { SiteFeatures.ExternalPharmacy, SiteFeatures.Oncology, SiteFeatures.PrecisionOncology, SiteFeatures.HomeBasedCare, SiteFeatures.HomeHealthMedicare, SiteFeatures.NeonatalCare, SiteFeatures.Pharmacogenomics, SiteFeatures.HereditaryGenetics, SiteFeatures.SpecialtyCoverSheet };
+    public HashSet<string> Features { get; set; } = new() { SiteFeatures.ExternalPharmacy, SiteFeatures.Oncology, SiteFeatures.PrecisionOncology, SiteFeatures.HomeBasedCare, SiteFeatures.HomeHealthMedicare, SiteFeatures.NeonatalCare, SiteFeatures.Pharmacogenomics, SiteFeatures.HereditaryGenetics, SiteFeatures.SpecialtyCoverSheet, SiteFeatures.PersonIdentity };
 
     [Id(3)]
     public DateTime CreatedDate { get; set; } = DateTime.UtcNow;
@@ -212,4 +214,14 @@ public static class SiteFeatures
     /// (<c>DisableFeatureAsync("SPECIALTY_COVERSHEET")</c>), leaving the classic single-layout cover sheet.
     /// </summary>
     public const string SpecialtyCoverSheet = "SPECIALTY_COVERSHEET";
+
+    /// <summary>
+    /// Person identity (ADR-002) — a Person anchor that unifies one human across their patient, staff,
+    /// and relative roles (the triplication fix + the nurse-who-is-a-patient). Surfaces the (privileged,
+    /// audited, break-the-glass) cross-role view, the link workflow + candidate suggestion, the
+    /// employee-patient privacy guard, the patient access report, and cascade-testing opportunities. A
+    /// "Modern" enhancement, <b>enabled by default</b>; a site can turn it off
+    /// (<c>DisableFeatureAsync("PERSON_IDENTITY")</c>) — the nullable Person back-pointers simply go unused.
+    /// </summary>
+    public const string PersonIdentity = "PERSON_IDENTITY";
 }

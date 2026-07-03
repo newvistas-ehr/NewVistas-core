@@ -433,6 +433,10 @@ public partial class PatientWorkflowGrain
             await SyncProviderOnScheduleAsync(providerId, providerName ?? string.Empty,
                 appointmentId, clinicId, clinicName, appointmentDateTime,
                 durationMinutes, purpose, appointmentType);
+            // ADR-002 Phase 4b: an appointment establishes a (lasting) treatment relationship — the
+            // provider "has or had a scheduled appointment", so access is authorized without a manual list.
+            await GrainFactory.GetGrain<IPatientAccessControlGrain>($"PAC:{PatientId}")
+                .EstablishRelationshipAsync(providerId, TreatmentRelationshipReason.Appointment, appointmentId, null);
         }
 
         return appointmentId;

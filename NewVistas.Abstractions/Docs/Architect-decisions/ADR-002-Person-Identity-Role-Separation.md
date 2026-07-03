@@ -1,6 +1,6 @@
 # ADR-002 — Person Identity & Role Separation
 
-**Status:** Accepted (Phases 0–3 approved for implementation 2026-07-02)
+**Status:** Accepted — Phases 0–6 implemented (2026‑07‑03)
 **Relates to:** [ADR-001 — Patient Identity Strategy](ADR-001-Patient-Identity-Strategy.md),
 [genetics-and-family-modeling.md](../Domain/genetics-and-family-modeling.md) (the "triplication problem" + "identity vs role" open questions this ADR resolves)
 
@@ -76,8 +76,9 @@ Concrete cases this enables:
 | **2** | Nullable back‑pointers + `SetPersonIdAsync` on patient/staff + link/unlink workflow + family‑member link. | approved |
 | **3** | Bootstrap (create‑Person‑from‑record) + demo (nurse‑patient, mother‑patient‑relative) + tests. | approved |
 | **4** | Cross‑role "Person view" + employee‑patient privacy guard (break‑the‑glass, audited). | ✅ (2026‑07‑03) |
-| 5 | Cascade / genetics integration (confirmed relative→Person feeds hereditary‑risk). | after review |
-| 6 | UI (Person panel + link UI mirroring External‑Identities/merge) + candidate suggestion + docs. | after review |
+| **4b** | Auto‑*establish* treatment relationship (surgery + appointment) + patient access report + suspicious‑access surface. | ✅ (2026‑07‑03) |
+| **5** | Cascade / genetics integration (confirmed relative→Person feeds hereditary‑risk). | ✅ (2026‑07‑03) |
+| **6** | UI (Person panel + link UI mirroring External‑Identities/merge) + REST + flag + docs. | ✅ (2026‑07‑03) |
 
 ## Phase 4 — implemented (2026‑07‑03)
 
@@ -109,10 +110,53 @@ The privacy guard, built on the existing `PatientAccessControlGrain` (PAC), enfo
   sacrosanct for access; strong privacy is don't‑leak‑status + audit‑and‑notify + confidential/alias
   registration or a different facility — never friction on your own caregivers.
 
-**Follow‑on (still Phase‑4‑adjacent, not built):** auto‑*establishing* the treatment relationship from
-encounters/orders/OR‑case/unit‑admission (today the authorized list is populated manually / by care
-team) — so the surgical cast and floor coverage are authorized without a hand‑curated list; plus
-anomaly detection and a patient‑facing access report.
+## Phase 4b — implemented (2026‑07‑03)
+
+Closes the Phase‑4 follow‑on: the treatment relationship is now **auto‑established**, not hand‑curated.
+
+- **`TreatmentRelationship`** (`[Id(12)]` on `PatientAccessControlState`): `{UserId, Reason, SourceRef,
+  EstablishedDate, ExpiresDate?}` with `TreatmentRelationshipReason {CareTeam, Encounter, Order, Surgery,
+  Appointment, UnitCoverage, Consult, Admission}`.
+- **`PAC.EstablishRelationshipAsync(userId, reason, sourceRef, expiresAt?)`** — upsert by (user, reason,
+  source). `DecideAccessAsync` now grants `AllowedByRelationship` when the viewer is in the authorized
+  list **or** holds a non‑expired relationship — still never gated, no BTG.
+- **Auto‑wire from the workflow:** `ScheduleSurgeryAsync` establishes a `Surgery` relationship for the
+  surgeon; `ScheduleAppointmentAsync` establishes an `Appointment` relationship for the provider — so the
+  surgical cast / clinic provider are authorized without a curated list. (Orders / unit‑admission /
+  consults remain a further follow‑on.)
+- **Patient access report + anomaly surface:** `GetMyAccessLogAsync` (who viewed my chart) and
+  `GetSuspiciousAccessesAsync` (break‑the‑glass **or** `BLOCKED_PENDING_BTG` — access without a
+  relationship). Expired relationships correctly fall back to `RequiresBreakTheGlass`.
+- **Tests:** 6 functional in `PersonRelationshipCascadeTests` (surgery/appointment auto‑establish grant
+  with no BTG, direct establish, expired‑relationship fallback, non‑team still needs BTG, suspicious‑list
+  contents).
+
+## Phase 5 — implemented (2026‑07‑03)
+
+The confirmed relative→Person link now feeds hereditary risk (the payoff of linking a relative to a real chart).
+
+- **`CascadeOpportunity`** (in `Clinical.HereditaryRisk`): `{RelativeName, Relationship,
+  RelativePatientId, Gene, Variant, Syndrome, Recommendation}`.
+- **`GetCascadeOpportunitiesAsync`** (workflow): for each structured family‑history member with a
+  `LinkedPersonId`, resolve the Person → its patient chart → that chart's genomics → run
+  `HereditaryRisk.AssessVariants`; each confirmed **germline pathogenic/likely‑pathogenic** finding on the
+  relative's own chart surfaces a cascade‑testing opportunity on **this** patient ("your mother is a
+  confirmed BRCA1 carrier — offer targeted testing"). Decision support only.
+- **Tests:** 3 functional (linked relative with a pathogenic variant surfaces it; unlinked relative or a
+  relative with no pathogenic variant surfaces nothing).
+
+## Phase 6 — implemented (2026‑07‑03)
+
+- **Flag `PERSON_IDENTITY`** (Modern, on by default) — `SiteParametersState`, BlazorWeb `Program.cs`
+  feature list, manual `editions.js` TIER map.
+- **REST `api/person`** (`PersonController`, 11 routes) — cross‑role view (gated), create/link Person,
+  link family member, sharing preference, access log, suspicious accesses, cascade opportunities.
+- **Blazor `/person`** (flag‑gated, nav "IDENTITY → 👤 Person / Identity") — the non‑leaking cross‑role
+  view with in‑page break‑the‑glass, link‑to‑existing‑Person (name search + family‑member linker),
+  sharing‑preference selector, cascade‑opportunity cards, "who viewed this chart" and "suspicious
+  accesses" tables.
+- **Demo:** `PersonIdentitySeed` extended — KAY (P9006) gets a confirmed germline **BRCA1** finding so
+  KIM (P9007) shows a live cascade opportunity; P9001 opts into open sharing.
 
 ## Non‑goals
 - Not auto‑merging humans. Not replacing/modifying the ICN/MPI rekey machinery (Person sits above it).

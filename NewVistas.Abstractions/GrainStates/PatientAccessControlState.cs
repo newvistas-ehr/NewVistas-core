@@ -91,6 +91,40 @@ public class PatientAccessControlState
     /// </summary>
     [Id(11)]
     public PatientSharePreference SharePreference { get; set; } = PatientSharePreference.Default;
+
+    /// <summary>
+    /// Auto-established treatment relationships (ADR-002 Phase 4b) — the surgical case, an active order,
+    /// an appointment, unit coverage, a consult. These grant frictionless access without a hand-curated
+    /// list, so the surgical cast and floor coverage are authorized automatically. May carry an expiry.
+    /// </summary>
+    [Id(12)]
+    public List<TreatmentRelationship> Relationships { get; set; } = new();
+}
+
+/// <summary>How a treatment relationship was established (ADR-002 Phase 4b).</summary>
+public enum TreatmentRelationshipReason
+{
+    CareTeam = 0,
+    Encounter = 1,
+    Order = 2,
+    Surgery = 3,
+    Appointment = 4,
+    UnitCoverage = 5,
+    Consult = 6,
+    Admission = 7
+}
+
+/// <summary>An auto-established treatment relationship granting a viewer frictionless access.</summary>
+[GenerateSerializer]
+public class TreatmentRelationship
+{
+    [Id(0)] public string UserId { get; set; } = string.Empty;
+    [Id(1)] public TreatmentRelationshipReason Reason { get; set; }
+    /// <summary>The source record (order id, surgery id, appointment id, unit id, …).</summary>
+    [Id(2)] public string SourceRef { get; set; } = string.Empty;
+    [Id(3)] public DateTime EstablishedDate { get; set; } = DateTime.UtcNow;
+    /// <summary>Optional expiry — e.g. an OR-case relationship lapses after the documentation tail.</summary>
+    [Id(4)] public DateTime? ExpiresDate { get; set; }
 }
 
 /// <summary>

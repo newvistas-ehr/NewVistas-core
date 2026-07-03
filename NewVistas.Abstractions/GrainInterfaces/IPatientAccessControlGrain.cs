@@ -86,4 +86,14 @@ public interface IPatientAccessControlGrain : IGrainWithStringKey
     /// </summary>
     Task<GrainStates.PatientAccessDecision> DecideAccessAsync(
         string viewerUserId, string viewerName, bool breakTheGlassAttested, string? justificationText);
+
+    /// <summary>
+    /// Auto-establishes a treatment relationship (ADR-002 Phase 4b) — called from encounter/order/
+    /// surgery/appointment/unit write paths so the treating cast gains frictionless access without a
+    /// hand-curated list. Idempotent by (user, reason, source). Optional expiry.
+    /// </summary>
+    Task EstablishRelationshipAsync(string userId, GrainStates.TreatmentRelationshipReason reason, string sourceRef, DateTime? expiresAt);
+
+    /// <summary>Anomaly surface — accesses with no relationship (break-the-glass or blocked pending-BTG).</summary>
+    Task<List<GrainStates.PatientAccessLog>> GetSuspiciousAccessesAsync();
 }

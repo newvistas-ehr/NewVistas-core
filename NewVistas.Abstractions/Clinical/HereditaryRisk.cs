@@ -23,6 +23,25 @@ public record HereditaryFinding
     [Id(6)] public string Source { get; set; } = string.Empty;
 }
 
+/// <summary>
+/// A cascade-testing opportunity (ADR-002 Phase 5): a relative on this patient's chart is LINKED to a
+/// Person who is also a patient here with a confirmed pathogenic germline finding — so targeted
+/// (cascade) testing can be offered to this patient. Made possible by the Person anchor connecting the
+/// relative-appearance to a real chart.
+/// </summary>
+[GenerateSerializer]
+public record CascadeOpportunity
+{
+    [Id(0)] public string RelativeName { get; set; } = string.Empty;
+    [Id(1)] public string Relationship { get; set; } = string.Empty;
+    /// <summary>The relative's own chart — the source of the confirmed finding.</summary>
+    [Id(2)] public string RelativePatientId { get; set; } = string.Empty;
+    [Id(3)] public string Gene { get; set; } = string.Empty;
+    [Id(4)] public string Variant { get; set; } = string.Empty;
+    [Id(5)] public string Syndrome { get; set; } = string.Empty;
+    [Id(6)] public string Recommendation { get; set; } = string.Empty;
+}
+
 /// <summary>A family-history pattern suggesting hereditary risk and a referral recommendation.</summary>
 [GenerateSerializer]
 public record FamilyRiskFlag

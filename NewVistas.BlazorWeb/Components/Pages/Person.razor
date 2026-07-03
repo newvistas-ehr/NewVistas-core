@@ -1,0 +1,626 @@
+@* Copyright 2026 Merrimack Valley Software Works, LLC. All rights reserved. *@
+@* This Source Code Form is subject to the terms of the Mozilla Public *@
+@* License, v. 2.0. If a copy of the MPL was not distributed with this *@
+@* file, You can obtain one at https://mozilla.org/MPL/2.0/.            *@
+@page "/person"
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+@rendermode InteractiveServer
+@using NewVistas.BlazorWeb.Services
+@using NewVistas.Abstractions.GrainInterfaces
+@using NewVistas.Abstractions.GrainStates
+@using NewVistas.Abstractions.Clinical
+@inject OrleansGrainService Grains
+@inject PatientContextService PatientContext
+@inject UserSecurityContext SecurityContext
+
+<PageTitle>Person / Identity</PageTitle>
+
+@if (!SecurityContext.IsFeatureEnabled("PERSON_IDENTITY"))
+{
+    <div class="prs-container">
+        <div class="alert alert-info">Person / Identity (ADR-002) is not enabled at this site.</div>
+    </div>
+}
+else
+{
+    <div class="prs-container">
+        <h1>👤 Person / Identity</h1>
+
+        <PatientBar @bind-PatientId="patientId" Loading="loading" OnLoad="LoadAll" />
+
+        @if (error != null) { <div class="alert alert-error">@error</div> }
+        @if (successMsg != null) { <div class="alert alert-success">@successMsg</div> }
+
+        @if (string.IsNullOrWhiteSpace(patientId))
+        {
+            <div class="empty-state">Select a patient to view the cross-role Person identity, link workflow, and privacy/audit surfaces.</div>
+        }
+        else if (loading && result == null)
+        {
+            <div class="loading">Loading Person view…</div>
+        }
+        else if (result != null)
+        {
+            @* ── Section 1: Cross-role Person view ─────────────────────────────────── *@
+            @if (result.Decision.Outcome == PatientAccessOutcome.RequiresBreakTheGlass)
+            {
+                @* Protected record — the Person detail is withheld so employee-patient status never leaks. *@
+                <div class="prs-panel prs-protected">
+                    <h3>🔒 Protected record</h3>
+                    <p>
+                        This is a protected record (e.g. an employee-patient). You have no treatment
+                        relationship with this patient. Accessing it requires break-the-glass — an audited,
+                        notifiable override. Provide a justification to proceed.
+                    </p>
+                    <div class="form-row">
+                        <label>Justification</label>
+                        <textarea @bind="justification" rows="3" placeholder="Reason for accessing this protected record"></textarea>
+                    </div>
+                    <div class="panel-btns">
+                        <button class="btn btn-danger" @onclick="BreakTheGlass"
+                                disabled="@(btgLoading || string.IsNullOrWhiteSpace(justification))">
+                            @(btgLoading ? "Recording…" : "Break the glass & view")
+                        </button>
+                    </div>
+                    @if (!string.IsNullOrWhiteSpace(result.Decision.Message))
+                    {
+                        <div class="prs-decision-msg">@result.Decision.Message</div>
+                    }
+                </div>
+            }
+            else
+            {
+                <div class="prs-panel">
+                    <h3>Person</h3>
+                    <div class="prs-access-note @AccessNoteClass(result.Decision.Outcome)">
+                        @AccessNoteText(result.Decision.Outcome)
+                    </div>
+
+                    @if (result.Person == null)
+                    {
+                        <div class="empty-state">This chart is not linked to a Person yet.</div>
+                        <div class="detail-actions">
+                            <button class="btn btn-primary" @onclick="CreatePerson" disabled="@createLoading">
+                                @(createLoading ? "Creating…" : "Create Person from this chart")
+                            </button>
+                        </div>
+                    }
+                    else
+                    {
+                        PersonState p = result.Person;
+                        <div class="prs-card">
+                            <div class="prs-card-header">
+                                <strong class="prs-name">@(string.IsNullOrWhiteSpace(p.Name) ? "(unnamed)" : p.Name)</strong>
+                                @if (p.IsEmployeePatient)
+                                {
+                                    <span class="badge badge-danger">Employee-Patient</span>
+                                }
+                                <span class="prs-personid">@p.PersonId</span>
+                            </div>
+                            <div class="prs-spine">
+                                <span><span class="prs-lbl">DOB:</span> @(p.DateOfBirth?.ToString("yyyy-MM-dd") ?? "—")</span>
+                                <span><span class="prs-lbl">Sex:</span> @(string.IsNullOrWhiteSpace(p.Sex) ? "—" : p.Sex)</span>
+                                @if (!string.IsNullOrWhiteSpace(p.SsnLast4))
+                                {
+                                    <span><span class="prs-lbl">SSN:</span> ***-**-@p.SsnLast4</span>
+                                }
+                            </div>
+
+                            <div class="prs-roles">
+                                <div class="prs-role-group">
+                                    <h5>Patient charts (@p.PatientRoles.Count)</h5>
+                                    @if (p.PatientRoles.Count == 0)
+                                    {
+                                        <div class="empty-state">None.</div>
+                                    }
+                                    else
+                                    {
+                                        <ul class="prs-list">
+                                            @foreach (PersonPatientRole r in p.PatientRoles)
+                                            {
+                                                <li>
+                                                    <span class="prs-role-key">@r.PatientId</span>
+                                                    @if (r.Primary) { <span class="badge badge-info">Primary</span> }
+                                                    <span class="prs-role-meta">@r.Confidence</span>
+                                                </li>
+                                            }
+                                        </ul>
+                                    }
+                                </div>
+
+                                <div class="prs-role-group">
+                                    <h5>Staff role (@p.StaffRoles.Count)</h5>
+                                    @if (p.StaffRoles.Count == 0)
+                                    {
+                                        <div class="empty-state">None.</div>
+                                    }
+                                    else
+                                    {
+                                        <ul class="prs-list">
+                                            @foreach (PersonStaffRole s in p.StaffRoles)
+                                            {
+                                                <li>
+                                                    <span class="prs-role-key">@s.UserId</span>
+                                                    <span class="prs-role-meta">@s.Confidence</span>
+                                                </li>
+                                            }
+                                        </ul>
+                                    }
+                                </div>
+
+                                <div class="prs-role-group">
+                                    <h5>Relative appearances (@p.RelativeAppearances.Count)</h5>
+                                    @if (p.RelativeAppearances.Count == 0)
+                                    {
+                                        <div class="empty-state">None.</div>
+                                    }
+                                    else
+                                    {
+                                        <ul class="prs-list">
+                                            @foreach (PersonRelativeAppearance a in p.RelativeAppearances)
+                                            {
+                                                <li>
+                                                    <span class="prs-role-key">@a.Relationship</span>
+                                                    on @a.OnPatientId
+                                                    <span class="prs-role-meta">@a.Source</span>
+                                                </li>
+                                            }
+                                        </ul>
+                                    }
+                                </div>
+                            </div>
+                        </div>
+                    }
+                </div>
+
+                @* ── Section 2: Link to existing Person ────────────────────────────── *@
+                <div class="prs-panel">
+                    <h3>Link to existing Person</h3>
+
+                    <div class="form-row">
+                        <label>Search by name</label>
+                        <input @bind="searchQuery" placeholder="Last name or Last,First" />
+                        <button class="btn btn-primary" @onclick="SearchPersons" disabled="@searchLoading">
+                            @(searchLoading ? "Searching…" : "Search")
+                        </button>
+                    </div>
+
+                    @if (searchResults != null)
+                    {
+                        @if (searchResults.Count == 0)
+                        {
+                            <div class="empty-state">No matching Persons.</div>
+                        }
+                        else
+                        {
+                            <table class="data-table">
+                                <thead>
+                                    <tr>
+                                        <th>Name</th>
+                                        <th>DOB</th>
+                                        <th>Sex</th>
+                                        <th>Charts</th>
+                                        <th>Staff</th>
+                                        <th></th>
+                                        <th></th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @foreach (PersonIndexEntry e in searchResults)
+                                    {
+                                        <tr>
+                                            <td><strong>@e.Name</strong></td>
+                                            <td>@(e.DateOfBirth?.ToString("yyyy-MM-dd") ?? "—")</td>
+                                            <td>@(string.IsNullOrWhiteSpace(e.Sex) ? "—" : e.Sex)</td>
+                                            <td>@e.PatientRoleCount</td>
+                                            <td>@e.StaffRoleCount</td>
+                                            <td>
+                                                @if (e.IsEmployeePatient)
+                                                {
+                                                    <span class="badge badge-danger">Employee-Patient</span>
+                                                }
+                                            </td>
+                                            <td>
+                                                <button class="btn btn-secondary" @onclick="() => LinkChartToPerson(e.PersonId)">
+                                                    Link this chart
+                                                </button>
+                                            </td>
+                                        </tr>
+                                    }
+                                </tbody>
+                            </table>
+                        }
+                    }
+
+                    @* Family-member linker *@
+                    <h5 class="prs-subhead">Link a family member to a Person</h5>
+                    @if (familyMembers == null || familyMembers.Count == 0)
+                    {
+                        <div class="empty-state">No structured family history recorded for this patient.</div>
+                    }
+                    else
+                    {
+                        <ul class="prs-list">
+                            @foreach (FamilyMemberHistoryEntry m in familyMembers)
+                            {
+                                <li class="prs-fam-row">
+                                    <span class="prs-role-key">@m.Relationship</span>
+                                    <span>@(string.IsNullOrWhiteSpace(m.Name) ? "(unnamed)" : m.Name)</span>
+                                    @if (!string.IsNullOrWhiteSpace(m.LinkedPersonId))
+                                    {
+                                        <span class="badge badge-success">Linked → @m.LinkedPersonId</span>
+                                    }
+                                    else
+                                    {
+                                        <input class="prs-fam-input" placeholder="PersonId to link"
+                                               @bind="famLinkPersonId[m.MemberId]" />
+                                        <button class="btn btn-secondary"
+                                                @onclick="() => LinkFamilyMember(m.MemberId)"
+                                                disabled="@(!famLinkPersonId.TryGetValue(m.MemberId, out string? v) || string.IsNullOrWhiteSpace(v))">
+                                            Link relative to Person
+                                        </button>
+                                    }
+                                </li>
+                            }
+                        </ul>
+                        <div class="prs-hint">Tip: search above to find a Person's id, then paste it next to the relative.</div>
+                    }
+                </div>
+
+                @* ── Section 3: Sharing preference ─────────────────────────────────── *@
+                <div class="prs-panel">
+                    <h3>Sharing preference</h3>
+                    <p class="prs-hint">The patient's own choice — maximal openness is a first-class option — wins for their own record (still audited).</p>
+                    <div class="form-row">
+                        <label>Preference</label>
+                        <select @bind="sharePreference">
+                            <option value="@PatientSharePreference.Default">Default (sensitivity + treatment-relationship rules apply)</option>
+                            <option value="@PatientSharePreference.Restricted">Restricted (treat as sensitive)</option>
+                            <option value="@PatientSharePreference.OpenForTeachingAndResearch">Open for teaching &amp; research (access allowed, still audited)</option>
+                        </select>
+                        <button class="btn btn-primary" @onclick="SavePreference" disabled="@prefLoading">
+                            @(prefLoading ? "Saving…" : "Save")
+                        </button>
+                    </div>
+                </div>
+
+                @* ── Section 4: Cascade opportunities ──────────────────────────────── *@
+                <div class="prs-panel">
+                    <h3>Cascade-testing opportunities</h3>
+                    @if (cascades == null || cascades.Count == 0)
+                    {
+                        <div class="empty-state">No cascade-testing opportunities from linked relatives with a confirmed germline finding.</div>
+                    }
+                    else
+                    {
+                        @foreach (CascadeOpportunity c in cascades)
+                        {
+                            <div class="prs-cascade-card">
+                                <div class="prs-cascade-header">
+                                    <span class="badge badge-info">@c.Gene</span>
+                                    <span class="prs-cascade-rel">@c.Relationship: @c.RelativeName</span>
+                                    <span class="prs-cascade-syndrome">@c.Syndrome</span>
+                                </div>
+                                @if (!string.IsNullOrWhiteSpace(c.Variant))
+                                {
+                                    <div class="prs-cascade-variant">@c.Variant</div>
+                                }
+                                <div class="prs-cascade-rec">@c.Recommendation</div>
+                            </div>
+                        }
+                    }
+                    <div class="prs-disclaimer"><em>Decision support only — offer cascade (targeted) testing via genetics / genetic counseling.</em></div>
+                </div>
+
+                @* ── Section 5: Who viewed this chart ──────────────────────────────── *@
+                <div class="prs-panel">
+                    <h3>Who viewed this chart</h3>
+                    @if (accessLog == null || accessLog.Count == 0)
+                    {
+                        <div class="empty-state">No access recorded.</div>
+                    }
+                    else
+                    {
+                        <table class="data-table">
+                            <thead>
+                                <tr>
+                                    <th>When</th>
+                                    <th>User</th>
+                                    <th>Reason</th>
+                                    <th>Break-the-glass?</th>
+                                    <th>Justification</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (PatientAccessLog l in accessLog)
+                                {
+                                    <tr class="@(l.WasBreakTheGlass ? "prs-btg-row" : null)">
+                                        <td>@l.AccessDateTime.ToString("yyyy-MM-dd HH:mm")</td>
+                                        <td>@(string.IsNullOrWhiteSpace(l.UserName) ? l.UserId : l.UserName)</td>
+                                        <td>@l.AccessReason</td>
+                                        <td>@(l.WasBreakTheGlass ? "Yes" : "—")</td>
+                                        <td>@(string.IsNullOrWhiteSpace(l.JustificationText) ? "—" : l.JustificationText)</td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    }
+                </div>
+
+                @* ── Section 6: Suspicious accesses (only when non-empty) ──────────── *@
+                @if (suspicious != null && suspicious.Count > 0)
+                {
+                    <div class="prs-panel prs-suspicious">
+                        <h3>⚠ Suspicious accesses</h3>
+                        <table class="data-table">
+                            <thead>
+                                <tr>
+                                    <th>When</th>
+                                    <th>User</th>
+                                    <th>Reason</th>
+                                    <th>Break-the-glass?</th>
+                                    <th>Justification</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach (PatientAccessLog l in suspicious)
+                                {
+                                    <tr class="prs-btg-row">
+                                        <td>@l.AccessDateTime.ToString("yyyy-MM-dd HH:mm")</td>
+                                        <td>@(string.IsNullOrWhiteSpace(l.UserName) ? l.UserId : l.UserName)</td>
+                                        <td>@l.AccessReason</td>
+                                        <td>@(l.WasBreakTheGlass ? "Yes" : "—")</td>
+                                        <td>@(string.IsNullOrWhiteSpace(l.JustificationText) ? "—" : l.JustificationText)</td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                }
+            }
+        }
+    </div>
+}
+
+<style>
+    /* Canonical interaction classes (btn, btn-primary, btn-secondary, alert, alert-*,
+       data-table, badge, badge-*) are defined once in app.css. Only page-specific styles live here.
+       btn-danger is NOT global — defined here for the break-the-glass action. */
+    .prs-container .btn-danger { background: #b91c1c; color: #fff; }
+    .prs-container .btn-danger:hover { background: #991b1b; }
+    .prs-container { max-width: 1100px; margin: 0 auto; padding: 1rem; font-family: sans-serif; }
+    .prs-container h1 { color: #003f72; }
+    .loading { padding: 1.5rem; text-align: center; color: #555; }
+    .empty-state { padding: 0.75rem; color: #555; font-style: italic; }
+    .prs-panel { background: #f9fafb; border: 1px solid #d4d9e0; border-radius: 8px; padding: 1rem; margin-top: 1rem; }
+    .prs-panel h3 { margin: 0 0 0.75rem; color: #003f72; }
+    .prs-panel h5 { margin: 0 0 0.4rem; color: #003f72; }
+    .prs-subhead { margin-top: 1rem !important; }
+    .prs-protected { border-left: 4px solid #b91c1c; background: #fef2f2; }
+    .prs-protected h3 { color: #b91c1c; }
+    .prs-suspicious { border-left: 4px solid #b45309; background: #fffbeb; }
+    .prs-suspicious h3 { color: #b45309; }
+    .prs-decision-msg { margin-top: 0.5rem; font-size: 0.85rem; color: #7f1d1d; }
+    .prs-access-note { font-size: 0.85rem; padding: 0.4rem 0.6rem; border-radius: 4px; margin-bottom: 0.75rem; }
+    .prs-access-note.note-open { background: #ecfdf5; color: #065f46; }
+    .prs-access-note.note-rel { background: #eff6ff; color: #1e40af; }
+    .prs-access-note.note-btg { background: #fef2f2; color: #7f1d1d; }
+    .form-row { display: flex; align-items: center; gap: 0.6rem; margin-bottom: 0.6rem; flex-wrap: wrap; }
+    .form-row label { font-size: 0.85rem; color: #333; min-width: 110px; }
+    .form-row input, .form-row select, .form-row textarea { flex: 1; padding: 0.35rem 0.5rem; border: 1px solid #d4d9e0; border-radius: 4px; font-size: 0.9rem; min-width: 120px; }
+    .form-row button { flex: 0 0 auto; }
+    .detail-actions { display: flex; gap: 0.5rem; flex-wrap: wrap; margin: 0.5rem 0; }
+    .panel-btns { display: flex; gap: 0.5rem; margin-top: 0.75rem; }
+    button:disabled { opacity: 0.5; cursor: not-allowed; }
+    .prs-hint { font-size: 0.8rem; color: #777; margin: 0.25rem 0 0.5rem; }
+    .prs-disclaimer { font-size: 0.8rem; color: #777; margin-top: 0.5rem; }
+    /* Person card */
+    .prs-card { background: #fff; border: 1px solid #d4d9e0; border-radius: 6px; padding: 0.75rem 1rem; }
+    .prs-card-header { display: flex; align-items: center; gap: 0.6rem; flex-wrap: wrap; }
+    .prs-name { color: #003f72; font-size: 1.1rem; }
+    .prs-personid { margin-left: auto; font-size: 0.75rem; color: #777; font-family: monospace; }
+    .prs-spine { display: flex; gap: 1.2rem; flex-wrap: wrap; margin-top: 0.4rem; font-size: 0.9rem; color: #333; }
+    .prs-lbl { color: #777; }
+    .prs-roles { display: flex; gap: 1.5rem; flex-wrap: wrap; margin-top: 0.9rem; }
+    .prs-role-group { flex: 1; min-width: 200px; }
+    .prs-list { list-style: none; margin: 0; padding: 0; }
+    .prs-list li { padding: 0.25rem 0; border-bottom: 1px solid #eef1f5; font-size: 0.85rem; display: flex; align-items: center; gap: 0.4rem; flex-wrap: wrap; }
+    .prs-role-key { font-weight: 600; color: #333; }
+    .prs-role-meta { color: #888; font-size: 0.75rem; }
+    .prs-fam-row { justify-content: flex-start; }
+    .prs-fam-input { flex: 0 1 200px; padding: 0.25rem 0.4rem; border: 1px solid #d4d9e0; border-radius: 4px; font-size: 0.85rem; }
+    /* Cascade cards */
+    .prs-cascade-card { background: #fff; border: 1px solid #d4d9e0; border-left: 4px solid #0e7490; border-radius: 6px; padding: 0.6rem 0.8rem; margin-bottom: 0.5rem; }
+    .prs-cascade-header { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; }
+    .prs-cascade-rel { font-weight: 600; color: #333; }
+    .prs-cascade-syndrome { color: #6b21a8; }
+    .prs-cascade-variant { font-family: monospace; color: #555; font-size: 0.85rem; margin-top: 0.3rem; }
+    .prs-cascade-rec { font-size: 0.9rem; color: #333; margin-top: 0.35rem; }
+    /* Highlight break-the-glass rows in the audit tables */
+    .prs-btg-row { background: #fef2f2; }
+</style>
+
+@code {
+    [SupplyParameterFromQuery] public string? patientId { get; set; }
+
+    // Person / Identity (ADR-002) is gated on the PERSON_IDENTITY site flag (above). The record-level
+    // access decision is made by the workflow grain (GetPatientPersonForViewerAsync) — treatment
+    // relationship never gates; a protected record (e.g. employee-patient) requires break-the-glass.
+
+    bool loading;
+    string? error;
+    string? successMsg;
+
+    PersonViewResult? result;
+
+    // ── Break-the-glass ──
+    string justification = string.Empty;
+    bool btgLoading;
+
+    // ── Create Person ──
+    bool createLoading;
+
+    // ── Person search / link ──
+    string searchQuery = string.Empty;
+    bool searchLoading;
+    List<PersonIndexEntry>? searchResults;
+
+    // ── Family-member linker ──
+    List<FamilyMemberHistoryEntry>? familyMembers;
+    readonly Dictionary<string, string?> famLinkPersonId = new();
+
+    // ── Sharing preference ──
+    PatientSharePreference sharePreference = PatientSharePreference.Default;
+    bool prefLoading;
+
+    // ── Cascade + audit ──
+    List<CascadeOpportunity>? cascades;
+    List<PatientAccessLog>? accessLog;
+    List<PatientAccessLog>? suspicious;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (!SecurityContext.IsFeatureEnabled("PERSON_IDENTITY")) return;
+        if (string.IsNullOrWhiteSpace(patientId) && !string.IsNullOrWhiteSpace(PatientContext.PatientId))
+            patientId = PatientContext.PatientId;
+        if (!string.IsNullOrWhiteSpace(patientId) && result == null)
+            await LoadAll();
+    }
+
+    async Task LoadAll() => await LoadAll(false);
+
+    async Task LoadAll(bool breakGlass)
+    {
+        if (string.IsNullOrWhiteSpace(patientId)) return;
+        loading = true; error = null;
+        try
+        {
+            IPatientWorkflowGrain workflow = Grains.GetGrain<IPatientWorkflowGrain>(patientId.Trim());
+
+            result = await workflow.GetPatientPersonForViewerAsync(
+                Grains.CurrentUserId ?? string.Empty,
+                Grains.CurrentUserName ?? string.Empty,
+                breakGlass,
+                string.IsNullOrWhiteSpace(justification) ? null : justification);
+
+            // Load the surrounding surfaces only when access is granted (nothing should leak while blocked).
+            if (result.Decision.Outcome != PatientAccessOutcome.RequiresBreakTheGlass)
+            {
+                FamilyHistoryState fam = await workflow.GetFamilyHistoryAsync();
+                familyMembers = fam.Members;
+                cascades = await workflow.GetCascadeOpportunitiesAsync();
+                accessLog = await workflow.GetMyAccessLogAsync();
+                suspicious = await workflow.GetSuspiciousAccessesAsync();
+            }
+            else
+            {
+                familyMembers = null; cascades = null; accessLog = null; suspicious = null;
+            }
+
+            PatientContext.SetPatient(patientId.Trim());
+        }
+        catch { error = "Failed to load the Person view."; }
+        finally { loading = false; }
+    }
+
+    async Task BreakTheGlass()
+    {
+        if (string.IsNullOrWhiteSpace(patientId) || string.IsNullOrWhiteSpace(justification)) return;
+        btgLoading = true;
+        try { await LoadAll(true); }
+        finally { btgLoading = false; }
+    }
+
+    async Task CreatePerson()
+    {
+        if (string.IsNullOrWhiteSpace(patientId)) return;
+        createLoading = true; error = null; successMsg = null;
+        try
+        {
+            IPatientWorkflowGrain workflow = Grains.GetGrain<IPatientWorkflowGrain>(patientId.Trim());
+            string personId = await workflow.CreateOrGetPersonForPatientAsync(
+                "500", PersonLinkConfidence.ConfirmedByRegistration, Grains.CurrentUserName ?? "Provider");
+            successMsg = $"Created / linked Person {personId}.";
+            await LoadAll();
+        }
+        catch { error = "Failed to create Person from this chart."; }
+        finally { createLoading = false; }
+    }
+
+    async Task SearchPersons()
+    {
+        if (string.IsNullOrWhiteSpace(searchQuery)) { searchResults = null; return; }
+        searchLoading = true; error = null;
+        try
+        {
+            IPersonIndexGrain index = Grains.GetGrain<IPersonIndexGrain>("PERSON-INDEX:DEFAULT");
+            searchResults = await index.SearchByNameAsync(searchQuery.Trim());
+        }
+        catch { error = "Failed to search Persons."; }
+        finally { searchLoading = false; }
+    }
+
+    async Task LinkChartToPerson(string personId)
+    {
+        if (string.IsNullOrWhiteSpace(patientId) || string.IsNullOrWhiteSpace(personId)) return;
+        error = null; successMsg = null;
+        try
+        {
+            IPatientWorkflowGrain workflow = Grains.GetGrain<IPatientWorkflowGrain>(patientId.Trim());
+            await workflow.LinkPatientToPersonAsync(
+                personId, "500", PersonLinkConfidence.ConfirmedByClinician, Grains.CurrentUserName ?? "Provider");
+            successMsg = $"Linked this chart to Person {personId}.";
+            searchResults = null;
+            await LoadAll();
+        }
+        catch { error = "Failed to link this chart to the Person."; }
+    }
+
+    async Task LinkFamilyMember(string memberId)
+    {
+        if (string.IsNullOrWhiteSpace(patientId) || string.IsNullOrWhiteSpace(memberId)) return;
+        if (!famLinkPersonId.TryGetValue(memberId, out string? personId) || string.IsNullOrWhiteSpace(personId)) return;
+        error = null; successMsg = null;
+        try
+        {
+            IPatientWorkflowGrain workflow = Grains.GetGrain<IPatientWorkflowGrain>(patientId.Trim());
+            await workflow.LinkFamilyMemberToPersonAsync(memberId, personId.Trim(), Grains.CurrentUserName ?? "Provider");
+            successMsg = "Linked the relative to a Person.";
+            famLinkPersonId.Remove(memberId);
+            await LoadAll();
+        }
+        catch { error = "Failed to link the relative to a Person."; }
+    }
+
+    async Task SavePreference()
+    {
+        if (string.IsNullOrWhiteSpace(patientId)) return;
+        prefLoading = true; error = null; successMsg = null;
+        try
+        {
+            IPatientWorkflowGrain workflow = Grains.GetGrain<IPatientWorkflowGrain>(patientId.Trim());
+            await workflow.SetPatientSharePreferenceAsync(sharePreference);
+            successMsg = "Sharing preference saved.";
+            await LoadAll();
+        }
+        catch { error = "Failed to save the sharing preference."; }
+        finally { prefLoading = false; }
+    }
+
+    // ── Access-outcome → display helpers ──
+    static string AccessNoteText(PatientAccessOutcome o) => o switch
+    {
+        PatientAccessOutcome.Allowed               => "Access granted — open record.",
+        PatientAccessOutcome.AllowedByRelationship => "Access granted — treatment relationship (heightened audit).",
+        PatientAccessOutcome.AllowedByOpenConsent  => "Access granted — patient opted into open sharing.",
+        PatientAccessOutcome.AllowedByBreakTheGlass => "Access granted — break-the-glass (logged & notifiable).",
+        _                                          => "Access granted.",
+    };
+
+    static string AccessNoteClass(PatientAccessOutcome o) => o switch
+    {
+        PatientAccessOutcome.AllowedByBreakTheGlass => "note-btg",
+        PatientAccessOutcome.AllowedByRelationship  => "note-rel",
+        _                                           => "note-open",
+    };
+}

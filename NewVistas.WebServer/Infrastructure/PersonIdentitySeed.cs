@@ -77,6 +77,18 @@ public static class PersonIdentitySeed
             await kim.LinkFamilyMemberToPersonAsync(motherEntryId, personKay, By);
             logger.LogInformation("  + mother-patient-relative: Person {P} = patient P9006 (KAY) + 'Mother' relative on P9007 (KIM)'s chart", personKay);
 
+            // Phase 5: give KAY a confirmed germline BRCA1 finding on her own chart. Because KIM's
+            // "Mother" family-history entry is linked to KAY's Person, KIM's chart now surfaces a
+            // cascade-testing opportunity ("your mother is a confirmed BRCA1 carrier — offer testing").
+            string kayReportId = await kay.RecordGeneticTestReportAsync(
+                "Hereditary Cancer Panel", "Invitae", GeneticTestMethod.NextGenSequencing,
+                "Personal history of breast cancer at 48.", null, DateTime.UtcNow.Date.AddMonths(-8),
+                GeneticReportResult.PositivePathogenic, "Dr. Helix (Genetics)", string.Empty, By);
+            await kay.AddGeneticVariantAsync(kayReportId, "BRCA1", "c.68_69delAG", "p.Glu23ValfsTer17", "NM_007294.4",
+                VariantClassification.Pathogenic, VariantZygosity.Heterozygous, VariantOrigin.Germline,
+                "VCV000017661", "rs80357914", "Founder frameshift.");
+            logger.LogInformation("  + cascade: KAY (P9006) BRCA1 pathogenic → KIM (P9007) now has a cascade-testing opportunity");
+
             // Phase 4: the mirror of sensitivity — a patient who opts INTO open sharing for
             // teaching/research (the "next Jim Smyth" stance: maximal openness as a first-class choice).
             await grainFactory.GetGrain<IPatientWorkflowGrain>("P9001")

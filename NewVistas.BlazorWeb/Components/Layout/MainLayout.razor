@@ -205,6 +205,20 @@
             </NavLink>
             }
 
+            @* Person / Identity (ADR-002) — Modern module gated on the PERSON_IDENTITY site flag.
+               Cross-role Person view + link workflow + privacy/audit surfaces; the record-level access
+               decision is made in the workflow grain (treatment relationship never gated, protected
+               records require break-the-glass), so gated on the flag only, not a security key. *@
+            @if (SecurityContext.HasAccess(MenuArea.Clinical) && SecurityContext.IsFeatureEnabled("PERSON_IDENTITY"))
+            {
+            <div class="nav-divider"></div>
+            <div class="nav-section-title">Identity</div>
+            <NavLink class="nav-item" href="/person">
+                <span class="nav-icon">👤</span>
+                <span class="nav-label">Person / Identity</span>
+            </NavLink>
+            }
+
             @* Hereditary Genetics & Family History — Modern module gated on the HEREDITARY_GENETICS
                site flag. Genetic test reports + structured family history + curated hereditary-risk
                assessment; writes are OPEN like pharmacogenomics/neonatal/OB, so gated on the flag

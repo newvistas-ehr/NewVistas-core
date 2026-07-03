@@ -383,6 +383,11 @@ public partial class PatientWorkflowGrain
             surgeonId, surgeonName, anesthesiaTechnique, surgicalSpecialty, preOpDiagnosis,
             locationId, locationName, comments);
         await AppendCappedIdAsync(PatientHistoryDomains.Surgery, surgeryId, DateTime.UtcNow);
+        // ADR-002 Phase 4b: scheduling the case auto-establishes the surgeon's treatment relationship —
+        // no hand-curated authorized list needed. (The surgeon is a lasting relationship; the expiry
+        // field is for the case-only staff — anesthesia, scrub — once they're modeled on the case.)
+        if (!string.IsNullOrWhiteSpace(surgeonId))
+            await Pac().EstablishRelationshipAsync(surgeonId, TreatmentRelationshipReason.Surgery, surgeryId, null);
         return surgeryId;
     }
 

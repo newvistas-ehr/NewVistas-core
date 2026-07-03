@@ -2,6 +2,7 @@
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
+using NewVistas.Abstractions.Clinical;
 using NewVistas.Abstractions.GrainInterfaces;
 using NewVistas.Abstractions.GrainStates;
 
@@ -93,4 +94,45 @@ public partial class PatientWorkflowGrain
     /// <summary>Sets this patient's own sharing preference (maximal-openness is a first-class choice).</summary>
     public Task SetPatientSharePreferenceAsync(PatientSharePreference preference)
         => Pac().SetSharePreferenceAsync(preference);
+
+    /// <summary>This patient's own "who viewed my chart" access report (ADR-002 Phase 4b — accountability).</summary>
+    public Task<List<PatientAccessLog>> GetMyAccessLogAsync() => Pac().GetAccessLogAsync();
+
+    /// <summary>Suspicious accesses to this (sensitive) chart — break-the-glass / blocked attempts (anomaly surface).</summary>
+    public Task<List<PatientAccessLog>> GetSuspiciousAccessesAsync() => Pac().GetSuspiciousAccessesAsync();
+
+    /// <summary>
+    /// Cascade-testing opportunities (ADR-002 Phase 5): family-history relatives on this chart that are
+    /// LINKED to a Person who is also a patient here with a confirmed pathogenic germline finding — so
+    /// targeted testing can be offered to this patient. Read-only decision support (in production the
+    /// relative's result disclosure is gated by their consent / the genetics team).
+    /// </summary>
+    public async Task<List<CascadeOpportunity>> GetCascadeOpportunitiesAsync()
+    {
+        var result = new List<CascadeOpportunity>();
+        FamilyHistoryState fh = await FamilyHx().GetAsync();
+        foreach (FamilyMemberHistoryEntry member in fh.Members.Where(m => !string.IsNullOrEmpty(m.LinkedPersonId)))
+        {
+            PersonState person = await Person(member.LinkedPersonId).GetAsync();
+            foreach (PersonPatientRole role in person.PatientRoles)
+            {
+                GenomicsState g = await GrainFactory.GetGrain<IGenomicsGrain>(role.PatientId).GetAsync();
+                List<HereditaryFinding> findings = HereditaryRisk.AssessVariants(g.Reports.SelectMany(r => r.Variants));
+                foreach (HereditaryFinding f in findings)
+                {
+                    result.Add(new CascadeOpportunity
+                    {
+                        RelativeName = string.IsNullOrWhiteSpace(member.Name) ? person.Name : member.Name,
+                        Relationship = member.Relationship.ToString(),
+                        RelativePatientId = role.PatientId,
+                        Gene = f.Gene,
+                        Variant = f.Variant,
+                        Syndrome = f.Syndrome,
+                        Recommendation = $"{member.Relationship} is a confirmed {f.Gene} carrier ({f.Syndrome}). Offer targeted (cascade) genetic testing to this patient."
+                    });
+                }
+            }
+        }
+        return result;
+    }
 }

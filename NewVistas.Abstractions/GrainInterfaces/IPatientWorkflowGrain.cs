@@ -2446,6 +2446,15 @@ public interface IPatientWorkflowGrain : IGrainWithStringKey
     /// <summary>Sets this patient's own sharing preference (maximal-openness is a first-class choice).</summary>
     Task SetPatientSharePreferenceAsync(GrainStates.PatientSharePreference preference);
 
+    /// <summary>This patient's "who viewed my chart" access report (accountability).</summary>
+    Task<List<GrainStates.PatientAccessLog>> GetMyAccessLogAsync();
+
+    /// <summary>Suspicious accesses to this chart — break-the-glass / blocked attempts (anomaly surface).</summary>
+    Task<List<GrainStates.PatientAccessLog>> GetSuspiciousAccessesAsync();
+
+    /// <summary>Cascade-testing opportunities from relatives linked to a Person with a confirmed germline finding (Phase 5).</summary>
+    Task<List<Clinical.CascadeOpportunity>> GetCascadeOpportunitiesAsync();
+
     /// <summary>
     /// Creates a new oncology treatment episode linked to a tumor.
     /// Adds the treatment ID to the tumor record and the patient treatment index.

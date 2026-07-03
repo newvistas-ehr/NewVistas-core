@@ -160,7 +160,9 @@ public class PatientAccessControlGrain : Grain, IPatientAccessControlGrain
     public async Task<PatientAccessDecision> DecideAccessAsync(
         string viewerUserId, string viewerName, bool breakTheGlassAttested, string? justificationText)
     {
-        bool hasRelationship = _state.State.AuthorizedProviderIds.Contains(viewerUserId);
+        bool hasRelationship = _state.State.AuthorizedProviderIds.Contains(viewerUserId)
+            || _state.State.Relationships.Any(r => r.UserId == viewerUserId
+                && (r.ExpiresDate == null || r.ExpiresDate > DateTime.UtcNow));
 
         PatientAccessOutcome outcome;
         if (_state.State.SharePreference == PatientSharePreference.OpenForTeachingAndResearch)
@@ -208,4 +210,28 @@ public class PatientAccessControlGrain : Grain, IPatientAccessControlGrain
             Message = message
         };
     }
+
+    public async Task EstablishRelationshipAsync(string userId, TreatmentRelationshipReason reason, string sourceRef, DateTime? expiresAt)
+    {
+        if (string.IsNullOrWhiteSpace(userId)) return;
+        // Upsert by (user, reason, source) so re-establishing the same relationship is idempotent.
+        _state.State.Relationships.RemoveAll(r => r.UserId == userId && r.Reason == reason && r.SourceRef == sourceRef);
+        _state.State.Relationships.Add(new TreatmentRelationship
+        {
+            UserId = userId,
+            Reason = reason,
+            SourceRef = sourceRef,
+            EstablishedDate = DateTime.UtcNow,
+            ExpiresDate = expiresAt
+        });
+        _state.State.LastModifiedDate = DateTime.UtcNow;
+        await _state.WriteStateAsync();
+    }
+
+    public Task<List<PatientAccessLog>> GetSuspiciousAccessesAsync()
+        // Anomaly surface: accesses to this (sensitive) record that had NO relationship — a break-the-glass
+        // or a blocked pending-BTG attempt. For a flagged patient these are the ones a reviewer looks at.
+        => Task.FromResult(_state.State.AccessLog
+            .Where(e => e.WasBreakTheGlass || e.AccessReason == "BLOCKED_PENDING_BTG")
+            .ToList());
 }
