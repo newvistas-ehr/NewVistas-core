@@ -81,6 +81,61 @@ public class PatientAccessControlState
     /// </summary>
     [Id(10)]
     public string Part2ConsentScope { get; set; } = string.Empty;
+
+    /// <summary>
+    /// The patient's own sharing preference (ADR-002 Phase 4). Maximal openness is a FIRST-CLASS
+    /// choice, not just the restrictive end of the dial: a patient who opts into
+    /// <see cref="PatientSharePreference.OpenForTeachingAndResearch"/> is accessed frictionlessly (still
+    /// audited) even if the record is otherwise flagged. The patient's choice — either direction — wins
+    /// for their own record.
+    /// </summary>
+    [Id(11)]
+    public PatientSharePreference SharePreference { get; set; } = PatientSharePreference.Default;
+}
+
+/// <summary>
+/// A patient's own preference for how broadly their record is shared (ADR-002 Phase 4).
+/// </summary>
+public enum PatientSharePreference
+{
+    /// <summary>Normal — sensitivity + treatment-relationship rules apply.</summary>
+    Default = 0,
+    /// <summary>Patient wants the record treated as sensitive (still never gates the treating team).</summary>
+    Restricted = 1,
+    /// <summary>Patient has opted into open sharing for teaching/research — access allowed (still audited).</summary>
+    OpenForTeachingAndResearch = 2
+}
+
+/// <summary>
+/// The outcome of a patient-access decision (ADR-002 Phase 4). The treatment relationship is NEVER
+/// gated; break-the-glass is only for access WITHOUT a relationship and never hard-blocks
+/// (RequiresBreakTheGlass is a soft signal — attest to proceed).
+/// </summary>
+public enum PatientAccessOutcome
+{
+    /// <summary>Open record — no restriction.</summary>
+    Allowed = 0,
+    /// <summary>Sensitive, but the viewer has a treatment relationship — frictionless (heightened audit).</summary>
+    AllowedByRelationship = 1,
+    /// <summary>The patient opted into open sharing.</summary>
+    AllowedByOpenConsent = 2,
+    /// <summary>No relationship, but the viewer attested break-the-glass — proceed (audited + notifiable).</summary>
+    AllowedByBreakTheGlass = 3,
+    /// <summary>Sensitive + no relationship + not yet attested — SOFT: attest break-the-glass to proceed.</summary>
+    RequiresBreakTheGlass = 4
+}
+
+/// <summary>The result of a patient-access decision. Every decision (including a pending-BTG one) is audited.</summary>
+[GenerateSerializer]
+public class PatientAccessDecision
+{
+    [Id(0)] public PatientAccessOutcome Outcome { get; set; }
+    /// <summary>True unless the outcome is <see cref="PatientAccessOutcome.RequiresBreakTheGlass"/>.</summary>
+    [Id(1)] public bool Granted { get; set; }
+    [Id(2)] public bool WasBreakTheGlass { get; set; }
+    /// <summary>Whether the record is sensitive (revealed to the viewer at the boundary — inherent to a BTG prompt).</summary>
+    [Id(3)] public bool IsSensitive { get; set; }
+    [Id(4)] public string Message { get; set; } = string.Empty;
 }
 
 /// <summary>

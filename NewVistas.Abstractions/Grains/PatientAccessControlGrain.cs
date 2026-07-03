@@ -113,4 +113,99 @@ public class PatientAccessControlGrain : Grain, IPatientAccessControlGrain
 
     public Task<bool> HasPart2ConsentAsync()
         => Task.FromResult(_state.State.HasPart2Consent);
+
+    // ── ADR-002 Phase 4 ──────────────────────────────────────────────────────
+
+    public async Task SetEmployeePatientAsync(bool isEmployeePatient)
+    {
+        const string cat = "EMPLOYEE";
+        bool changed = false;
+        if (isEmployeePatient)
+        {
+            if (!_state.State.SensitivityCategories.Contains(cat))
+            {
+                _state.State.SensitivityCategories.Add(cat);
+                changed = true;
+            }
+            if (!_state.State.IsSensitive) { _state.State.IsSensitive = true; changed = true; }
+            if (string.IsNullOrEmpty(_state.State.SensitivityLevel)) _state.State.SensitivityLevel = "ELEVATED";
+        }
+        else
+        {
+            if (_state.State.SensitivityCategories.Remove(cat)) changed = true;
+            // Only stays sensitive if some OTHER reason remains.
+            bool stillSensitive = _state.State.SensitivityCategories.Count > 0;
+            if (_state.State.IsSensitive != stillSensitive) { _state.State.IsSensitive = stillSensitive; changed = true; }
+            if (!stillSensitive) _state.State.SensitivityLevel = string.Empty;
+        }
+        if (!changed) return;
+        _state.State.LastModifiedDate = DateTime.UtcNow;
+        await _state.WriteStateAsync();
+    }
+
+    public async Task SetSharePreferenceAsync(PatientSharePreference preference)
+    {
+        _state.State.SharePreference = preference;
+        if (preference == PatientSharePreference.Restricted && !_state.State.IsSensitive)
+        {
+            _state.State.IsSensitive = true;
+            if (!_state.State.SensitivityCategories.Contains("PATIENT_RESTRICTED"))
+                _state.State.SensitivityCategories.Add("PATIENT_RESTRICTED");
+            if (string.IsNullOrEmpty(_state.State.SensitivityLevel)) _state.State.SensitivityLevel = "ELEVATED";
+        }
+        _state.State.LastModifiedDate = DateTime.UtcNow;
+        await _state.WriteStateAsync();
+    }
+
+    public async Task<PatientAccessDecision> DecideAccessAsync(
+        string viewerUserId, string viewerName, bool breakTheGlassAttested, string? justificationText)
+    {
+        bool hasRelationship = _state.State.AuthorizedProviderIds.Contains(viewerUserId);
+
+        PatientAccessOutcome outcome;
+        if (_state.State.SharePreference == PatientSharePreference.OpenForTeachingAndResearch)
+            outcome = PatientAccessOutcome.AllowedByOpenConsent;      // patient chose openness — their record, their call
+        else if (!_state.State.IsSensitive)
+            outcome = PatientAccessOutcome.Allowed;
+        else if (hasRelationship)
+            outcome = PatientAccessOutcome.AllowedByRelationship;     // treating team — NEVER gated
+        else if (breakTheGlassAttested)
+            outcome = PatientAccessOutcome.AllowedByBreakTheGlass;    // attest-and-proceed
+        else
+            outcome = PatientAccessOutcome.RequiresBreakTheGlass;     // SOFT — attest to proceed
+
+        bool granted = outcome != PatientAccessOutcome.RequiresBreakTheGlass;
+        bool wasBtg = outcome == PatientAccessOutcome.AllowedByBreakTheGlass;
+
+        (string reason, string message) = outcome switch
+        {
+            PatientAccessOutcome.Allowed => ("OPEN_RECORD", "Access granted."),
+            PatientAccessOutcome.AllowedByRelationship => ("TREATING_PROVIDER", "Access granted — treatment relationship."),
+            PatientAccessOutcome.AllowedByOpenConsent => ("PATIENT_OPEN_CONSENT", "Access granted — patient has opted into open sharing."),
+            PatientAccessOutcome.AllowedByBreakTheGlass => ("BREAK_THE_GLASS", "Access granted via break-the-glass — this access is logged and the patient may be notified."),
+            _ => ("BLOCKED_PENDING_BTG", "This is a protected record. You have no treatment relationship — attest a reason to proceed (break-the-glass).")
+        };
+
+        // Audit every decision, including a pending-BTG attempt (who tried to reach a protected record).
+        _state.State.AccessLog.Add(new PatientAccessLog
+        {
+            UserId = viewerUserId,
+            UserName = viewerName,
+            AccessDateTime = DateTime.UtcNow,
+            AccessReason = reason,
+            WasBreakTheGlass = wasBtg,
+            JustificationText = justificationText
+        });
+        _state.State.LastModifiedDate = DateTime.UtcNow;
+        await _state.WriteStateAsync();
+
+        return new PatientAccessDecision
+        {
+            Outcome = outcome,
+            Granted = granted,
+            WasBreakTheGlass = wasBtg,
+            IsSensitive = _state.State.IsSensitive,
+            Message = message
+        };
+    }
 }

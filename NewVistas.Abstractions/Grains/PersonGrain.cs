@@ -37,6 +37,7 @@ public class PersonGrain : Grain, IPersonGrain
     private IPatientGrain Patient(string patientId) => GrainFactory.GetGrain<IPatientGrain>(patientId);
     private INewPersonGrain Staff(string userId) => GrainFactory.GetGrain<INewPersonGrain>($"USER:{userId}");
     private IPersonIndexGrain Index() => GrainFactory.GetGrain<IPersonIndexGrain>("PERSON-INDEX:DEFAULT");
+    private IPatientAccessControlGrain Pac(string patientId) => GrainFactory.GetGrain<IPatientAccessControlGrain>($"PAC:{patientId}");
 
     public async Task RegisterIdentityAsync(string name, DateTime? dateOfBirth, string sex, string ssnLast4)
     {
@@ -137,5 +138,10 @@ public class PersonGrain : Grain, IPersonGrain
             StaffRoleCount = _state.State.StaffRoles.Count,
             IsEmployeePatient = _state.State.IsEmployeePatient
         });
+
+        // ADR-002 Phase 4: propagate the employee-patient sensitivity to each linked chart, so a chart
+        // whose owner is also on staff is auto-flagged sensitive (boundary only — never gates the team).
+        foreach (PersonPatientRole role in _state.State.PatientRoles)
+            await Pac(role.PatientId).SetEmployeePatientAsync(_state.State.IsEmployeePatient);
     }
 }

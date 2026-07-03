@@ -113,6 +113,18 @@ public class PersonIndexEntry
     [Id(6)] public bool IsEmployeePatient { get; set; }
 }
 
+/// <summary>
+/// Result of a viewer-gated cross-role Person read (ADR-002 Phase 4). The Person detail is populated
+/// ONLY when the access decision grants it; otherwise it is null and <see cref="Decision"/> says why
+/// (e.g. RequiresBreakTheGlass). The employee-patient status therefore never leaks to an unauthorized viewer.
+/// </summary>
+[GenerateSerializer]
+public class PersonViewResult
+{
+    [Id(0)] public PatientAccessDecision Decision { get; set; } = new();
+    [Id(1)] public PersonState? Person { get; set; }
+}
+
 /// <summary>Persistent state for the singleton Person index grain.</summary>
 [GenerateSerializer]
 public class PersonIndexState

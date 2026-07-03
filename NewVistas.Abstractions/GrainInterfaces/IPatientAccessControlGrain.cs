@@ -65,4 +65,25 @@ public interface IPatientAccessControlGrain : IGrainWithStringKey
     /// Check if Part 2 consent is on file for this patient.
     /// </summary>
     Task<bool> HasPart2ConsentAsync();
+
+    // ── ADR-002 Phase 4 — employee-patient / share-preference / access decision ──
+
+    /// <summary>
+    /// Marks (or clears) the record as an employee-patient sensitivity (adds/removes the "EMPLOYEE"
+    /// category; keeps the record sensitive while any category remains). Called automatically by the
+    /// Person anchor when a human gains/loses both a patient- and a staff-role.
+    /// </summary>
+    Task SetEmployeePatientAsync(bool isEmployeePatient);
+
+    /// <summary>Sets the patient's own sharing preference (maximal-openness is a first-class choice).</summary>
+    Task SetSharePreferenceAsync(GrainStates.PatientSharePreference preference);
+
+    /// <summary>
+    /// Decides — and audits — a viewer's access to this record. Treatment relationship (authorized
+    /// list) is never gated; a patient's open-sharing choice is honored; otherwise, for a sensitive
+    /// record, access without a relationship requires break-the-glass (attest-and-proceed, never a hard
+    /// block). Records the access (including a pending-BTG attempt) to the audit log.
+    /// </summary>
+    Task<GrainStates.PatientAccessDecision> DecideAccessAsync(
+        string viewerUserId, string viewerName, bool breakTheGlassAttested, string? justificationText);
 }

@@ -51,7 +51,13 @@ public static class PersonIdentitySeed
             string personNora = await nora.CreateOrGetPersonForPatientAsync(Facility, PersonLinkConfidence.ConfirmedByRegistration, By);
             await grainFactory.GetGrain<IPersonGrain>(personNora)
                 .LinkStaffAsync("STAFF-NORA", PersonLinkConfidence.ConfirmedByRegistration, By);
-            logger.LogInformation("  + nurse-patient: Person {P} = patient P9005 + staff USER:STAFF-NORA (employee-patient)", personNora);
+
+            // Phase 4: linking both roles auto-flagged her chart sensitive (EMPLOYEE). Give her a
+            // treating provider so the frictionless-team vs break-the-glass contrast is demonstrable.
+            await grainFactory.GetGrain<IPatientAccessControlGrain>("PAC:P9005").AddAuthorizedProviderAsync("STAFF-NORA-DOC");
+            PatientAccessControlState noraPac = await grainFactory.GetGrain<IPatientAccessControlGrain>("PAC:P9005").GetAccessControlAsync();
+            logger.LogInformation("  + nurse-patient: Person {P} = patient P9005 + staff USER:STAFF-NORA (employee-patient; chart sensitive={S}, categories=[{C}])",
+                personNora, noraPac.IsSensitive, string.Join(",", noraPac.SensitivityCategories));
 
             // ── Case 2: mother who is a patient AND a relative on her child's chart ─
             IPatientWorkflowGrain kay = grainFactory.GetGrain<IPatientWorkflowGrain>("P9006");
@@ -70,6 +76,12 @@ public static class PersonIdentitySeed
             string personKay = await kay.CreateOrGetPersonForPatientAsync(Facility, PersonLinkConfidence.ConfirmedByRegistration, By);
             await kim.LinkFamilyMemberToPersonAsync(motherEntryId, personKay, By);
             logger.LogInformation("  + mother-patient-relative: Person {P} = patient P9006 (KAY) + 'Mother' relative on P9007 (KIM)'s chart", personKay);
+
+            // Phase 4: the mirror of sensitivity — a patient who opts INTO open sharing for
+            // teaching/research (the "next Jim Smyth" stance: maximal openness as a first-class choice).
+            await grainFactory.GetGrain<IPatientWorkflowGrain>("P9001")
+                .SetPatientSharePreferenceAsync(PatientSharePreference.OpenForTeachingAndResearch);
+            logger.LogInformation("  + open-sharing: P9001 opted into open sharing (teaching/research) — access allowed without break-the-glass, still audited");
 
             logger.LogInformation("Person-identity (ADR-002) demo seeded successfully");
         }

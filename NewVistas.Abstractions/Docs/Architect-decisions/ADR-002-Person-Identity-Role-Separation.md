@@ -75,9 +75,44 @@ Concrete cases this enables:
 | **1** | `PersonGrain` + `PersonState` + `PersonIndexGrain` + stores. Standalone. | approved |
 | **2** | Nullable back‑pointers + `SetPersonIdAsync` on patient/staff + link/unlink workflow + family‑member link. | approved |
 | **3** | Bootstrap (create‑Person‑from‑record) + demo (nurse‑patient, mother‑patient‑relative) + tests. | approved |
-| 4 | Cross‑role "Person view" + employee‑patient privacy guard (break‑the‑glass, audited). | after review |
+| **4** | Cross‑role "Person view" + employee‑patient privacy guard (break‑the‑glass, audited). | ✅ (2026‑07‑03) |
 | 5 | Cascade / genetics integration (confirmed relative→Person feeds hereditary‑risk). | after review |
 | 6 | UI (Person panel + link UI mirroring External‑Identities/merge) + candidate suggestion + docs. | after review |
+
+## Phase 4 — implemented (2026‑07‑03)
+
+The privacy guard, built on the existing `PatientAccessControlGrain` (PAC), enforces the rules above:
+
+- **Employee‑patient auto‑flag.** When a Person gains both a patient‑role and a staff‑role, the
+  `PersonGrain` auto‑calls `PAC.SetEmployeePatientAsync(true)` on each linked chart (adds an "EMPLOYEE"
+  sensitivity category); losing either role clears it (only if no other reason remains).
+- **`PAC.DecideAccessAsync(viewer, btgAttested, justification)`** — one place that decides *and* audits:
+  - patient chose **open sharing** → `AllowedByOpenConsent` (the patient's own record, their call);
+  - not sensitive → `Allowed`;
+  - sensitive **+ treatment relationship** (viewer in the authorized list) → `AllowedByRelationship`
+    — **the team is NEVER gated, no BTG** (James's rule: *"if you want BTG for your team, you should be
+    at a different hospital — you could have your privacy and be dead"*);
+  - sensitive, no relationship, **attested** → `AllowedByBreakTheGlass`;
+  - sensitive, no relationship, not attested → `RequiresBreakTheGlass` — a **soft** signal (attest to
+    proceed); **BTG never hard‑blocks**. Every outcome (including a pending‑BTG attempt) is written to
+    the audit log.
+- **Maximal openness is first‑class.** `PatientSharePreference.OpenForTeachingAndResearch` makes access
+  frictionless (still audited) regardless of sensitivity — the mirror of the restrictive end, and the
+  "next Jim Smyth" stance encoded as a deliberate patient choice.
+- **Non‑leaking cross‑role read.** `GetPatientPersonForViewerAsync(...)` runs the decision and returns
+  the Person detail **only when granted**; otherwise `Person` is null — so an unauthorized viewer can't
+  even learn that the patient is also on staff. (The raw `GetPatientPersonAsync` is documented
+  system‑only.)
+- **Tests:** 10 functional (`PersonAccessControlTests`) — the full decision matrix, auto‑flag on/off,
+  the gated view hiding cross‑role status until BTG, the openness override, and the audit trail.
+- **Deliberately NOT built (per James):** any "require‑BTG‑even‑for‑my‑team" option. The team is
+  sacrosanct for access; strong privacy is don't‑leak‑status + audit‑and‑notify + confidential/alias
+  registration or a different facility — never friction on your own caregivers.
+
+**Follow‑on (still Phase‑4‑adjacent, not built):** auto‑*establishing* the treatment relationship from
+encounters/orders/OR‑case/unit‑admission (today the authorized list is populated manually / by care
+team) — so the surgical cast and floor coverage are authorized without a hand‑curated list; plus
+anomaly detection and a patient‑facing access report.
 
 ## Non‑goals
 - Not auto‑merging humans. Not replacing/modifying the ICN/MPI rekey machinery (Person sits above it).

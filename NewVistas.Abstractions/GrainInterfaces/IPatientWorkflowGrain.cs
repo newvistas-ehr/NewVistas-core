@@ -2437,6 +2437,15 @@ public interface IPatientWorkflowGrain : IGrainWithStringKey
     /// <summary>Links a family-history relative on this chart to a known Person (+ records the reverse appearance).</summary>
     Task LinkFamilyMemberToPersonAsync(string memberId, string personId, string byUser);
 
+    /// <summary>Decides + audits a viewer's access to this chart (treatment relationship never gated; BTG attest-and-proceed).</summary>
+    Task<GrainStates.PatientAccessDecision> AccessPatientAsync(string viewerUserId, string viewerName, bool breakTheGlassAttested, string? justification);
+
+    /// <summary>Viewer-gated cross-role Person read — returns the Person only when access is granted (else null + reason).</summary>
+    Task<GrainStates.PersonViewResult> GetPatientPersonForViewerAsync(string viewerUserId, string viewerName, bool breakTheGlassAttested, string? justification);
+
+    /// <summary>Sets this patient's own sharing preference (maximal-openness is a first-class choice).</summary>
+    Task SetPatientSharePreferenceAsync(GrainStates.PatientSharePreference preference);
+
     /// <summary>
     /// Creates a new oncology treatment episode linked to a tumor.
     /// Adds the treatment ID to the tumor record and the patient treatment index.

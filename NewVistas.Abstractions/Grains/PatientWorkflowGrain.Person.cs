@@ -16,10 +16,12 @@ namespace NewVistas.Abstractions.Grains;
 public partial class PatientWorkflowGrain
 {
     private IPersonGrain Person(string personId) => GrainFactory.GetGrain<IPersonGrain>(personId);
+    private IPatientAccessControlGrain Pac() => GrainFactory.GetGrain<IPatientAccessControlGrain>($"PAC:{PatientId}");
 
     /// <summary>
-    /// Returns this chart's Person anchor if one is linked; else null. (Phase 4 gates the cross-role
-    /// detail behind an audited break-the-glass permission.)
+    /// UNGATED system read of this chart's Person anchor (null if unlinked). Callers that represent a
+    /// viewer MUST use <see cref="GetPatientPersonForViewerAsync"/> instead — that path enforces the
+    /// access decision + audit so the cross-role/employee-patient status never leaks.
     /// </summary>
     public async Task<PersonState?> GetPatientPersonAsync()
     {
@@ -66,4 +68,29 @@ public partial class PatientWorkflowGrain
         await Person(personId).AddRelativeAppearanceAsync(
             PatientId, member.Relationship.ToString(), PersonRelativeSource.FamilyHistory, memberId, byUser);
     }
+
+    // ─── Phase 4 — viewer-gated access (ADR-002) ──────────────────────────────
+
+    /// <summary>
+    /// Decides — and audits — a viewer's access to this chart. Treatment relationship is never gated;
+    /// break-the-glass is only for access without one and never hard-blocks (attest-and-proceed).
+    /// </summary>
+    public Task<PatientAccessDecision> AccessPatientAsync(string viewerUserId, string viewerName, bool breakTheGlassAttested, string? justification)
+        => Pac().DecideAccessAsync(viewerUserId, viewerName, breakTheGlassAttested, justification);
+
+    /// <summary>
+    /// Viewer-facing cross-role Person read. Runs the access decision (+ audit) and returns the Person
+    /// detail ONLY when granted; otherwise the Person is null and the decision says why (e.g. requires
+    /// break-the-glass). This is how the employee-patient / cross-role status is protected from leaking.
+    /// </summary>
+    public async Task<PersonViewResult> GetPatientPersonForViewerAsync(string viewerUserId, string viewerName, bool breakTheGlassAttested, string? justification)
+    {
+        PatientAccessDecision decision = await Pac().DecideAccessAsync(viewerUserId, viewerName, breakTheGlassAttested, justification);
+        PersonState? person = decision.Granted ? await GetPatientPersonAsync() : null;
+        return new PersonViewResult { Decision = decision, Person = person };
+    }
+
+    /// <summary>Sets this patient's own sharing preference (maximal-openness is a first-class choice).</summary>
+    public Task SetPatientSharePreferenceAsync(PatientSharePreference preference)
+        => Pac().SetSharePreferenceAsync(preference);
 }
