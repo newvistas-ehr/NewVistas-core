@@ -87,6 +87,16 @@ public class NursingUnitGrain : Grain, INursingUnitGrain
 
         _state.State.LastModifiedDate = DateTime.UtcNow;
         await _state.WriteStateAsync();
+
+        // ADR-002 Phase 4b: the bed's attending nurse gains a treatment relationship to THIS patient —
+        // this is the "covering nurse who ends up in your room" case. Being assigned to the bed
+        // authorizes her frictionlessly on a sensitive/employee-patient chart (no break-the-glass),
+        // rather than the unworkable alternative of a pre-published who-will-know roster. Access is
+        // still audited; a nurse who was never assigned to your bed still hits break-the-glass.
+        // Source is the bed, so re-assigning the same bed to the same nurse upserts one relationship.
+        if (!string.IsNullOrWhiteSpace(attendingNurseId))
+            await GrainFactory.GetGrain<IPatientAccessControlGrain>($"PAC:{patientId}")
+                .EstablishRelationshipAsync(attendingNurseId, TreatmentRelationshipReason.UnitCoverage, $"BED:{bed}", null);
     }
 
     public async Task DischargeFromBedAsync(string bed)

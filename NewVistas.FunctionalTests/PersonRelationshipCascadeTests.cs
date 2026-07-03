@@ -149,6 +149,80 @@ public class PersonRelationshipCascadeTests
         Assert.That(suspicious, Has.Some.Matches<PatientAccessLog>(e => e.WasBreakTheGlass));
     }
 
+    [Test]
+    public async Task Order_AutoEstablishesOrderingProviderRelationship_AllowedByRelationship()
+    {
+        var (wf, _, _) = await NewEmployeePatientAsync();   // sensitive employee-patient
+
+        await wf.PlaceOrderAsync("LAB", "CBC with differential", null,
+            "DR-ORDERER", "Dr Orderer", "CLINIC1", "Ortho Clinic", "ROUTINE", null, "anemia workup");
+
+        PatientAccessDecision d = await wf.AccessPatientAsync("DR-ORDERER", "Dr Orderer",
+            breakTheGlassAttested: false, justification: null);
+
+        Assert.That(d.Outcome, Is.EqualTo(PatientAccessOutcome.AllowedByRelationship));
+        Assert.That(d.Granted, Is.True);
+        Assert.That(d.WasBreakTheGlass, Is.False);   // the ordering provider is authorized WITHOUT break-the-glass
+    }
+
+    [Test]
+    public async Task Consult_AutoEstablishesConsultantRelationship_AllowedByRelationship()
+    {
+        var (wf, _, _) = await NewEmployeePatientAsync();
+
+        // A consult to Cardiology, with a named consultant (attention provider) — the consultant is
+        // seeing a patient who was not previously "theirs".
+        await wf.RequestConsultAsync("Cardiology", "CARD", "Ortho", "ORTHO", "ROUTINE",
+            "DR-REQ", "Dr Requester", "DR-CONSULTANT", "Dr Consultant",
+            "pre-op cardiac clearance", "CAD", null, "CLINIC1", "Ortho Clinic");
+
+        PatientAccessDecision consultant = await wf.AccessPatientAsync("DR-CONSULTANT", "Dr Consultant",
+            breakTheGlassAttested: false, justification: null);
+        PatientAccessDecision requester = await wf.AccessPatientAsync("DR-REQ", "Dr Requester",
+            breakTheGlassAttested: false, justification: null);
+
+        Assert.That(consultant.Outcome, Is.EqualTo(PatientAccessOutcome.AllowedByRelationship));
+        Assert.That(consultant.WasBreakTheGlass, Is.False);
+        Assert.That(requester.Outcome, Is.EqualTo(PatientAccessOutcome.AllowedByRelationship));
+    }
+
+    [Test]
+    public async Task Admission_AutoEstablishesAttendingRelationship_AllowedByRelationship()
+    {
+        var (wf, _, _) = await NewEmployeePatientAsync();
+
+        await wf.RecordAdmissionAsync(DateTime.UtcNow, "5W", "5 West", "501-A", "Medicine",
+            "DR-ATTENDING", "Dr Attending", "pneumonia", null);
+
+        PatientAccessDecision d = await wf.AccessPatientAsync("DR-ATTENDING", "Dr Attending",
+            breakTheGlassAttested: false, justification: null);
+
+        Assert.That(d.Outcome, Is.EqualTo(PatientAccessOutcome.AllowedByRelationship));
+        Assert.That(d.Granted, Is.True);
+        Assert.That(d.WasBreakTheGlass, Is.False);
+    }
+
+    [Test]
+    public async Task UnitCoverage_BedAssignmentEstablishesAttendingNurseRelationship_AllowedByRelationship()
+    {
+        var (wf, pid, _) = await NewEmployeePatientAsync();
+
+        // The covering nurse "ends up in the room": assigned to the patient's bed on a nursing unit.
+        INursingUnitGrain unit = _cluster.GrainFactory.GetGrain<INursingUnitGrain>($"NURS-UNIT:{Guid.NewGuid()}");
+        await unit.InitializeAsync("5 West", "Med-Surg", 20);
+        await unit.AssignPatientAsync("501A", pid, "NIGHTINGALE,NORA", DateTime.UtcNow, "RN-COVER", "Covering Nurse RN");
+
+        PatientAccessDecision nurse = await wf.AccessPatientAsync("RN-COVER", "Covering Nurse RN",
+            breakTheGlassAttested: false, justification: null);
+        // A nurse who was never assigned to this bed is still not on the team.
+        PatientAccessDecision other = await wf.AccessPatientAsync("RN-OTHER", "Other Nurse RN",
+            breakTheGlassAttested: false, justification: null);
+
+        Assert.That(nurse.Outcome, Is.EqualTo(PatientAccessOutcome.AllowedByRelationship));
+        Assert.That(nurse.WasBreakTheGlass, Is.False);
+        Assert.That(other.Outcome, Is.EqualTo(PatientAccessOutcome.RequiresBreakTheGlass));
+    }
+
     // ─────────────────────────── Phase 5 — cascade-testing opportunities ───────────────────────────
 
     // Builds a mother (KAY) with a confirmed pathogenic germline BRCA1 variant, a child (KIM) whose

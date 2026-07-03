@@ -120,16 +120,27 @@ Closes the Phase‑4 follow‑on: the treatment relationship is now **auto‑est
 - **`PAC.EstablishRelationshipAsync(userId, reason, sourceRef, expiresAt?)`** — upsert by (user, reason,
   source). `DecideAccessAsync` now grants `AllowedByRelationship` when the viewer is in the authorized
   list **or** holds a non‑expired relationship — still never gated, no BTG.
-- **Auto‑wire from the workflow:** `ScheduleSurgeryAsync` establishes a `Surgery` relationship for the
-  surgeon; `ScheduleAppointmentAsync` establishes an `Appointment` relationship for the provider — so the
-  surgical cast / clinic provider are authorized without a curated list. (Orders / unit‑admission /
-  consults remain a further follow‑on.)
+- **Auto‑wire from the workflow — the treating cast is authorized by *doing the work*, no curated list:**
+  - `ScheduleSurgeryAsync` → `Surgery` relationship for the surgeon;
+  - `ScheduleAppointmentAsync` → `Appointment` relationship for the provider;
+  - `PlaceOrderAsync` → `Order` relationship for the ordering provider;
+  - `RequestConsultAsync` → `Consult` relationship for the requester **and** the named consultant (the
+    consultant is exactly the "provider on another service seeing a patient who wasn't theirs" case);
+  - `RecordAdmissionAsync` / `RecordTransferAsync` → `Admission` relationship for the attending physician;
+  - `NursingUnitGrain.AssignPatientAsync` → `UnitCoverage` relationship for the bed's attending nurse —
+    the **"covering nurse who ends up in your room"** case, authorized by the bed assignment itself
+    rather than an unworkable pre‑published who‑will‑know roster.
+  High‑frequency paths (order, consult, unit coverage) use a **stable source** so a provider's many
+  orders collapse to one relationship — the *reason*, not the specific event id, is what the decision
+  reads — keeping the list bounded on the hot path. (Remaining follow‑on: charge‑nurse/unit‑wide
+  coverage as a unit‑level roster, and discharge‑driven expiry.)
 - **Patient access report + anomaly surface:** `GetMyAccessLogAsync` (who viewed my chart) and
   `GetSuspiciousAccessesAsync` (break‑the‑glass **or** `BLOCKED_PENDING_BTG` — access without a
   relationship). Expired relationships correctly fall back to `RequiresBreakTheGlass`.
-- **Tests:** 6 functional in `PersonRelationshipCascadeTests` (surgery/appointment auto‑establish grant
-  with no BTG, direct establish, expired‑relationship fallback, non‑team still needs BTG, suspicious‑list
-  contents).
+- **Tests:** 10 functional in `PersonRelationshipCascadeTests` (surgery/appointment/order/consult/
+  admission auto‑establish grant with no BTG; unit‑coverage grants the covering nurse but not an
+  unassigned one; direct establish; expired‑relationship fallback; non‑team still needs BTG; suspicious‑
+  list contents).
 
 ## Phase 5 — implemented (2026‑07‑03)
 

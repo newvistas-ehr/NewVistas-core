@@ -84,6 +84,14 @@ public partial class PatientWorkflowGrain
         // uses the order's providerId, not the signed-in user).
         await EnsureProviderPanelAsync(providerId, "Ordering Provider");
 
+        // ADR-002 Phase 4b: an active order establishes the ordering provider's treatment relationship
+        // — frictionless access to a sensitive/employee-patient chart, no break-the-glass. A stable
+        // (empty) source collapses the provider's many orders into one relationship, so the list stays
+        // bounded on this hot path (the reason, not the specific order id, is what the decision uses).
+        if (!string.IsNullOrWhiteSpace(providerId))
+            await GrainFactory.GetGrain<IPatientAccessControlGrain>($"PAC:{PatientId}")
+                .EstablishRelationshipAsync(providerId, TreatmentRelationshipReason.Order, string.Empty, null);
+
         return orderId;
     }
 

@@ -114,6 +114,12 @@ public partial class PatientWorkflowGrain
             });
         }
 
+        // ADR-002 Phase 4b: admitting the patient establishes the attending physician's treatment
+        // relationship (tied to this admission episode) — the inpatient attending gets frictionless
+        // access without a hand-curated authorized list.
+        if (!string.IsNullOrWhiteSpace(attendingPhysicianId))
+            await Pac().EstablishRelationshipAsync(attendingPhysicianId, TreatmentRelationshipReason.Admission, adtId, null);
+
         return adtId;
     }
 
@@ -169,6 +175,11 @@ public partial class PatientWorkflowGrain
                 AttendingPhysicianName = attendingPhysicianName, LastMovementDate = transferDateTime
             });
         }
+
+        // ADR-002 Phase 4b: a transfer may hand the patient to a new attending — establish their
+        // treatment relationship too (the receiving service becomes authorized on arrival).
+        if (!string.IsNullOrWhiteSpace(attendingPhysicianId))
+            await Pac().EstablishRelationshipAsync(attendingPhysicianId, TreatmentRelationshipReason.Admission, transferId, null);
 
         return transferId;
     }

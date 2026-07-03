@@ -32,6 +32,7 @@ public class AuditCallFilterTests
             siloBuilder.AddMemoryGrainStorage("patientStore");
             siloBuilder.AddMemoryGrainStorage("patientHistoryIndexStore");
             siloBuilder.AddMemoryGrainStorage("accessControlStore");
+            siloBuilder.AddMemoryGrainStorage("patientAccessStore"); // ADR-002 Phase 4b: PlaceOrder now establishes a PAC treatment relationship
             siloBuilder.AddMemoryGrainStorage("problemStore");
             siloBuilder.AddMemoryGrainStorage("orderStore");
             siloBuilder.AddMemoryGrainStorage("vitalStore");

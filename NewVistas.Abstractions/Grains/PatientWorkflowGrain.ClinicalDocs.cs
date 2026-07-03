@@ -247,6 +247,14 @@ public partial class PatientWorkflowGrain
         // The requesting provider is now responsible for this patient — add to their panel.
         await EnsureProviderPanelAsync(requestingProviderId, "Consult Requester");
 
+        // ADR-002 Phase 4b: a consult establishes a treatment relationship for both the requester and
+        // the named consultant — the consultant is often a provider on another service seeing a patient
+        // who wasn't previously "theirs", so this is exactly the access a manual list would have missed.
+        if (!string.IsNullOrWhiteSpace(requestingProviderId))
+            await Pac().EstablishRelationshipAsync(requestingProviderId, TreatmentRelationshipReason.Consult, string.Empty, null);
+        if (!string.IsNullOrWhiteSpace(attentionProviderId))
+            await Pac().EstablishRelationshipAsync(attentionProviderId, TreatmentRelationshipReason.Consult, string.Empty, null);
+
         return consultId;
     }
 
