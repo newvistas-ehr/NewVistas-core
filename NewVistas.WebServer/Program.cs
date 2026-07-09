@@ -310,6 +310,7 @@ using (var scope = app.Services.CreateScope())
     await SpecialtyCoverSheetSeed.SeedAsync(grainFactory, seedLogger); // P9001 rotator-cuff surgery + shoulder MRI (specialty cover-sheet prototype)
     await PersonIdentitySeed.SeedAsync(grainFactory, seedLogger);      // P9005 nurse-patient + P9006/P9007 mother-patient-relative (Person identity ADR-002)
     await InterfacilityTransferSeed.SeedAsync(grainFactory, seedLogger); // P9008 in-flight Burlington→Lawrence transfer (Transfer Center demo)
+    await EmergingConditionSeed.SeedAsync(grainFactory, seedLogger);  // P9201-P9214 novel respiratory cluster + controls (ProtoCondition ADR-004)
     await SeedDemoCareTeamsAsync(app.Services, seedLogger);   // assigns P9001 now; P1..P30 skipped until imported
 
     // Auto-import demo patients if none exist
@@ -708,7 +709,7 @@ static async Task SeedDemoSecurityKeysAsync(IServiceProvider services)
         ["LabTechnician"]     = [SecurityKeys.LRLAB, SecurityKeys.LRVERIFY],
         ["Radiologist"]       = [SecurityKeys.RA_VERIFY, SecurityKeys.PROVIDER, SecurityKeys.TIU_SIGN],
         ["Surgeon"]           = [SecurityKeys.PROVIDER, SecurityKeys.ORES, SecurityKeys.TIU_SIGN, SecurityKeys.SR_SURGERY],
-        ["Administrator"]     = [SecurityKeys.XUMGR, SecurityKeys.XUAUDIT, SecurityKeys.DG_SENSITIVITY, SecurityKeys.DG_BED_CONTROL],
+        ["Administrator"]     = [SecurityKeys.XUMGR, SecurityKeys.XUAUDIT, SecurityKeys.DG_SENSITIVITY, SecurityKeys.DG_BED_CONTROL, SecurityKeys.EPI_MANAGER],
         ["RegistrationClerk"] = [SecurityKeys.SD_SCHEDULING, SecurityKeys.DG_ADMIT, SecurityKeys.DG_BED_CONTROL],
         ["MentalHealth"]      = [SecurityKeys.PROVIDER, SecurityKeys.TIU_SIGN, SecurityKeys.YS_MH_INSTRUMENT],
         ["Oncologist"]        = [SecurityKeys.PROVIDER, SecurityKeys.ORES, SecurityKeys.TIU_SIGN, SecurityKeys.GMRA_ALLERGY, SecurityKeys.GMRV_VITALS, SecurityKeys.GMPL_PROBLEM, SecurityKeys.ONCO_MANAGER],

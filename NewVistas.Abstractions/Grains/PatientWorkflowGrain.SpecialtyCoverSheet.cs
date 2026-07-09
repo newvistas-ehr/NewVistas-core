@@ -116,6 +116,7 @@ public partial class PatientWorkflowGrain
             UpcomingProcedures = keys.Contains(CoverSheetSections.Procedures) ? upcoming.Take(MaxOf(CoverSheetSections.Procedures)).ToList() : new(),
             LatestImaging = imagingTask is null ? new() : imagingTask.Result,
             PgxAlerts = pgxTask is null ? new() : pgxTask.Result,
+            PrecautionBanners = await BuildEmergingConditionBannersAsync(),
             LastRefreshed = DateTime.UtcNow,
             SectionsLoaded = keys.Count
         };

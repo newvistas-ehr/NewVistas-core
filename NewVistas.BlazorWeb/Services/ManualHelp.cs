@@ -61,6 +61,8 @@ public static class ManualHelp
             ["radiation-therapy"] = "radiation-therapy.html",
             ["cancerregistry"] = "cancer-registry.html",
             ["home-care"] = "home-care.html",
+            ["emerging-conditions"] = "emerging-conditions.html",
+            ["symptom-survey"] = "symptom-survey.html",
         },
         ["nurse"] = new()
         {
@@ -75,6 +77,7 @@ public static class ManualHelp
             ["shift-handoff"] = "shift-handoff.html",
             ["beds"] = "bed-board.html",
             ["transfer-center"] = "transfer-center.html",
+            ["symptom-survey"] = "symptom-survey.html",
         },
         ["pharmacist"] = new()
         {
@@ -103,6 +106,7 @@ public static class ManualHelp
             ["prosthetics"] = "prosthetics.html",
             ["security-keys"] = "security-keys.html",
             ["site-parameters"] = "site-parameters.html",
+            ["emerging-conditions"] = "emerging-conditions.html",
         },
     };
 

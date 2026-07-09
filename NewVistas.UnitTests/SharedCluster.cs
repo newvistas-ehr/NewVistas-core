@@ -541,6 +541,12 @@ public static class SharedCluster
             siloBuilder.AddMemoryGrainStorage("patientDrugClassIndexStore");
             siloBuilder.AddMemoryGrainStorage("patientSummaryStore");
             siloBuilder.AddMemoryGrainStorage("radiologyFindingStore");
+            siloBuilder.AddMemoryGrainStorage("patientSymptomStore");
+            siloBuilder.AddMemoryGrainStorage("symptomCohortStore");
+            siloBuilder.AddMemoryGrainStorage("protoConditionStore");
+            siloBuilder.AddMemoryGrainStorage("protoConditionIndexStore");
+            siloBuilder.AddMemoryGrainStorage("protoCohortStore");
+            siloBuilder.AddMemoryGrainStorage("protoSweepStore");
         }
     }
 }

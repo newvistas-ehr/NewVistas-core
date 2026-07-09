@@ -109,4 +109,10 @@ public class SpecialtyCoverSheet
     [Id(21)] public DateTime LastRefreshed { get; set; }
     /// <summary>How many section loaders actually ran (demonstrates selective fan-out).</summary>
     [Id(22)] public int SectionsLoaded { get; set; }
+
+    /// <summary>
+    /// Emerging-condition precaution banners — part of the always-present safety spine (never
+    /// suppressed by the layout). One per confirmed proto-condition membership.
+    /// </summary>
+    [Id(23)] public List<PrecautionBanner> PrecautionBanners { get; set; } = new();
 }

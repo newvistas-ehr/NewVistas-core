@@ -106,7 +106,7 @@ public class SiteParametersState
     ///                                    Center (request→accept→complete; ADR-003) (Modern; ENABLED BY DEFAULT, see SiteFeatures)
     /// </summary>
     [Id(7)]
-    public HashSet<string> Features { get; set; } = new() { SiteFeatures.ExternalPharmacy, SiteFeatures.Oncology, SiteFeatures.PrecisionOncology, SiteFeatures.HomeBasedCare, SiteFeatures.HomeHealthMedicare, SiteFeatures.NeonatalCare, SiteFeatures.Pharmacogenomics, SiteFeatures.HereditaryGenetics, SiteFeatures.SpecialtyCoverSheet, SiteFeatures.PersonIdentity, SiteFeatures.BedManagement };
+    public HashSet<string> Features { get; set; } = new() { SiteFeatures.ExternalPharmacy, SiteFeatures.Oncology, SiteFeatures.PrecisionOncology, SiteFeatures.HomeBasedCare, SiteFeatures.HomeHealthMedicare, SiteFeatures.NeonatalCare, SiteFeatures.Pharmacogenomics, SiteFeatures.HereditaryGenetics, SiteFeatures.SpecialtyCoverSheet, SiteFeatures.PersonIdentity, SiteFeatures.BedManagement, SiteFeatures.EmergingConditions };
 
     [Id(3)]
     public DateTime CreatedDate { get; set; } = DateTime.UtcNow;
@@ -236,4 +236,16 @@ public static class SiteFeatures
     /// The Transfer Center additionally self-hides on single-institution sites.
     /// </summary>
     public const string BedManagement = "BED_MANAGEMENT";
+
+    /// <summary>
+    /// Emerging-condition surveillance (ADR-004) — the ProtoCondition module. Structured coded
+    /// symptom capture (the wide-net review-of-systems the front door asks when an illness has no
+    /// name yet), living versioned disease clusters with a deterministic explainable matcher,
+    /// net-closing analytics (which feature discriminates the cluster from background), a
+    /// count-threshold alert, an isolation-precaution cover-sheet banner, and promotion-to-code with
+    /// problem-list migration + an eCR trigger. A "Modern" enhancement, <b>enabled by default</b>; a
+    /// site can turn it off (<c>DisableFeatureAsync("EMERGING_CONDITIONS")</c>) — the surveillance nav,
+    /// symptom survey, banners, and screening all go quiet.
+    /// </summary>
+    public const string EmergingConditions = "EMERGING_CONDITIONS";
 }

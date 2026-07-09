@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Symptom Survey — Provider Manual — NewVistas</title>
+  <link rel="stylesheet" href="../assets/css/manual.css" />
+</head>
+<body>
+  <div class="topbar">
+    <div class="brand"><a href="../index.html">NewVistas</a> <span>· User Manual</span></div>
+    <div class="role-pill">🩺 Provider</div>
+  </div>
+
+  <div class="layout">
+    <nav class="sidebar">
+      <div class="section">Provider Manual</div>
+      <a href="index.html">Overview</a>
+      <a href="getting-started.html">Getting Started</a>
+      <div class="section">Surveillance</div>
+      <a href="symptom-survey.html" class="active">Symptom Survey</a>
+      <a href="emerging-conditions.html">Emerging Conditions</a>
+      <div class="section">&nbsp;</div>
+      <a href="../index.html">← All roles</a>
+    </nav>
+
+    <main class="content" data-flag="EMERGING_CONDITIONS">
+      <div class="crumb"><a href="../index.html">Manual</a> › <a href="index.html">Provider</a> › Symptom Survey</div>
+      <h1>Symptom Survey — the structured wide net</h1>
+      <p class="lead">
+        When a patient's illness may not have a name yet, the Symptom Survey (<code>/symptom-survey</code>)
+        is how you cast the wide net: a coded review-of-systems where every answer is
+        <strong>Present</strong>, <strong>Absent</strong>, or <strong>Unknown</strong>. Recording
+        "asked and absent" is what lets an outbreak's case definition tighten later — you can only drop a
+        symptom that turns out to be common if the survey actually asked about it.
+      </p>
+
+      <h2>Why three states, not free text</h2>
+      <p>
+        A symptom you dismiss in a free-text note is <em>invisible</em>, not <em>absent</em> — and invisible
+        can't be analyzed. The survey makes the distinction explicit: <strong>Unknown means "not asked"</strong>
+        and is never treated as absent. Leave an item Unknown only when it genuinely wasn't assessed.
+      </p>
+
+      <h2>Using it</h2>
+      <ol>
+        <li>Enter the patient and <strong>Load</strong>. The question set is the core screen plus any symptoms
+          the currently active clusters are watching, grouped by body system.</li>
+        <li>Answer Present / Absent for what you assessed; leave the rest Unknown.</li>
+        <li><strong>Save answers.</strong> Only non-Unknown answers are recorded.</li>
+        <li><strong>Screen against active clusters</strong> to see whether this patient matches an emerging
+          cluster, with a score. If they do, <strong>Suggest into cluster</strong> flags them for the
+          epidemiologist to review — a human suggestion persists even if a later evaluation stops matching.</li>
+      </ol>
+
+      <div class="note">
+        Recording symptoms needs a front-door key (<code>PROVIDER</code>, <code>ORES</code>, <code>ORELSE</code>,
+        or <code>EPI MANAGER</code>) — nurses can do it. Once an epidemiologist confirms the patient into a
+        cluster, an isolation precaution banner appears on the patient's cover sheet.
+      </div>
+    </main>
+  </div>
+</body>
+</html>

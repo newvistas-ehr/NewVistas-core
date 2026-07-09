@@ -173,7 +173,7 @@ app.MapGet("/api/site/features", async (Orleans.IGrainFactory grains) =>
         "ONCOLOGY", "PRECISION_ONCOLOGY",
         "HOME_BASED_CARE", "HOME_HEALTH_MEDICARE",
         "NEONATAL_CARE", "PHARMACOGENOMICS", "HEREDITARY_GENETICS", "SPECIALTY_COVERSHEET", "PERSON_IDENTITY",
-        "BED_MANAGEMENT",
+        "BED_MANAGEMENT", "EMERGING_CONDITIONS",
     };
     var enabled = new List<string>();
     foreach (string f in all)

@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Emerging Conditions — Administrator Manual — NewVistas</title>
+  <link rel="stylesheet" href="../assets/css/manual.css" />
+</head>
+<body>
+  <div class="topbar">
+    <div class="brand"><a href="../index.html">NewVistas</a> <span>· User Manual</span></div>
+    <div class="role-pill">⚙️ Administrator</div>
+  </div>
+
+  <div class="layout">
+    <nav class="sidebar">
+      <div class="section">Administrator Manual</div>
+      <a href="index.html">Overview</a>
+      <a href="getting-started.html">Getting Started</a>
+      <div class="section">Surveillance</div>
+      <a href="emerging-conditions.html" class="active">Emerging Conditions</a>
+      <div class="section">&nbsp;</div>
+      <a href="../index.html">← All roles</a>
+    </nav>
+
+    <main class="content" data-flag="EMERGING_CONDITIONS">
+      <div class="crumb"><a href="../index.html">Manual</a> › <a href="index.html">Administrator</a> › Emerging Conditions</div>
+      <h1>Emerging Conditions — clusters before they have a code</h1>
+      <p class="lead">
+        Emerging-condition surveillance (<code>/emerging-conditions</code>) is for the disease that
+        has no ICD/SNOMED code <em>yet</em> — early COVID, early AIDS. A <strong>ProtoCondition</strong>
+        is a living, versioned cluster of patients, signals, and hypotheses: you treat and track it
+        locally, close the net as evidence accrues, and promote it to a real code when one arrives.
+        The page is gated by the <code>EMERGING_CONDITIONS</code> feature; creating, editing, promoting,
+        sweeping, confirming and excluding require the <code>EPI MANAGER</code> security key. Reads are
+        open — surveillance is part of the chart, not a privacy silo.
+      </p>
+
+      <h2>The lifecycle</h2>
+      <ol>
+        <li><strong>Define</strong> a cluster: a name, then a case definition — features across symptoms,
+          labs, vitals, diagnoses, demographics and exposures, each with a weight and a rule
+          (weighted / must-have / disqualifier). Set a match threshold. <em>Activate</em> to go live.</li>
+        <li><strong>Screen</strong>: run a sweep, or let clinicians surface patients from the symptom survey.
+          Matches arrive as <em>candidates</em> with a full per-feature evidence snapshot (✓ satisfied,
+          ✗ assessed-but-absent, — not assessed).</li>
+        <li><strong>Review</strong>: confirm the candidates that belong and exclude those that don't.
+          Confirming a member can trip a count-threshold alert to the infection-control team.</li>
+        <li><strong>Close the net</strong>: the Analytics tab shows each feature's cluster rate vs its
+          background — a <span class="k">Signal</span> discriminates the cluster, <span class="k">Noise</span>
+          occurs at background. Apply a suggested drop/raise, then re-sweep.</li>
+        <li><strong>Promote</strong>: when a code arrives, promote the cluster. The definition freezes,
+          candidates expire, an eCR trigger is emitted, and every confirmed member is queued for
+          problem-list recoding (with a citation back to the cluster).</li>
+      </ol>
+
+      <h2>Reading the analytics honestly</h2>
+      <p>
+        Rates divide by the patients you <em>actually asked</em> (the assessed denominator), never by the
+        whole cohort — low survey compliance shows up as "not assessed", not as a false Absent. Lift is a
+        documented heuristic with minimum-count guards, <strong>not</strong> a p-value, and the background
+        source is labeled (assessed population, or the curated catalog when the population is too thin).
+      </p>
+
+      <div class="note">
+        <strong>Demo:</strong> log in as <code>QM3</code> (CAMPBELL,DIANE S — Infection Preventionist) and open the
+        seeded <em>Novel respiratory cluster (2019)</em>. It ships with 9 confirmed + 4 candidate members and
+        an alert armed at 10 — confirming the tenth fires it live. Anosmia reads as a Signal, hearing change as
+        Noise. Promote it to COVID-19 / U07.1 to watch the net close into the coded pipeline. Full script:
+        Admin/17 — Emerging Conditions Full Arc.
+      </div>
+    </main>
+  </div>
+</body>
+</html>

@@ -1,0 +1,417 @@
+@* Copyright 2026 Merrimack Valley Software Works, LLC. All rights reserved. *@
+@* This Source Code Form is subject to the terms of the Mozilla Public *@
+@* License, v. 2.0. If a copy of the MPL was not distributed with this *@
+@* file, You can obtain one at https://mozilla.org/MPL/2.0/.            *@
+@page "/emerging-conditions"
+@page "/emerging-conditions/{ProtoId}"
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+@rendermode InteractiveServer
+@using NewVistas.BlazorWeb.Services
+@using NewVistas.Abstractions.Clinical
+@using NewVistas.Abstractions.GrainInterfaces
+@using NewVistas.Abstractions.GrainStates
+@inject OrleansGrainService Grains
+@inject UserSecurityContext SecurityContext
+
+<PageTitle>Emerging Conditions</PageTitle>
+
+<h1>🧫 Emerging-Condition Surveillance</h1>
+<p class="lede">Living, versioned clusters of patients who share a pattern that has no ICD/SNOMED code
+<em>yet</em>. Treat and track locally, close the net as evidence accrues, and promote to a real code when
+one arrives. @(CanManage ? "" : "(Read-only — you don't hold the EPI MANAGER key.)")</p>
+
+<AlertBanner Error="@error" Success="@success" />
+
+<div class="ec-layout">
+    <aside class="ec-list">
+        <div class="ec-list-head">
+            <strong>Clusters</strong>
+            <button class="btn-sm" @onclick="Reload">↻</button>
+        </div>
+        @if (summaries == null) { <p>Loading…</p> }
+        else
+        {
+            @foreach (ProtoConditionSummary s in summaries)
+            {
+                <button class="ec-list-item @(s.ProtoConditionId == ProtoId ? "active" : "")" @onclick="() => Select(s.ProtoConditionId)">
+                    <span class="ec-name">@s.Name</span>
+                    <span class="ec-badges">
+                        <span class="badge status-@s.Status">@s.Status</span>
+                        @if (s.ConfirmedCount > 0) { <span class="badge conf">@s.ConfirmedCount ✓</span> }
+                        @if (s.CandidateCount > 0) { <span class="badge cand">@s.CandidateCount ?</span> }
+                        @if (s.StaleCount > 0) { <span class="badge stale" title="members evaluated against an older definition">@s.StaleCount ⟳</span> }
+                    </span>
+                </button>
+            }
+        }
+        @if (CanManage)
+        {
+            <div class="ec-create">
+                <input placeholder="New cluster name" @bind="newName" />
+                <input placeholder="Description" @bind="newDesc" />
+                <button class="btn-primary" @onclick="Create" disabled="@(string.IsNullOrWhiteSpace(newName))">Create</button>
+            </div>
+        }
+    </aside>
+
+    <section class="ec-detail">
+        @if (proto == null) { <div class="empty-state">Select a cluster.</div> }
+        else
+        {
+            <div class="ec-detail-head">
+                <h2>@proto.Name <span class="badge status-@proto.Status">@proto.Status</span> <span class="ver">v@proto.DefinitionVersion</span></h2>
+                @if (CanManage && proto.Status == ProtoConditionStatus.Draft)
+                {
+                    <button class="btn-primary" @onclick="Activate">Activate</button>
+                }
+                @if (CanManage && proto.Status == ProtoConditionStatus.Active)
+                {
+                    <button class="btn" @onclick="Sweep" disabled="@busy">Run sweep</button>
+                }
+            </div>
+
+            <div class="tabs">
+                @foreach (string t in _tabs)
+                {
+                    <button class="@(activeTab == t ? "tab active" : "tab")" @onclick="() => activeTab = t">@t</button>
+                }
+            </div>
+
+            @if (activeTab == "Overview")
+            {
+                <p class="muted">@proto.Description</p>
+
+                <h3>Case definition (v@proto.DefinitionVersion) · threshold @proto.MatchThreshold.ToString("P0")</h3>
+                @if (proto.Features.Count == 0) { <div class="empty-state">No features yet — add the wide net below.</div> }
+                else
+                {
+                    <table class="data-table">
+                        <thead><tr><th>Feature</th><th>Kind</th><th>Rule / op</th><th>Weight</th>@if (CanManage) { <th></th> }</tr></thead>
+                        <tbody>
+                            @foreach (ProtoFeature f in proto.Features)
+                            {
+                                <tr>
+                                    <td>@f.Display <span class="mono">@f.Code</span></td>
+                                    <td>@f.Kind</td>
+                                    <td>@f.Rule / @f.Operator @f.Value</td>
+                                    <td>@f.Weight</td>
+                                    @if (CanManage) { <td><button class="btn-sm danger" @onclick="() => RemoveFeature(f.FeatureId)">✕</button></td> }
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                }
+
+                @if (CanManage && proto.Status != ProtoConditionStatus.Promoted)
+                {
+                    <div class="editor-grid">
+                        <fieldset>
+                            <legend>Add symptom feature</legend>
+                            <select @bind="featSymptom">
+                                @foreach (SymptomCatalogEntry e in SymptomCatalog.All)
+                                { <option value="@e.Code">@e.Display</option> }
+                            </select>
+                            <input type="number" step="0.5" style="width:5rem" @bind="featWeight" />
+                            <button class="btn" @onclick="AddSymptomFeature">Add</button>
+                        </fieldset>
+                        <fieldset>
+                            <legend>Isolation guidance</legend>
+                            <select @bind="guidanceIso">
+                                @foreach (BedIsolationType v in Enum.GetValues<BedIsolationType>())
+                                { <option value="@v">@v</option> }
+                            </select>
+                            <input placeholder="PPE notes" @bind="guidancePpe" />
+                            <button class="btn" @onclick="SaveGuidance">Save</button>
+                        </fieldset>
+                        <fieldset>
+                            <legend>Threshold alert</legend>
+                            <label>at <input type="number" style="width:4rem" @bind="alertThreshold" /> confirmed</label>
+                            <input placeholder="recipients (comma)" @bind="alertRecipients" />
+                            <button class="btn" @onclick="SaveAlert">Save</button>
+                        </fieldset>
+                    </div>
+                }
+                @if (proto.IsolationRecommendation is BedIsolationType iso && iso != BedIsolationType.None)
+                {
+                    <div class="iso-note">🦠 Isolation recommendation: <strong>@iso</strong> @proto.PpeNotes</div>
+                }
+                @if (proto.AlertRule is { } rule)
+                {
+                    <div class="muted">Alert at @rule.Threshold confirmed → @string.Join(", ", rule.Recipients) (fired @rule.TimesFired×).</div>
+                }
+            }
+            else if (activeTab == "Candidates" || activeTab == "Confirmed")
+            {
+                @if (MembersOf(CurrentMemberStatus).Count == 0) { <div class="empty-state">No @(activeTab.ToLower()).</div> }
+                else
+                {
+                    <table class="data-table">
+                        <thead><tr><th>Patient</th><th>Score</th><th>Source</th><th>Evidence</th>@if (CanManage) { <th></th> }</tr></thead>
+                        <tbody>
+                            @foreach (ProtoMember m in MembersOf(CurrentMemberStatus))
+                            {
+                                <tr>
+                                    <td>@m.PatientId @if (m.ReviewFlag) { <span class="badge stale" title="@m.ReviewReason">review</span> }</td>
+                                    <td>@m.Score.ToString("P0")</td>
+                                    <td>@m.Source</td>
+                                    <td class="evidence">
+                                        @foreach (FeatureContribution c in m.Contributions)
+                                        { <span class="chip @(c.Satisfied ? "yes" : c.Assessed ? "no" : "unk")" title="@c.Evidence">@(c.Satisfied ? "✓" : c.Assessed ? "✗" : "—") @c.Display</span> }
+                                    </td>
+                                    @if (CanManage)
+                                    {
+                                        <td>
+                                            @if (CurrentMemberStatus == ProtoMemberStatus.Candidate) { <button class="btn-sm" @onclick="() => Confirm(m.PatientId)">Confirm</button> }
+                                            <button class="btn-sm danger" @onclick="() => Exclude(m.PatientId)">Exclude</button>
+                                        </td>
+                                    }
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                }
+            }
+            else if (activeTab == "Analytics")
+            {
+                <button class="btn" @onclick="LoadAnalytics">Compute signal analysis</button>
+                @if (analytics != null)
+                {
+                    <p class="muted">Confirmed cohort: @analytics.ConfirmedCount. Rates are over the <em>assessed</em> denominator; lift is cluster ÷ background (a documented heuristic, not a p-value).</p>
+                    <table class="data-table">
+                        <thead><tr><th>Feature</th><th>Cluster</th><th>Background</th><th>Lift</th><th>Verdict</th></tr></thead>
+                        <tbody>
+                            @foreach (FeatureSignal s in analytics.Signals)
+                            {
+                                <tr>
+                                    <td>@s.Display</td>
+                                    <td>@s.ClusterPresent/@s.ClusterAssessed (@s.ClusterRate.ToString("P0"))</td>
+                                    <td>@s.BackgroundRate.ToString("P1") <span class="mono" title="@s.BackgroundSource">ⓘ</span></td>
+                                    <td>@(double.IsInfinity(s.Lift) ? "∞" : s.Lift.ToString("0.0"))×</td>
+                                    <td><span class="badge verdict-@s.Verdict">@s.Verdict</span></td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                    @if (analytics.Suggestions.Count > 0)
+                    {
+                        <h4>Refinement suggestions</h4>
+                        @foreach (RefinementSuggestion s in analytics.Suggestions)
+                        {
+                            <div class="suggestion">
+                                <span><strong>@s.Kind</strong> — @s.Rationale</span>
+                                @if (CanManage) { <button class="btn-sm" @onclick="() => ApplyRefinement(s)">Apply</button> }
+                            </div>
+                        }
+                    }
+                }
+            }
+            else if (activeTab == "Promotion")
+            {
+                @if (proto.Status == ProtoConditionStatus.Promoted)
+                {
+                    <div class="iso-note">Promoted to <strong>@proto.PromotedName</strong> [@string.Join(", ", proto.PromotedIcd10Codes)] on @proto.PromotedDate?.ToString("yyyy-MM-dd"). eCR trigger: <span class="mono">@proto.EcrTriggerId</span></div>
+                    <h4>Problem-list migration</h4>
+                    <table class="data-table">
+                        <thead><tr><th>Patient</th><th>Status</th><th>Problem</th>@if (CanManage) { <th></th> }</tr></thead>
+                        <tbody>
+                            @foreach (ProtoMigrationEntry e in proto.MigrationLog)
+                            {
+                                <tr>
+                                    <td>@e.PatientId</td>
+                                    <td>@e.Status</td>
+                                    <td class="mono">@e.ProblemId @e.Reason</td>
+                                    @if (CanManage)
+                                    {
+                                        <td>
+                                            @if (e.Status == ProtoMigrationStatus.Pending)
+                                            {
+                                                <button class="btn-sm" @onclick="() => Migrate(e.PatientId)">Recode</button>
+                                                <button class="btn-sm danger" @onclick="() => SkipMigrate(e.PatientId)">Skip</button>
+                                            }
+                                        </td>
+                                    }
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                }
+                else if (proto.Status == ProtoConditionStatus.Active && CanManage)
+                {
+                    <fieldset class="promote-form">
+                        <legend>Promote to a coded condition</legend>
+                        <p class="muted">A code has arrived. Freeze the definition, expire candidates, queue confirmed members for problem-list recoding, and emit an eCR trigger.</p>
+                        <input placeholder="Official name (e.g. COVID-19)" @bind="promName" />
+                        <input placeholder="ICD-10 (e.g. U07.1)" @bind="promIcd" />
+                        <input placeholder="SNOMED (e.g. 840539006)" @bind="promSnomed" />
+                        <input placeholder="Jurisdictions (comma)" @bind="promJuris" />
+                        <input placeholder="Notes" @bind="promNotes" />
+                        <button class="btn-primary" @onclick="Promote" disabled="@(string.IsNullOrWhiteSpace(promName))">Promote</button>
+                    </fieldset>
+                }
+                else { <div class="empty-state">Promotion is available once the cluster is Active.</div> }
+            }
+        }
+    </section>
+</div>
+
+<style>
+    .lede { color: #556; max-width: 62rem; }
+    .ec-layout { display: grid; grid-template-columns: 20rem 1fr; gap: 1rem; }
+    .ec-list-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: .5rem; }
+    .ec-list-item { display: block; width: 100%; text-align: left; border: 1px solid #dde; border-radius: 6px; padding: .4rem .5rem; margin-bottom: .35rem; background: #fff; cursor: pointer; }
+    .ec-list-item.active { border-color: #4a6; background: #f0f7f2; }
+    .ec-name { display: block; font-weight: 600; }
+    .ec-badges { display: flex; gap: .25rem; flex-wrap: wrap; margin-top: .2rem; }
+    .badge { font-size: .72rem; padding: .05rem .4rem; border-radius: 10px; background: #eef; }
+    .status-Active { background: #e6f6ec; color: #1c7c43; }
+    .status-Draft { background: #eef1f6; color: #556; }
+    .status-Promoted { background: #eae6fb; color: #5b3fae; }
+    .status-Retired { background: #f6eaea; color: #a33; }
+    .badge.conf { background: #e6f6ec; } .badge.cand { background: #fff5e0; } .badge.stale { background: #fde8e8; }
+    .verdict-Signal { background: #e6f6ec; color: #1c7c43; } .verdict-Noise { background: #eef1f6; color: #778; } .verdict-Insufficient { background: #f7f0e0; color: #96742a; }
+    .ec-create { margin-top: 1rem; display: flex; flex-direction: column; gap: .35rem; }
+    .ec-detail-head { display: flex; justify-content: space-between; align-items: center; }
+    .ver { font-size: .8rem; color: #889; }
+    .tabs { display: flex; gap: .25rem; margin: .5rem 0; border-bottom: 1px solid #dde; }
+    .tab { border: none; background: none; padding: .4rem .8rem; cursor: pointer; border-bottom: 2px solid transparent; }
+    .tab.active { border-bottom-color: #4a6; font-weight: 600; }
+    .editor-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr)); gap: .75rem; margin: 1rem 0; }
+    .editor-grid fieldset { border: 1px solid #dde; border-radius: 6px; padding: .5rem; }
+    .editor-grid input, .editor-grid select { margin: .15rem .25rem; }
+    .iso-note { background: #fff6f5; border: 1px solid #f0c9c4; border-radius: 6px; padding: .5rem .75rem; margin: .5rem 0; }
+    .evidence { display: flex; flex-wrap: wrap; gap: .2rem; }
+    .chip { font-size: .72rem; padding: .05rem .35rem; border-radius: 8px; border: 1px solid #dde; }
+    .chip.yes { background: #e6f6ec; } .chip.no { background: #f6eaea; } .chip.unk { background: #eef1f6; color: #889; }
+    .suggestion { display: flex; justify-content: space-between; align-items: center; gap: 1rem; padding: .35rem 0; border-bottom: 1px dotted #e5e5ef; }
+    .promote-form { border: 1px solid #dde; border-radius: 6px; padding: .75rem; display: flex; flex-direction: column; gap: .4rem; max-width: 30rem; }
+    .mono { font-family: monospace; font-size: .8rem; color: #778; }
+    .muted { color: #778; }
+    .btn-sm.danger, .danger { color: #a33; }
+</style>
+
+@code {
+    [Parameter] public string? ProtoId { get; set; }
+
+    private List<ProtoConditionSummary>? summaries;
+    private ProtoConditionState? proto;
+    private ProtoAnalyticsReport? analytics;
+    private string activeTab = "Overview";
+    private readonly string[] _tabs = { "Overview", "Candidates", "Confirmed", "Analytics", "Promotion" };
+    private string? error, success;
+    private bool busy;
+
+    // create
+    private string newName = "", newDesc = "";
+    // feature editor
+    private string featSymptom = "44169009";
+    private double featWeight = 1;
+    // guidance
+    private BedIsolationType guidanceIso = BedIsolationType.None;
+    private string guidancePpe = "";
+    // alert
+    private int alertThreshold = 10;
+    private string alertRecipients = "QM3";
+    // promotion
+    private string promName = "", promIcd = "", promSnomed = "", promNotes = "", promJuris = "US";
+
+    private bool CanManage => SecurityContext.HasKey("EPI MANAGER");
+    private string Me => Grains.CurrentUserName ?? Grains.CurrentUserId ?? "web";
+    private ProtoMemberStatus CurrentMemberStatus => activeTab == "Candidates" ? ProtoMemberStatus.Candidate : ProtoMemberStatus.Confirmed;
+    private List<ProtoMember> MembersOf(ProtoMemberStatus st) => proto!.Members.Where(m => m.Status == st).OrderByDescending(m => m.Score).ToList();
+
+    protected override async Task OnParametersSetAsync()
+    {
+        summaries ??= await LoadSummaries();
+        if (ProtoId != null && (proto == null || proto.ProtoConditionId != ProtoId))
+            await LoadProto();
+    }
+
+    private async Task<List<ProtoConditionSummary>> LoadSummaries() =>
+        await Grains.GetGrain<IProtoConditionIndexGrain>("PROTOCONDITION-INDEX").GetAllAsync();
+
+    private async Task Reload() { summaries = await LoadSummaries(); if (ProtoId != null) await LoadProto(); }
+
+    private async Task Select(string id) { ProtoId = id; activeTab = "Overview"; await LoadProto(); }
+
+    private async Task LoadProto()
+    {
+        error = success = null; analytics = null;
+        try { proto = await Grains.GetGrain<IProtoConditionGrain>($"PROTO:{ProtoId}").GetAsync(); }
+        catch (Exception ex) { error = ex.Message; }
+    }
+
+    private async Task RefreshAll() { proto = await Grains.GetGrain<IProtoConditionGrain>($"PROTO:{ProtoId}").GetAsync(); summaries = await LoadSummaries(); }
+
+    private IProtoConditionGrain P => Grains.GetGrain<IProtoConditionGrain>($"PROTO:{ProtoId}");
+
+    private async Task Run(Func<Task> action, string ok)
+    {
+        error = success = null; busy = true;
+        try { await action(); await RefreshAll(); success = ok; }
+        catch (UnauthorizedAccessException) { error = "You don't have the EPI MANAGER key for this action."; }
+        catch (Exception ex) { error = ex.Message; }
+        finally { busy = false; }
+    }
+
+    private async Task Create()
+    {
+        error = success = null;
+        try
+        {
+            string id = Guid.NewGuid().ToString();
+            await Grains.GetGrain<IProtoConditionGrain>($"PROTO:{id}").CreateAsync(newName, newDesc, Me);
+            newName = newDesc = "";
+            await Select(id);
+            summaries = await LoadSummaries();
+            success = "Cluster created.";
+        }
+        catch (UnauthorizedAccessException) { error = "You don't have the EPI MANAGER key."; }
+        catch (Exception ex) { error = ex.Message; }
+    }
+
+    private Task Activate() => Run(() => P.ActivateAsync(Me), "Activated — screening is live.");
+    private Task Sweep() => Run(async () => await Grains.GetGrain<IProtoSweepGrain>("PROTO-SWEEP").SweepProtoAsync(ProtoId!, 500, Me), "Sweep complete.");
+    private Task AddSymptomFeature() => Run(() => P.AddOrUpdateFeatureAsync(new ProtoFeature
+    {
+        FeatureId = $"sym-{featSymptom}", Kind = ProtoFeatureKind.Symptom, Display = SymptomCatalog.DisplayFor(featSymptom),
+        Code = featSymptom, Operator = ProtoFeatureOperator.Present, Rule = ProtoFeatureRule.Weighted, Weight = featWeight
+    }, Me), "Feature added.");
+    private Task RemoveFeature(string fid) => Run(() => P.RemoveFeatureAsync(fid, Me), "Feature removed.");
+    private Task SaveGuidance() => Run(() => P.SetGuidanceAsync(guidanceIso == BedIsolationType.None ? null : guidanceIso,
+        string.IsNullOrWhiteSpace(guidancePpe) ? null : guidancePpe, new(), Me), "Guidance saved.");
+    private Task SaveAlert() => Run(() => P.SetAlertRuleAsync(new ProtoAlertRule
+    {
+        Threshold = alertThreshold, CooldownHours = 24,
+        Recipients = alertRecipients.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).ToList()
+    }, Me), "Alert rule saved.");
+
+    private Task Confirm(string pid) => Run(() => Grains.GetGrain<IPatientWorkflowGrain>(pid).ConfirmProtoMembershipAsync(ProtoId!, Me), $"{pid} confirmed.");
+    private Task Exclude(string pid) => Run(() => Grains.GetGrain<IPatientWorkflowGrain>(pid).ExcludeProtoMembershipAsync(ProtoId!, "reviewed — not this cluster", Me), $"{pid} excluded.");
+
+    private async Task LoadAnalytics()
+    {
+        try { analytics = await Grains.GetGrain<IProtoAnalyticsGrain>($"PROTO-ANALYTICS:{ProtoId}").AnalyzeAsync(); }
+        catch (Exception ex) { error = ex.Message; }
+    }
+
+    private Task ApplyRefinement(RefinementSuggestion s) => Run(async () =>
+    {
+        if (s.Kind == RefinementKind.DropFeature && s.FeatureId != null)
+            await P.RemoveFeatureAsync(s.FeatureId, Me);
+        else if (s.Kind == RefinementKind.RaiseWeight && s.FeatureId != null)
+        {
+            ProtoFeature? f = proto!.Features.FirstOrDefault(x => x.FeatureId == s.FeatureId);
+            if (f != null) { f.Weight *= 2; await P.AddOrUpdateFeatureAsync(f, Me); }
+        }
+        analytics = null;
+    }, "Refinement applied — re-run the sweep to re-evaluate members.");
+
+    private Task Promote() => Run(() => P.PromoteAsync(promName,
+        promIcd.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).ToList(),
+        string.IsNullOrWhiteSpace(promSnomed) ? null : promSnomed, null,
+        promJuris.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).ToList(),
+        promNotes, Me), "Promoted — the definition is frozen and an eCR trigger was emitted.");
+
+    private Task Migrate(string pid) => Run(() => Grains.GetGrain<IPatientWorkflowGrain>(pid).MigratePromotedProtoProblemAsync(ProtoId!, Me), $"{pid} recoded.");
+    private Task SkipMigrate(string pid) => Run(() => Grains.GetGrain<IPatientWorkflowGrain>(pid).SkipMemberMigrationAsync(ProtoId!, "declined", Me), $"{pid} skipped.");
+}

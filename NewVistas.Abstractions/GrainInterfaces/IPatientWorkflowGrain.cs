@@ -4591,4 +4591,46 @@ public interface IPatientWorkflowGrain : IGrainWithStringKey
 
     /// <summary>Returns the patient's insurance policies surfaced during registration.</summary>
     Task<List<GrainStates.PersonalPolicyIndexEntry>> GetInsuranceAtRegistrationAsync();
+
+    // ─── Emerging-Condition Surveillance — Symptom Capture (Phase A) ─────
+
+    /// <summary>
+    /// Records a batch of coded symptom answers for this patient (structured survey, or an
+    /// epidemiologist's chart-review import). Trinary Present/Absent/Unknown; codes outside the
+    /// closed surveillance vocabulary are dropped. Returns the number of observations accepted.
+    /// Gated by the EMERGING_CONDITIONS feature.
+    /// </summary>
+    [RequiresSecurityKey(SecurityKeys.PROVIDER, SecurityKeys.ORES, SecurityKeys.ORELSE, SecurityKeys.EPI_MANAGER)]
+    [AuditAction("SURVEILLANCE", "RECORD_SYMPTOMS", EntityType = "SYMPTOM")]
+    Task<int> RecordSymptomObservationsAsync(List<GrainStates.SymptomObservation> observations);
+
+    /// <summary>The patient's current coded symptom answers (latest per code). Open read.</summary>
+    Task<List<GrainStates.SymptomObservation>> GetPatientSymptomsAsync();
+
+    // ─── Emerging-Condition Surveillance — Membership & Migration (Phase E) ─
+
+    /// <summary>Clinician surfaces this patient into a proto-condition cluster as a persistent candidate.</summary>
+    [RequiresSecurityKey(SecurityKeys.PROVIDER, SecurityKeys.ORELSE, SecurityKeys.EPI_MANAGER)]
+    [AuditAction("SURVEILLANCE", "SUGGEST", EntityType = "PROTO")]
+    Task SuggestForProtoConditionAsync(string protoConditionId, string byUser);
+
+    /// <summary>Epidemiologist confirms this patient into a proto-condition cluster (may fire the count alert).</summary>
+    [RequiresSecurityKey(SecurityKeys.EPI_MANAGER)]
+    [AuditAction("SURVEILLANCE", "CONFIRM", EntityType = "PROTO")]
+    Task ConfirmProtoMembershipAsync(string protoConditionId, string byUser);
+
+    /// <summary>Epidemiologist excludes this patient from a proto-condition cluster.</summary>
+    [RequiresSecurityKey(SecurityKeys.EPI_MANAGER)]
+    [AuditAction("SURVEILLANCE", "EXCLUDE", EntityType = "PROTO")]
+    Task ExcludeProtoMembershipAsync(string protoConditionId, string reason, string byUser);
+
+    /// <summary>Adds the promoted condition's code to this patient's problem list, citing the source cluster.</summary>
+    [RequiresSecurityKey(SecurityKeys.EPI_MANAGER)]
+    [AuditAction("PROBLEMS", "MIGRATE", EntityType = "PROBLEM", IsClinicalWrite = true)]
+    Task<string> MigratePromotedProtoProblemAsync(string protoConditionId, string byUser);
+
+    /// <summary>Skips this patient's post-promotion problem-list recode, recording a reason.</summary>
+    [RequiresSecurityKey(SecurityKeys.EPI_MANAGER)]
+    [AuditAction("SURVEILLANCE", "SKIP_MIGRATION", EntityType = "PROTO")]
+    Task SkipMemberMigrationAsync(string protoConditionId, string reason, string byUser);
 }

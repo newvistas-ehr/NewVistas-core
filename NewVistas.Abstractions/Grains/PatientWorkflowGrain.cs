@@ -161,6 +161,7 @@ public partial class PatientWorkflowGrain : Grain, IPatientWorkflowGrain
             ActiveOrders = ordersTask.Result,
             RecentNotes = notesTask.Result,
             ActiveConsults = consultsTask.Result,
+            PrecautionBanners = await BuildEmergingConditionBannersAsync(),
             LastRefreshed = DateTime.UtcNow
         };
     }

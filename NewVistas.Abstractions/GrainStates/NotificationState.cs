@@ -13,6 +13,10 @@ namespace NewVistas.Abstractions.GrainStates;
 public static class NotificationType
 {
     public const int LongTextAlert               = -101;
+    /// <summary>Emerging-condition cluster threshold reached (proto-condition surveillance).</summary>
+    public const int EmergingClusterThreshold    = -102;
+    /// <summary>An emerging-condition proto was promoted to a coded condition.</summary>
+    public const int EmergingConditionPromoted   = -103;
     public const int LabResults                  = 3;
     public const int FlaggedOrders               = 6;
     public const int FlaggedOrdersComments       = 8;

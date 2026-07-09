@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Emerging Conditions — Provider Manual — NewVistas</title>
+  <link rel="stylesheet" href="../assets/css/manual.css" />
+</head>
+<body>
+  <div class="topbar">
+    <div class="brand"><a href="../index.html">NewVistas</a> <span>· User Manual</span></div>
+    <div class="role-pill">🩺 Provider</div>
+  </div>
+
+  <div class="layout">
+    <nav class="sidebar">
+      <div class="section">Provider Manual</div>
+      <a href="index.html">Overview</a>
+      <a href="getting-started.html">Getting Started</a>
+      <div class="section">Surveillance</div>
+      <a href="symptom-survey.html">Symptom Survey</a>
+      <a href="emerging-conditions.html" class="active">Emerging Conditions</a>
+      <div class="section">&nbsp;</div>
+      <a href="../index.html">← All roles</a>
+    </nav>
+
+    <main class="content" data-flag="EMERGING_CONDITIONS">
+      <div class="crumb"><a href="../index.html">Manual</a> › <a href="index.html">Provider</a> › Emerging Conditions</div>
+      <h1>Emerging Conditions — for the provider</h1>
+      <p class="lead">
+        The Emerging Conditions dashboard (<code>/emerging-conditions</code>) shows the clusters your
+        infection-control / epidemiology team is tracking — diseases that don't have a code yet. As a
+        provider you can <strong>read</strong> everything (it's part of the chart) and, from the
+        <a href="symptom-survey.html">Symptom Survey</a>, <strong>suggest</strong> a patient into a cluster.
+        Editing the definition, confirming members, and promoting to a code require the
+        <code>EPI MANAGER</code> key held by the epidemiology team.
+      </p>
+
+      <h2>What you'll see on a patient</h2>
+      <ul>
+        <li>If your patient is a <em>confirmed</em> member of an active cluster, their <strong>cover sheet</strong>
+          carries a non-suppressible precaution banner — for example "Droplet isolation recommended
+          (confirmed cluster member)". It's a recommendation; it never changes bed or order data on its own.</li>
+        <li>When a cluster is eventually promoted to a real code, the coded diagnosis (e.g. U07.1) is added to
+          the member's <strong>problem list</strong> with a citation back to the cluster, and you're notified to
+          review/amend it.</li>
+      </ul>
+
+      <div class="note">
+        Your part is the wide net: fill in the <a href="symptom-survey.html">Symptom Survey</a> honestly (Present /
+        Absent / Unknown) so the epidemiology team has real signal to work with. The heavy analysis and the
+        promotion decision are theirs.
+      </div>
+    </main>
+  </div>
+</body>
+</html>

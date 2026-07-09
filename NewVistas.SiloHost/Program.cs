@@ -340,6 +340,9 @@ static partial class Program
         "providerUnavailabilityStore",
         "drugSafetyAdvisoryStore", "drugSafetyAdvisoryIndexStore", "patientSafetyAdvisoryStore",
         "drugClassCohortStore", "patientDrugClassIndexStore",
-        "patientSummaryStore", "radiologyFindingStore"
+        "patientSummaryStore", "radiologyFindingStore",
+        "patientSymptomStore", "symptomCohortStore",
+        "protoConditionStore", "protoConditionIndexStore", "protoCohortStore",
+        "protoSweepStore"
     ];
 }

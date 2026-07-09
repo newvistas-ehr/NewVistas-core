@@ -284,6 +284,19 @@ public static class SecurityKeys
     /// </summary>
     public const string HBHC_MANAGER = "HBHC MANAGER";
 
+    // ─── Emerging-Condition Surveillance (EPI) ──────────────────────────
+
+    /// <summary>
+    /// EPI MANAGER — emerging-condition / outbreak surveillance management.
+    /// Required to create, edit, refine, and promote <c>ProtoCondition</c> clusters, run
+    /// screening sweeps, and confirm/exclude cluster membership. Also lets an epidemiologist
+    /// chart-review-import coded symptom observations. Surveillance <b>reads are open</b> to any
+    /// clinician (like Oncology/Home-Care — it is part of the chart, not a privacy silo); only
+    /// mutating operations require this key. Held by infection preventionists / epidemiologists.
+    /// No direct VistA analogue — surveillance in VistA lived in PCE/PCC surveillance menus.
+    /// </summary>
+    public const string EPI_MANAGER = "EPI MANAGER";
+
     // ─── System Administration (XU Package) ─────────────────────────────
 
     /// <summary>

@@ -57,6 +57,30 @@ public class CoverSheetState
 
     [Id(13)]
     public List<ConsultSummary> ActiveConsults { get; set; } = [];
+
+    /// <summary>
+    /// Emerging-condition precaution banners — one per confirmed proto-condition membership. Placed
+    /// on the non-suppressible safety spine so an isolation recommendation for an as-yet-uncoded
+    /// cluster is impossible to miss. Empty when the feature is off or the patient is in no cluster.
+    /// </summary>
+    [Id(14)]
+    public List<PrecautionBanner> PrecautionBanners { get; set; } = [];
+}
+
+/// <summary>
+/// A cover-sheet precaution banner derived from a confirmed proto-condition membership. A
+/// recommendation surfaced to the clinician — this module never writes to beds or orders.
+/// </summary>
+[GenerateSerializer]
+public record PrecautionBanner
+{
+    [Id(0)] public string ProtoConditionId { get; set; } = string.Empty;
+    [Id(1)] public string ConditionName { get; set; } = string.Empty;
+    /// <summary>Recommended isolation precaution (typed against the bed module's enum).</summary>
+    [Id(2)] public BedIsolationType? Isolation { get; set; }
+    [Id(3)] public string? PpeNotes { get; set; }
+    /// <summary>Assembled display text for the banner.</summary>
+    [Id(4)] public string Message { get; set; } = string.Empty;
 }
 
 /// <summary>

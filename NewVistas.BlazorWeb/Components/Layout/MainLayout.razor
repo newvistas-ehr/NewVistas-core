@@ -277,6 +277,23 @@
             </NavLink>
             }
 
+            @* Emerging-condition surveillance (ADR-004) — Modern module gated on the
+               EMERGING_CONDITIONS site flag. Reads are OPEN (surveillance is part of the chart);
+               proto edits/promotion need EPI MANAGER, symptom recording needs a front-door key. *@
+            @if (SecurityContext.HasAccess(MenuArea.Clinical) && SecurityContext.IsFeatureEnabled("EMERGING_CONDITIONS"))
+            {
+            <div class="nav-divider"></div>
+            <div class="nav-section-title">Surveillance</div>
+            <NavLink class="nav-item" href="/emerging-conditions">
+                <span class="nav-icon">🧫</span>
+                <span class="nav-label">Emerging Conditions</span>
+            </NavLink>
+            <NavLink class="nav-item" href="/symptom-survey">
+                <span class="nav-icon">📝</span>
+                <span class="nav-label">Symptom Survey</span>
+            </NavLink>
+            }
+
             @if (SecurityContext.HasAccess(MenuArea.Nursing))
             {
             <div class="nav-divider"></div>

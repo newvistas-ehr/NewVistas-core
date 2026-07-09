@@ -1,0 +1,195 @@
+@* Copyright 2026 Merrimack Valley Software Works, LLC. All rights reserved. *@
+@* This Source Code Form is subject to the terms of the Mozilla Public *@
+@* License, v. 2.0. If a copy of the MPL was not distributed with this *@
+@* file, You can obtain one at https://mozilla.org/MPL/2.0/.            *@
+@page "/symptom-survey"
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+@rendermode InteractiveServer
+@using NewVistas.BlazorWeb.Services
+@using NewVistas.Abstractions.Clinical
+@using NewVistas.Abstractions.GrainInterfaces
+@using NewVistas.Abstractions.GrainStates
+@inject OrleansGrainService Grains
+
+<PageTitle>Symptom Survey</PageTitle>
+
+<h1>🩺 Structured Symptom Survey</h1>
+<p class="lede">The wide net: a coded review-of-systems for a patient whose illness may not have a name yet.
+Every answer is <strong>Present / Absent / Unknown</strong> — recording "asked and absent" is what lets the
+net close later. Leave items <em>Unknown</em> only when they were genuinely not assessed.</p>
+
+<PatientBar @bind-PatientId="patientId" Loading="loading" OnLoad="Load" />
+<AlertBanner Error="@error" Success="@success" />
+
+@if (patientId != null && questions != null)
+{
+    <div class="toolbar">
+        <button class="btn-primary" @onclick="Save" disabled="@saving">@(saving ? "Saving…" : "Save answers")</button>
+        <button class="btn" @onclick="Screen" disabled="@saving">Screen against active clusters</button>
+    </div>
+
+    @foreach (IGrouping<SymptomCategory, SymptomCatalogEntry> group in questions.GroupBy(q => q.Category))
+    {
+        <fieldset class="survey-group">
+            <legend>@group.Key</legend>
+            @foreach (SymptomCatalogEntry q in group)
+            {
+                <div class="survey-row">
+                    <span class="survey-label" title="@q.Code">@q.Display</span>
+                    <div class="survey-choices">
+                        @foreach (SymptomPresence p in new[] { SymptomPresence.Present, SymptomPresence.Absent, SymptomPresence.Unknown })
+                        {
+                            <label class="@ChoiceClass(q.Code, p)">
+                                <input type="radio" name="@q.Code" checked="@(Answer(q.Code) == p)"
+                                       @onchange="() => SetAnswer(q.Code, p)" />
+                                @p
+                            </label>
+                        }
+                    </div>
+                </div>
+            }
+        </fieldset>
+    }
+
+    @if (screenResults != null)
+    {
+        <h2>Cluster match preview</h2>
+        @if (screenResults.Count == 0)
+        {
+            <div class="empty-state">No active clusters, or this patient matches none of them.</div>
+        }
+        else
+        {
+            <table class="data-table">
+                <thead><tr><th>Cluster</th><th>Score</th><th>Matches</th><th></th></tr></thead>
+                <tbody>
+                    @foreach (ScreenRow r in screenResults)
+                    {
+                        <tr>
+                            <td>@r.Name</td>
+                            <td>@r.Score.ToString("P0")</td>
+                            <td>@(r.Matches ? "✓ candidate" : "—")</td>
+                            <td><button class="btn-sm" @onclick="() => Suggest(r.ProtoId)">Suggest into cluster</button></td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        }
+    }
+}
+else if (patientId != null)
+{
+    <p>Loading survey…</p>
+}
+
+@code {
+    private string? patientId;
+    private bool loading, saving;
+    private string? error, success;
+    private List<SymptomCatalogEntry>? questions;
+    private readonly Dictionary<string, SymptomPresence> answers = new();
+    private List<ScreenRow>? screenResults;
+
+    private record ScreenRow(string ProtoId, string Name, double Score, bool Matches);
+
+    private async Task Load()
+    {
+        error = success = null;
+        screenResults = null;
+        if (patientId == null) return;
+        loading = true;
+        try
+        {
+            // Wide net = core screen ∪ active clusters' symptom features.
+            var extra = new List<string>();
+            foreach (ProtoConditionSummary s in await Grains.GetGrain<IProtoConditionIndexGrain>("PROTOCONDITION-INDEX").GetActiveAsync())
+            {
+                ProtoConditionState proto = await Grains.GetGrain<IProtoConditionGrain>($"PROTO:{s.ProtoConditionId}").GetAsync();
+                extra.AddRange(proto.Features.Where(f => f.Kind == ProtoFeatureKind.Symptom).Select(f => f.Code));
+            }
+            questions = SymptomCatalog.BuildSurveyQuestionSet(extra);
+
+            answers.Clear();
+            foreach (SymptomObservation o in await Grains.GetGrain<IPatientWorkflowGrain>(patientId).GetPatientSymptomsAsync())
+                answers[o.Code] = o.Presence;
+        }
+        catch (Exception ex) { error = ex.Message; }
+        finally { loading = false; }
+    }
+
+    private SymptomPresence Answer(string code) => answers.TryGetValue(code, out SymptomPresence p) ? p : SymptomPresence.Unknown;
+    private void SetAnswer(string code, SymptomPresence p) => answers[code] = p;
+    private string ChoiceClass(string code, SymptomPresence p) => Answer(code) == p ? $"choice choice-{p} selected" : "choice";
+
+    private async Task Save()
+    {
+        if (patientId == null) return;
+        error = success = null;
+        saving = true;
+        try
+        {
+            List<SymptomObservation> obs = answers
+                .Where(a => a.Value != SymptomPresence.Unknown) // Unknown = not asked → nothing to record
+                .Select(a => new SymptomObservation
+                {
+                    Code = a.Key,
+                    Presence = a.Value,
+                    Source = SymptomSource.Survey,
+                    RecordedBy = Grains.CurrentUserName ?? Grains.CurrentUserId ?? "web"
+                }).ToList();
+            int accepted = await Grains.GetGrain<IPatientWorkflowGrain>(patientId).RecordSymptomObservationsAsync(obs);
+            success = $"Recorded {accepted} symptom answer(s).";
+        }
+        catch (UnauthorizedAccessException) { error = "You don't have permission to record symptoms (needs PROVIDER, ORES, ORELSE, or EPI MANAGER)."; }
+        catch (Exception ex) { error = ex.Message; }
+        finally { saving = false; }
+    }
+
+    private async Task Screen()
+    {
+        if (patientId == null) return;
+        error = null;
+        try
+        {
+            await Save(); // persist current answers first so the screen reflects them
+            var rows = new List<ScreenRow>();
+            foreach (ProtoConditionSummary s in await Grains.GetGrain<IProtoConditionIndexGrain>("PROTOCONDITION-INDEX").GetActiveAsync())
+            {
+                ProtoMatchResult r = await Grains.GetGrain<IProtoConditionScreeningGrain>($"PROTO-SCREEN:{patientId}").EvaluateAsync(s.ProtoConditionId);
+                rows.Add(new ScreenRow(s.ProtoConditionId, s.Name, r.Score, r.Matches));
+            }
+            screenResults = rows.OrderByDescending(r => r.Score).ToList();
+        }
+        catch (Exception ex) { error = ex.Message; }
+    }
+
+    private async Task Suggest(string protoId)
+    {
+        if (patientId == null) return;
+        error = success = null;
+        try
+        {
+            await Grains.GetGrain<IPatientWorkflowGrain>(patientId)
+                .SuggestForProtoConditionAsync(protoId, Grains.CurrentUserName ?? Grains.CurrentUserId ?? "web");
+            success = "Patient suggested into the cluster for epidemiologist review.";
+        }
+        catch (UnauthorizedAccessException) { error = "You don't have permission to suggest cluster membership."; }
+        catch (Exception ex) { error = ex.Message; }
+    }
+}
+
+<style>
+    .lede { color: var(--text-muted, #556); max-width: 62rem; }
+    .toolbar { display: flex; gap: .5rem; margin: 1rem 0; }
+    .survey-group { border: 1px solid #ccd; border-radius: 8px; margin: 0 0 1rem; padding: .5rem 1rem 1rem; }
+    .survey-group legend { font-weight: 600; padding: 0 .4rem; }
+    .survey-row { display: flex; align-items: center; justify-content: space-between; padding: .3rem 0; border-bottom: 1px dotted #e5e5ef; }
+    .survey-label { flex: 1; }
+    .survey-choices { display: flex; gap: .4rem; }
+    .choice { border: 1px solid #ccd; border-radius: 6px; padding: .15rem .5rem; cursor: pointer; font-size: .85rem; }
+    .choice input { margin-right: .25rem; }
+    .choice-Present.selected { background: #fdecea; border-color: #e0736a; }
+    .choice-Absent.selected { background: #eafaf1; border-color: #3fae72; }
+    .choice-Unknown.selected { background: #eef1f6; border-color: #98a0b3; }
+    .btn-sm { font-size: .8rem; padding: .15rem .5rem; }
+</style>
