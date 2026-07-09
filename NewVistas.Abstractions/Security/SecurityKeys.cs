@@ -162,6 +162,13 @@ public static class SecurityKeys
     public const string DG_ADMIT = "DG ADMIT";
 
     /// <summary>
+    /// DG BED CONTROL — bed/room/unit structure management, bed blocking,
+    /// out-of-service, EVS turnover, and inter-facility transfer coordination.
+    /// Mirrors the VistA DGPM Bed Control menu.
+    /// </summary>
+    public const string DG_BED_CONTROL = "DG BED CONTROL";
+
+    /// <summary>
     /// DG SENSITIVITY — Patient sensitivity management.
     /// Required to set sensitivity flags and manage authorized provider lists.
     /// </summary>

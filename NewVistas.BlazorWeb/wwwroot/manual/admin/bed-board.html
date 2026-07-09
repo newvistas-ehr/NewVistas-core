@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Bed Board — Administrator Manual — NewVistas</title>
+  <link rel="stylesheet" href="../assets/css/manual.css" />
+</head>
+<body>
+  <div class="topbar">
+    <div class="brand"><a href="../index.html">NewVistas</a> <span>· User Manual</span></div>
+    <div class="role-pill">⚙️ Administrator</div>
+  </div>
+
+  <div class="layout">
+    <nav class="sidebar">
+      <div class="section">Administrator Manual</div>
+      <a href="index.html">Overview</a>
+      <a href="getting-started.html">Getting Started</a>
+      <div class="section">Administration</div>
+      <a href="adt.html">ADT</a>
+      <a href="bed-board.html" class="active">Bed Board</a>
+      <a href="transfer-center.html">Transfer Center</a>
+      <a href="institutions.html">Institutions</a>
+      <a href="registration.html">Registration</a>
+      <a href="patient-merge.html">Patient Merge</a>
+      <a href="means-test.html">Means Test</a>
+      <a href="sc-conditions.html">SC Conditions</a>
+      <a href="prosthetics.html">Prosthetics</a>
+      <a href="security-keys.html">Security Keys</a>
+      <a href="site-parameters.html">Site Parameters</a>
+      <div class="section">&nbsp;</div>
+      <a href="../index.html">← All roles</a>
+    </nav>
+
+    <main class="content" data-flag="BED_MANAGEMENT">
+      <div class="crumb"><a href="../index.html">Manual</a> › <a href="index.html">Administrator</a> › Bed Board</div>
+      <h1>Bed Board — units, beds &amp; EVS turnover</h1>
+      <p class="lead">
+        The Bed Board (<code>/beds</code>) is the live picture of every inpatient bed in
+        an institution: which are placeable, which are occupied, and which are mid-turnover.
+        Each unit owns its rooms and beds, so the counts you see are a projection of the
+        truth — there is no separate board to keep in sync. Bed management is gated by the
+        <code>BED_MANAGEMENT</code> feature flag; EVS and structural actions require the
+        <code>DG BED CONTROL</code> security key (a nurse's <code>ORELSE</code> also
+        satisfies the clean/dirty flips).
+      </p>
+
+      <h2>Open the board</h2>
+      <ol class="steps">
+        <li>In the sidebar, under <strong>Inpatient</strong>, click <kbd>Bed Board</kbd> (or go to <code>/beds</code>).</li>
+        <li>Confirm the <strong>Institution</strong> picker — it defaults to your acting institution. Switch it to view another hospital's board.</li>
+        <li>Read the stats strip, then the unit cards below the <strong>Bed Board</strong> tab.</li>
+      </ol>
+
+      <figure class="shot">
+        <img src="../assets/img/admin/bed-board.png" alt="Bed Board — institution stats strip and per-unit capacity cards" />
+        <figcaption>The Bed Board — the institution picker, the capacity stats strip (Available is the only number labeled “placeable”), and a card per unit with color-coded counts.</figcaption>
+      </figure>
+
+      <h2>Read the capacity, honestly</h2>
+      <p>
+        The stats strip shows <strong>Total Beds</strong>, <strong>Available
+        (placeable)</strong>, <strong>Occupied</strong>, <strong>Dirty</strong>,
+        <strong>Blocked</strong>, and <strong>Out of Service</strong> for the whole
+        institution. Only <strong>Available</strong> beds are placeable — a dirty,
+        blocked, reserved, or out-of-service bed is empty but you cannot put a patient in
+        it. Each unit card repeats the breakdown in color: available (green), occupied
+        (blue), reserved (amber), dirty (orange), cleaning (teal), blocked / out-of-service
+        (gray), and boarders (purple).
+      </p>
+
+      <h2>Drill into a unit</h2>
+      <ol class="steps">
+        <li>Click a unit card (e.g. <strong>MED-4B</strong>) to open its board.</li>
+        <li>Beds are grouped by room when the unit models rooms; a unit with no rooms (a small clinic) shows a flat list of beds.</li>
+        <li>Each bed is a colored card with its id, type, state badge, and — when occupied — the patient, attending, and any isolation precautions.</li>
+        <li>Click <kbd>← All Units</kbd> to return to the capacity overview.</li>
+      </ol>
+
+      <figure class="shot">
+        <img src="../assets/img/admin/bed-board-unit.png" alt="A unit board — beds grouped by room with lifecycle-colored state badges and EVS actions" />
+        <figcaption>A unit board — beds grouped by room, each with a lifecycle-colored badge and the actions legal for its state.</figcaption>
+      </figure>
+
+      <h2>EVS turnover</h2>
+      <p>
+        When a patient leaves a bed it goes to <strong>Dirty</strong> automatically —
+        never straight back to Available. Environmental Services turns it over:
+      </p>
+      <ol class="steps">
+        <li>On a <strong>Dirty</strong> bed, click <kbd>Start cleaning</kbd> → it becomes <strong>Cleaning</strong>.</li>
+        <li>Click <kbd>Mark clean</kbd> → it becomes <strong>Available</strong> and is placeable again.</li>
+        <li><strong>Mark clean</strong> works straight from Dirty too, so a small site can turn a bed in one click.</li>
+        <li>Use <kbd>Mark dirty</kbd> on an Available bed for a spill or contamination between patients.</li>
+      </ol>
+      <div class="callout note">
+        <span class="ct">One EVS worklist for the whole house</span>
+        The <strong>EVS Queue</strong> tab lists every Dirty/Cleaning bed across the
+        institution — Unit, Bed, Room, Dirty Since, and isolation precautions —
+        oldest first, in one read. Clear a bed and it drops off the queue.
+      </div>
+
+      <h2>Block &amp; out-of-service</h2>
+      <ol class="steps">
+        <li><kbd>Block…</kbd> holds a bed for an administrative reason (staffing, isolation buffer). A reason is required; <kbd>Unblock</kbd> returns it to Available.</li>
+        <li><kbd>Out of service…</kbd> takes a bed down for maintenance. <kbd>Return to service</kbd> moves it to <strong>Dirty</strong> — physical work happened, so it must be cleaned before it's placeable.</li>
+        <li>You cannot block or take an <strong>Occupied</strong> or <strong>Reserved</strong> bed out of service — release the patient or clear the reservation first. The system rejects the illegal move with a clear message.</li>
+      </ol>
+
+      <div class="callout safety">
+        <span class="ct">Placement happens through ADT, not here</span>
+        The Bed Board manages bed <em>condition</em> (clean/dirty/blocked). Putting a
+        <em>patient</em> into a bed — or taking them out — happens through
+        <a href="adt.html">ADT</a> (admit / transfer / discharge) or, across facilities,
+        the <a href="transfer-center.html">Transfer Center</a>. That single placement path
+        is why the census can never drift from the board.
+      </div>
+
+      <footer>NewVistas User Manual · Administrator · Bed Board</footer>
+    </main>
+  </div>
+  <script src="../assets/js/editions.js"></script>
+</body>
+</html>

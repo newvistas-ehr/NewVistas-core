@@ -121,6 +121,14 @@ public class AdtState : EventSourcedStateBase
     public DateTime LastModifiedDate { get; set; } = DateTime.UtcNow;
 
     /// <summary>
+    /// Institution (File #4) where this movement occurred. With WardLocationId this
+    /// reconstructs the owning unit key ("UNIT:{institutionId}:{unitId}") so discharge
+    /// and transfer can release the correct bed from the movement alone.
+    /// </summary>
+    [Id(21)]
+    public string? InstitutionId { get; set; }
+
+    /// <summary>
     /// Deep copy. Used at event/state boundaries so that mutating the live
     /// movement on the grain does not retroactively mutate the historical
     /// snapshot stored on a clinical event payload.
@@ -147,6 +155,7 @@ public class AdtState : EventSourcedStateBase
         LengthOfStay = LengthOfStay,
         Comments = Comments,
         CreatedDate = CreatedDate,
-        LastModifiedDate = LastModifiedDate
+        LastModifiedDate = LastModifiedDate,
+        InstitutionId = InstitutionId
     };
 }

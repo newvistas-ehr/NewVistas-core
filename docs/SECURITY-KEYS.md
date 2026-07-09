@@ -43,6 +43,8 @@ needs no key unless noted.
 | Allergies (`/allergies`) | Record an allergy | `GMRA ALLERGY` |
 | Scheduling (`/scheduling`) | Schedule an appointment | `SD SCHEDULING` |
 | ADT (`/adt`) | Admit / Transfer / Discharge | `DG ADMIT` |
+| Bed Board (`/beds`) | Block/out-of-service, EVS turnover (mark dirty/clean) | `DG BED CONTROL` (EVS flips also satisfied by `ORELSE`) |
+| Transfer Center (`/transfer-center`) | Request / accept / decline / complete inter-facility transfers | `DG BED CONTROL` |
 | **Mental Health (`/mental-health`)** | **View *and* record screenings (whole page)** | `YS MH INSTRUMENT` |
 
 > Administrative back-office flows enforce keys too but aren't reached from the clinician UI
@@ -59,14 +61,14 @@ All demo users share the password **`smythVista1`**. Each user is seeded with th
 
 | Role | Keys granted |
 | --- | --- |
-| Provider | `PROVIDER`, `ORES`, `TIU SIGN`, `GMRA ALLERGY`, `GMRV VITALS`, `GMPL PROBLEM` |
-| Nurse | `ORELSE`, `GMRV VITALS`, `GMRA ALLERGY`, `GMPL PROBLEM`, `SD SCHEDULING` |
+| Provider | `PROVIDER`, `ORES`, `TIU SIGN`, `GMRA ALLERGY`, `GMRV VITALS`, `GMPL PROBLEM`, `HBHC MANAGER` |
+| Nurse | `ORELSE`, `GMRV VITALS`, `GMRA ALLERGY`, `GMPL PROBLEM`, `SD SCHEDULING`, `HBHC MANAGER`, `DG BED CONTROL` |
 | Pharmacist | `PSO PHARMACY`, `PSJ RPHARM`, `PSA ORDERS`, `PSB MANAGER` |
 | LabTechnician | `LRLAB`, `LRVERIFY` |
 | Radiologist | `RA VERIFY`, `PROVIDER`, `TIU SIGN` |
 | Surgeon | `PROVIDER`, `ORES`, `TIU SIGN`, `SR SURGERY` |
-| Administrator | `XUMGR`, `XUAUDIT`, `DG SENSITIVITY` |
-| RegistrationClerk | `SD SCHEDULING`, `DG ADMIT` |
+| Administrator | `XUMGR`, `XUAUDIT`, `DG SENSITIVITY`, `DG BED CONTROL` |
+| RegistrationClerk | `SD SCHEDULING`, `DG ADMIT`, `DG BED CONTROL` |
 | MentalHealth | `PROVIDER`, `TIU SIGN`, `YS MH INSTRUMENT` |
 
 **Common demo users:**
@@ -119,7 +121,8 @@ RegistrationClerk for ADT/scheduling.
 | `LRLAB` | General lab access — specimen collection, result entry, lab order management. |
 | `LRVERIFY` | Lab result verification — verify and release results (lab supervisors). |
 | `SD SCHEDULING` | Appointment scheduling — schedule, reschedule, cancel. |
-| `DG ADMIT` | Admission/discharge/transfer operations. |
+| `DG ADMIT` | Admission/discharge/transfer operations (patient placement into unit/bed). |
+| `DG BED CONTROL` | Bed/room/unit structure, bed blocking & out-of-service, EVS turnover, and the inter-facility Transfer Center. Nurses' `ORELSE` also satisfies the EVS clean/dirty flips. |
 | `YS MH INSTRUMENT` | Administer and score mental-health screening instruments. |
 
 The full key list (including pharmacy, radiology, surgery, system-admin, and interoperability

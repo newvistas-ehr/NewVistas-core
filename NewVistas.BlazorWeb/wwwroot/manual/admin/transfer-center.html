@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Transfer Center — Administrator Manual — NewVistas</title>
+  <link rel="stylesheet" href="../assets/css/manual.css" />
+</head>
+<body>
+  <div class="topbar">
+    <div class="brand"><a href="../index.html">NewVistas</a> <span>· User Manual</span></div>
+    <div class="role-pill">⚙️ Administrator</div>
+  </div>
+
+  <div class="layout">
+    <nav class="sidebar">
+      <div class="section">Administrator Manual</div>
+      <a href="index.html">Overview</a>
+      <a href="getting-started.html">Getting Started</a>
+      <div class="section">Administration</div>
+      <a href="adt.html">ADT</a>
+      <a href="bed-board.html">Bed Board</a>
+      <a href="transfer-center.html" class="active">Transfer Center</a>
+      <a href="institutions.html">Institutions</a>
+      <a href="registration.html">Registration</a>
+      <a href="patient-merge.html">Patient Merge</a>
+      <a href="means-test.html">Means Test</a>
+      <a href="sc-conditions.html">SC Conditions</a>
+      <a href="prosthetics.html">Prosthetics</a>
+      <a href="security-keys.html">Security Keys</a>
+      <a href="site-parameters.html">Site Parameters</a>
+      <div class="section">&nbsp;</div>
+      <a href="../index.html">← All roles</a>
+    </nav>
+
+    <main class="content" data-flag="BED_MANAGEMENT">
+      <div class="crumb"><a href="../index.html">Manual</a> › <a href="index.html">Administrator</a> › Transfer Center</div>
+      <h1>Transfer Center — moving a patient between hospitals</h1>
+      <p class="lead">
+        The Transfer Center (<code>/transfer-center</code>) coordinates placing a patient
+        into a <em>different</em> institution in the health system — for example,
+        Lahey Burlington sending a patient to Lawrence General. It's a request the
+        sending facility submits and the receiving facility controls: the receiver accepts
+        by reserving one of <em>its own</em> beds, or declines. All actions require the
+        <code>DG BED CONTROL</code> key. (Moves <em>within</em> one facility go through
+        <a href="adt.html">ADT</a>; care <em>outside</em> the organization goes through
+        External Referrals.)
+      </p>
+
+      <div class="callout note">
+        <span class="ct">Only appears with more than one institution</span>
+        There's nowhere to transfer <em>to</em> at a single-site deployment, so the
+        Transfer Center — and its nav link — hide themselves until the institution
+        directory holds more than one active institution.
+      </div>
+
+      <h2>Pick your institution</h2>
+      <ol class="steps">
+        <li>Open <code>/transfer-center</code>. The <strong>Institution</strong> picker sets whose transfer center you're looking at.</li>
+        <li>Set it to the <strong>receiving</strong> hospital to work incoming requests; set it to the <strong>sending</strong> hospital to see outgoing ones.</li>
+      </ol>
+
+      <figure class="shot">
+        <img src="../assets/img/admin/transfer-center.png" alt="Transfer Center incoming queue with an urgent request and an open accept bed-picker" />
+        <figcaption>The Transfer Center — the Incoming queue at the receiving hospital, an URGENT request, and the inline Accept panel where you reserve a bed.</figcaption>
+      </figure>
+
+      <h2>Accept an incoming request</h2>
+      <ol class="steps">
+        <li>On the <strong>Incoming</strong> tab, click a <strong>REQUESTED</strong> row to expand its clinical summary, reason, requested bed type, and status timeline.</li>
+        <li>Click <kbd>Accept…</kbd>. An inline bed-picker opens for <em>your</em> institution.</li>
+        <li>Choose a <strong>Unit</strong> (each shows how many beds are available), then a <strong>Bed</strong>. Beds matching the requested type are starred and listed first.</li>
+        <li>Click <kbd>Confirm accept</kbd>. The status becomes <strong>ACCEPTED</strong> and that bed is now <strong>Reserved</strong> on your Bed Board — held for this patient only.</li>
+      </ol>
+      <div class="callout note">
+        <span class="ct">Reserve-first</span>
+        The bed is reserved <em>before</em> the request flips to Accepted, so two
+        coordinators can't both grab the last bed. If the reserved bed later becomes
+        unavailable, use <kbd>Reassign bed…</kbd> to move the reservation, then complete.
+      </div>
+
+      <h2>Complete the arrival</h2>
+      <ol class="steps">
+        <li>When the patient arrives, on the <strong>ACCEPTED</strong> row click <kbd>Complete arrival…</kbd>.</li>
+        <li>Confirm the arrival time; optionally record the receiving attending and admission diagnosis.</li>
+        <li>Click <kbd>Confirm arrival</kbd>.</li>
+      </ol>
+      <p>
+        In one step this discharges the patient at the sending hospital (disposition
+        <strong>TRANSFER</strong>, its old bed goes to Dirty), admits them into the
+        reserved bed at your hospital, and records your hospital on the patient's
+        treating-facility list — all on the same chart, because a patient carries one
+        identity across every facility in the deployment.
+      </p>
+
+      <h2>Decline, cancel &amp; new requests</h2>
+      <ul>
+        <li><strong>Decline</strong> (receiving side) — on a REQUESTED row, <kbd>Decline…</kbd> with a required reason. No bed was reserved, so nothing is released; a declined request can't later be accepted.</li>
+        <li><strong>Cancel</strong> (sending side) — on the <strong>Outgoing</strong> tab, <kbd>Cancel…</kbd> a request you no longer need. Cancelling an <em>accepted</em> transfer releases the receiver's reserved bed.</li>
+        <li><strong>New Request</strong> — the <strong>New Request</strong> tab creates one: load the patient, pick a receiving institution from the placement-target list (only sites that accept transfers and have a matching placeable bed), set level of care / bed type / isolation / urgency, and submit.</li>
+      </ul>
+
+      <h2>The lifecycle at a glance</h2>
+      <table style="border-collapse:collapse;font-size:.9rem;margin:.5rem 0">
+        <thead>
+          <tr>
+            <th style="text-align:left;border-bottom:2px solid #d4d9e0;padding:.4rem .8rem;color:#003f72">Status</th>
+            <th style="text-align:left;border-bottom:2px solid #d4d9e0;padding:.4rem .8rem;color:#003f72">Who sets it</th>
+            <th style="text-align:left;border-bottom:2px solid #d4d9e0;padding:.4rem .8rem;color:#003f72">What happens next</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td style="padding:.35rem .8rem;border-bottom:1px solid #eee">REQUESTED</td><td style="padding:.35rem .8rem;border-bottom:1px solid #eee">Sender submits</td><td style="padding:.35rem .8rem;border-bottom:1px solid #eee">Receiver accepts (reserves a bed), declines, or sender cancels</td></tr>
+          <tr><td style="padding:.35rem .8rem;border-bottom:1px solid #eee">ACCEPTED</td><td style="padding:.35rem .8rem;border-bottom:1px solid #eee">Receiver, with a reserved bed</td><td style="padding:.35rem .8rem;border-bottom:1px solid #eee">Complete on arrival, or cancel (releases the bed)</td></tr>
+          <tr><td style="padding:.35rem .8rem;border-bottom:1px solid #eee">COMPLETED</td><td style="padding:.35rem .8rem;border-bottom:1px solid #eee">Receiver, on arrival</td><td style="padding:.35rem .8rem;border-bottom:1px solid #eee">Terminal — discharge at sender + admission at receiver recorded</td></tr>
+          <tr><td style="padding:.35rem .8rem;border-bottom:1px solid #eee">DECLINED / CANCELLED</td><td style="padding:.35rem .8rem;border-bottom:1px solid #eee">Receiver / sender</td><td style="padding:.35rem .8rem;border-bottom:1px solid #eee">Terminal — any reservation is released</td></tr>
+        </tbody>
+      </table>
+
+      <footer>NewVistas User Manual · Administrator · Transfer Center</footer>
+    </main>
+  </div>
+  <script src="../assets/js/editions.js"></script>
+</body>
+</html>

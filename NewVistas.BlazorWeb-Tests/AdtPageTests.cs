@@ -14,15 +14,21 @@ namespace NewVistas.BlazorWeb_Tests;
 [TestFixture]
 public class AdtPageTests : BlazorTestBase
 {
-    private IWardLocationIndexGrain _mockWardIndex = null!;
+    private IBedCapacityGrain _mockCapacity = null!;
+    private IInstitutionIndexGrain _mockInstitutionIndex = null!;
 
     public override void Setup()
     {
         base.Setup();
-        _mockWardIndex = Substitute.For<IWardLocationIndexGrain>();
-        MockGrainFactory.GetGrain<IWardLocationIndexGrain>(Arg.Any<string>(), Arg.Any<string?>())
-            .Returns(_mockWardIndex);
-        _mockWardIndex.GetAllWardsAsync().Returns(new List<WardLocationEntry>());
+        _mockCapacity = Substitute.For<IBedCapacityGrain>();
+        MockGrainFactory.GetGrain<IBedCapacityGrain>(Arg.Any<string>(), Arg.Any<string?>())
+            .Returns(_mockCapacity);
+        _mockCapacity.GetUnitsAsync(Arg.Any<bool>()).Returns(new List<UnitCapacitySummary>());
+
+        _mockInstitutionIndex = Substitute.For<IInstitutionIndexGrain>();
+        MockGrainFactory.GetGrain<IInstitutionIndexGrain>(Arg.Any<string>(), Arg.Any<string?>())
+            .Returns(_mockInstitutionIndex);
+        _mockInstitutionIndex.GetAllAsync(Arg.Any<bool>()).Returns(new List<InstitutionIndexEntry>());
     }
 
     [Test]

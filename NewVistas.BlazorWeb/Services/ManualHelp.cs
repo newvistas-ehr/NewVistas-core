@@ -73,6 +73,8 @@ public static class ManualHelp
             ["nursing-triage"] = "triage.html",
             ["nursing-tasks"] = "task-worklist.html",
             ["shift-handoff"] = "shift-handoff.html",
+            ["beds"] = "bed-board.html",
+            ["transfer-center"] = "transfer-center.html",
         },
         ["pharmacist"] = new()
         {
@@ -91,6 +93,9 @@ public static class ManualHelp
         {
             [""] = "getting-started.html",
             ["adt"] = "adt.html",
+            ["beds"] = "bed-board.html",
+            ["transfer-center"] = "transfer-center.html",
+            ["institutions"] = "institutions.html",
             ["registration"] = "registration.html",
             ["patient-merge"] = "patient-merge.html",
             ["means-test"] = "means-test.html",
@@ -113,18 +118,25 @@ public static class ManualHelp
             map = Topics["doctor"];
         }
 
-        string seg = FirstSegment(relativeRoute);
+        string seg = RouteKey(relativeRoute);
         string file = map.TryGetValue(seg, out string? f) ? f : "index.html";
         return $"{Root}/{section}/{file}";
     }
 
-    private static string FirstSegment(string? relativeRoute)
+    /// <summary>
+    /// The topic key for a route. Normally the first path segment ("orders", "beds"),
+    /// but an <c>/admin/{x}</c> route keys on the second segment ("institutions") so the
+    /// admin sub-pages deep-link correctly.
+    /// </summary>
+    private static string RouteKey(string? relativeRoute)
     {
         string s = (relativeRoute ?? string.Empty).Trim('/');
         int q = s.IndexOf('?');
         if (q >= 0) s = s[..q];
-        int slash = s.IndexOf('/');
-        if (slash >= 0) s = s[..slash];
-        return s.ToLowerInvariant();
+        string[] parts = s.Split('/', StringSplitOptions.RemoveEmptyEntries);
+        if (parts.Length == 0) return string.Empty;
+        if (parts[0].Equals("admin", StringComparison.OrdinalIgnoreCase) && parts.Length > 1)
+            return parts[1].ToLowerInvariant();
+        return parts[0].ToLowerInvariant();
     }
 }

@@ -8,201 +8,435 @@
 @using NewVistas.BlazorWeb.Services
 @using NewVistas.Abstractions.GrainInterfaces
 @using NewVistas.Abstractions.GrainStates
+@using NewVistas.Abstractions.Security
 @inject OrleansGrainService Grains
+@inject UserSecurityContext SecurityContext
 
-<PageTitle>Bed Management</PageTitle>
+<PageTitle>Bed Board</PageTitle>
 
-<h1>Bed Management Board</h1>
+<h1>Bed Board</h1>
+
+<div class="inst-bar">
+    <label for="bm-inst">Institution:</label>
+    <select id="bm-inst" @onchange="OnInstitutionChanged">
+        @if (institutions.All(i => i.InstitutionId != InstitutionId))
+        {
+            <option value="@InstitutionId" selected>@InstitutionId</option>
+        }
+        @foreach (var inst in institutions)
+        {
+            <option value="@inst.InstitutionId" selected="@(inst.InstitutionId == InstitutionId)">@inst.Name</option>
+        }
+    </select>
+</div>
 
 @if (error != null) { <div class="alert alert-error">@error</div> }
 @if (successMsg != null) { <div class="alert alert-success">@successMsg</div> }
 
+@if (totals != null)
+{
+    <div class="stats-strip">
+        <div class="stat-chip"><span class="stat-value">@totals.Value.Total</span><span class="stat-label">Total Beds</span></div>
+        <div class="stat-chip stat-available"><span class="stat-value">@totals.Value.Available</span><span class="stat-label">Available (placeable)</span></div>
+        <div class="stat-chip stat-occupied"><span class="stat-value">@totals.Value.Occupied</span><span class="stat-label">Occupied</span></div>
+        <div class="stat-chip stat-dirty"><span class="stat-value">@totals.Value.Dirty</span><span class="stat-label">Dirty</span></div>
+        <div class="stat-chip stat-gray"><span class="stat-value">@totals.Value.Blocked</span><span class="stat-label">Blocked</span></div>
+        <div class="stat-chip stat-gray"><span class="stat-value">@totals.Value.OutOfService</span><span class="stat-label">Out of Service</span></div>
+    </div>
+}
+
 <div class="tab-bar">
     <button class="@TabClass(0)" @onclick="async () => { activeTab = 0; await LoadBoard(); }">Bed Board</button>
-    <button class="@TabClass(1)" @onclick="() => LoadStats()">Statistics</button>
+    <button class="@TabClass(1)" @onclick="async () => { activeTab = 1; await LoadEvsQueue(); }">EVS Queue</button>
 </div>
 
 @* ─── Tab 0: Bed Board ───────────────────────────────────────────────── *@
 @if (activeTab == 0)
 {
-    <div class="board-actions">
-        <button class="btn btn-primary" @onclick="LoadBoard" disabled="@loading">Refresh</button>
-        <select @bind="wardFilter" @bind:after="FilterBeds">
-            <option value="">All Wards</option>
-            @if (allBeds != null)
-            {
-                @foreach (var w in allBeds.Select(b => b.WardName).Distinct())
-                {
-                    <option value="@w">@w</option>
-                }
-            }
-        </select>
-    </div>
-
-    @if (filteredBeds != null)
+    @if (unit == null)
     {
-        <div class="bed-grid">
-            @foreach (var bed in filteredBeds)
-            {
-                <div class="bed-card bed-@bed.Status.ToLower().Replace("_","")">
-                    <div class="bed-id">@bed.BedId</div>
-                    <div class="bed-type">@bed.BedType</div>
-                    <div class="bed-status"><span class="badge badge-@bed.Status.ToLower().Replace("_","")">@bed.Status</span></div>
-                    @if (bed.PatientName != null)
-                    {
-                        <div class="bed-patient">@bed.PatientName</div>
-                    }
-                    @if (bed.IsolationType != null)
-                    {
-                        <div class="bed-isolation">⚠ @bed.IsolationType</div>
-                    }
-                    <div class="bed-actions">
-                        @if (bed.Status == "CLEANING")
-                        {
-                            <button class="btn-sm" @onclick="() => SetAvailable(bed.BedId)">Ready</button>
-                        }
-                        @if (bed.Status == "OCCUPIED")
-                        {
-                            <button class="btn-sm btn-dc" @onclick="() => DischargeBed(bed.BedId)">DC</button>
-                        }
-                    </div>
-                </div>
-            }
+        <div class="board-actions">
+            <button class="btn btn-primary" @onclick="LoadBoard" disabled="@loading">@(loading ? "Loading..." : "Refresh")</button>
         </div>
+
+        @if (units != null)
+        {
+            @if (units.Count == 0) { <div class="empty-state">No inpatient units configured for institution @InstitutionId.</div> }
+            <div class="unit-grid">
+                @foreach (var u in units)
+                {
+                    var unitId = u.UnitId;
+                    <div class="unit-card" @onclick="() => OpenUnit(unitId)">
+                        <div class="unit-name">@u.Name</div>
+                        <div class="unit-type">@(u.UnitType ?? "—") · @u.TotalBeds beds</div>
+                        <div class="count-row">
+                            <span class="count count-available" title="Available — the only placeable number">@u.Available placeable</span>
+                            <span class="count count-occupied">@u.Occupied occ</span>
+                            @if (u.Reserved > 0) { <span class="count count-reserved">@u.Reserved rsv</span> }
+                            @if (u.Dirty > 0) { <span class="count count-dirty">@u.Dirty dirty</span> }
+                            @if (u.Cleaning > 0) { <span class="count count-cleaning">@u.Cleaning clng</span> }
+                            @if (u.Blocked + u.OutOfService > 0) { <span class="count count-gray">@(u.Blocked + u.OutOfService) blk/oos</span> }
+                            @if (u.Boarders > 0) { <span class="count count-boarder">@u.Boarders boarding</span> }
+                        </div>
+                    </div>
+                }
+            </div>
+        }
+    }
+    else
+    {
+        <div class="board-actions">
+            <button class="btn btn-secondary" @onclick="CloseUnit">← All Units</button>
+            <h3 class="unit-heading">@unit.Name <span class="unit-type">@(unit.UnitType ?? "")</span></h3>
+            <button class="btn btn-primary" @onclick="() => OpenUnit(unit.UnitId)">Refresh</button>
+            @if (!string.IsNullOrEmpty(unit.ChargeNurseName)) { <span class="charge-nurse">Charge: @unit.ChargeNurseName</span> }
+        </div>
+
+        @if (reasonBedId != null)
+        {
+            <div class="reason-panel">
+                <strong>@(reasonKind == "block" ? "Block" : "Take out of service") bed @reasonBedId — reason required:</strong>
+                <input @bind="reasonText" placeholder="Reason" />
+                <button class="btn btn-primary" @onclick="ConfirmReasonAction" disabled="@(string.IsNullOrWhiteSpace(reasonText))">Confirm</button>
+                <button class="btn btn-secondary" @onclick="() => reasonBedId = null">Cancel</button>
+            </div>
+        }
+
+        @foreach (var group in BedGroups())
+        {
+            <div class="room-group">
+                @if (group.Label != "") { <div class="room-label">@group.Label</div> }
+                <div class="bed-grid">
+                    @foreach (var bed in group.Beds)
+                    {
+                        var b = bed;
+                        <div class="bed-card bed-@b.State.ToString().ToLowerInvariant()">
+                            <div class="bed-id">@b.BedId</div>
+                            <div class="bed-type">@b.BedType</div>
+                            <div><span class="badge badge-@b.State.ToString().ToLowerInvariant()">@b.State</span></div>
+                            @if (b.PatientName != null) { <div class="bed-patient">@b.PatientName</div> }
+                            @if (b.State == BedLifecycleState.Reserved && b.ReservedForPatientName != null)
+                            {
+                                <div class="bed-reserved">Held for @b.ReservedForPatientName</div>
+                                @if (b.ReservationExpiresAt != null) { <div class="bed-note">until @b.ReservationExpiresAt.Value.ToLocalTime().ToString("MM/dd HH:mm")</div> }
+                            }
+                            @if (b.Isolation != BedIsolationType.None) { <div class="bed-isolation">⚠ @b.Isolation</div> }
+                            @if (b.BlockReason != null) { <div class="bed-note">@b.BlockReason</div> }
+                            @if (b.State == BedLifecycleState.Dirty && b.DirtySince != null) { <div class="bed-note">dirty since @b.DirtySince.Value.ToLocalTime().ToString("MM/dd HH:mm")</div> }
+                            <div class="bed-actions">
+                                @switch (b.State)
+                                {
+                                    case BedLifecycleState.Dirty:
+                                        <button class="btn-sm" disabled="@(!CanEvs)" @onclick='() => RunBedAction(g => g.StartCleaningAsync(b.BedId, null), $"Cleaning started on {b.BedId}.")'>Start cleaning</button>
+                                        <button class="btn-sm" disabled="@(!CanEvs)" @onclick='() => RunBedAction(g => g.MarkBedCleanAsync(b.BedId, null), $"Bed {b.BedId} marked clean.")'>Mark clean</button>
+                                        break;
+                                    case BedLifecycleState.Cleaning:
+                                        <button class="btn-sm" disabled="@(!CanEvs)" @onclick='() => RunBedAction(g => g.MarkBedCleanAsync(b.BedId, null), $"Bed {b.BedId} marked clean.")'>Mark clean</button>
+                                        break;
+                                    case BedLifecycleState.Available:
+                                        <button class="btn-sm" disabled="@(!CanEvs)" @onclick='() => RunBedAction(g => g.MarkBedDirtyAsync(b.BedId), $"Bed {b.BedId} marked dirty.")'>Mark dirty</button>
+                                        <button class="btn-sm" disabled="@(!CanBedControl)" @onclick='() => PromptReason(b.BedId, "block")'>Block…</button>
+                                        <button class="btn-sm" disabled="@(!CanBedControl)" @onclick='() => PromptReason(b.BedId, "oos")'>Out of service…</button>
+                                        break;
+                                    case BedLifecycleState.Blocked:
+                                        <button class="btn-sm" disabled="@(!CanBedControl)" @onclick='() => RunBedAction(g => g.UnblockBedAsync(b.BedId), $"Bed {b.BedId} unblocked.")'>Unblock</button>
+                                        break;
+                                    case BedLifecycleState.OutOfService:
+                                        <button class="btn-sm" disabled="@(!CanBedControl)" @onclick='() => RunBedAction(g => g.ReturnToServiceAsync(b.BedId), $"Bed {b.BedId} returned to service (needs cleaning).")'>Return to service</button>
+                                        break;
+                                }
+                            </div>
+                        </div>
+                    }
+                </div>
+            </div>
+        }
+
+        @if (unit.Boarders.Count > 0)
+        {
+            <h4>Boarders (no bed)</h4>
+            <table class="data-table">
+                <thead><tr><th>Patient</th><th>Admitted</th><th>Specialty</th><th>Attending</th></tr></thead>
+                <tbody>
+                    @foreach (var bo in unit.Boarders)
+                    {
+                        <tr>
+                            <td>@bo.PatientName (@bo.PatientId)</td>
+                            <td class="date">@bo.AdmitDate.ToString("MM/dd/yyyy HH:mm")</td>
+                            <td>@(bo.TreatingSpecialty ?? "—")</td>
+                            <td>@(bo.AttendingPhysicianName ?? "—")</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        }
     }
 }
 
-@* ─── Tab 1: Statistics ──────────────────────────────────────────────── *@
-@if (activeTab == 1 && stats != null)
+@* ─── Tab 1: EVS Queue ───────────────────────────────────────────────── *@
+@if (activeTab == 1)
 {
-    <div class="stats-grid">
-        <div class="stat-card"><div class="stat-value">@stats.TotalBeds</div><div class="stat-label">Total Beds</div></div>
-        <div class="stat-card"><div class="stat-value">@stats.AvailableBeds</div><div class="stat-label">Available</div></div>
-        <div class="stat-card"><div class="stat-value">@stats.OccupiedBeds</div><div class="stat-label">Occupied</div></div>
-        <div class="stat-card"><div class="stat-value">@stats.OccupancyRate%</div><div class="stat-label">Occupancy Rate</div></div>
+    <div class="board-actions">
+        <button class="btn btn-primary" @onclick="LoadEvsQueue" disabled="@loading">Refresh</button>
     </div>
+
+    @if (evsQueue != null)
+    {
+        @if (evsQueue.Count == 0) { <div class="empty-state">No dirty beds — EVS queue is clear.</div> }
+        else
+        {
+            <table class="data-table">
+                <thead><tr><th>Unit</th><th>Bed</th><th>Room</th><th>State</th><th>Dirty Since</th><th>Isolation</th><th>Actions</th></tr></thead>
+                <tbody>
+                    @foreach (var row in evsQueue)
+                    {
+                        var r = row;
+                        <tr>
+                            <td>@r.UnitId</td>
+                            <td>@r.Bed.BedId</td>
+                            <td>@(string.IsNullOrEmpty(r.Bed.RoomId) ? "—" : r.Bed.RoomId)</td>
+                            <td><span class="badge badge-@r.Bed.State.ToString().ToLowerInvariant()">@r.Bed.State</span></td>
+                            <td class="date">@(r.Bed.DirtySince?.ToLocalTime().ToString("MM/dd/yyyy HH:mm") ?? "—")</td>
+                            <td>@(r.Bed.Isolation == BedIsolationType.None ? "—" : $"⚠ {r.Bed.Isolation}")</td>
+                            <td class="actions">
+                                @if (r.Bed.State == BedLifecycleState.Dirty)
+                                {
+                                    <button class="btn-sm" disabled="@(!CanEvs)" @onclick='() => RunUnitBedAction(r.UnitId, g => g.StartCleaningAsync(r.Bed.BedId, null), $"Cleaning started on {r.Bed.BedId}.")'>Start cleaning</button>
+                                }
+                                <button class="btn-sm" disabled="@(!CanEvs)" @onclick='() => RunUnitBedAction(r.UnitId, g => g.MarkBedCleanAsync(r.Bed.BedId, null), $"Bed {r.Bed.BedId} marked clean.")'>Mark clean</button>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        }
+    }
 }
 
 @code {
-    private List<BedEntryDto>? allBeds;
-    private List<BedEntryDto>? filteredBeds;
-    private StatsDto? stats;
+    /// <summary>The institution being worked — the circuit-scoped acting institution.</summary>
+    private string InstitutionId => SecurityContext.ActingInstitutionId;
+
+    private List<InstitutionIndexEntry> institutions = new();
+    private List<UnitCapacitySummary>? units;
+    private (int Total, int Available, int Occupied, int Dirty, int Blocked, int OutOfService)? totals;
+    private InpatientUnitState? unit;
+    private List<(string UnitId, DirtyBedEntry Bed)>? evsQueue;
     private bool loading;
     private string? error, successMsg;
     private int activeTab;
-    private string wardFilter = "";
 
-    protected override async Task OnInitializedAsync() => await LoadBoard();
+    // Block / out-of-service reason prompt
+    private string? reasonBedId;
+    private string reasonKind = "block";
+    private string reasonText = "";
+
+    private bool CanEvs => SecurityContext.HasKey(SecurityKeys.DG_BED_CONTROL) || SecurityContext.HasKey(SecurityKeys.ORELSE);
+    private bool CanBedControl => SecurityContext.HasKey(SecurityKeys.DG_BED_CONTROL);
+
+    private IBedCapacityGrain Capacity => Grains.GetGrain<IBedCapacityGrain>($"BED-CAPACITY:{InstitutionId}");
+    private IInpatientUnitGrain UnitGrain(string unitId) => Grains.GetGrain<IInpatientUnitGrain>($"UNIT:{InstitutionId}:{unitId}");
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            institutions = await Grains.GetGrain<IInstitutionIndexGrain>("INSTITUTION-INDEX").GetAllAsync();
+        }
+        catch { institutions = new(); }
+        await LoadBoard();
+    }
+
+    private async Task OnInstitutionChanged(ChangeEventArgs e)
+    {
+        string id = e.Value?.ToString() ?? "";
+        if (string.IsNullOrEmpty(id) || id == SecurityContext.ActingInstitutionId) return;
+        SecurityContext.ActingInstitutionId = id;
+        SecurityContext.ActingInstitutionName = institutions.FirstOrDefault(i => i.InstitutionId == id)?.Name ?? id;
+        unit = null; evsQueue = null; successMsg = null; reasonBedId = null;
+        await LoadBoard();
+        if (activeTab == 1) await LoadEvsQueue();
+    }
 
     private async Task LoadBoard()
     {
-        activeTab = 0; loading = true; error = null;
+        loading = true; error = null;
         try
         {
-            var boardGrain = Grains.GetGrain<IBedBoardGrain>("BED-BOARD:MAIN");
-            var entries = await boardGrain.GetAllBedsAsync();
-            allBeds = entries.Select(e => new BedEntryDto
-            {
-                BedId = e.BedId, WardId = e.WardId, WardName = e.WardName,
-                RoomNumber = e.RoomNumber, BedPosition = e.BedPosition,
-                Status = e.Status.ToString(), BedType = e.BedType,
-                PatientName = e.PatientName, IsolationType = e.IsolationType
-            }).ToList();
-            FilterBeds();
+            units = await Capacity.GetUnitsAsync();
+            totals = await Capacity.GetInstitutionTotalsAsync();
+            if (unit != null) unit = await UnitGrain(unit.UnitId).GetAsync();
         }
         catch (Exception ex) { error = ex.Message; }
         finally { loading = false; }
     }
 
-    private void FilterBeds()
+    private async Task OpenUnit(string unitId)
     {
-        filteredBeds = string.IsNullOrEmpty(wardFilter)
-            ? allBeds
-            : allBeds?.Where(b => b.WardName == wardFilter).ToList();
+        error = null; successMsg = null; reasonBedId = null;
+        try { unit = await UnitGrain(unitId).GetAsync(); }
+        catch (Exception ex) { error = ex.Message; }
     }
 
-    private async Task LoadStats()
+    private void CloseUnit() { unit = null; reasonBedId = null; }
+
+    private async Task LoadEvsQueue()
     {
-        activeTab = 1; error = null;
+        loading = true; error = null;
         try
         {
-            var boardGrain = Grains.GetGrain<IBedBoardGrain>("BED-BOARD:MAIN");
-            int total = await boardGrain.GetTotalBedCountAsync();
-            int available = await boardGrain.GetAvailableBedCountAsync();
-            int occupied = await boardGrain.GetOccupiedBedCountAsync();
-            stats = new StatsDto
+            evsQueue = await Capacity.GetDirtyBedQueueAsync();
+            totals = await Capacity.GetInstitutionTotalsAsync();
+        }
+        catch (Exception ex) { error = ex.Message; }
+        finally { loading = false; }
+    }
+
+    private void PromptReason(string bedId, string kind)
+    {
+        reasonBedId = bedId; reasonKind = kind; reasonText = ""; successMsg = null;
+    }
+
+    private async Task ConfirmReasonAction()
+    {
+        if (reasonBedId == null || string.IsNullOrWhiteSpace(reasonText)) return;
+        string bedId = reasonBedId; string reason = reasonText.Trim();
+        reasonBedId = null;
+        if (reasonKind == "block")
+            await RunBedAction(g => g.BlockBedAsync(bedId, reason), $"Bed {bedId} blocked.");
+        else
+            await RunBedAction(g => g.SetOutOfServiceAsync(bedId, reason), $"Bed {bedId} out of service.");
+    }
+
+    /// <summary>Run an action against the currently open unit, then refresh.</summary>
+    private async Task RunBedAction(Func<IInpatientUnitGrain, Task> action, string ok)
+    {
+        if (unit == null) return;
+        await RunUnitBedAction(unit.UnitId, action, ok);
+    }
+
+    /// <summary>Run an action against a named unit, then refresh whatever is on screen.</summary>
+    private async Task RunUnitBedAction(string unitId, Func<IInpatientUnitGrain, Task> action, string ok)
+    {
+        error = null; successMsg = null;
+        try
+        {
+            await action(UnitGrain(unitId));
+            successMsg = ok;
+        }
+        catch (UnauthorizedAccessException ex) { error = SecurityKeyError.Describe(ex); }
+        catch (InvalidOperationException ex) { error = ex.Message; }   // transition rejected
+        catch (Exception ex) { error = ex.Message; }
+
+        try
+        {
+            if (unit != null) unit = await UnitGrain(unit.UnitId).GetAsync();
+            if (activeTab == 1) evsQueue = await Capacity.GetDirtyBedQueueAsync();
+            units = await Capacity.GetUnitsAsync();
+            totals = await Capacity.GetInstitutionTotalsAsync();
+        }
+        catch (Exception ex) { error ??= ex.Message; }
+    }
+
+    /// <summary>Beds grouped by room when the unit models rooms; a single unlabeled group otherwise.</summary>
+    private IEnumerable<(string Label, List<InpatientBed> Beds)> BedGroups()
+    {
+        if (unit == null) yield break;
+        if (unit.Rooms.Count > 0)
+        {
+            foreach (var room in unit.Rooms.OrderBy(r => r.RoomId, StringComparer.OrdinalIgnoreCase))
             {
-                TotalBeds = total, AvailableBeds = available, OccupiedBeds = occupied,
-                OccupancyRate = total > 0 ? Math.Round(occupied * 100.0 / total, 1) : 0
-            };
+                var beds = unit.Beds.Where(b => b.RoomId == room.RoomId).OrderBy(b => b.BedId, StringComparer.OrdinalIgnoreCase).ToList();
+                yield return ($"Room {room.RoomId}" + (room.RoomIsolation != BedIsolationType.None ? $" — ⚠ {room.RoomIsolation}" : ""), beds);
+            }
+            var orphans = unit.Beds.Where(b => !unit.Rooms.Any(r => r.RoomId == b.RoomId)).OrderBy(b => b.BedId, StringComparer.OrdinalIgnoreCase).ToList();
+            if (orphans.Count > 0) yield return ("No room", orphans);
         }
-        catch (Exception ex) { error = ex.Message; }
-    }
-
-    private async Task SetAvailable(string bedId)
-    {
-        try
+        else
         {
-            var bedGrain = Grains.GetGrain<IBedGrain>($"BED:MAIN:{bedId}");
-            await bedGrain.SetAvailableAsync();
-            await LoadBoard();
+            yield return ("", unit.Beds.OrderBy(b => b.BedId, StringComparer.OrdinalIgnoreCase).ToList());
         }
-        catch (Exception ex) { error = ex.Message; }
-    }
-
-    private async Task DischargeBed(string bedId)
-    {
-        try
-        {
-            var bedGrain = Grains.GetGrain<IBedGrain>($"BED:MAIN:{bedId}");
-            await bedGrain.DischargePatientAsync();
-            successMsg = "Patient discharged.";
-            await LoadBoard();
-        }
-        catch (Exception ex) { error = ex.Message; }
     }
 
     private string TabClass(int tab) => activeTab == tab ? "tab active" : "tab";
-
-    private class BedEntryDto { public string BedId { get; set; } = ""; public string WardId { get; set; } = ""; public string WardName { get; set; } = ""; public string RoomNumber { get; set; } = ""; public string BedPosition { get; set; } = ""; public string Status { get; set; } = ""; public string BedType { get; set; } = ""; public string? PatientName { get; set; } public string? IsolationType { get; set; } }
-    private class StatsDto { public int TotalBeds { get; set; } public int AvailableBeds { get; set; } public int OccupiedBeds { get; set; } public double OccupancyRate { get; set; } }
 }
 
 <style>
+    .inst-bar { display: flex; gap: .5rem; align-items: center; margin-bottom: 1rem; font-size: .85rem; }
+    .inst-bar label { font-weight: 600; color: #555; }
+    .inst-bar select { padding: .4rem .6rem; border: 1px solid #ccc; border-radius: 4px; font-size: .85rem; min-width: 260px; }
     .tab-bar { display: flex; gap: 0; margin-bottom: 1.5rem; border-bottom: 2px solid #d4d9e0; }
     .tab { padding: 0.6rem 1.25rem; border: none; background: transparent; cursor: pointer; font-size: 0.85rem; color: #666; border-bottom: 2px solid transparent; margin-bottom: -2px; }
     .tab.active { color: #003f72; font-weight: 600; border-bottom: 2px solid #003f72; }
     .btn { padding: 0.5rem 1.25rem; border: none; border-radius: 4px; cursor: pointer; font-size: 0.85rem; }
     .btn-primary { background: #003f72; color: white; }
-    .btn-sm { padding: 0.2rem 0.5rem; font-size: 0.75rem; border: 1px solid #ccc; border-radius: 3px; cursor: pointer; background: white; }
-    .btn-dc { border-color: #dc2626; color: #dc2626; }
-    .board-actions { display: flex; gap: 0.5rem; margin-bottom: 1rem; align-items: center; }
-    .board-actions select { padding: 0.35rem 0.6rem; border: 1px solid #d1d5db; border-radius: 4px; font-size: 0.85rem; }
+    .btn-secondary { background: #e5e7eb; color: #1f2937; }
+    .btn-sm { padding: 0.2rem 0.5rem; font-size: 0.7rem; border: 1px solid #ccc; border-radius: 3px; cursor: pointer; background: white; }
+    .btn-sm:disabled { opacity: .45; cursor: not-allowed; }
+    .board-actions { display: flex; gap: 0.75rem; margin-bottom: 1rem; align-items: center; }
+    .unit-heading { margin: 0; color: #003f72; }
+    .unit-heading .unit-type { font-weight: 400; color: #6b7280; font-size: .85rem; }
+    .charge-nurse { font-size: .8rem; color: #6b7280; }
     .alert { padding: 0.75rem 1rem; border-radius: 4px; margin-bottom: 1rem; }
     .alert-error { background: #fde8e8; color: #b91c1c; border: 1px solid #f5c6c6; }
     .alert-success { background: #d1fae5; color: #065f46; border: 1px solid #a7f3d0; }
-    .bed-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 0.5rem; }
+    .empty-state { color: #6b7280; padding: 1.5rem; text-align: center; }
+
+    /* Stats strip */
+    .stats-strip { display: flex; gap: .75rem; flex-wrap: wrap; margin-bottom: 1rem; }
+    .stat-chip { background: #f0f4f8; border: 1px solid #d4d9e0; border-radius: 8px; padding: .5rem 1rem; text-align: center; min-width: 90px; }
+    .stat-chip .stat-value { display: block; font-size: 1.4rem; font-weight: 700; color: #003f72; }
+    .stat-chip .stat-label { font-size: .7rem; color: #6b7280; }
+    .stat-available .stat-value { color: #059669; }
+    .stat-occupied .stat-value { color: #2563eb; }
+    .stat-dirty .stat-value { color: #ea580c; }
+    .stat-gray .stat-value { color: #6b7280; }
+
+    /* Unit cards */
+    .unit-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: .75rem; }
+    .unit-card { border: 1px solid #d4d9e0; border-radius: 8px; padding: .85rem 1rem; cursor: pointer; background: white; }
+    .unit-card:hover { border-color: #003f72; box-shadow: 0 1px 4px rgba(0,63,114,.15); }
+    .unit-name { font-weight: 700; color: #003f72; }
+    .unit-type { font-size: .75rem; color: #6b7280; margin-bottom: .4rem; }
+    .count-row { display: flex; gap: .35rem; flex-wrap: wrap; }
+    .count { font-size: .68rem; font-weight: 600; padding: .1rem .45rem; border-radius: 8px; }
+    .count-available { background: #d1fae5; color: #065f46; }
+    .count-occupied { background: #dbeafe; color: #1d4ed8; }
+    .count-reserved { background: #fef3c7; color: #92400e; }
+    .count-dirty { background: #ffedd5; color: #c2410c; }
+    .count-cleaning { background: #ccfbf1; color: #0f766e; }
+    .count-gray { background: #f3f4f6; color: #4b5563; }
+    .count-boarder { background: #ede9fe; color: #6d28d9; }
+
+    /* Drill-in board */
+    .room-group { margin-bottom: 1rem; }
+    .room-label { font-size: .8rem; font-weight: 700; color: #4b5563; margin-bottom: .35rem; }
+    .bed-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 0.5rem; }
     .bed-card { border: 1px solid #d4d9e0; border-radius: 6px; padding: 0.6rem; font-size: 0.8rem; text-align: center; }
     .bed-available { background: #d1fae5; border-color: #a7f3d0; }
-    .bed-occupied { background: #fde8e8; border-color: #f5c6c6; }
     .bed-reserved { background: #fef3c7; border-color: #fde68a; }
-    .bed-cleaning { background: #e0f2fe; border-color: #bae6fd; }
+    .bed-occupied { background: #dbeafe; border-color: #bfdbfe; }
+    .bed-dirty { background: #ffedd5; border-color: #fed7aa; }
+    .bed-cleaning { background: #ccfbf1; border-color: #99f6e4; }
     .bed-blocked { background: #f3f4f6; border-color: #d1d5db; }
     .bed-outofservice { background: #f3f4f6; border-color: #9ca3af; }
-    .bed-id { font-weight: 700; color: #003f72; font-size: 0.75rem; }
+    .bed-id { font-weight: 700; color: #003f72; font-size: 0.78rem; }
     .bed-type { font-size: 0.65rem; color: #6b7280; }
-    .bed-patient { font-size: 0.7rem; font-weight: 600; color: #1f2937; margin-top: 0.25rem; }
+    .bed-patient { font-size: 0.72rem; font-weight: 600; color: #1f2937; margin-top: 0.25rem; }
+    .bed-card .bed-reserved { background: transparent; border: none; font-size: .68rem; color: #92400e; font-weight: 600; }
     .bed-isolation { font-size: 0.65rem; color: #dc2626; font-weight: 600; }
-    .bed-actions { margin-top: 0.25rem; }
+    .bed-note { font-size: .62rem; color: #6b7280; }
+    .bed-actions { margin-top: 0.35rem; display: flex; gap: .25rem; flex-wrap: wrap; justify-content: center; }
     .badge { padding: 0.1rem 0.4rem; border-radius: 8px; font-size: 0.6rem; font-weight: 600; }
     .badge-available { background: #059669; color: white; }
-    .badge-occupied { background: #dc2626; color: white; }
     .badge-reserved { background: #d97706; color: white; }
-    .badge-cleaning { background: #0369a1; color: white; }
+    .badge-occupied { background: #2563eb; color: white; }
+    .badge-dirty { background: #ea580c; color: white; }
+    .badge-cleaning { background: #0d9488; color: white; }
     .badge-blocked { background: #6b7280; color: white; }
     .badge-outofservice { background: #374151; color: white; }
-    .stats-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 1rem; }
-    .stat-card { background: #f0f4f8; border: 1px solid #d4d9e0; border-radius: 8px; padding: 1.25rem; text-align: center; }
-    .stat-value { font-size: 2rem; font-weight: 700; color: #003f72; }
-    .stat-label { font-size: 0.8rem; color: #6b7280; margin-top: 0.25rem; }
+    .reason-panel { display: flex; gap: .5rem; align-items: center; flex-wrap: wrap; border: 1px solid #fde68a; background: #fffbeb; border-radius: 6px; padding: .6rem .8rem; margin-bottom: 1rem; }
+    .reason-panel input { padding: .35rem .6rem; border: 1px solid #ccc; border-radius: 4px; font-size: .85rem; min-width: 260px; }
+    .data-table td.date { color: #888; font-size: .8rem; white-space: nowrap; }
+    .actions { white-space: nowrap; }
 </style>

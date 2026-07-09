@@ -2,6 +2,7 @@
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
+using NewVistas.Abstractions.GrainInterfaces;
 using NewVistas.Abstractions.GrainStates;
 using NewVistas.CharUI.Core;
 
@@ -9,9 +10,13 @@ namespace NewVistas.CharUI.Menus;
 
 /// <summary>
 /// ADT (Admit/Discharge/Transfer) menu — mirrors VistA File #405.
+/// Placement targets inpatient units (IInpatientUnitGrain) at institution 500.
 /// </summary>
 public class AdtMenu : IMenu
 {
+    /// <summary>Institution for all admissions/transfers from this client (File #4).</summary>
+    private const string InstitutionId = "500";
+
     public string Title => "ADT Movements";
 
     public async Task RunAsync(MenuContext ctx)
@@ -52,10 +57,12 @@ public class AdtMenu : IMenu
     {
         TerminalIO.WriteHeader("Record Admission");
 
-        string ward = TerminalIO.Prompt("Ward Location");
-        if (string.IsNullOrWhiteSpace(ward)) return;
+        await ShowUnitDirectoryAsync(ctx);
 
-        string roomBed = TerminalIO.Prompt("Room-Bed (e.g., 3A-12)");
+        string unit = TerminalIO.Prompt("Unit ID (e.g., MED-3A, ICU-1)");
+        if (string.IsNullOrWhiteSpace(unit)) return;
+
+        string bed = TerminalIO.Prompt("Bed ID (optional)");
         string specialty = TerminalIO.Prompt("Treating Specialty (optional)");
         string physician = TerminalIO.Prompt("Attending Physician");
         string diagnosis = TerminalIO.Prompt("Admission Diagnosis");
@@ -64,8 +71,8 @@ public class AdtMenu : IMenu
         if (!TerminalIO.PromptYesNo("Record this admission?")) return;
 
         string id = await ctx.GetWorkflow().RecordAdmissionAsync(
-            DateTime.UtcNow, null, ward,
-            string.IsNullOrWhiteSpace(roomBed) ? null : roomBed,
+            DateTime.UtcNow, InstitutionId, ToUnitId(unit),
+            string.IsNullOrWhiteSpace(bed) ? null : bed.Trim(),
             string.IsNullOrWhiteSpace(specialty) ? null : specialty,
             ctx.Session.UserId,
             string.IsNullOrWhiteSpace(physician) ? ctx.Session.UserName : physician,
@@ -75,6 +82,36 @@ public class AdtMenu : IMenu
         TerminalIO.WriteBlank();
         TerminalIO.WriteLine($"  Admission recorded: {id}");
         TerminalIO.Pause();
+    }
+
+    /// <summary>
+    /// List the institution's units with live availability so the user can pick
+    /// a valid unit id (the capacity grain doubles as the unit directory).
+    /// </summary>
+    private static async Task ShowUnitDirectoryAsync(MenuContext ctx)
+    {
+        try
+        {
+            IBedCapacityGrain capacity =
+                ctx.GetGrain<IBedCapacityGrain>($"BED-CAPACITY:{InstitutionId}");
+            List<UnitCapacitySummary> units = await capacity.GetUnitsAsync(true);
+            if (units.Count == 0) return;
+
+            TerminalIO.WriteLine("  Units: " + string.Join(", ",
+                units.Select(u => $"{u.UnitId} ({u.Available} avail)")));
+            TerminalIO.WriteBlank();
+        }
+        catch
+        {
+            // Directory is a convenience; admission can proceed without it.
+        }
+    }
+
+    /// <summary>Interpret legacy "WARD-" prefixed ids as unit ids (e.g. "WARD-MED-3A" → "MED-3A").</summary>
+    private static string ToUnitId(string unitId)
+    {
+        string id = unitId.Trim();
+        return id.StartsWith("WARD-", StringComparison.OrdinalIgnoreCase) ? id[5..] : id;
     }
 
     private static async Task DischargeAsync(MenuContext ctx)
@@ -139,10 +176,13 @@ public class AdtMenu : IMenu
         if (!choice.HasValue) return;
 
         AdtSummary selected = current[choice.Value - 1];
-        string toWard = TerminalIO.Prompt("To Ward");
-        if (string.IsNullOrWhiteSpace(toWard)) return;
 
-        string toRoomBed = TerminalIO.Prompt("To Room-Bed");
+        await ShowUnitDirectoryAsync(ctx);
+
+        string toUnit = TerminalIO.Prompt("To Unit ID (e.g., MED-3A, ICU-1)");
+        if (string.IsNullOrWhiteSpace(toUnit)) return;
+
+        string toBed = TerminalIO.Prompt("To Bed ID (optional)");
         string toSpecialty = TerminalIO.Prompt("To Specialty (optional)");
         string physician = TerminalIO.Prompt("Attending Physician (optional)");
         string comments = TerminalIO.Prompt("Comments (optional)");
@@ -151,8 +191,8 @@ public class AdtMenu : IMenu
 
         await ctx.GetWorkflow().RecordTransferAsync(
             selected.MovementId, DateTime.UtcNow,
-            null, toWard,
-            string.IsNullOrWhiteSpace(toRoomBed) ? null : toRoomBed,
+            InstitutionId, ToUnitId(toUnit),
+            string.IsNullOrWhiteSpace(toBed) ? null : toBed.Trim(),
             null, string.IsNullOrWhiteSpace(toSpecialty) ? null : toSpecialty,
             string.IsNullOrWhiteSpace(physician) ? null : ctx.Session.UserId,
             string.IsNullOrWhiteSpace(physician) ? null : physician,

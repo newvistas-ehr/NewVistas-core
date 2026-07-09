@@ -11,8 +11,15 @@ using NewVistas.Wpf_UI.Services;
 
 namespace NewVistas.Wpf_UI.ViewModels;
 
+/// <summary>
+/// Bed management board — reads the institution's IBedCapacityGrain for the
+/// unit directory/counts and drills into each IInpatientUnitGrain for bed rows.
+/// Status actions are the unit grain's EVS turnover operations.
+/// </summary>
 public partial class BedManagementViewModel : ObservableObject
 {
+    private const string InstitutionId = "500";
+
     private readonly ApiClient _api;
     private readonly OrleansGrainService _grains;
 
@@ -36,45 +43,60 @@ public partial class BedManagementViewModel : ObservableObject
         Error = null;
         try
         {
-            var boardGrain = _grains.GetGrain<IBedBoardGrain>("BED-BOARD:DEFAULT");
-            List<BedSummaryEntry> allBeds = await boardGrain.GetAllBedsAsync();
+            var capacityGrain = _grains.GetGrain<IBedCapacityGrain>($"BED-CAPACITY:{InstitutionId}");
+            List<UnitCapacitySummary> units = await capacityGrain.GetUnitsAsync(true);
+
             Beds.Clear();
-            foreach (BedSummaryEntry b in allBeds)
+            int total = 0, occupied = 0, available = 0, cleaning = 0;
+            foreach (UnitCapacitySummary u in units)
             {
-                if (string.IsNullOrEmpty(WardFilter) || b.WardId == WardFilter)
-                    Beds.Add(new BedBoardEntry(b.BedId, b.WardId, b.Status, b.PatientName, b.IsolationType));
+                total += u.TotalBeds;
+                occupied += u.Occupied;
+                available += u.Available;
+                cleaning += u.Dirty + u.Cleaning;
+
+                if (!string.IsNullOrEmpty(WardFilter) &&
+                    !u.UnitId.Equals(WardFilter.Trim(), StringComparison.OrdinalIgnoreCase))
+                    continue;
+
+                var unitGrain = _grains.GetGrain<IInpatientUnitGrain>($"UNIT:{InstitutionId}:{u.UnitId}");
+                InpatientUnitState state = await unitGrain.GetAsync();
+                foreach (InpatientBed b in state.Beds)
+                {
+                    Beds.Add(new BedBoardEntry(
+                        b.BedId, u.UnitId, b.State.ToString(), b.PatientName,
+                        b.Isolation == BedIsolationType.None ? null : b.Isolation.ToString()));
+                }
             }
 
-            int total = await boardGrain.GetTotalBedCountAsync();
-            int available = await boardGrain.GetAvailableBedCountAsync();
-            int occupied = await boardGrain.GetOccupiedBedCountAsync();
-            Stats = new BedBoardStats(total, occupied, available, total - occupied - available);
+            Stats = new BedBoardStats(total, occupied, available, cleaning);
         }
         catch (Exception ex) { Error = ex.Message; }
         finally { IsLoading = false; }
     }
 
+    /// <summary>Dirty/Cleaning → Available (EVS turnover complete).</summary>
     [RelayCommand]
-    private async Task MarkAvailableAsync()
-    {
-        if (SelectedBed == null) return;
-        try
-        {
-            var bedGrain = _grains.GetGrain<IBedGrain>($"BED:DEFAULT:{SelectedBed.BedId}");
-            await bedGrain.SetAvailableAsync();
-            await LoadAsync();
-        }
-        catch (Exception ex) { Error = ex.Message; }
-    }
+    private Task MarkAvailableAsync()
+        => RunBedOperationAsync(g => g.MarkBedCleanAsync(SelectedBed!.BedId, null));
 
+    /// <summary>Dirty → Cleaning (EVS turnover started).</summary>
     [RelayCommand]
-    private async Task DischargeAsync()
+    private Task StartCleaningAsync()
+        => RunBedOperationAsync(g => g.StartCleaningAsync(SelectedBed!.BedId, null));
+
+    /// <summary>Available → Dirty (spill / contamination).</summary>
+    [RelayCommand]
+    private Task MarkDirtyAsync()
+        => RunBedOperationAsync(g => g.MarkBedDirtyAsync(SelectedBed!.BedId));
+
+    private async Task RunBedOperationAsync(Func<IInpatientUnitGrain, Task> operation)
     {
         if (SelectedBed == null) return;
         try
         {
-            var bedGrain = _grains.GetGrain<IBedGrain>($"BED:DEFAULT:{SelectedBed.BedId}");
-            await bedGrain.DischargePatientAsync();
+            var unitGrain = _grains.GetGrain<IInpatientUnitGrain>($"UNIT:{InstitutionId}:{SelectedBed.WardId}");
+            await operation(unitGrain);
             await LoadAsync();
         }
         catch (Exception ex) { Error = ex.Message; }

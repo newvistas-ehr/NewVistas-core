@@ -25,7 +25,8 @@ public interface IAdtGrain : IGrainWithStringKey
         string? attendingPhysicianName,
         string? typeOfPatient,
         string? admissionDiagnosis,
-        string? comments);
+        string? comments,
+        string? institutionId = null);
 
     Task RecordTransferAsync(
         string? wardLocationId,
@@ -51,7 +52,8 @@ public interface IAdtGrain : IGrainWithStringKey
         string? toTreatingSpecialtyName,
         string? attendingPhysicianId,
         string? attendingPhysicianName,
-        string? comments);
+        string? comments,
+        string? institutionId = null);
 
     Task RecordDischargeAsync(
         DateTime dischargeDateTime,

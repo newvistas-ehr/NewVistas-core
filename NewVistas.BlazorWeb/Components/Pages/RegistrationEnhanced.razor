@@ -24,12 +24,16 @@
 
 @if (tab == "beds")
 {
-    <p class="text-muted">Bed availability for facility: @facilityId</p>
-    @if (beds != null)
+    <p class="text-muted">Bed availability for institution: @facilityId</p>
+    @if (bedTotals != null)
+    {
+        <p><strong>@bedTotals.Value.Total</strong> total beds — <span class="badge badge-success">@bedTotals.Value.Available available (placeable)</span> <span class="badge badge-info">@bedTotals.Value.Occupied occupied</span></p>
+    }
+    @if (units != null)
     {
         <table class="data-table">
-            <thead><tr><th>Bed</th><th>Ward</th><th>Room</th><th>Type</th><th>Status</th><th>Patient</th></tr></thead>
-            <tbody>@foreach (var b in beds) { <tr class="@(b.Status == "AVAILABLE" ? "row-warning" : "")"><td>@b.BedId</td><td>@b.WardName</td><td>@b.RoomNumber @b.BedPosition</td><td>@b.BedType</td><td><span class="badge @(b.Status == "AVAILABLE" ? "badge-success" : b.Status == "OCCUPIED" ? "badge-info" : "badge-warning")">@b.Status</span></td><td>@(b.PatientName ?? "—")</td></tr> }</tbody>
+            <thead><tr><th>Unit</th><th>Type</th><th>Total</th><th>Available</th><th>Occupied</th><th>Dirty</th><th>Blocked/OOS</th><th>Boarders</th></tr></thead>
+            <tbody>@foreach (var u in units) { <tr class="@(u.Available > 0 ? "" : "row-warning")"><td>@u.Name</td><td>@(u.UnitType ?? "—")</td><td>@u.TotalBeds</td><td><span class="badge @(u.Available > 0 ? "badge-success" : "badge-warning")">@u.Available</span></td><td>@u.Occupied</td><td>@u.Dirty</td><td>@(u.Blocked + u.OutOfService)</td><td>@u.Boarders</td></tr> }</tbody>
         </table>
     }
 }
@@ -70,9 +74,11 @@
 }
 
 @code {
-    private string patientId = string.Empty, facilityId = "FACILITY-1", tab = "beds";
+    // TODO: institution picker (Phase E)
+    private string patientId = string.Empty, facilityId = "500", tab = "beds";
     private bool loading; private string? error;
-    private List<BedSummaryEntry>? beds;
+    private List<UnitCapacitySummary>? units;
+    private (int Total, int Available, int Occupied, int Dirty, int Blocked, int OutOfService)? bedTotals;
     private AdvanceDirectiveState? advDir;
     private IdentityVerificationState? identity;
     private List<PersonalPolicyIndexEntry>? policies;
@@ -81,7 +87,7 @@
     private string vNum = string.Empty;
     private readonly (string, string)[] _tabs = new[] { ("beds", "Bed Availability"), ("dir", "Advance Directives"), ("id", "Identity"), ("ins", "Insurance") };
 
-    private async Task LoadAll() { loading = true; error = null; try { beds = await Grains.GetGrain<IBedBoardGrain>($"BED-BOARD:{facilityId}").GetAllBedsAsync(); if (!string.IsNullOrWhiteSpace(patientId)) { var wf = Grains.GetGrain<IPatientWorkflowGrain>(patientId.Trim()); advDir = await wf.GetAdvanceDirectivesAsync(); identity = await wf.GetIdentityVerificationAsync(); policies = await wf.GetInsuranceAtRegistrationAsync(); } } catch (Exception ex) { error = ex.Message; } finally { loading = false; } }
+    private async Task LoadAll() { loading = true; error = null; try { var capacity = Grains.GetGrain<IBedCapacityGrain>($"BED-CAPACITY:{facilityId.Trim()}"); units = await capacity.GetUnitsAsync(); bedTotals = await capacity.GetInstitutionTotalsAsync(); if (!string.IsNullOrWhiteSpace(patientId)) { var wf = Grains.GetGrain<IPatientWorkflowGrain>(patientId.Trim()); advDir = await wf.GetAdvanceDirectivesAsync(); identity = await wf.GetIdentityVerificationAsync(); policies = await wf.GetInsuranceAtRegistrationAsync(); } } catch (Exception ex) { error = ex.Message; } finally { loading = false; } }
     private async Task UpdateCode() { try { await Grains.GetGrain<IPatientWorkflowGrain>(patientId.Trim()).UpdateCodeStatusAsync(nCode, "REG"); advDir = await Grains.GetGrain<IPatientWorkflowGrain>(patientId.Trim()).GetAdvanceDirectivesAsync(); } catch (Exception ex) { error = ex.Message; } }
     private async Task AddLivingWill() { try { await Grains.GetGrain<IPatientWorkflowGrain>(patientId.Trim()).AddAdvanceDirectiveDocumentAsync(AdvanceDirectiveType.LivingWill, DateTime.UtcNow, "Patient provided", null, null); advDir = await Grains.GetGrain<IPatientWorkflowGrain>(patientId.Trim()).GetAdvanceDirectivesAsync(); } catch (Exception ex) { error = ex.Message; } }
     private async Task AddDnr() { try { await Grains.GetGrain<IPatientWorkflowGrain>(patientId.Trim()).AddAdvanceDirectiveDocumentAsync(AdvanceDirectiveType.DoNotResuscitate, DateTime.UtcNow, "Physician order", null, null); advDir = await Grains.GetGrain<IPatientWorkflowGrain>(patientId.Trim()).GetAdvanceDirectivesAsync(); } catch (Exception ex) { error = ex.Message; } }

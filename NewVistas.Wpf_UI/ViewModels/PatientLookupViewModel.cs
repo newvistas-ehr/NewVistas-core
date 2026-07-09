@@ -169,16 +169,19 @@ public partial class PatientLookupViewModel : ObservableObject
                 return;
             }
 
-            var censusGrain = Grains.GetGrain<IWardCensusGrain>($"WARD-CENSUS:{person.DefaultWardId}");
-            List<WardCensusEntry> census = await censusGrain.GetCensusAsync();
+            // DefaultWardId is reinterpreted as a unit id at institution 500
+            // (legacy values may carry a "WARD-" prefix — strip it).
+            string unitId = ToUnitId(person.DefaultWardId);
+            var unitGrain = Grains.GetGrain<IInpatientUnitGrain>($"UNIT:500:{unitId}");
+            List<UnitCensusEntry> census = await unitGrain.GetCensusAsync();
             WardPatients.Clear();
-            foreach (WardCensusEntry c in census)
+            foreach (UnitCensusEntry c in census)
             {
                 WardPatients.Add(new PatientListItem
                 {
                     PatientId = c.PatientId,
-                    PatientName = c.PatientName ?? c.PatientId,
-                    Detail1 = c.RoomBed ?? "—",
+                    PatientName = string.IsNullOrEmpty(c.PatientName) ? c.PatientId : c.PatientName,
+                    Detail1 = c.BedId ?? "(boarder)",
                     Detail2 = c.TreatingSpecialty ?? "—",
                     Detail3 = c.AttendingPhysicianName ?? "—"
                 });
@@ -186,6 +189,16 @@ public partial class PatientLookupViewModel : ObservableObject
         }
         catch (Exception ex) { Error = ex.Message; }
         finally { IsLoading = false; }
+    }
+
+    /// <summary>
+    /// Interpret a legacy DefaultWardId as an inpatient unit id
+    /// (e.g. "WARD-MED-3A" → "MED-3A").
+    /// </summary>
+    private static string ToUnitId(string wardId)
+    {
+        string id = wardId.Trim();
+        return id.StartsWith("WARD-", StringComparison.OrdinalIgnoreCase) ? id[5..] : id;
     }
 
     /// <summary>

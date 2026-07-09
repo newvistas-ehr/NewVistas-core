@@ -17,10 +17,13 @@ public partial class AdtViewModel : BasePatientViewModel
     [ObservableProperty] private AdtSummary? _selectedMovement;
     [ObservableProperty] private int _selectedTab; // 0=Movements, 1=Census
 
+    /// <summary>Institution for all admissions from this client (File #4).</summary>
+    private const string InstitutionId = "500";
+
     // Admit form
     [ObservableProperty] private bool _showAdmitForm;
-    [ObservableProperty] private string _wardLocationName = string.Empty;
-    [ObservableProperty] private string _roomBed = string.Empty;
+    [ObservableProperty] private string _unitId = string.Empty;
+    [ObservableProperty] private string _bedId = string.Empty;
     [ObservableProperty] private string _treatingSpecialty = string.Empty;
     [ObservableProperty] private string _attendingPhysicianName = "Physician, Test";
     [ObservableProperty] private string _admissionDiagnosis = string.Empty;
@@ -52,15 +55,20 @@ public partial class AdtViewModel : BasePatientViewModel
     private async Task RecordAdmission()
     {
         if (!HasPatient) return;
+        if (string.IsNullOrWhiteSpace(UnitId))
+        {
+            Error = "Unit ID is required (e.g. MED-3A, ICU-1)";
+            return;
+        }
         IsLoading = true; Error = null;
         try
         {
             var workflow = Grains.GetGrain<IPatientWorkflowGrain>(PatientId);
             await workflow.RecordAdmissionAsync(
                 DateTime.UtcNow,
-                null,
-                WardLocationName.Length > 0 ? WardLocationName : null,
-                RoomBed.Length > 0 ? RoomBed : null,
+                InstitutionId,
+                UnitId.Trim(),
+                BedId.Length > 0 ? BedId.Trim() : null,
                 TreatingSpecialty.Length > 0 ? TreatingSpecialty : null,
                 null,
                 AttendingPhysicianName,

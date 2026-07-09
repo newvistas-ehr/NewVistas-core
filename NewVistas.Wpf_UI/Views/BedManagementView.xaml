@@ -14,7 +14,7 @@ file, You can obtain one at https://mozilla.org/MPL/2.0/.
                        Visibility="{Binding Error, Converter={StaticResource NullToVisibility}}"/>
 
             <StackPanel Orientation="Horizontal" Margin="0,0,0,12">
-                <TextBlock Style="{StaticResource FieldLabel}" Text="Ward Filter:" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                <TextBlock Style="{StaticResource FieldLabel}" Text="Unit Filter:" VerticalAlignment="Center" Margin="0,0,8,0"/>
                 <TextBox Text="{Binding WardFilter, UpdateSourceTrigger=PropertyChanged}" Width="160" Margin="0,0,8,0"/>
                 <Button Content="Load Bed Board" Style="{StaticResource PrimaryButton}"
                         Command="{Binding LoadCommand}" Margin="0,0,8,0"/>
@@ -40,7 +40,7 @@ file, You can obtain one at https://mozilla.org/MPL/2.0/.
             <DataGrid ItemsSource="{Binding Beds}" SelectedItem="{Binding SelectedBed}" AutoGenerateColumns="False">
                 <DataGrid.Columns>
                     <DataGridTextColumn Header="Bed ID" Binding="{Binding BedId}" Width="100"/>
-                    <DataGridTextColumn Header="Ward" Binding="{Binding WardId}" Width="120"/>
+                    <DataGridTextColumn Header="Unit" Binding="{Binding WardId}" Width="120"/>
                     <DataGridTextColumn Header="Status" Binding="{Binding Status}" Width="100"/>
                     <DataGridTextColumn Header="Patient" Binding="{Binding PatientName}" Width="*"/>
                     <DataGridTextColumn Header="Isolation" Binding="{Binding IsolationType}" Width="120"/>
@@ -51,8 +51,10 @@ file, You can obtain one at https://mozilla.org/MPL/2.0/.
                         Visibility="{Binding SelectedBed, Converter={StaticResource NullToVisibility}}">
                 <Button Content="Mark Available" Style="{StaticResource SecondaryButton}"
                         Command="{Binding MarkAvailableCommand}" Margin="0,0,8,0"/>
-                <Button Content="Discharge" Style="{StaticResource DangerButton}"
-                        Command="{Binding DischargeCommand}"/>
+                <Button Content="Start Cleaning" Style="{StaticResource SecondaryButton}"
+                        Command="{Binding StartCleaningCommand}" Margin="0,0,8,0"/>
+                <Button Content="Mark Dirty" Style="{StaticResource DangerButton}"
+                        Command="{Binding MarkDirtyCommand}"/>
             </StackPanel>
         </StackPanel>
     </ScrollViewer>

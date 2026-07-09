@@ -19,6 +19,9 @@
       <a href="getting-started.html">Getting Started</a>
       <div class="section">Administration</div>
       <a href="adt.html" class="active">ADT</a>
+      <a href="bed-board.html">Bed Board</a>
+      <a href="transfer-center.html">Transfer Center</a>
+      <a href="institutions.html">Institutions</a>
       <a href="registration.html">Registration</a>
       <a href="patient-merge.html">Patient Merge</a>
       <a href="means-test.html">Means Test</a>
@@ -35,39 +38,49 @@
       <h1>ADT — Admit / Discharge / Transfer</h1>
       <p class="lead">
         ADT tracks a patient's movements through the facility — admission to a
-        ward, transfer between wards, and discharge — and gives you a live
-        per-ward census and a directory of all wards. It's the equivalent of
-        VistA's ADT (PIMS) movement tracking.
+        unit, transfer between units, and discharge — and gives you a live
+        per-unit census and a directory of all units. It's the equivalent of
+        VistA's ADT (PIMS) movement tracking. Admission places the patient into a
+        real bed (or as a unit "boarder"); the bed's occupancy is owned by the
+        <a href="bed-board.html">Bed Board</a>, so ADT and the board never disagree.
       </p>
 
       <h2>Open ADT and load a patient</h2>
       <ol class="steps">
         <li>In the sidebar, under <strong>Administrative</strong>, click <kbd>ADT</kbd> (or go to <code>/adt</code>).</li>
+        <li>Confirm the <strong>Institution</strong> picker at the top — it defaults to your acting institution (e.g. <code>NEW VISTAS MEDICAL CENTER</code>). All units and beds below are scoped to it.</li>
         <li>In the <strong>Patient ID</strong> field, type the patient ID (e.g. <code>P9001</code>).</li>
         <li>Click <kbd>Load</kbd> (or press <kbd>Enter</kbd>) to list that patient's movements.</li>
       </ol>
 
       <figure class="shot">
-        <img src="../assets/img/admin/adt.png" alt="ADT screen with patient movements, census, and ward directory tabs" />
-        <figcaption>The ADT screen — the lookup bar, the three tabs (Patient Movements, Ward Census, Ward Directory), and the movements table.</figcaption>
+        <img src="../assets/img/admin/adt.png" alt="ADT screen with the institution picker, patient movements, and unit census / directory tabs" />
+        <figcaption>The ADT screen — the institution picker, the lookup bar, the three tabs (Patient Movements, Unit Census, Unit Directory), and the movements table.</figcaption>
       </figure>
 
       <h2>The three tabs</h2>
       <p>Across the top, three tabs switch between the views:</p>
       <ul>
         <li><strong>Patient Movements</strong> — every admit, transfer, and discharge for the loaded patient, with their status.</li>
-        <li><strong>Ward Census</strong> — who is currently on a ward you pick.</li>
-        <li><strong>Ward Directory</strong> — the searchable list of all wards, their type, division, and bed capacity.</li>
+        <li><strong>Unit Census</strong> — who is currently on a unit you pick (beds and boarders).</li>
+        <li><strong>Unit Directory</strong> — the list of all units in the institution, each with live capacity counts (Total / Available / Occupied / Dirty / Blocked-OOS / Boarders).</li>
       </ul>
 
       <h2>Admit a patient</h2>
       <ol class="steps">
         <li>Load the patient, then click <kbd>+ Admit Patient</kbd> to open the admission form.</li>
         <li>Set the <strong>Admission Date/Time</strong> (required).</li>
-        <li>Pick the <strong>Ward</strong> from the dropdown and enter the <strong>Room-Bed</strong> (e.g. <code>301-A</code>).</li>
+        <li>Pick the <strong>Unit</strong> from the dropdown — each option shows the unit name and how many beds are available (e.g. <code>Medical Ward 3A — 10 available</code>).</li>
+        <li>Pick the <strong>Bed</strong> from the dropdown of that unit's <em>available</em> beds. Choose <strong>(no bed — boarder)</strong> when the patient is admitted to the unit but not yet placed in a specific bed (ED boarding, or a site that doesn't track individual beds).</li>
         <li>Optionally add treating specialty, attending physician, admission diagnosis, and comments.</li>
-        <li>Click <kbd>Admit</kbd>. The new movement appears in the table with an <strong>ADMITTED</strong> badge.</li>
+        <li>Click <kbd>Admit</kbd>. The new movement appears in the table with an <strong>ADMITTED</strong> badge, and the chosen bed becomes <strong>Occupied</strong> on the Bed Board.</li>
       </ol>
+      <div class="callout note">
+        <span class="ct">No free-text beds</span>
+        You pick a unit and a real bed, never type a room-bed string. That's what
+        keeps the census and the Bed Board honest — a patient is either in a known
+        bed or an explicit boarder, and the bed can't be double-booked.
+      </div>
       <div class="callout note">
         <span class="ct">Color = status</span>
         Movement status badges follow the system-wide scheme: amber for
@@ -81,21 +94,28 @@
         the last column:
       </p>
       <ol class="steps">
-        <li>Click <kbd>Transfer</kbd> to open the transfer form, choose the destination ward and room-bed, optionally update specialty/attending, then click <kbd>Transfer</kbd>.</li>
-        <li>Click <kbd>Discharge</kbd> to record a regular discharge as of now.</li>
+        <li>Click <kbd>Transfer</kbd> to open the transfer form, choose the destination <strong>Unit</strong> and <strong>Bed</strong> (same unit + bed = an in-unit bed swap), optionally update specialty/attending, then click <kbd>Transfer</kbd>. The old bed goes to <strong>Dirty</strong> for turnover.</li>
+        <li>Click <kbd>Discharge</kbd> to record a regular discharge as of now. The bed is released to <strong>Dirty</strong> (never straight to Available).</li>
       </ol>
+      <div class="callout tip">
+        <span class="ct">Moving a patient to another hospital?</span>
+        Intra-facility moves happen here. To place a patient in a <em>different</em>
+        institution in the health system, use the
+        <a href="transfer-center.html">Transfer Center</a> — the receiving facility
+        reserves one of its own beds and confirms the arrival.
+      </div>
 
-      <h2>Ward Census</h2>
+      <h2>Unit Census</h2>
       <ol class="steps">
-        <li>Click the <kbd>Ward Census</kbd> tab.</li>
-        <li>Pick a ward from the <strong>Select Ward</strong> dropdown.</li>
-        <li>The table lists every patient currently on that ward — ID, name, room-bed, specialty, attending, admit date, and last movement.</li>
+        <li>Click the <kbd>Unit Census</kbd> tab.</li>
+        <li>Pick a unit from the <strong>Select Unit</strong> dropdown.</li>
+        <li>The table lists everyone currently on that unit — bed (or <strong>boarder</strong>), room, patient, admit date, specialty, attending, nurse, and acuity.</li>
       </ol>
       <div class="callout tip">
         <span class="ct">Tip</span>
         Need to seed a movement history quickly for a demo? Load a patient and
-        click <kbd>Demo Load</kbd> — it records a sample admission and a transfer
-        so the tabs have data to show.
+        click <kbd>Demo Load</kbd> — it records a sample admission (to MED-3A bed
+        301-A) and a transfer (to ICU-1 bed ICU-5) so the tabs have data to show.
       </div>
 
       <footer>NewVistas User Manual · Administrator · ADT</footer>

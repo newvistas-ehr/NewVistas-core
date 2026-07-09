@@ -38,17 +38,17 @@ public class AdtViewModelTests : ViewModelTestBase
     {
         SelectPatient("PAT-001");
         MockWorkflowGrain.RecordAdmissionAsync(
-            Arg.Any<DateTime>(), Arg.Any<string?>(), Arg.Any<string?>(),
+            Arg.Any<DateTime>(), Arg.Any<string>(), Arg.Any<string>(),
             Arg.Any<string?>(), Arg.Any<string?>(), Arg.Any<string?>(),
             Arg.Any<string?>(), Arg.Any<string?>(), Arg.Any<string?>())
             .Returns(Task.FromResult("M-NEW"));
         MockWorkflowGrain.GetAdtMovementsAsync().Returns(Task.FromResult(new List<AdtSummary>()));
 
-        _vm.WardLocationName = "ICU";
+        _vm.UnitId = "ICU-1";
         await _vm.RecordAdmissionCommand.ExecuteAsync(null);
 
         await MockWorkflowGrain.Received(1).RecordAdmissionAsync(
-            Arg.Any<DateTime>(), Arg.Any<string?>(), "ICU",
+            Arg.Any<DateTime>(), "500", "ICU-1",
             Arg.Any<string?>(), Arg.Any<string?>(), Arg.Any<string?>(),
             Arg.Any<string?>(), Arg.Any<string?>(), Arg.Any<string?>());
     }

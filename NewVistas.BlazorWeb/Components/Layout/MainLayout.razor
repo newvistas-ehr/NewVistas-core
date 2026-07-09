@@ -219,6 +219,26 @@
             </NavLink>
             }
 
+            @* Inpatient / Bed Management — gated on the BED_MANAGEMENT site flag. Bed Board is
+               read-open (actions are key-gated in the grains); Transfer Center additionally
+               self-hides on single-institution sites (it needs somewhere to transfer TO). *@
+            @if (SecurityContext.HasAccess(MenuArea.Clinical) && SecurityContext.IsFeatureEnabled("BED_MANAGEMENT"))
+            {
+            <div class="nav-divider"></div>
+            <div class="nav-section-title">Inpatient</div>
+            <NavLink class="nav-item" href="/beds">
+                <span class="nav-icon">🛏️</span>
+                <span class="nav-label">Bed Board</span>
+            </NavLink>
+            @if (_activeInstitutions is null or > 1)
+            {
+            <NavLink class="nav-item" href="/transfer-center">
+                <span class="nav-icon">🚑</span>
+                <span class="nav-label">Transfer Center</span>
+            </NavLink>
+            }
+            }
+
             @* Hereditary Genetics & Family History — Modern module gated on the HEREDITARY_GENETICS
                site flag. Genetic test reports + structured family history + curated hereditary-risk
                assessment; writes are OPEN like pharmacogenomics/neonatal/OB, so gated on the flag
@@ -382,6 +402,10 @@
                 <span class="nav-icon">⚙️</span>
                 <span class="nav-label">Site Parameters</span>
             </NavLink>
+            <NavLink class="nav-item" href="/admin/institutions">
+                <span class="nav-icon">🏥</span>
+                <span class="nav-label">Institutions</span>
+            </NavLink>
             <NavLink class="nav-item" href="/patient-merge">
                 <span class="nav-icon">🔀</span>
                 <span class="nav-label">Patient Merge</span>
@@ -534,6 +558,10 @@
     private string _manualSection = "doctor";
     private string _helpUrl = $"{ManualHelp.Root}/index.html";
 
+    /// <summary>Active institution count for the Transfer Center nav self-hide.
+    /// Null = unknown (load failed/pending) — fail open and show the item.</summary>
+    private int? _activeInstitutions;
+
     protected override async Task OnInitializedAsync()
     {
         PatientContext.OnChanged += StateHasChanged;
@@ -563,6 +591,17 @@
                     StateHasChanged();
                 }
             }
+
+            // Cache the active institution count once per circuit — the Transfer Center nav
+            // item hides itself on single-institution sites. Best-effort: on failure it
+            // stays null and the item shows (the page itself also self-hides).
+            try
+            {
+                _activeInstitutions = await Grains
+                    .GetGrain<NewVistas.Abstractions.GrainInterfaces.IInstitutionIndexGrain>("INSTITUTION-INDEX")
+                    .GetActiveCountAsync();
+            }
+            catch { /* leave null — fail open */ }
         }
     }
 

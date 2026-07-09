@@ -14,7 +14,8 @@ namespace NewVistas.CharUI.Menus;
 ///
 /// Selection flow:
 ///   1. My Patients      — IProviderPatientIndexGrain (always available)
-///   2. Ward Census       — IWardCensusGrain (only if user has a DefaultWardId)
+///   2. Unit Census       — IInpatientUnitGrain (only if user has a DefaultWardId,
+///                          reinterpreted as a unit id at institution 500)
 ///   3. Search All        — global search via IPatientWorkflowGrain
 ///
 /// Security additions over CPRS:
@@ -24,6 +25,9 @@ namespace NewVistas.CharUI.Menus;
 /// </summary>
 public class PatientSelectMenu : IMenu
 {
+    /// <summary>Institution whose units back the census tier (File #4).</summary>
+    private const string InstitutionId = "500";
+
     public string Title => "Patient Selection";
 
     public async Task RunAsync(MenuContext ctx)
@@ -65,7 +69,7 @@ public class PatientSelectMenu : IMenu
 
             if (hasWardCensus)
             {
-                TerminalIO.WriteLine($"  2. Ward Census ({defaultWardName})");
+                TerminalIO.WriteLine($"  2. Unit Census ({defaultWardName})");
                 TerminalIO.WriteLine("  3. Search All Patients");
             }
             else
@@ -167,44 +171,47 @@ public class PatientSelectMenu : IMenu
     }
 
     // ════════════════════════════════════════════════════════════════════
-    //  Option 2 — Ward Census (IWardCensusGrain)
+    //  Option 2 — Unit Census (IInpatientUnitGrain)
     // ════════════════════════════════════════════════════════════════════
 
     private async Task<bool> ShowWardCensusAsync(MenuContext ctx, string wardId)
     {
         TerminalIO.Clear();
         TerminalIO.WriteDivider('─');
-        TerminalIO.WriteLine("  WARD CENSUS");
+        TerminalIO.WriteLine("  UNIT CENSUS");
         TerminalIO.WriteDivider('─');
         TerminalIO.WriteBlank();
         TerminalIO.WriteLine("Loading...");
 
-        IWardCensusGrain censusGrain =
-            ctx.GetGrain<IWardCensusGrain>($"WARD-CENSUS:{wardId}");
-        List<WardCensusEntry> census = await censusGrain.GetCensusAsync();
+        // The user's DefaultWardId is reinterpreted as an inpatient unit id at
+        // institution 500 (legacy values may carry a "WARD-" prefix — strip it).
+        string unitId = ToUnitId(wardId);
+        IInpatientUnitGrain unitGrain =
+            ctx.GetGrain<IInpatientUnitGrain>($"UNIT:{InstitutionId}:{unitId}");
+        List<UnitCensusEntry> census = await unitGrain.GetCensusAsync();
 
         if (census.Count == 0)
         {
             TerminalIO.WriteBlank();
-            TerminalIO.WriteLine("  No patients currently on this ward.");
+            TerminalIO.WriteLine("  No patients currently on this unit.");
             TerminalIO.Pause();
             return false;
         }
 
         TerminalIO.Clear();
         TerminalIO.WriteDivider('─');
-        TerminalIO.WriteLine("  WARD CENSUS");
+        TerminalIO.WriteLine("  UNIT CENSUS");
         TerminalIO.WriteDivider('─');
         TerminalIO.WriteBlank();
 
         TerminalIO.WriteTable(
-            ["#", "Patient Name", "Room-Bed", "Specialty", "Attending"],
+            ["#", "Patient Name", "Bed", "Specialty", "Attending"],
             [4, 28, 10, 18, 22],
             census.Select((c, i) => new[]
             {
                 (i + 1).ToString(),
-                c.PatientName ?? c.PatientId,
-                c.RoomBed ?? "",
+                string.IsNullOrEmpty(c.PatientName) ? c.PatientId : c.PatientName,
+                c.BedId ?? "(brd)",
                 c.TreatingSpecialty ?? "",
                 c.AttendingPhysicianName ?? ""
             }));
@@ -216,11 +223,18 @@ public class PatientSelectMenu : IMenu
         if (!choice.HasValue)
             return false;
 
-        WardCensusEntry entry = census[choice.Value - 1];
+        UnitCensusEntry entry = census[choice.Value - 1];
         ctx.Patient.PatientId = entry.PatientId;
-        ctx.Patient.PatientName = entry.PatientName ?? entry.PatientId;
+        ctx.Patient.PatientName = string.IsNullOrEmpty(entry.PatientName) ? entry.PatientId : entry.PatientName;
 
         return await FinalizeSelectionAsync(ctx);
+    }
+
+    /// <summary>Interpret legacy "WARD-" prefixed ids as unit ids (e.g. "WARD-MED-3A" → "MED-3A").</summary>
+    private static string ToUnitId(string wardId)
+    {
+        string id = wardId.Trim();
+        return id.StartsWith("WARD-", StringComparison.OrdinalIgnoreCase) ? id[5..] : id;
     }
 
     // ════════════════════════════════════════════════════════════════════

@@ -42,6 +42,14 @@ public class ManualHelpTests
     [TestCase("pharmacist", "inpatientpharmacy", "/manual/pharmacist/inpatient-meds.html")]
     [TestCase("admin", "registration", "/manual/admin/registration.html")]
     [TestCase("admin", "service-connected", "/manual/admin/sc-conditions.html")]
+    // Bed management (ADR-003) — nurse and admin both deep-link the same feature.
+    [TestCase("nurse", "beds", "/manual/nurse/bed-board.html")]
+    [TestCase("nurse", "transfer-center", "/manual/nurse/transfer-center.html")]
+    [TestCase("admin", "beds", "/manual/admin/bed-board.html")]
+    [TestCase("admin", "transfer-center", "/manual/admin/transfer-center.html")]
+    // An /admin/{x} route keys on the second segment.
+    [TestCase("admin", "admin/institutions", "/manual/admin/institutions.html")]
+    [TestCase("admin", "admin/federation", "/manual/admin/index.html")] // no page yet → fallback
     [TestCase("bogus", "xyz-unmapped", "/manual/doctor/index.html")] // unknown section → doctor + fallback
     public void UrlForRoute_DeepLinksTopicOrFallsBack(string section, string route, string expected)
         => Assert.That(ManualHelp.UrlForRoute(section, route), Is.EqualTo(expected));

@@ -47,6 +47,18 @@ public class PersonRelationshipCascadeTests
         return userId;
     }
 
+    /// <summary>Configures a fresh, isolated inpatient unit with beds B1..Bn (no rooms).</summary>
+    private async Task<(string Inst, string UnitId, IInpatientUnitGrain Grain)> NewUnitAsync(int beds = 2)
+    {
+        string inst = $"INST-{Guid.NewGuid():N}";
+        string unitId = $"U-{Guid.NewGuid():N}";
+        var unit = _cluster.GrainFactory.GetGrain<IInpatientUnitGrain>($"UNIT:{inst}:{unitId}");
+        await unit.ConfigureUnitAsync("5 West", "Med-Surg", "Medicine");
+        for (int i = 1; i <= beds; i++)
+            await unit.AddBedAsync($"B{i}", null, BedType.Regular);
+        return (inst, unitId, unit);
+    }
+
     // A patient chart whose owner is also on staff → auto-flagged employee-patient (sensitive).
     private async Task<(IPatientWorkflowGrain Wf, string PatientId, string PersonId)> NewEmployeePatientAsync()
     {
@@ -190,8 +202,9 @@ public class PersonRelationshipCascadeTests
     public async Task Admission_AutoEstablishesAttendingRelationship_AllowedByRelationship()
     {
         var (wf, _, _) = await NewEmployeePatientAsync();
+        var (inst, unitId, _) = await NewUnitAsync();
 
-        await wf.RecordAdmissionAsync(DateTime.UtcNow, "5W", "5 West", "501-A", "Medicine",
+        await wf.RecordAdmissionAsync(DateTime.UtcNow, inst, unitId, null, "Medicine",
             "DR-ATTENDING", "Dr Attending", "pneumonia", null);
 
         PatientAccessDecision d = await wf.AccessPatientAsync("DR-ATTENDING", "Dr Attending",
@@ -207,10 +220,18 @@ public class PersonRelationshipCascadeTests
     {
         var (wf, pid, _) = await NewEmployeePatientAsync();
 
-        // The covering nurse "ends up in the room": assigned to the patient's bed on a nursing unit.
-        INursingUnitGrain unit = _cluster.GrainFactory.GetGrain<INursingUnitGrain>($"NURS-UNIT:{Guid.NewGuid()}");
-        await unit.InitializeAsync("5 West", "Med-Surg", 20);
-        await unit.AssignPatientAsync("501A", pid, "NIGHTINGALE,NORA", DateTime.UtcNow, "RN-COVER", "Covering Nurse RN");
+        // The covering nurse "ends up in the room": named as the attending nurse of the
+        // patient's bed on the inpatient unit — the bed assignment itself authorizes her.
+        var (_, _, unit) = await NewUnitAsync();
+        await unit.AdmitPatientAsync(new UnitAdmissionRequest
+        {
+            PatientId = pid,
+            PatientName = "NIGHTINGALE,NORA",
+            MovementId = $"ADT-{Guid.NewGuid()}",
+            BedId = "B1",
+            AdmitDate = DateTime.UtcNow
+        });
+        await unit.AssignBedNurseAsync("B1", "RN-COVER", "Covering Nurse RN");
 
         PatientAccessDecision nurse = await wf.AccessPatientAsync("RN-COVER", "Covering Nurse RN",
             breakTheGlassAttested: false, justification: null);

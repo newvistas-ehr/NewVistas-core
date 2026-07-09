@@ -1140,8 +1140,15 @@ public class PatientWorkflowFunctionalTests
 
         var workflow = _cluster.GrainFactory.GetGrain<IPatientWorkflowGrain>(patientId);
 
+        // The unit must exist and be active before any admission (unit owns bed truth).
+        var institutionId = $"INST-{Guid.NewGuid():N}";
+        var unitId = $"U-{Guid.NewGuid():N}";
+        var unit = _cluster.GrainFactory.GetGrain<IInpatientUnitGrain>($"UNIT:{institutionId}:{unitId}");
+        await unit.ConfigureUnitAsync("Medical Ward 4B", "MEDICINE", "Internal Medicine");
+        await unit.AddBedAsync("405-B", null, BedType.Regular);
+
         var adtId = await workflow.RecordAdmissionAsync(DateTime.UtcNow.AddDays(-3),
-            "WARD-4B", "Medical Ward 4B", "405-B", "Internal Medicine",
+            institutionId, unitId, "405-B", "Internal Medicine",
             "PROV-1", "Dr. Attending", "CHF Exacerbation", null);
 
         var pState = await patient.GetPatientAsync();

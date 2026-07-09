@@ -89,36 +89,66 @@ public partial class PatientWorkflowGrain
 
     // ─── ADT — Admit/Discharge/Transfer (File #405) ─────────────────────
 
+    /// <summary>Grain for the unit that owns rooms/beds/census — the single source of bed truth.</summary>
+    private IInpatientUnitGrain Unit(string institutionId, string unitId)
+        => GrainFactory.GetGrain<IInpatientUnitGrain>($"UNIT:{institutionId}:{unitId}");
+
     public async Task<string> RecordAdmissionAsync(
-        DateTime movementDateTime, string? wardLocationId, string? wardLocationName,
-        string? roomBed, string? treatingSpecialtyName,
+        DateTime movementDateTime, string institutionId, string unitId, string? bedId,
+        string? treatingSpecialtyName,
         string? attendingPhysicianId, string? attendingPhysicianName,
         string? admissionDiagnosis, string? comments)
     {
-        var adtId = $"ADT-{Guid.NewGuid()}";
-        var grain = GrainFactory.GetGrain<IAdtGrain>(adtId);
-        await grain.RecordAdmissionAsync(PatientId, movementDateTime, wardLocationId, wardLocationName,
-            roomBed, null, treatingSpecialtyName, attendingPhysicianId, attendingPhysicianName,
-            null, admissionDiagnosis, comments);
-        await AppendCappedIdAsync(PatientHistoryDomains.Adt, adtId, DateTime.UtcNow);
+        if (string.IsNullOrWhiteSpace(institutionId) || string.IsNullOrWhiteSpace(unitId))
+            throw new InvalidOperationException("institutionId and unitId are required for an admission.");
 
-        if (!string.IsNullOrEmpty(wardLocationId))
+        IInpatientUnitGrain unit = Unit(institutionId, unitId);
+        InpatientUnitState unitState = await unit.GetAsync();
+        if (string.IsNullOrEmpty(unitState.Name) || !unitState.IsActive)
+            throw new InvalidOperationException($"Unknown or inactive unit '{unitId}' at institution '{institutionId}'.");
+
+        PatientState patientState = await GetPatientGrain().GetPatientAsync();
+
+        // Generate the movement id FIRST so the unit records it (idempotency key), and
+        // occupy the bed BEFORE writing ADT — a rejected placement is a clean failure
+        // with no movement record.
+        var adtId = $"ADT-{Guid.NewGuid()}";
+        await unit.AdmitPatientAsync(new UnitAdmissionRequest
         {
-            PatientState patientState = await GetPatientGrain().GetPatientAsync();
-            IWardCensusGrain census = GrainFactory.GetGrain<IWardCensusGrain>($"WARD-CENSUS:{wardLocationId}");
-            await census.AddOrUpdatePatientAsync(new WardCensusEntry
-            {
-                PatientId = PatientId, PatientName = patientState.Name, AdmissionId = adtId,
-                AdmitDate = movementDateTime, RoomBed = roomBed, TreatingSpecialty = treatingSpecialtyName,
-                AttendingPhysicianName = attendingPhysicianName, LastMovementDate = movementDateTime
-            });
+            PatientId = PatientId,
+            PatientName = patientState.Name,
+            MovementId = adtId,
+            BedId = bedId,
+            AdmitDate = movementDateTime,
+            TreatingSpecialty = treatingSpecialtyName,
+            AttendingPhysicianId = attendingPhysicianId,
+            AttendingPhysicianName = attendingPhysicianName
+        });
+
+        var grain = GrainFactory.GetGrain<IAdtGrain>(adtId);
+        try
+        {
+            await grain.RecordAdmissionAsync(PatientId, movementDateTime, unitId, unitState.Name,
+                bedId, null, treatingSpecialtyName ?? unitState.DefaultTreatingSpecialty,
+                attendingPhysicianId, attendingPhysicianName,
+                null, admissionDiagnosis, comments, institutionId);
         }
+        catch
+        {
+            // Compensate: the bed was occupied but the movement never recorded.
+            await unit.ReleasePatientAsync(PatientId, adtId);
+            throw;
+        }
+        await AppendCappedIdAsync(PatientHistoryDomains.Adt, adtId, DateTime.UtcNow);
 
         // ADR-002 Phase 4b: admitting the patient establishes the attending physician's treatment
         // relationship (tied to this admission episode) — the inpatient attending gets frictionless
         // access without a hand-curated authorized list.
         if (!string.IsNullOrWhiteSpace(attendingPhysicianId))
             await Pac().EstablishRelationshipAsync(attendingPhysicianId, TreatmentRelationshipReason.Admission, adtId, null);
+
+        // The patient's current-admission pointer (File #2 movement fields).
+        await GetPatientGrain().UpdateCurrentAdmissionAsync(adtId, bedId, unitState.Name);
 
         return adtId;
     }
@@ -128,58 +158,90 @@ public partial class PatientWorkflowGrain
     {
         IAdtGrain grain = GrainFactory.GetGrain<IAdtGrain>(movementId);
         AdtState st = await grain.GetMovementAsync();
-        await grain.RecordDischargeAsync(dischargeDateTime, dischargeDiagnosis, disposition, comments);
 
-        if (!string.IsNullOrEmpty(st.WardLocationId))
-        {
-            IWardCensusGrain census = GrainFactory.GetGrain<IWardCensusGrain>($"WARD-CENSUS:{st.WardLocationId}");
-            await census.RemovePatientAsync(PatientId);
-        }
+        // Release the bed (→ Dirty for EVS turnover) or remove the boarder — idempotent
+        // no-op when the patient isn't on the unit.
+        if (!string.IsNullOrEmpty(st.InstitutionId) && !string.IsNullOrEmpty(st.WardLocationId))
+            await Unit(st.InstitutionId, st.WardLocationId).ReleasePatientAsync(PatientId, movementId);
+
+        await grain.RecordDischargeAsync(dischargeDateTime, dischargeDiagnosis, disposition, comments);
+        await GetPatientGrain().UpdateCurrentAdmissionAsync(null, null, null);
     }
 
     public async Task<string> RecordTransferAsync(
         string currentMovementId, DateTime transferDateTime,
-        string? toWardId, string? toWardName, string? toRoomBed,
+        string toInstitutionId, string toUnitId, string? toBedId,
         string? toSpecialtyId, string? toSpecialtyName,
-        string? attendingPhysicianId, string? attendingPhysicianName, string? comments)
+        string? attendingPhysicianId, string? attendingPhysicianName, string? comments,
+        bool overrideReservation = false)
     {
+        if (string.IsNullOrWhiteSpace(toInstitutionId) || string.IsNullOrWhiteSpace(toUnitId))
+            throw new InvalidOperationException("toInstitutionId and toUnitId are required for a transfer.");
+
         IAdtGrain sourceGrain = GrainFactory.GetGrain<IAdtGrain>(currentMovementId);
         AdtState sourceState = await sourceGrain.GetMovementAsync();
 
+        IInpatientUnitGrain toUnit = Unit(toInstitutionId, toUnitId);
+        InpatientUnitState toUnitState = await toUnit.GetAsync();
+        if (string.IsNullOrEmpty(toUnitState.Name) || !toUnitState.IsActive)
+            throw new InvalidOperationException($"Unknown or inactive unit '{toUnitId}' at institution '{toInstitutionId}'.");
+
         string transferId = $"ADT-{Guid.NewGuid()}";
-        IAdtGrain transferGrain = GrainFactory.GetGrain<IAdtGrain>(transferId);
-        await transferGrain.RecordAsTransferAsync(
-            PatientId,
-            sourceState.AdmissionDateTime ?? sourceState.MovementDateTime,
-            transferDateTime,
-            toWardId, toWardName, toRoomBed,
-            toSpecialtyId, toSpecialtyName,
-            attendingPhysicianId, attendingPhysicianName, comments);
-        await AppendCappedIdAsync(PatientHistoryDomains.Adt, transferId, DateTime.UtcNow);
 
-        if (!string.IsNullOrEmpty(sourceState.WardLocationId))
+        bool sameUnit = sourceState.InstitutionId == toInstitutionId
+                        && sourceState.WardLocationId == toUnitId;
+        if (sameUnit && !string.IsNullOrWhiteSpace(toBedId))
         {
-            IWardCensusGrain oldCensus = GrainFactory.GetGrain<IWardCensusGrain>($"WARD-CENSUS:{sourceState.WardLocationId}");
-            await oldCensus.RemovePatientAsync(PatientId);
+            // Intra-unit bed swap — one atomic grain call; the old bed goes to Dirty.
+            await toUnit.MoveOccupantAsync(PatientId, toBedId, transferId, overrideReservation);
         }
-
-        if (!string.IsNullOrEmpty(toWardId))
+        else if (!sameUnit)
         {
+            // Occupy the target first; release the source AFTER the ADT write below —
+            // a crash in between self-heals because ReleasePatientAsync is idempotent.
             PatientState patientState = await GetPatientGrain().GetPatientAsync();
-            IWardCensusGrain newCensus = GrainFactory.GetGrain<IWardCensusGrain>($"WARD-CENSUS:{toWardId}");
-            await newCensus.AddOrUpdatePatientAsync(new WardCensusEntry
+            await toUnit.AdmitPatientAsync(new UnitAdmissionRequest
             {
-                PatientId = PatientId, PatientName = patientState.Name, AdmissionId = transferId,
+                PatientId = PatientId,
+                PatientName = patientState.Name,
+                MovementId = transferId,
+                BedId = toBedId,
                 AdmitDate = sourceState.AdmissionDateTime ?? sourceState.MovementDateTime,
-                RoomBed = toRoomBed, TreatingSpecialty = toSpecialtyName,
-                AttendingPhysicianName = attendingPhysicianName, LastMovementDate = transferDateTime
+                TreatingSpecialty = toSpecialtyName,
+                AttendingPhysicianId = attendingPhysicianId,
+                AttendingPhysicianName = attendingPhysicianName,
+                OverrideReservation = overrideReservation
             });
         }
+
+        IAdtGrain transferGrain = GrainFactory.GetGrain<IAdtGrain>(transferId);
+        try
+        {
+            await transferGrain.RecordAsTransferAsync(
+                PatientId,
+                sourceState.AdmissionDateTime ?? sourceState.MovementDateTime,
+                transferDateTime,
+                toUnitId, toUnitState.Name, toBedId,
+                toSpecialtyId, toSpecialtyName,
+                attendingPhysicianId, attendingPhysicianName, comments, toInstitutionId);
+        }
+        catch when (!sameUnit)
+        {
+            await toUnit.ReleasePatientAsync(PatientId, transferId);
+            throw;
+        }
+        await AppendCappedIdAsync(PatientHistoryDomains.Adt, transferId, DateTime.UtcNow);
+
+        if (!sameUnit && !string.IsNullOrEmpty(sourceState.InstitutionId) && !string.IsNullOrEmpty(sourceState.WardLocationId))
+            await Unit(sourceState.InstitutionId, sourceState.WardLocationId)
+                .ReleasePatientAsync(PatientId, currentMovementId);
 
         // ADR-002 Phase 4b: a transfer may hand the patient to a new attending — establish their
         // treatment relationship too (the receiving service becomes authorized on arrival).
         if (!string.IsNullOrWhiteSpace(attendingPhysicianId))
             await Pac().EstablishRelationshipAsync(attendingPhysicianId, TreatmentRelationshipReason.Admission, transferId, null);
+
+        await GetPatientGrain().UpdateCurrentAdmissionAsync(transferId, toBedId, toUnitState.Name);
 
         return transferId;
     }
@@ -217,16 +279,13 @@ public partial class PatientWorkflowGrain
             }).ToList();
     }
 
-    public async Task<List<WardCensusEntry>> GetWardCensusAsync(string wardId)
-    {
-        IWardCensusGrain census = GrainFactory.GetGrain<IWardCensusGrain>($"WARD-CENSUS:{wardId}");
-        return await census.GetCensusAsync();
-    }
+    public Task<List<UnitCensusEntry>> GetUnitCensusAsync(string institutionId, string unitId)
+        => Unit(institutionId, unitId).GetCensusAsync();
 
-    public async Task<List<WardLocationEntry>> GetWardListAsync()
+    public async Task<List<UnitCapacitySummary>> GetUnitDirectoryAsync(string institutionId)
     {
-        IWardLocationIndexGrain idx = GrainFactory.GetGrain<IWardLocationIndexGrain>("WARD-LOCATION-INDEX");
-        return await idx.GetAllWardsAsync();
+        IBedCapacityGrain capacity = GrainFactory.GetGrain<IBedCapacityGrain>($"BED-CAPACITY:{institutionId}");
+        return await capacity.GetUnitsAsync();
     }
 
     // ─── Private Helpers ─────────────────────────────────────────────────
@@ -943,28 +1002,37 @@ public partial class PatientWorkflowGrain
 
     // ─── Bed Availability Query — DGPM bed control ──────────────────────────
 
-    public async Task<List<GrainStates.BedSummaryEntry>> FindAvailableBedsAsync(
-        string facilityId, string? wardId, string? bedType)
+    public async Task<List<InpatientBed>> FindAvailableBedsAsync(
+        string institutionId, string? unitId, BedType? bedType)
     {
-        IBedBoardGrain board = GrainFactory.GetGrain<IBedBoardGrain>($"BED-BOARD:{facilityId}");
+        // A specific unit → one unit-grain read. Otherwise consult the capacity
+        // directory and fan out only to units that actually have placeable beds.
+        List<string> unitIds;
+        if (!string.IsNullOrEmpty(unitId))
+        {
+            unitIds = new List<string> { unitId };
+        }
+        else
+        {
+            IBedCapacityGrain capacity = GrainFactory.GetGrain<IBedCapacityGrain>($"BED-CAPACITY:{institutionId}");
+            List<UnitCapacitySummary> units = await capacity.GetUnitsAsync();
+            unitIds = units.Where(u => u.Available > 0).Select(u => u.UnitId).ToList();
+        }
 
-        if (!string.IsNullOrEmpty(bedType))
-            return await board.GetAvailableBedsByTypeAsync(bedType);
-
-        List<GrainStates.BedSummaryEntry> available = await board.GetAvailableBedsAsync();
-
-        if (!string.IsNullOrEmpty(wardId))
-            return available.Where(b => b.WardId == wardId).ToList();
-
-        return available;
+        var reads = unitIds.Select(id => Unit(institutionId, id).GetAsync()).ToList();
+        InpatientUnitState[] states = await Task.WhenAll(reads);
+        return states
+            .SelectMany(s => s.Beds)
+            .Where(b => b.State == BedLifecycleState.Available)
+            .Where(b => bedType is null || b.BedType == bedType)
+            .OrderBy(b => b.BedId, StringComparer.OrdinalIgnoreCase)
+            .ToList();
     }
 
-    public async Task<(int Total, int Available, int Occupied)> GetBedCountsAsync(string facilityId)
+    public async Task<(int Total, int Available, int Occupied)> GetBedCountsAsync(string institutionId)
     {
-        IBedBoardGrain board = GrainFactory.GetGrain<IBedBoardGrain>($"BED-BOARD:{facilityId}");
-        int total = await board.GetTotalBedCountAsync();
-        int available = await board.GetAvailableBedCountAsync();
-        int occupied = await board.GetOccupiedBedCountAsync();
+        IBedCapacityGrain capacity = GrainFactory.GetGrain<IBedCapacityGrain>($"BED-CAPACITY:{institutionId}");
+        (int total, int available, int occupied, _, _, _) = await capacity.GetInstitutionTotalsAsync();
         return (total, available, occupied);
     }
 

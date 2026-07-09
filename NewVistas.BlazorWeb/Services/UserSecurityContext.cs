@@ -15,6 +15,10 @@ namespace NewVistas.BlazorWeb.Services;
 /// </summary>
 public sealed class UserSecurityContext
 {
+    /// <summary>Fallback institution when the user's home facility can't be resolved.</summary>
+    private const string DefaultInstitutionId = "500";
+    private const string DefaultInstitutionName = "NEW VISTAS MEDICAL CENTER";
+
     private HashSet<string> _keys = [];
     private HashSet<MenuArea> _accessibleAreas = [MenuArea.General];
     private HashSet<string> _features = [];
@@ -24,6 +28,25 @@ public sealed class UserSecurityContext
 
     /// <summary>Whether the context has been initialized (keys loaded).</summary>
     public bool IsInitialized { get; private set; }
+
+    /// <summary>
+    /// The user's home facility (File #200 field 13) resolved to a canonical institution id
+    /// via the INSTITUTION-INDEX alias map — null when the profile has none or resolution failed.
+    /// </summary>
+    public string? HomeInstitutionId { get; private set; }
+
+    /// <summary>Display name of the home institution, when resolved.</summary>
+    public string? HomeInstitutionName { get; private set; }
+
+    /// <summary>
+    /// The institution the user is currently WORKING AS on multi-facility pages (bed board,
+    /// transfer center, ADT). Defaults to the home institution (or the flagship "500");
+    /// pages set it from their institution picker so the choice follows the circuit.
+    /// </summary>
+    public string ActingInstitutionId { get; set; } = DefaultInstitutionId;
+
+    /// <summary>Display name matching <see cref="ActingInstitutionId"/>.</summary>
+    public string ActingInstitutionName { get; set; } = DefaultInstitutionName;
 
     /// <summary>
     /// Load the user's security keys directly from the silo's AccessControl grain and
@@ -60,6 +83,30 @@ public sealed class UserSecurityContext
             _features = [.. (await site.GetParametersAsync()).Features];
         }
         catch { /* leave _features empty */ }
+
+        // Institution context — the user's home facility (NEW PERSON File #200 field 13,
+        // legacy spellings like "INST-500") resolved to a canonical institution id via the
+        // INSTITUTION-INDEX. Best-effort: multi-facility pages fall back to the flagship
+        // ("500") when the profile has no institution or resolution fails.
+        try
+        {
+            INewPersonGrain person = grains.GetGrain<INewPersonGrain>($"USER:{userId}");
+            string? rawInstitutionId = (await person.GetPersonAsync()).InstitutionId;
+            if (!string.IsNullOrWhiteSpace(rawInstitutionId))
+            {
+                IInstitutionIndexGrain index = grains.GetGrain<IInstitutionIndexGrain>("INSTITUTION-INDEX");
+                string? resolved = await index.ResolveLegacyFacilityIdAsync(rawInstitutionId);
+                if (!string.IsNullOrWhiteSpace(resolved))
+                {
+                    string name = (await grains.GetGrain<IInstitutionGrain>($"INST:{resolved}").GetAsync()).Name;
+                    HomeInstitutionId = resolved;
+                    HomeInstitutionName = string.IsNullOrWhiteSpace(name) ? resolved : name;
+                    ActingInstitutionId = HomeInstitutionId;
+                    ActingInstitutionName = HomeInstitutionName;
+                }
+            }
+        }
+        catch { /* leave the "500" defaults */ }
     }
 
     /// <summary>
@@ -92,5 +139,9 @@ public sealed class UserSecurityContext
         _accessibleAreas = [MenuArea.General];
         _features = [];
         IsInitialized = false;
+        HomeInstitutionId = null;
+        HomeInstitutionName = null;
+        ActingInstitutionId = DefaultInstitutionId;
+        ActingInstitutionName = DefaultInstitutionName;
     }
 }

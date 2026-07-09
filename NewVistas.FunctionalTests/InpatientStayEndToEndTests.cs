@@ -23,20 +23,19 @@ namespace NewVistas.FunctionalTests;
 /// matching the production cluster setup minus federation transport).
 ///
 /// Stay narrative:
-///   1. Patient arrives at the ED, gets admitted to Medical Ward 3A bed 301-A
-///   2. Bed management marks 301-A as occupied; ward census picks it up
+///   1. Patient arrives at the ED, gets admitted to Medical Ward 3A bed 301-A —
+///      the admission itself occupies the bed (the unit owns bed truth)
+///   2. Unit state confirms 301-A occupied; the unit census picks it up
 ///   3. Provider places an inpatient med order; pharmacy verifies; MAR syncs
 ///   4. Nurse administers the first scheduled dose via BCMA
 ///   5. Provider also orders an IV antibiotic; pharmacy compounds + dispenses
-///   6. Patient transferred to Medical Ward 4B bed 401-B
-///   7. Discharge after 5 days
-///   8. Verify the audit trail and ward census both reflect the full journey
+///   6. Patient transferred to Medical Ward 4B bed 401-B (old bed → Dirty)
+///   7. Discharge after 5 days (bed → Dirty, census empties)
+///   8. Verify the audit trail reflects the full journey
 /// </summary>
 [TestFixture]
 public class InpatientStayEndToEndTests
 {
-    private const string FacilityId = "MAIN";
-
     private TestCluster _cluster = null!;
 
     [OneTimeSetUp]
@@ -45,22 +44,44 @@ public class InpatientStayEndToEndTests
     private IPatientWorkflowGrain Workflow(string patientId) =>
         _cluster.GrainFactory.GetGrain<IPatientWorkflowGrain>(patientId);
 
-    private IBedGrain Bed(string bedId) =>
-        _cluster.GrainFactory.GetGrain<IBedGrain>(bedId);
+    private IInpatientUnitGrain Unit(string institutionId, string unitId) =>
+        _cluster.GrainFactory.GetGrain<IInpatientUnitGrain>($"UNIT:{institutionId}:{unitId}");
+
+    /// <summary>Configures a fresh, isolated unit with the given beds (no rooms).</summary>
+    private async Task<(string Inst, string UnitId)> NewUnitAsync(string name, params string[] bedIds)
+    {
+        string inst = $"INST-{Guid.NewGuid():N}";
+        string unitId = $"U-{Guid.NewGuid():N}";
+        IInpatientUnitGrain unit = Unit(inst, unitId);
+        await unit.ConfigureUnitAsync(name, "MedSurg", "Internal Medicine");
+        foreach (string bedId in bedIds)
+            await unit.AddBedAsync(bedId, null, BedType.Regular);
+        return (inst, unitId);
+    }
+
+    private async Task<InpatientBed> BedAsync(string inst, string unitId, string bedId)
+    {
+        InpatientUnitState state = await Unit(inst, unitId).GetAsync();
+        return state.Beds.First(b => b.BedId == bedId);
+    }
 
     [Test]
     public async Task FullStay_AdmitOrderAdministerTransferDischarge_AllStepsSucceed()
     {
+        var (inst3A, unitMed3A) = await NewUnitAsync("Medical Ward 3A", "301-A", "301-B");
+        var (inst4B, unitMed4B) = await NewUnitAsync("Medical Ward 4B", "401-B");
+
         string patientId = $"INPATIENT-{Guid.NewGuid():N}";
         IPatientWorkflowGrain wf = Workflow(patientId);
+        await wf.UpdateDemographicsAsync("TESTPATIENT,STAY", "M", new DateTime(1962, 4, 2), null);
 
-        // ── Step 1: Admission ─────────────────────────────────────────
+        // ── Step 1: Admission (occupies the bed in the same call) ─────
         DateTime admitDate = DateTime.UtcNow.AddDays(-5);
         string admitMovementId = await wf.RecordAdmissionAsync(
             movementDateTime: admitDate,
-            wardLocationId: "WARD-MED-3A",
-            wardLocationName: "Medical Ward 3A",
-            roomBed: "301-A",
+            institutionId: inst3A,
+            unitId: unitMed3A,
+            bedId: "301-A",
             treatingSpecialtyName: "Internal Medicine",
             attendingPhysicianId: "DOCTOR1",
             attendingPhysicianName: "SMITH,JOHN A",
@@ -69,18 +90,15 @@ public class InpatientStayEndToEndTests
         Assert.That(admitMovementId, Does.StartWith("ADT-"),
             "Admission must return an ADT-prefixed movement id.");
 
-        // ── Step 2: Bed assignment + ward census ──────────────────────
-        string bedId = $"BED:{FacilityId}:WARD-MED-3A:301-A:{Guid.NewGuid():N}";
-        await Bed(bedId).SetupBedAsync(
-            wardId: "WARD-MED-3A", wardName: "Medical Ward 3A",
-            roomNumber: "301", bedPosition: "A", bedType: "MED-SURG",
-            facilityId: FacilityId);
-        await Bed(bedId).AssignPatientAsync(patientId, "TESTPATIENT,STAY",
-            expectedDischarge: admitDate.AddDays(5));
+        // ── Step 2: Bed truth + unit census (no explicit board sync) ──
+        InpatientBed bed = await BedAsync(inst3A, unitMed3A, "301-A");
+        Assert.That(bed.State, Is.EqualTo(BedLifecycleState.Occupied),
+            "The admission itself must occupy the bed — the old bed-grain + board-sync gap is gone.");
+        Assert.That(bed.PatientId, Is.EqualTo(patientId));
 
-        BedState bedState = await Bed(bedId).GetBedAsync();
-        Assert.That(bedState.PatientId, Is.EqualTo(patientId));
-        Assert.That(bedState.Status, Is.EqualTo("OCCUPIED"));
+        List<UnitCensusEntry> census = await wf.GetUnitCensusAsync(inst3A, unitMed3A);
+        Assert.That(census.Any(e => e.PatientId == patientId && e.BedId == "301-A"), Is.True,
+            "Unit census is a projection of bed state and must show the admitted patient.");
 
         // ── Step 3: Inpatient med order + verification + MAR sync ─────
         // Use the lower-level grain directly since we don't need the full PSO
@@ -161,13 +179,15 @@ public class InpatientStayEndToEndTests
         Assert.That(ivState.LotNumber, Is.EqualTo("LOT-2026-001"));
 
         // ── Step 6: Transfer to a different ward ──────────────────────
+        // One workflow call: occupies 401-B on Ward 4B and releases 301-A
+        // (→ Dirty for EVS turnover) — no manual bed choreography.
         DateTime transferDate = admitDate.AddDays(2);
         string transferMovementId = await wf.RecordTransferAsync(
             currentMovementId: admitMovementId,
             transferDateTime: transferDate,
-            toWardId: "WARD-MED-4B",
-            toWardName: "Medical Ward 4B",
-            toRoomBed: "401-B",
+            toInstitutionId: inst4B,
+            toUnitId: unitMed4B,
+            toBedId: "401-B",
             toSpecialtyId: null,
             toSpecialtyName: "Internal Medicine",
             attendingPhysicianId: "DOCTOR1",
@@ -175,22 +195,15 @@ public class InpatientStayEndToEndTests
             comments: "Step-down to telemetry");
         Assert.That(transferMovementId, Does.StartWith("ADT-"));
 
-        // Old bed released, new bed assigned.
-        await Bed(bedId).DischargePatientAsync();
-        string newBedId = $"BED:{FacilityId}:WARD-MED-4B:401-B:{Guid.NewGuid():N}";
-        await Bed(newBedId).SetupBedAsync(
-            wardId: "WARD-MED-4B", wardName: "Medical Ward 4B",
-            roomNumber: "401", bedPosition: "B", bedType: "TELEMETRY",
-            facilityId: FacilityId);
-        await Bed(newBedId).AssignPatientAsync(patientId, "TESTPATIENT,STAY",
-            expectedDischarge: admitDate.AddDays(5));
-
-        BedState oldBed = await Bed(bedId).GetBedAsync();
-        BedState newBed = await Bed(newBedId).GetBedAsync();
+        InpatientBed oldBed = await BedAsync(inst3A, unitMed3A, "301-A");
+        InpatientBed newBed = await BedAsync(inst4B, unitMed4B, "401-B");
+        Assert.That(oldBed.State, Is.EqualTo(BedLifecycleState.Dirty),
+            "Original bed should go to Dirty (EVS turnover) after transfer.");
         Assert.That(oldBed.PatientId, Is.Null,
             "Original bed should be released after transfer.");
+        Assert.That(newBed.State, Is.EqualTo(BedLifecycleState.Occupied));
         Assert.That(newBed.PatientId, Is.EqualTo(patientId),
-            "New bed should be assigned to the patient after transfer.");
+            "New bed should be occupied by the patient after transfer.");
 
         // ── Step 7: Discharge ─────────────────────────────────────────
         DateTime dischargeDate = admitDate.AddDays(5);
@@ -201,9 +214,14 @@ public class InpatientStayEndToEndTests
             disposition: "HOME",
             comments: "Discharged home with 7-day course of azithromycin.");
 
-        await Bed(newBedId).DischargePatientAsync();
-        BedState dischargedBed = await Bed(newBedId).GetBedAsync();
+        InpatientBed dischargedBed = await BedAsync(inst4B, unitMed4B, "401-B");
+        Assert.That(dischargedBed.State, Is.EqualTo(BedLifecycleState.Dirty),
+            "Discharge releases the bed to Dirty.");
         Assert.That(dischargedBed.PatientId, Is.Null);
+
+        List<UnitCensusEntry> censusAfterDischarge = await wf.GetUnitCensusAsync(inst4B, unitMed4B);
+        Assert.That(censusAfterDischarge.Any(e => e.PatientId == patientId), Is.False,
+            "Census must be empty of the patient after discharge.");
 
         // ── Step 8: Audit-trail verification ──────────────────────────
         // Note: RecordDischargeAsync mutates the existing transfer movement
@@ -226,8 +244,9 @@ public class InpatientStayEndToEndTests
         string patientId = $"INPATIENT-MAR-{Guid.NewGuid():N}";
         IPatientWorkflowGrain wf = Workflow(patientId);
 
+        var (inst, unitId) = await NewUnitAsync("Medical Ward 3A", "302-A");
         await wf.RecordAdmissionAsync(
-            DateTime.UtcNow, "WARD-MED-3A", "Medical Ward 3A", "302-A",
+            DateTime.UtcNow, inst, unitId, "302-A",
             "Internal Medicine", null, null, null, null);
 
         string orderId = $"PSJ-ORDER-{Guid.NewGuid():N}";
@@ -267,8 +286,9 @@ public class InpatientStayEndToEndTests
         string patientId = $"INPATIENT-IV-{Guid.NewGuid():N}";
         IPatientWorkflowGrain wf = Workflow(patientId);
 
+        var (inst, unitId) = await NewUnitAsync("Medical Ward 3A", "303-A");
         await wf.RecordAdmissionAsync(
-            DateTime.UtcNow, "WARD-MED-3A", "Medical Ward 3A", "303-A",
+            DateTime.UtcNow, inst, unitId, "303-A",
             "Internal Medicine", null, null, null, null);
 
         string orderId = await wf.CreateIVAdmixOrderAsync(
@@ -320,44 +340,39 @@ public class InpatientStayEndToEndTests
     }
 
     [Test]
-    public async Task BedGrains_AcrossWard_TrackOccupancyIndependently()
+    public async Task UnitBeds_TrackOccupancyIndependently()
     {
-        // Each bed grain owns its own state; this fixture verifies that
-        // assigning one bed in a ward leaves a sibling bed unaffected, and
-        // that the discharge transition (OCCUPIED → CLEANING) works without
-        // bleeding into the available bed.
-        //
-        // BedBoard index updates are out of scope here — `SetupBedAsync` and
-        // `AssignPatientAsync` write only to the per-bed grain; pushing to
-        // the BedBoard requires an explicit `AddOrUpdateBedAsync`, which is
-        // covered by BedManagementWorkflowTests.
-        string facilityId = $"VAL-{Guid.NewGuid():N}";
-        string occupiedBedId = $"BED:{facilityId}:VAL-WARD:VAL-101-A";
-        string availableBedId = $"BED:{facilityId}:VAL-WARD:VAL-101-B";
-
-        await Bed(occupiedBedId).SetupBedAsync(
-            "VAL-WARD", "Validation Ward", "VAL-101", "A", "MED-SURG", facilityId);
-        await Bed(availableBedId).SetupBedAsync(
-            "VAL-WARD", "Validation Ward", "VAL-101", "B", "MED-SURG", facilityId);
+        // The unit owns all its beds; this fixture verifies that occupying
+        // one bed leaves a sibling bed unaffected, and that the release
+        // transition (Occupied → Dirty) works without bleeding into the
+        // available bed. There is no separate board to sync — the unit's
+        // capacity rollup is pushed automatically on every mutation.
+        var (inst, unitId) = await NewUnitAsync("Validation Ward", "VAL-101-A", "VAL-101-B");
 
         string patientId = $"PAT-{Guid.NewGuid()}";
-        await Bed(occupiedBedId).AssignPatientAsync(
-            patientId, "OCCUPIED,PATIENT", expectedDischarge: null);
+        await Unit(inst, unitId).AdmitPatientAsync(new UnitAdmissionRequest
+        {
+            PatientId = patientId,
+            PatientName = "OCCUPIED,PATIENT",
+            MovementId = $"ADT-{Guid.NewGuid()}",
+            BedId = "VAL-101-A",
+            AdmitDate = DateTime.UtcNow
+        });
 
-        BedState occupied = await Bed(occupiedBedId).GetBedAsync();
-        BedState available = await Bed(availableBedId).GetBedAsync();
-        Assert.That(occupied.Status, Is.EqualTo("OCCUPIED"));
+        InpatientBed occupied = await BedAsync(inst, unitId, "VAL-101-A");
+        InpatientBed available = await BedAsync(inst, unitId, "VAL-101-B");
+        Assert.That(occupied.State, Is.EqualTo(BedLifecycleState.Occupied));
         Assert.That(occupied.PatientId, Is.EqualTo(patientId));
-        Assert.That(available.Status, Is.EqualTo("AVAILABLE"));
+        Assert.That(available.State, Is.EqualTo(BedLifecycleState.Available));
         Assert.That(available.PatientId, Is.Null);
 
-        // Discharge the occupied bed → CLEANING; sibling unaffected.
-        await Bed(occupiedBedId).DischargePatientAsync();
-        BedState afterDischarge = await Bed(occupiedBedId).GetBedAsync();
-        BedState siblingAfter = await Bed(availableBedId).GetBedAsync();
-        Assert.That(afterDischarge.Status, Is.EqualTo("CLEANING"));
-        Assert.That(afterDischarge.PatientId, Is.Null);
-        Assert.That(siblingAfter.Status, Is.EqualTo("AVAILABLE"),
-            "Discharging one bed should not affect a sibling bed in the same room.");
+        // Release the occupied bed → Dirty; sibling unaffected.
+        await Unit(inst, unitId).ReleasePatientAsync(patientId, $"ADT-{Guid.NewGuid()}");
+        InpatientBed afterRelease = await BedAsync(inst, unitId, "VAL-101-A");
+        InpatientBed siblingAfter = await BedAsync(inst, unitId, "VAL-101-B");
+        Assert.That(afterRelease.State, Is.EqualTo(BedLifecycleState.Dirty));
+        Assert.That(afterRelease.PatientId, Is.Null);
+        Assert.That(siblingAfter.State, Is.EqualTo(BedLifecycleState.Available),
+            "Releasing one bed should not affect a sibling bed on the same unit.");
     }
 }

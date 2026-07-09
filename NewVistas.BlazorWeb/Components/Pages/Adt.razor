@@ -9,9 +9,24 @@
 @using NewVistas.Abstractions.GrainInterfaces
 @using NewVistas.Abstractions.GrainStates
 @inject OrleansGrainService Grains
+@inject UserSecurityContext SecurityContext
 
 <PageTitle>ADT</PageTitle>
 <h1>ADT — Admit / Discharge / Transfer</h1>
+
+<div class="inst-bar">
+    <label for="adt-inst">Institution:</label>
+    <select id="adt-inst" @onchange="OnInstitutionChanged">
+        @if (institutions.All(i => i.InstitutionId != InstitutionId))
+        {
+            <option value="@InstitutionId" selected>@InstitutionId</option>
+        }
+        @foreach (var inst in institutions)
+        {
+            <option value="@inst.InstitutionId" selected="@(inst.InstitutionId == InstitutionId)">@inst.Name</option>
+        }
+    </select>
+</div>
 
 <div class="lookup-bar">
     <input type="text" @bind="patientId" @bind:event="oninput" @onkeydown="HandleKeyDown" placeholder="Patient ID" class="lookup-input" />
@@ -25,8 +40,8 @@
 
 <div class="tab-bar">
     <button @onclick="@(() => tab = "movements")" class="tab @(tab == "movements" ? "active" : "")">Patient Movements</button>
-    <button @onclick="@(() => { tab = "census"; _ = LoadCensus(); })" class="tab @(tab == "census" ? "active" : "")">Ward Census</button>
-    <button @onclick="@(() => { tab = "wards"; _ = LoadWards(); })" class="tab @(tab == "wards" ? "active" : "")">Ward Directory</button>
+    <button @onclick="@(() => { tab = "census"; _ = LoadCensus(); })" class="tab @(tab == "census" ? "active" : "")">Unit Census</button>
+    <button @onclick="@(() => { tab = "units"; _ = LoadUnits(); })" class="tab @(tab == "units" ? "active" : "")">Unit Directory</button>
 </div>
 
 @if (tab == "movements")
@@ -38,20 +53,29 @@
             <div class="form-grid">
                 <div class="form-row"><label>Admission Date/Time *</label><input type="datetime-local" @bind="f_admitDate" /></div>
                 <div class="form-row">
-                    <label>Ward</label>
-                    <select @bind="f_wardId" @bind:after="OnWardSelected">
-                        <option value="">— Select Ward —</option>
-                        @foreach (var w in wards) { <option value="@w.WardId">@w.Name (@w.WardType)</option> }
+                    <label>Unit</label>
+                    <select @bind="f_unitId" @bind:after="OnUnitSelected">
+                        <option value="">— Select Unit —</option>
+                        @foreach (var u in units) { <option value="@u.UnitId">@u.Name — @u.Available available</option> }
                     </select>
                 </div>
-                <div class="form-row"><label>Room-Bed</label><input type="text" @bind="f_room" placeholder="e.g. 301-A" /></div>
+                <div class="form-row">
+                    <label>Bed</label>
+                    <select @bind="f_bedId" disabled="@(string.IsNullOrEmpty(f_unitId))">
+                        <option value="">(no bed — boarder)</option>
+                        @if (admitBeds != null)
+                        {
+                            @foreach (var b in admitBeds) { <option value="@b.BedId">@BedLabel(b)</option> }
+                        }
+                    </select>
+                </div>
                 <div class="form-row"><label>Treating Specialty</label><input type="text" @bind="f_specialty" placeholder="e.g. Internal Medicine" /></div>
                 <div class="form-row"><label>Attending Physician</label><ProviderPicker @bind-ProviderId="f_attendingId" @bind-ProviderName="f_attending" Label="" DefaultToSelf="false" /></div>
                 <div class="form-row full"><label>Admission Diagnosis</label><input type="text" @bind="f_diagnosis" /></div>
                 <div class="form-row full"><label>Comments</label><textarea @bind="f_comments" rows="2"></textarea></div>
             </div>
             <div class="form-actions">
-                <button @onclick="SubmitAdmit" disabled="@saving" class="btn btn-primary">@(saving ? "Saving..." : "Admit")</button>
+                <button @onclick="SubmitAdmit" disabled="@(saving || string.IsNullOrEmpty(f_unitId))" class="btn btn-primary">@(saving ? "Saving..." : "Admit")</button>
                 <button @onclick="() => showAdmit = false" class="btn btn-secondary">Cancel</button>
             </div>
         </div>
@@ -64,19 +88,28 @@
             <div class="form-grid">
                 <div class="form-row"><label>Transfer Date/Time *</label><input type="datetime-local" @bind="f_transferDate" /></div>
                 <div class="form-row">
-                    <label>To Ward</label>
-                    <select @bind="f_toWardId" @bind:after="OnToWardSelected">
-                        <option value="">— Select Ward —</option>
-                        @foreach (var w in wards) { <option value="@w.WardId">@w.Name (@w.WardType)</option> }
+                    <label>To Unit</label>
+                    <select @bind="f_toUnitId" @bind:after="OnToUnitSelected">
+                        <option value="">— Select Unit —</option>
+                        @foreach (var u in units) { <option value="@u.UnitId">@u.Name — @u.Available available</option> }
                     </select>
                 </div>
-                <div class="form-row"><label>Room-Bed</label><input type="text" @bind="f_toRoom" placeholder="e.g. ICU-5" /></div>
+                <div class="form-row">
+                    <label>Bed</label>
+                    <select @bind="f_toBedId" disabled="@(string.IsNullOrEmpty(f_toUnitId))">
+                        <option value="">(no bed — boarder)</option>
+                        @if (transferBeds != null)
+                        {
+                            @foreach (var b in transferBeds) { <option value="@b.BedId">@BedLabel(b)</option> }
+                        }
+                    </select>
+                </div>
                 <div class="form-row"><label>Treating Specialty</label><input type="text" @bind="f_toSpecialty" /></div>
                 <div class="form-row"><label>Attending Physician</label><ProviderPicker @bind-ProviderName="f_toAttending" Label="" DefaultToSelf="false" /></div>
                 <div class="form-row full"><label>Comments</label><textarea @bind="f_transferComments" rows="2"></textarea></div>
             </div>
             <div class="form-actions">
-                <button @onclick="SubmitTransfer" disabled="@saving" class="btn btn-primary">@(saving ? "Saving..." : "Transfer")</button>
+                <button @onclick="SubmitTransfer" disabled="@(saving || string.IsNullOrEmpty(f_toUnitId))" class="btn btn-primary">@(saving ? "Saving..." : "Transfer")</button>
                 <button @onclick="() => showTransfer = false" class="btn btn-secondary">Cancel</button>
             </div>
         </div>
@@ -88,7 +121,7 @@
         else
         {
             <table class="data-table">
-                <thead><tr><th>Date</th><th>Type</th><th>Ward</th><th>Room</th><th>Attending</th><th>Status</th><th>Actions</th></tr></thead>
+                <thead><tr><th>Date</th><th>Type</th><th>Unit</th><th>Room-Bed</th><th>Attending</th><th>Status</th><th>Actions</th></tr></thead>
                 <tbody>
                     @foreach (var s in items)
                     {
@@ -115,31 +148,33 @@
 @if (tab == "census")
 {
     <div class="census-bar">
-        <label>Select Ward:</label>
-        <select @bind="censusWardId" @bind:after="LoadCensus">
-            <option value="">— Select a Ward —</option>
-            @foreach (var w in wards) { <option value="@w.WardId">@w.Name</option> }
+        <label>Select Unit:</label>
+        <select @bind="censusUnitId" @bind:after="LoadCensus">
+            <option value="">— Select a Unit —</option>
+            @foreach (var u in units) { <option value="@u.UnitId">@u.Name</option> }
         </select>
     </div>
 
     @if (censusItems != null)
     {
-        @if (censusItems.Count == 0) { <div class="empty-state">No patients currently on this ward.</div> }
+        @if (censusItems.Count == 0) { <div class="empty-state">No patients currently on this unit.</div> }
         else
         {
             <table class="data-table">
-                <thead><tr><th>Patient ID</th><th>Name</th><th>Room-Bed</th><th>Specialty</th><th>Attending</th><th>Admit Date</th><th>Last Movement</th></tr></thead>
+                <thead><tr><th>Bed</th><th>Room</th><th>Patient ID</th><th>Name</th><th>Admit Date</th><th>Specialty</th><th>Attending</th><th>Nurse</th><th>Acuity</th></tr></thead>
                 <tbody>
                     @foreach (var c in censusItems)
                     {
                         <tr>
+                            <td>@(c.BedId ?? "boarder")</td>
+                            <td>@(string.IsNullOrEmpty(c.RoomId) ? "—" : c.RoomId)</td>
                             <td>@c.PatientId</td>
-                            <td>@(c.PatientName ?? "—")</td>
-                            <td>@(c.RoomBed ?? "—")</td>
+                            <td>@(string.IsNullOrEmpty(c.PatientName) ? "—" : c.PatientName)</td>
+                            <td class="date">@c.AdmitDate.ToString("MM/dd/yyyy")</td>
                             <td>@(c.TreatingSpecialty ?? "—")</td>
                             <td>@(c.AttendingPhysicianName ?? "—")</td>
-                            <td class="date">@c.AdmitDate.ToString("MM/dd/yyyy")</td>
-                            <td class="date">@c.LastMovementDate.ToString("MM/dd/yyyy HH:mm")</td>
+                            <td>@(c.AttendingNurseName ?? "—")</td>
+                            <td>@(c.AcuityLevel?.ToString() ?? "—")</td>
                         </tr>
                     }
                 </tbody>
@@ -148,26 +183,27 @@
     }
 }
 
-@if (tab == "wards")
+@if (tab == "units")
 {
     <div class="search-bar">
-        <input type="text" @bind="wardSearch" @bind:event="oninput" placeholder="Search wards..." class="lookup-input" />
+        <input type="text" @bind="unitSearch" @bind:event="oninput" placeholder="Search units..." class="lookup-input" />
     </div>
-    @if (wards.Count == 0) { <div class="empty-state">Loading wards...</div> }
+    @if (units.Count == 0) { <div class="empty-state">Loading units...</div> }
     else
     {
-        List<WardLocationEntry> filtered = string.IsNullOrWhiteSpace(wardSearch)
-            ? wards
-            : wards.Where(w => w.Name.Contains(wardSearch, StringComparison.OrdinalIgnoreCase) || w.WardType.Contains(wardSearch, StringComparison.OrdinalIgnoreCase)).ToList();
+        List<UnitCapacitySummary> filtered = string.IsNullOrWhiteSpace(unitSearch)
+            ? units
+            : units.Where(u => u.Name.Contains(unitSearch, StringComparison.OrdinalIgnoreCase) || (u.UnitType ?? "").Contains(unitSearch, StringComparison.OrdinalIgnoreCase)).ToList();
         <table class="data-table">
-            <thead><tr><th>Ward ID</th><th>Name</th><th>Type</th><th>Division</th><th>Capacity</th></tr></thead>
+            <thead><tr><th>Unit ID</th><th>Name</th><th>Type</th><th>Total</th><th>Available</th><th>Occupied</th><th>Dirty</th><th>Blocked/OOS</th><th>Boarders</th></tr></thead>
             <tbody>
-                @foreach (var w in filtered)
+                @foreach (var u in filtered)
                 {
                     <tr>
-                        <td>@w.WardId</td><td>@w.Name</td>
-                        <td><span class="badge badge-neutral">@w.WardType</span></td>
-                        <td>@(w.Division ?? "—")</td><td>@w.BedCapacity</td>
+                        <td>@u.UnitId</td><td>@u.Name</td>
+                        <td><span class="badge badge-neutral">@(u.UnitType ?? "—")</span></td>
+                        <td>@u.TotalBeds</td><td>@u.Available</td><td>@u.Occupied</td>
+                        <td>@u.Dirty</td><td>@(u.Blocked + u.OutOfService)</td><td>@u.Boarders</td>
                     </tr>
                 }
             </tbody>
@@ -176,28 +212,56 @@
 }
 
 @code {
+    /// <summary>The institution being worked — the circuit-scoped acting institution.</summary>
+    private string InstitutionId => SecurityContext.ActingInstitutionId;
+
+    private List<InstitutionIndexEntry> institutions = new();
+
     [SupplyParameterFromQuery] public string? patientId { get; set; }
     private string tab = "movements";
     private List<AdtSummary>? items;
-    private List<WardCensusEntry>? censusItems;
-    private List<WardLocationEntry> wards = new();
+    private List<UnitCensusEntry>? censusItems;
+    private List<UnitCapacitySummary> units = new();
+    private List<InpatientBed>? admitBeds;
+    private List<InpatientBed>? transferBeds;
     private bool loading, saving, showAdmit, showTransfer;
     private string? error, success;
     private string? transferMovementId;
-    private string censusWardId = "", wardSearch = "";
+    private string censusUnitId = "", unitSearch = "";
 
     // Admit form
-    private string f_wardId = "", f_wardName = "", f_room = "", f_specialty = "", f_attendingId = "", f_attending = "", f_diagnosis = "", f_comments = "";
+    private string f_unitId = "", f_bedId = "", f_specialty = "", f_attendingId = "", f_attending = "", f_diagnosis = "", f_comments = "";
     private DateTime f_admitDate = DateTime.Now;
 
     // Transfer form
-    private string f_toWardId = "", f_toWardName = "", f_toRoom = "", f_toSpecialty = "", f_toAttending = "", f_transferComments = "";
+    private string f_toUnitId = "", f_toBedId = "", f_toSpecialty = "", f_toAttending = "", f_transferComments = "";
     private DateTime f_transferDate = DateTime.Now;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            institutions = await Grains.GetGrain<IInstitutionIndexGrain>("INSTITUTION-INDEX").GetAllAsync();
+        }
+        catch { institutions = new(); }
+    }
 
     protected override async Task OnParametersSetAsync()
     {
-        await LoadWards();
+        await LoadUnits();
         if (!string.IsNullOrWhiteSpace(patientId)) await Load();
+    }
+
+    private async Task OnInstitutionChanged(ChangeEventArgs e)
+    {
+        string id = e.Value?.ToString() ?? "";
+        if (string.IsNullOrEmpty(id) || id == SecurityContext.ActingInstitutionId) return;
+        SecurityContext.ActingInstitutionId = id;
+        SecurityContext.ActingInstitutionName = institutions.FirstOrDefault(i => i.InstitutionId == id)?.Name ?? id;
+        // Unit-scoped selections belong to the previous institution — reset them.
+        censusUnitId = ""; censusItems = null;
+        admitBeds = null; transferBeds = null; f_unitId = ""; f_bedId = ""; f_toUnitId = ""; f_toBedId = "";
+        await LoadUnits();
     }
 
     private async Task HandleKeyDown(KeyboardEventArgs e) { if (e.Key == "Enter") await Load(); }
@@ -205,7 +269,8 @@
     private void ShowAdmitForm()
     {
         showAdmit = true; showTransfer = false; success = null;
-        f_wardId = ""; f_wardName = ""; f_room = ""; f_specialty = ""; f_attendingId = ""; f_attending = ""; f_diagnosis = ""; f_comments = "";
+        f_unitId = ""; f_bedId = ""; f_specialty = ""; f_attendingId = ""; f_attending = ""; f_diagnosis = ""; f_comments = "";
+        admitBeds = null;
         f_admitDate = DateTime.Now;
     }
 
@@ -213,21 +278,37 @@
     {
         showTransfer = true; showAdmit = false; success = null;
         transferMovementId = movementId;
-        f_toWardId = ""; f_toWardName = ""; f_toRoom = ""; f_toSpecialty = ""; f_toAttending = ""; f_transferComments = "";
+        f_toUnitId = ""; f_toBedId = ""; f_toSpecialty = ""; f_toAttending = ""; f_transferComments = "";
+        transferBeds = null;
         f_transferDate = DateTime.Now;
     }
 
-    private void OnWardSelected()
+    private async Task OnUnitSelected()
     {
-        WardLocationEntry? w = wards.FirstOrDefault(x => x.WardId == f_wardId);
-        f_wardName = w?.Name ?? string.Empty;
+        f_bedId = ""; admitBeds = null;
+        if (string.IsNullOrEmpty(f_unitId) || string.IsNullOrWhiteSpace(patientId)) return;
+        try
+        {
+            var wf = Grains.GetGrain<IPatientWorkflowGrain>(patientId.Trim());
+            admitBeds = await wf.FindAvailableBedsAsync(InstitutionId, f_unitId, null);
+        }
+        catch (Exception ex) { error = ex.Message; }
     }
 
-    private void OnToWardSelected()
+    private async Task OnToUnitSelected()
     {
-        WardLocationEntry? w = wards.FirstOrDefault(x => x.WardId == f_toWardId);
-        f_toWardName = w?.Name ?? string.Empty;
+        f_toBedId = ""; transferBeds = null;
+        if (string.IsNullOrEmpty(f_toUnitId) || string.IsNullOrWhiteSpace(patientId)) return;
+        try
+        {
+            var wf = Grains.GetGrain<IPatientWorkflowGrain>(patientId.Trim());
+            transferBeds = await wf.FindAvailableBedsAsync(InstitutionId, f_toUnitId, null);
+        }
+        catch (Exception ex) { error = ex.Message; }
     }
+
+    private static string BedLabel(InpatientBed b) =>
+        string.IsNullOrEmpty(b.RoomId) ? $"{b.BedId} ({b.BedType})" : $"{b.BedId} — Room {b.RoomId} ({b.BedType})";
 
     private async Task Load()
     {
@@ -242,23 +323,23 @@
         finally { loading = false; }
     }
 
-    private async Task LoadWards()
+    private async Task LoadUnits()
     {
         try
         {
-            var idx = Grains.GetGrain<IWardLocationIndexGrain>("WARD-LOCATION-INDEX");
-            wards = await idx.GetAllWardsAsync();
+            var capacity = Grains.GetGrain<IBedCapacityGrain>($"BED-CAPACITY:{InstitutionId}");
+            units = await capacity.GetUnitsAsync();
         }
-        catch { wards = new(); }
+        catch { units = new(); }
     }
 
     private async Task LoadCensus()
     {
-        if (string.IsNullOrWhiteSpace(censusWardId)) { censusItems = null; return; }
+        if (string.IsNullOrWhiteSpace(censusUnitId)) { censusItems = null; return; }
         try
         {
-            var census = Grains.GetGrain<IWardCensusGrain>($"WARD-CENSUS:{censusWardId}");
-            censusItems = await census.GetCensusAsync();
+            var unit = Grains.GetGrain<IInpatientUnitGrain>($"UNIT:{InstitutionId}:{censusUnitId}");
+            censusItems = await unit.GetCensusAsync();
         }
         catch (Exception ex) { error = ex.Message; }
     }
@@ -271,11 +352,11 @@
             var wf = Grains.GetGrain<IPatientWorkflowGrain>(patientId!);
             await wf.RecordAdmissionAsync(
                 f_admitDate,
-                NullIfEmpty(f_wardId), NullIfEmpty(f_wardName),
-                NullIfEmpty(f_room), NullIfEmpty(f_specialty),
+                InstitutionId, f_unitId, NullIfEmpty(f_bedId),
+                NullIfEmpty(f_specialty),
                 NullIfEmpty(f_attendingId), NullIfEmpty(f_attending),
                 NullIfEmpty(f_diagnosis), NullIfEmpty(f_comments));
-            showAdmit = false; success = "Patient admitted."; await Load();
+            showAdmit = false; success = "Patient admitted."; await Load(); await LoadUnits();
         }
         catch (UnauthorizedAccessException ex) { error = SecurityKeyError.Describe(ex); }
         catch (Exception ex) { error = ex.Message; }
@@ -291,12 +372,12 @@
             await wf.RecordTransferAsync(
                 transferMovementId!,
                 f_transferDate,
-                NullIfEmpty(f_toWardId), NullIfEmpty(f_toWardName),
-                NullIfEmpty(f_toRoom),
+                InstitutionId, f_toUnitId,
+                NullIfEmpty(f_toBedId),
                 null, NullIfEmpty(f_toSpecialty),
                 null, NullIfEmpty(f_toAttending),
                 NullIfEmpty(f_transferComments));
-            showTransfer = false; success = "Patient transferred."; await Load();
+            showTransfer = false; success = "Patient transferred."; await Load(); await LoadUnits();
         }
         catch (UnauthorizedAccessException ex) { error = SecurityKeyError.Describe(ex); }
         catch (Exception ex) { error = ex.Message; }
@@ -309,7 +390,7 @@
         {
             var wf = Grains.GetGrain<IPatientWorkflowGrain>(patientId!);
             await wf.RecordDischargeAsync(movementId, DateTime.UtcNow, null, "REGULAR", null);
-            success = "Patient discharged."; await Load();
+            success = "Patient discharged."; await Load(); await LoadUnits();
         }
         catch (UnauthorizedAccessException ex) { error = SecurityKeyError.Describe(ex); }
         catch (Exception ex) { error = ex.Message; }
@@ -323,15 +404,17 @@
         {
             var wf = Grains.GetGrain<IPatientWorkflowGrain>(patientId!);
             string admitId = await wf.RecordAdmissionAsync(
-                DateTime.UtcNow.AddDays(-3), "WARD-MED-3A", "Medical Ward 3A",
-                "301-A", "Internal Medicine", "PROV-001", "Dr. Smith",
+                DateTime.UtcNow.AddDays(-3), InstitutionId, "MED-3A",
+                "301-A", "Internal Medicine",
+                "PROV-001", "Dr. Smith",
                 "Community-acquired pneumonia", "Demo admission");
             await wf.RecordTransferAsync(
                 admitId, DateTime.UtcNow.AddDays(-2),
-                "WARD-ICU-1", "Intensive Care Unit", "ICU-5",
-                null, "Critical Care", "PROV-002", "Dr. Jones",
+                InstitutionId, "ICU-1", "ICU-5",
+                null, "Critical Care",
+                "PROV-002", "Dr. Jones",
                 "Deteriorating respiratory status");
-            success = "Demo data loaded."; await Load();
+            success = "Demo data loaded."; await Load(); await LoadUnits();
         }
         catch (Exception ex) { error = ex.Message; }
         finally { saving = false; }
@@ -345,9 +428,6 @@
         "TRANSFERRED" => "badge-info",
         _ => "badge-neutral"
     };
-
-    // Use grain state types directly — WardDto replaced by WardLocationEntry
-    // MovementDto replaced by AdtSummary, CensusDto replaced by WardCensusEntry
 }
 
 <style>
@@ -355,6 +435,9 @@
        tab-bar, tab, alert*, empty-state, data-table, badge, badge-*) live in app.css
        per UI-CONVENTIONS.md. Only page-specific styles below. */
     .search-bar { margin-bottom: 1rem; }
+    .inst-bar { display: flex; gap: .5rem; align-items: center; margin-bottom: 1rem; font-size: .85rem; }
+    .inst-bar label { font-weight: 600; color: #555; }
+    .inst-bar select { padding: .4rem .6rem; border: 1px solid #ccc; border-radius: 4px; font-size: .85rem; min-width: 260px; }
     .btn-demo { background: #7c3aed; color: white; } .btn-demo:disabled { background: #999; }
     .census-bar { display: flex; gap: .75rem; align-items: center; margin-bottom: 1rem; }
     .census-bar select { padding: .4rem .6rem; border: 1px solid #ccc; border-radius: 4px; font-size: .85rem; min-width: 220px; }

@@ -31,11 +31,14 @@ public class NursingController : ControllerBase
     private IPatientWorkflowGrain Workflow(string patientId)
         => _gf.GetGrain<IPatientWorkflowGrain>(patientId);
 
-    private INursingUnitGrain UnitGrain(string unitId)
-        => _gf.GetGrain<INursingUnitGrain>($"NURS-UNIT:{unitId}");
+    // Bed/unit truth lives on the inpatient unit grain ("UNIT:{institutionId}:{unitId}");
+    // the per-institution capacity grain is its directory. Default institution "500"
+    // keeps existing single-site callers working unchanged.
+    private IInpatientUnitGrain UnitGrain(string unitId, string institutionId = "500")
+        => _gf.GetGrain<IInpatientUnitGrain>($"UNIT:{institutionId}:{unitId}");
 
-    private INursingUnitIndexGrain UnitIndex()
-        => _gf.GetGrain<INursingUnitIndexGrain>("NURS-UNIT-IDX");
+    private IBedCapacityGrain CapacityGrain(string institutionId = "500")
+        => _gf.GetGrain<IBedCapacityGrain>($"BED-CAPACITY:{institutionId}");
 
     // ─── Assessments ──────────────────────────────────────────────────────────
 
@@ -294,14 +297,14 @@ public class NursingController : ControllerBase
 
     // ─── Nursing Units ────────────────────────────────────────────────────────
 
-    /// <summary>GET /api/nursing/units — list all nursing units.</summary>
+    /// <summary>GET /api/nursing/units — list all nursing units (live capacity directory).</summary>
     [HttpGet("api/nursing/units")]
-    public async Task<IActionResult> GetUnits()
+    public async Task<IActionResult> GetUnits([FromQuery] string institutionId = "500")
     {
         try
         {
-            NursingUnitIndexState state = await UnitIndex().GetAsync();
-            return Ok(state.Units);
+            List<UnitCapacitySummary> units = await CapacityGrain(institutionId).GetUnitsAsync();
+            return Ok(units);
         }
         catch (Exception ex)
         {
@@ -310,13 +313,13 @@ public class NursingController : ControllerBase
         }
     }
 
-    /// <summary>GET /api/nursing/units/{unitId} — full unit census with bed assignments.</summary>
+    /// <summary>GET /api/nursing/units/{unitId} — full unit state with rooms, beds, and nursing assignments.</summary>
     [HttpGet("api/nursing/units/{unitId}")]
-    public async Task<IActionResult> GetUnit(string unitId)
+    public async Task<IActionResult> GetUnit(string unitId, [FromQuery] string institutionId = "500")
     {
         try
         {
-            NursingUnitState state = await UnitGrain(unitId).GetAsync();
+            InpatientUnitState state = await UnitGrain(unitId, institutionId).GetAsync();
             return Ok(state);
         }
         catch (Exception ex)
@@ -326,18 +329,24 @@ public class NursingController : ControllerBase
         }
     }
 
-    /// <summary>POST /api/nursing/units — initialise a new nursing unit.</summary>
+    /// <summary>
+    /// POST /api/nursing/units — configure a unit; when it has no beds yet, TotalBeds
+    /// numbered Regular beds are created (small-site quick setup).
+    /// </summary>
     [HttpPost("api/nursing/units")]
-    public async Task<IActionResult> CreateUnit([FromBody] CreateNursingUnitRequest req)
+    public async Task<IActionResult> CreateUnit([FromBody] CreateNursingUnitRequest req,
+        [FromQuery] string institutionId = "500")
     {
         try
         {
-            INursingUnitGrain unit = UnitGrain(req.UnitId);
-            await unit.InitializeAsync(req.UnitName, req.UnitType, req.TotalBeds);
-            NursingUnitEntry entry = await unit.GetUnitEntryAsync();
-            await UnitIndex().UpsertUnitAsync(entry);
+            IInpatientUnitGrain unit = UnitGrain(req.UnitId, institutionId);
+            await unit.ConfigureUnitAsync(req.UnitName, req.UnitType, null);
+            InpatientUnitState state = await unit.GetAsync();
+            for (int i = state.Beds.Count + 1; i <= req.TotalBeds; i++)
+                await unit.AddBedAsync(i.ToString(), null, BedType.Regular);
             return Created($"api/nursing/units/{req.UnitId}", new { req.UnitId });
         }
+        catch (UnauthorizedAccessException ex) { return StatusCode(403, ex.Message); }
         catch (Exception ex)
         {
             _log.LogError(ex, "Error creating nursing unit {UnitId}", req.UnitId);
@@ -348,11 +357,11 @@ public class NursingController : ControllerBase
     /// <summary>POST /api/nursing/units/{unitId}/charge-nurse — set charge nurse.</summary>
     [HttpPost("api/nursing/units/{unitId}/charge-nurse")]
     public async Task<IActionResult> SetChargeNurse(
-        string unitId, [FromBody] SetChargeNurseRequest req)
+        string unitId, [FromBody] SetChargeNurseRequest req, [FromQuery] string institutionId = "500")
     {
         try
         {
-            await UnitGrain(unitId).SetChargeNurseAsync(req.NurseId, req.NurseName);
+            await UnitGrain(unitId, institutionId).SetChargeNurseAsync(req.NurseId, req.NurseName);
             return Ok();
         }
         catch (Exception ex)
@@ -362,42 +371,43 @@ public class NursingController : ControllerBase
         }
     }
 
-    /// <summary>POST /api/nursing/units/{unitId}/beds/{bed}/assign — assign patient to bed.</summary>
-    [HttpPost("api/nursing/units/{unitId}/beds/{bed}/assign")]
-    public async Task<IActionResult> AssignPatient(
-        string unitId, string bed, [FromBody] AssignPatientToBedRequest req)
+    /// <summary>
+    /// POST /api/nursing/units/{unitId}/beds/{bed}/nurse — assign the bed's attending nurse.
+    /// (Patient placement is deliberately NOT a nursing-API operation — admissions and
+    /// discharges go through the ADT workflow, which owns bed occupancy.)
+    /// </summary>
+    [HttpPost("api/nursing/units/{unitId}/beds/{bed}/nurse")]
+    public async Task<IActionResult> AssignBedNurse(
+        string unitId, string bed, [FromBody] AssignBedNurseRequest req, [FromQuery] string institutionId = "500")
     {
         try
         {
-            await UnitGrain(unitId).AssignPatientAsync(
-                bed, req.PatientId, req.PatientName,
-                req.AdmissionDateTime, req.AttendingNurseId, req.AttendingNurseName);
-            NursingUnitEntry entry = await UnitGrain(unitId).GetUnitEntryAsync();
-            await UnitIndex().UpsertUnitAsync(entry);
+            await UnitGrain(unitId, institutionId).AssignBedNurseAsync(bed, req.NurseId, req.NurseName);
             return Ok();
         }
+        catch (InvalidOperationException ex) { return BadRequest(ex.Message); }
         catch (Exception ex)
         {
-            _log.LogError(ex, "Error assigning patient to bed {Bed} on unit {UnitId}", bed, unitId);
-            return StatusCode(500, "Error assigning patient to bed.");
+            _log.LogError(ex, "Error assigning nurse to bed {Bed} on unit {UnitId}", bed, unitId);
+            return StatusCode(500, "Error assigning bed nurse.");
         }
     }
 
-    /// <summary>POST /api/nursing/units/{unitId}/beds/{bed}/discharge — clear a bed.</summary>
-    [HttpPost("api/nursing/units/{unitId}/beds/{bed}/discharge")]
-    public async Task<IActionResult> DischargeFromBed(string unitId, string bed)
+    /// <summary>POST /api/nursing/units/{unitId}/beds/{bed}/acuity — set bed acuity level.</summary>
+    [HttpPost("api/nursing/units/{unitId}/beds/{bed}/acuity")]
+    public async Task<IActionResult> UpdateBedAcuity(
+        string unitId, string bed, [FromBody] UpdateBedAcuityRequest req, [FromQuery] string institutionId = "500")
     {
         try
         {
-            await UnitGrain(unitId).DischargeFromBedAsync(bed);
-            NursingUnitEntry entry = await UnitGrain(unitId).GetUnitEntryAsync();
-            await UnitIndex().UpsertUnitAsync(entry);
+            await UnitGrain(unitId, institutionId).UpdateBedAcuityAsync(bed, req.Level);
             return Ok();
         }
+        catch (InvalidOperationException ex) { return BadRequest(ex.Message); }
         catch (Exception ex)
         {
-            _log.LogError(ex, "Error clearing bed {Bed} on unit {UnitId}", bed, unitId);
-            return StatusCode(500, "Error clearing bed assignment.");
+            _log.LogError(ex, "Error updating acuity for bed {Bed} on unit {UnitId}", bed, unitId);
+            return StatusCode(500, "Error updating bed acuity.");
         }
     }
 
@@ -482,12 +492,9 @@ public class NursingController : ControllerBase
 
     public record SetChargeNurseRequest(string NurseId, string NurseName);
 
-    public record AssignPatientToBedRequest(
-        string PatientId,
-        string PatientName,
-        DateTime AdmissionDateTime,
-        string? AttendingNurseId,
-        string? AttendingNurseName);
+    public record AssignBedNurseRequest(string? NurseId, string? NurseName);
+
+    public record UpdateBedAcuityRequest(AcuityLevel Level);
 
     public record AssessmentSummaryDto(
         string AssessmentId,

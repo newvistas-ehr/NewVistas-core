@@ -27,10 +27,10 @@ file, You can obtain one at https://mozilla.org/MPL/2.0/.
                     Visibility="{Binding ShowAdmitForm, Converter={StaticResource BoolToVisibility}}">
                 <StackPanel>
                     <TextBlock Style="{StaticResource SectionHeader}" Text="Record Admission"/>
-                    <TextBlock Style="{StaticResource FieldLabel}" Text="Ward / Location"/>
-                    <TextBox Text="{Binding WardLocationName, UpdateSourceTrigger=PropertyChanged}" Width="300" HorizontalAlignment="Left"/>
-                    <TextBlock Style="{StaticResource FieldLabel}" Text="Room / Bed"/>
-                    <TextBox Text="{Binding RoomBed, UpdateSourceTrigger=PropertyChanged}" Width="160" HorizontalAlignment="Left"/>
+                    <TextBlock Style="{StaticResource FieldLabel}" Text="Unit (e.g. MED-3A, ICU-1)"/>
+                    <TextBox Text="{Binding UnitId, UpdateSourceTrigger=PropertyChanged}" Width="300" HorizontalAlignment="Left"/>
+                    <TextBlock Style="{StaticResource FieldLabel}" Text="Bed (optional)"/>
+                    <TextBox Text="{Binding BedId, UpdateSourceTrigger=PropertyChanged}" Width="160" HorizontalAlignment="Left"/>
                     <TextBlock Style="{StaticResource FieldLabel}" Text="Treating Specialty"/>
                     <TextBox Text="{Binding TreatingSpecialty, UpdateSourceTrigger=PropertyChanged}" Width="300" HorizontalAlignment="Left"/>
                     <TextBlock Style="{StaticResource FieldLabel}" Text="Attending Physician"/>

@@ -436,59 +436,116 @@
     @if (activeTab == 3)
     {
         <section class="panel">
-            <h3>Nursing Unit Census</h3>
+            <h3>Unit Census</h3>
 
             <div class="lookup-bar">
-                <input type="text" @bind="unitId" placeholder="Unit ID" class="lookup-input" />
+                <input type="text" @bind="unitId" placeholder="Unit ID (e.g. MED-3A)" class="lookup-input" />
                 <button @onclick="LoadUnit" class="btn btn-primary">Load Unit</button>
             </div>
 
-            @if (unitState != null)
+            @if (unitDetail != null)
             {
                 <div class="unit-header">
-                    <strong>@unitState.UnitName</strong>
-                    @if (!string.IsNullOrEmpty(unitState.UnitType)) { <span> (@unitState.UnitType)</span> }
-                    <span> — Beds: @unitState.BedAssignments.Count(b => b.IsOccupied)/@unitState.TotalBeds occupied</span>
-                    @if (!string.IsNullOrEmpty(unitState.ChargeNurseName))
-                    { <span> | Charge: @unitState.ChargeNurseName</span> }
+                    <strong>@unitDetail.Name</strong>
+                    @if (!string.IsNullOrEmpty(unitDetail.UnitType)) { <span> (@unitDetail.UnitType)</span> }
+                    <span> — Beds: @unitDetail.Beds.Count(b => b.State == BedLifecycleState.Occupied)/@unitDetail.Beds.Count occupied</span>
+                    @if (!string.IsNullOrEmpty(unitDetail.ChargeNurseName))
+                    { <span> | Charge: @unitDetail.ChargeNurseName</span> }
+                </div>
+
+                <div class="inline-form">
+                    <strong>Charge nurse:</strong>
+                    <input @bind="chargeNurseId" placeholder="Nurse ID" style="width:120px" />
+                    <input @bind="chargeNurseName" placeholder="Nurse Name" />
+                    <button class="btn btn-primary" @onclick="SetChargeNurse" disabled="@(string.IsNullOrWhiteSpace(chargeNurseId))">Set Charge Nurse</button>
                 </div>
 
                 <table class="data-table">
-                    <thead><tr><th>Bed</th><th>Patient</th><th>Admitted</th><th>Acuity</th><th>Nurse</th><th></th></tr></thead>
+                    <thead><tr><th>Bed</th><th>Room</th><th>Status</th><th>Patient</th><th>Since</th><th>Acuity</th><th>Nurse</th><th></th></tr></thead>
                     <tbody>
-                        @foreach (NursingBedAssignmentDto b in unitState.BedAssignments.OrderBy(b => b.Bed))
+                        @foreach (InpatientBed b in unitDetail.Beds.OrderBy(b => b.BedId, StringComparer.OrdinalIgnoreCase))
                         {
-                            <tr class="@(b.IsOccupied ? "row-occupied" : "row-vacant")">
-                                <td>@b.Bed</td>
-                                <td>@(b.PatientName ?? "Vacant")</td>
-                                <td>@(b.AdmissionDateTime?.ToString("MM/dd HH:mm") ?? "—")</td>
-                                <td>@(b.AcuityLevel?.ToString() ?? "—")</td>
-                                <td>@(b.AttendingNurseName ?? "—")</td>
-                                <td>
-                                    @if (b.IsOccupied)
-                                    {
-                                        <button class="btn btn-primary" @onclick="() => DischargeFromBed(b.Bed)">Clear</button>
-                                    }
+                            var bed = b;
+                            <tr class="@(bed.State == BedLifecycleState.Occupied ? "row-occupied" : "row-vacant")">
+                                <td>@bed.BedId</td>
+                                <td>@(string.IsNullOrEmpty(bed.RoomId) ? "—" : bed.RoomId)</td>
+                                <td>@bed.State</td>
+                                <td>@(bed.PatientName ?? "Vacant")</td>
+                                <td>@(bed.OccupiedSince?.ToString("MM/dd HH:mm") ?? "—")</td>
+                                <td>@(bed.AcuityLevel?.ToString() ?? "—")</td>
+                                <td>@(bed.AttendingNurseName ?? "—")</td>
+                                <td class="bed-row-actions">
+                                    <button class="btn btn-primary" @onclick="() => StartAssignNurse(bed)">Assign nurse</button>
+                                    <button class="btn btn-primary" @onclick="() => StartSetAcuity(bed)">Set acuity</button>
                                 </td>
                             </tr>
                         }
                     </tbody>
                 </table>
+
+                @if (assignBedId != null)
+                {
+                    <div class="inline-form">
+                        <strong>Assign nurse to bed @assignBedId:</strong>
+                        <input @bind="assignNurseId" placeholder="Nurse ID" style="width:120px" />
+                        <input @bind="assignNurseName" placeholder="Nurse Name" />
+                        <button class="btn btn-primary" @onclick="ConfirmAssignNurse">Assign</button>
+                        <button @onclick="() => assignBedId = null">Cancel</button>
+                    </div>
+                }
+
+                @if (acuityBedId != null)
+                {
+                    <div class="inline-form">
+                        <strong>Set acuity for bed @acuityBedId:</strong>
+                        <select @bind="acuityLevelStr">
+                            <option value="1">1 — Minimal Care</option>
+                            <option value="2">2 — Average Care</option>
+                            <option value="3">3 — Above Average</option>
+                            <option value="4">4 — Intensive Care</option>
+                            <option value="5">5 — Critical Care</option>
+                        </select>
+                        <button class="btn btn-primary" @onclick="ConfirmSetAcuity">Set</button>
+                        <button @onclick="() => acuityBedId = null">Cancel</button>
+                    </div>
+                }
+
+                @if (unitDetail.Boarders.Count > 0)
+                {
+                    <h4>Boarders (no bed)</h4>
+                    <table class="data-table">
+                        <thead><tr><th>Patient</th><th>Admitted</th><th>Specialty</th><th>Attending</th></tr></thead>
+                        <tbody>
+                            @foreach (UnitBoarder bo in unitDetail.Boarders)
+                            {
+                                <tr>
+                                    <td>@bo.PatientName (@bo.PatientId)</td>
+                                    <td>@bo.AdmitDate.ToString("MM/dd HH:mm")</td>
+                                    <td>@(bo.TreatingSpecialty ?? "—")</td>
+                                    <td>@(bo.AttendingPhysicianName ?? "—")</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                }
             }
 
             @if (units != null)
             {
                 <h4>All Units</h4>
                 <table class="data-table">
-                    <thead><tr><th>Name</th><th>Type</th><th>Beds</th><th>Occupied</th></tr></thead>
+                    <thead><tr><th>Name</th><th>Type</th><th>Beds</th><th>Occupied</th><th>Available</th><th>Boarders</th></tr></thead>
                     <tbody>
-                        @foreach (NursingUnitEntryDto u in units)
+                        @foreach (UnitCapacitySummary u in units)
                         {
-                            <tr>
-                                <td>@u.UnitName</td>
+                            var unitRow = u;
+                            <tr style="cursor:pointer" @onclick="() => LoadUnitById(unitRow.UnitId)">
+                                <td>@u.Name</td>
                                 <td>@(u.UnitType ?? "—")</td>
                                 <td>@u.TotalBeds</td>
-                                <td>@u.OccupiedBeds</td>
+                                <td>@u.Occupied</td>
+                                <td>@u.Available</td>
+                                <td>@u.Boarders</td>
                             </tr>
                         }
                     </tbody>
@@ -529,8 +586,17 @@
     private NewAcuityForm newAcuity = new();
 
     // Unit
-    private NursingUnitStateDto? unitState;
-    private List<NursingUnitEntryDto>? units;
+    // TODO: institution picker (Phase E)
+    private const string InstitutionId = "500";
+    private InpatientUnitState? unitDetail;
+    private List<UnitCapacitySummary>? units;
+    private string chargeNurseId = string.Empty;
+    private string chargeNurseName = string.Empty;
+    private string? assignBedId;
+    private string assignNurseId = string.Empty;
+    private string assignNurseName = string.Empty;
+    private string? acuityBedId;
+    private string acuityLevelStr = "2";
 
     // ── Grain helpers ────────────────────────────────────────────────────────────
     private IPatientWorkflowGrain GetWorkflow() => Grains.GetGrain<IPatientWorkflowGrain>(patientId!.Trim());
@@ -574,9 +640,7 @@
                 acState.AcuityHistory.Select(r => new AcuityRecordDto(
                     r.RecordedDateTime, r.Level, r.Score, r.NurseId, r.NurseName, r.Shift, r.Notes)).ToList());
 
-            var unitIndex = await Grains.GetGrain<INursingUnitIndexGrain>("NURS-UNIT-IDX").GetAsync();
-            units = unitIndex.Units.Select(u => new NursingUnitEntryDto(
-                u.UnitId, u.UnitName, u.UnitType, u.TotalBeds, u.OccupiedBeds)).ToList();
+            units = await Grains.GetGrain<IBedCapacityGrain>($"BED-CAPACITY:{InstitutionId}").GetUnitsAsync();
 
             loaded = true;
         }
@@ -746,30 +810,80 @@
     }
 
     // ── Unit actions ───────────────────────────────────────────────────────────
+    // Bed placement (admit/discharge/transfer) happens only via ADT — this tab is
+    // read + nursing assignment (attending nurse, acuity, charge nurse) only.
+    private IInpatientUnitGrain UnitGrain(string id) => Grains.GetGrain<IInpatientUnitGrain>($"UNIT:{InstitutionId}:{id}");
+
     private async Task LoadUnit()
     {
         if (string.IsNullOrWhiteSpace(unitId)) return;
         error = null;
         try
         {
-            var state = await Grains.GetGrain<INursingUnitGrain>($"NURS-UNIT:{unitId}").GetAsync();
-            unitState = new NursingUnitStateDto(
-                state.UnitId, state.UnitName, state.UnitType, state.TotalBeds,
-                state.BedAssignments.Select(b => new NursingBedAssignmentDto(
-                    b.Bed, b.PatientId, b.PatientName, b.AdmissionDateTime,
-                    b.AcuityLevel, b.IsOccupied, b.AttendingNurseId, b.AttendingNurseName)).ToList(),
-                state.ChargeNurseId, state.ChargeNurseName);
+            unitDetail = await UnitGrain(unitId.Trim()).GetAsync();
+            chargeNurseId = unitDetail.ChargeNurseId ?? string.Empty;
+            chargeNurseName = unitDetail.ChargeNurseName ?? string.Empty;
+            assignBedId = null; acuityBedId = null;
         }
         catch (Exception ex) { error = $"Error: {ex.Message}"; }
     }
 
-    private async Task DischargeFromBed(string bed)
+    private async Task LoadUnitById(string id)
     {
+        unitId = id;
+        await LoadUnit();
+    }
+
+    private void StartAssignNurse(InpatientBed bed)
+    {
+        assignBedId = bed.BedId; acuityBedId = null;
+        assignNurseId = bed.AttendingNurseId ?? string.Empty;
+        assignNurseName = bed.AttendingNurseName ?? string.Empty;
+    }
+
+    private async Task ConfirmAssignNurse()
+    {
+        if (assignBedId == null || unitDetail == null) return;
         error = null;
         try
         {
-            await Grains.GetGrain<INursingUnitGrain>($"NURS-UNIT:{unitId}").DischargeFromBedAsync(bed);
-            success = $"Bed {bed} cleared."; await LoadUnit();
+            await UnitGrain(unitDetail.UnitId).AssignBedNurseAsync(assignBedId,
+                string.IsNullOrWhiteSpace(assignNurseId) ? null : assignNurseId.Trim(),
+                string.IsNullOrWhiteSpace(assignNurseName) ? null : assignNurseName.Trim());
+            success = $"Nurse assigned to bed {assignBedId}."; assignBedId = null;
+            unitDetail = await UnitGrain(unitDetail.UnitId).GetAsync();
+        }
+        catch (Exception ex) { error = $"Error: {ex.Message}"; }
+    }
+
+    private void StartSetAcuity(InpatientBed bed)
+    {
+        acuityBedId = bed.BedId; assignBedId = null;
+        acuityLevelStr = bed.AcuityLevel.HasValue && (int)bed.AcuityLevel.Value >= 1 ? ((int)bed.AcuityLevel.Value).ToString() : "2";
+    }
+
+    private async Task ConfirmSetAcuity()
+    {
+        if (acuityBedId == null || unitDetail == null) return;
+        error = null;
+        try
+        {
+            await UnitGrain(unitDetail.UnitId).UpdateBedAcuityAsync(acuityBedId, (AcuityLevel)int.Parse(acuityLevelStr));
+            success = $"Acuity updated for bed {acuityBedId}."; acuityBedId = null;
+            unitDetail = await UnitGrain(unitDetail.UnitId).GetAsync();
+        }
+        catch (Exception ex) { error = $"Error: {ex.Message}"; }
+    }
+
+    private async Task SetChargeNurse()
+    {
+        if (unitDetail == null || string.IsNullOrWhiteSpace(chargeNurseId)) return;
+        error = null;
+        try
+        {
+            await UnitGrain(unitDetail.UnitId).SetChargeNurseAsync(chargeNurseId.Trim(), chargeNurseName.Trim());
+            success = "Charge nurse set.";
+            unitDetail = await UnitGrain(unitDetail.UnitId).GetAsync();
         }
         catch (Exception ex) { error = $"Error: {ex.Message}"; }
     }
@@ -884,19 +998,6 @@
         DateTime RecordedDateTime, AcuityLevel Level, int? Score,
         string? NurseId, string? NurseName, string? Shift, string? Notes);
 
-    private record NursingUnitStateDto(
-        string UnitId, string UnitName, string? UnitType, int TotalBeds,
-        List<NursingBedAssignmentDto> BedAssignments,
-        string? ChargeNurseId, string? ChargeNurseName);
-
-    private record NursingBedAssignmentDto(
-        string Bed, string? PatientId, string? PatientName, DateTime? AdmissionDateTime,
-        AcuityLevel? AcuityLevel, bool IsOccupied,
-        string? AttendingNurseId, string? AttendingNurseName);
-
-    private record NursingUnitEntryDto(
-        string UnitId, string UnitName, string? UnitType, int TotalBeds, int OccupiedBeds);
-
     private record AddDxResult(string ProblemId);
 
 }
@@ -924,5 +1025,7 @@
     .acuity-4 { background: #fdebd0; color: #935116; }
     .acuity-5 { background: #fadbd8; color: #922b21; }
     .unit-header { font-size: 1rem; margin-bottom: .5rem; }
+    .bed-row-actions { white-space: nowrap; }
+    .bed-row-actions .btn { padding: .2rem .5rem; font-size: .72rem; margin-right: .25rem; }
     .inline-form { display: flex; gap: .5rem; align-items: center; flex-wrap: wrap; margin-top: .5rem; }
 </style>

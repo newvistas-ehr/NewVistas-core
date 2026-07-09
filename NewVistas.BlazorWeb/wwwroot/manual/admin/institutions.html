@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Institutions — Administrator Manual — NewVistas</title>
+  <link rel="stylesheet" href="../assets/css/manual.css" />
+</head>
+<body>
+  <div class="topbar">
+    <div class="brand"><a href="../index.html">NewVistas</a> <span>· User Manual</span></div>
+    <div class="role-pill">⚙️ Administrator</div>
+  </div>
+
+  <div class="layout">
+    <nav class="sidebar">
+      <div class="section">Administrator Manual</div>
+      <a href="index.html">Overview</a>
+      <a href="getting-started.html">Getting Started</a>
+      <div class="section">Administration</div>
+      <a href="adt.html">ADT</a>
+      <a href="bed-board.html">Bed Board</a>
+      <a href="transfer-center.html">Transfer Center</a>
+      <a href="institutions.html" class="active">Institutions</a>
+      <a href="registration.html">Registration</a>
+      <a href="patient-merge.html">Patient Merge</a>
+      <a href="means-test.html">Means Test</a>
+      <a href="sc-conditions.html">SC Conditions</a>
+      <a href="prosthetics.html">Prosthetics</a>
+      <a href="security-keys.html">Security Keys</a>
+      <a href="site-parameters.html">Site Parameters</a>
+      <div class="section">&nbsp;</div>
+      <a href="../index.html">← All roles</a>
+    </nav>
+
+    <main class="content" data-flag="BED_MANAGEMENT">
+      <div class="crumb"><a href="../index.html">Manual</a> › <a href="index.html">Administrator</a> › Institutions</div>
+      <h1>Institutions — the facility directory</h1>
+      <p class="lead">
+        An <strong>institution</strong> is a facility in the deployment — a hospital,
+        critical-access hospital, clinic, rehab, or CLC (VistA FILE #4). Institutions are
+        what units, beds, ADT movements, and transfers hang off of, and grouping several
+        of them under one <strong>health system</strong> (e.g. BILH) is what makes the
+        <a href="transfer-center.html">Transfer Center</a> and system-wide capacity
+        possible. Creating and editing institutions requires the <code>XUMGR</code> key.
+      </p>
+
+      <h2>Open the directory</h2>
+      <ol class="steps">
+        <li>In the sidebar, under <strong>System Admin</strong>, click <kbd>Institutions</kbd> (or go to <code>/admin/institutions</code>).</li>
+        <li>The list shows every institution — active and inactive — with its health system, type, city, active flag, whether it accepts inbound transfers, and its capability chips.</li>
+      </ol>
+
+      <figure class="shot">
+        <img src="../assets/img/admin/institutions.png" alt="Institutions admin list with the BILH health-system hospitals and a new/edit form" />
+        <figcaption>The Institutions directory — the home institution (500) plus the BILH health system (Lahey Burlington, Lawrence General, and a small clinic), with the create/edit form.</figcaption>
+      </figure>
+
+      <h2>Add or edit an institution</h2>
+      <ol class="steps">
+        <li>Click <kbd>New institution</kbd> (or <kbd>Edit</kbd> on a row).</li>
+        <li>Set the <strong>Id</strong> (canonical, used everywhere — e.g. <code>LAWRENCE-GENERAL</code>), <strong>Name</strong>, and <strong>Type</strong>.</li>
+        <li>Optionally set the <strong>Health system</strong> id + name (the grouping — e.g. <code>BILH</code> / Beth Israel Lahey Health), station number, and address.</li>
+        <li>Tick the <strong>Capabilities</strong> the site has (ICU, Telemetry, Peds, NICU, OB, Behavioral, Rehab, ED) — the Transfer Center uses these to filter placement targets.</li>
+        <li>Leave <strong>Accepts inbound transfers</strong> on unless the site is on diversion; toggle <strong>Active</strong> to retire a site.</li>
+        <li>Save.</li>
+      </ol>
+
+      <div class="callout note">
+        <span class="ct">Legacy facility names still resolve</span>
+        The home institution <code>500</code> lists legacy aliases (<code>MAIN</code>,
+        <code>INST-500</code>) so records written before institutions were first-class
+        still resolve to it — you don't have to migrate old data.
+      </div>
+
+      <h2>Health systems &amp; system-wide capacity</h2>
+      <p>
+        A health system is a plain grouping field, not a separate record — several
+        institutions simply share a <code>HealthSystemId</code>. That grouping is what a
+        transfer coordinator sees when placing a patient: the system-wide capacity view and
+        the Transfer Center's placement-target search fan out across the institutions in a
+        health system and show only those with a real, placeable bed of the requested kind.
+      </p>
+
+      <div class="callout safety">
+        <span class="ct">Set units and beds up next</span>
+        Registering an institution is step one. Its inpatient capacity comes from its
+        <a href="bed-board.html">units and beds</a> — a hospital gets several units with
+        rooms; a small clinic gets one unit with a handful of bed-only beds. Until a unit
+        exists there, ADT admissions to that institution will report an unknown-unit error.
+      </div>
+
+      <footer>NewVistas User Manual · Administrator · Institutions</footer>
+    </main>
+  </div>
+  <script src="../assets/js/editions.js"></script>
+</body>
+</html>

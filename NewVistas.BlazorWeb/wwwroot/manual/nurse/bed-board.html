@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Bed Board — Nurse Manual — NewVistas</title>
+  <link rel="stylesheet" href="../assets/css/manual.css" />
+</head>
+<body>
+  <div class="topbar">
+    <div class="brand"><a href="../index.html">NewVistas</a> <span>· User Manual</span></div>
+    <div class="role-pill">🩹 Nurse</div>
+  </div>
+
+  <div class="layout">
+    <nav class="sidebar">
+      <div class="section">Nurse Manual</div>
+      <a href="index.html">Overview</a>
+      <a href="getting-started.html">Getting Started</a>
+      <div class="section">Workflows</div>
+      <a href="vital-signs.html">Vital Signs</a>
+      <a href="pain-assessment.html">Pain Assessment</a>
+      <a href="nursing-assessment.html">Nursing Assessment</a>
+      <a href="care-plan.html">Care Plan</a>
+      <a href="triage.html">Triage</a>
+      <a href="task-worklist.html">Task Worklist</a>
+      <a href="bcma.html">BCMA</a>
+      <a href="shift-handoff.html">Shift Handoff</a>
+      <div class="section">Inpatient</div>
+      <a href="bed-board.html" class="active">Bed Board</a>
+      <a href="transfer-center.html">Transfer Center</a>
+      <div class="section">&nbsp;</div>
+      <a href="../index.html">← All roles</a>
+    </nav>
+
+    <main class="content" data-flag="BED_MANAGEMENT">
+      <div class="crumb"><a href="../index.html">Manual</a> › <a href="index.html">Nurse</a> › Bed Board</div>
+      <h1>Bed Board &amp; EVS turnover</h1>
+      <p class="lead">
+        The Bed Board (<code>/beds</code>) shows every bed on the floor at a glance —
+        who's placeable, who's occupied, and which beds are waiting to be cleaned. As a
+        nurse you'll use it to see your unit's state and to turn beds over after a
+        discharge. Reading the board is open to any clinical user; the EVS and bed-status
+        actions need the <code>DG BED CONTROL</code> key — your <code>ORELSE</code> key
+        also covers the clean/dirty flips, so you can turn a bed without extra access.
+      </p>
+
+      <h2>Open the board and find your unit</h2>
+      <ol class="steps">
+        <li>In the sidebar, under <strong>Inpatient</strong>, click <kbd>Bed Board</kbd> (or go to <code>/beds</code>).</li>
+        <li>Check the <strong>Institution</strong> picker at the top (defaults to your hospital), then click your unit's card to open its board.</li>
+      </ol>
+
+      <figure class="shot">
+        <img src="../assets/img/nurse/bed-board.png" alt="Bed Board — institution stats strip and per-unit capacity cards" />
+        <figcaption>The Bed Board — the capacity stats strip and a card per unit. Only <strong>Available</strong> beds are placeable; dirty, blocked, and out-of-service beds are empty but not free.</figcaption>
+      </figure>
+
+      <h2>Read the bed grid</h2>
+      <p>
+        Inside a unit, beds are grouped by room (a small unit with no rooms shows a flat
+        list). Each bed is a colored card:
+      </p>
+      <ul>
+        <li><strong>Green — Available</strong> (placeable)</li>
+        <li><strong>Blue — Occupied</strong> (shows the patient)</li>
+        <li><strong>Amber — Reserved</strong> (held for an incoming patient)</li>
+        <li><strong>Orange — Dirty</strong> / <strong>Teal — Cleaning</strong> (EVS turnover)</li>
+        <li><strong>Gray — Blocked / Out of Service</strong> (with a reason)</li>
+      </ul>
+
+      <h2>Turn a bed over (EVS)</h2>
+      <p>
+        When a patient is discharged or transferred out, their bed becomes
+        <strong>Dirty</strong> automatically — it never jumps straight back to Available.
+        Turn it over:
+      </p>
+      <ol class="steps">
+        <li>On the <strong>Dirty</strong> bed, click <kbd>Start cleaning</kbd> → it shows <strong>Cleaning</strong>.</li>
+        <li>When it's ready, click <kbd>Mark clean</kbd> → it becomes <strong>Available</strong> for the next patient.</li>
+      </ol>
+      <div class="callout tip">
+        <span class="ct">One-click turnover</span>
+        <kbd>Mark clean</kbd> works straight from Dirty, so if you've already cleaned the
+        bed you can skip the Cleaning step. Use <kbd>Mark dirty</kbd> if an Available bed
+        needs re-cleaning (a spill, a contamination).
+      </div>
+
+      <h2>Block or take a bed down</h2>
+      <ol class="steps">
+        <li><kbd>Block…</kbd> holds a bed out for a reason (isolation buffer, staffing). A reason is required. <kbd>Unblock</kbd> frees it.</li>
+        <li><kbd>Out of service…</kbd> flags a bed for maintenance; <kbd>Return to service</kbd> sends it to <strong>Dirty</strong> so it's cleaned before reuse.</li>
+        <li>You can't block or down an occupied or reserved bed — the patient or reservation has to clear first.</li>
+      </ol>
+
+      <div class="callout note">
+        <span class="ct">EVS Queue tab</span>
+        The <strong>EVS Queue</strong> tab lists every dirty and cleaning bed across the
+        whole hospital in one place — oldest first, with isolation precautions — so
+        housekeeping can work the list top to bottom.
+      </div>
+
+      <div class="callout safety">
+        <span class="ct">Admitting a patient is an ADT action</span>
+        The board is for bed <em>condition</em>. Putting a patient <em>into</em> a bed
+        (admission, transfer, discharge) is done by admitting staff through ADT, or across
+        hospitals through the <a href="transfer-center.html">Transfer Center</a>. That's
+        what keeps the board and the unit census in agreement.
+      </div>
+
+      <footer>NewVistas User Manual · Nurse · Bed Board</footer>
+    </main>
+  </div>
+  <script src="../assets/js/editions.js"></script>
+</body>
+</html>

@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Transfer Center — Nurse Manual — NewVistas</title>
+  <link rel="stylesheet" href="../assets/css/manual.css" />
+</head>
+<body>
+  <div class="topbar">
+    <div class="brand"><a href="../index.html">NewVistas</a> <span>· User Manual</span></div>
+    <div class="role-pill">🩹 Nurse</div>
+  </div>
+
+  <div class="layout">
+    <nav class="sidebar">
+      <div class="section">Nurse Manual</div>
+      <a href="index.html">Overview</a>
+      <a href="getting-started.html">Getting Started</a>
+      <div class="section">Workflows</div>
+      <a href="vital-signs.html">Vital Signs</a>
+      <a href="pain-assessment.html">Pain Assessment</a>
+      <a href="nursing-assessment.html">Nursing Assessment</a>
+      <a href="care-plan.html">Care Plan</a>
+      <a href="triage.html">Triage</a>
+      <a href="task-worklist.html">Task Worklist</a>
+      <a href="bcma.html">BCMA</a>
+      <a href="shift-handoff.html">Shift Handoff</a>
+      <div class="section">Inpatient</div>
+      <a href="bed-board.html">Bed Board</a>
+      <a href="transfer-center.html" class="active">Transfer Center</a>
+      <div class="section">&nbsp;</div>
+      <a href="../index.html">← All roles</a>
+    </nav>
+
+    <main class="content" data-flag="BED_MANAGEMENT">
+      <div class="crumb"><a href="../index.html">Manual</a> › <a href="index.html">Nurse</a> › Transfer Center</div>
+      <h1>Transfer Center — accepting a patient from another hospital</h1>
+      <p class="lead">
+        When another hospital in the health system needs to send you a patient, their
+        request lands in <em>your</em> Transfer Center (<code>/transfer-center</code>).
+        You accept it by reserving one of your unit's beds, then confirm the patient's
+        arrival — which admits them onto your floor. Transfer actions require the
+        <code>DG BED CONTROL</code> key.
+      </p>
+
+      <div class="callout note">
+        <span class="ct">Only with more than one hospital</span>
+        The Transfer Center (and its nav link) appears only when the deployment has more
+        than one institution — there's nowhere to transfer to otherwise.
+      </div>
+
+      <h2>Work your incoming queue</h2>
+      <ol class="steps">
+        <li>Open <code>/transfer-center</code> and set the <strong>Institution</strong> picker to your hospital.</li>
+        <li>On the <strong>Incoming</strong> tab, click a <strong>REQUESTED</strong> row to read the clinical summary, reason, requested level of care, and urgency (EMERGENT / URGENT / ROUTINE).</li>
+      </ol>
+
+      <figure class="shot">
+        <img src="../assets/img/nurse/transfer-center.png" alt="Transfer Center incoming queue with an urgent request and the accept bed-picker open" />
+        <figcaption>An incoming transfer — an URGENT request from another hospital, with the inline Accept panel where you pick the unit and bed.</figcaption>
+      </figure>
+
+      <h2>Accept and place the patient</h2>
+      <ol class="steps">
+        <li>Click <kbd>Accept…</kbd>. Choose a <strong>Unit</strong>, then a <strong>Bed</strong> — beds matching the requested type are starred and listed first.</li>
+        <li>Click <kbd>Confirm accept</kbd>. The bed becomes <strong>Reserved</strong> for that patient on your Bed Board.</li>
+        <li>When the patient physically arrives, click <kbd>Complete arrival…</kbd> and <kbd>Confirm arrival</kbd>. The patient is admitted into the reserved bed and now appears in your unit census.</li>
+      </ol>
+      <div class="callout tip">
+        <span class="ct">If the bed slips away</span>
+        If the bed you reserved is no longer usable when the patient arrives, use
+        <kbd>Reassign bed…</kbd> to reserve a different one, then complete the arrival.
+      </div>
+
+      <h2>Decline</h2>
+      <p>
+        If your unit can't take the patient, click <kbd>Decline…</kbd> on the REQUESTED
+        row and give a reason (e.g. <em>no telemetry capacity tonight</em>). Nothing is
+        reserved on a declined request, so nothing needs releasing.
+      </p>
+
+      <div class="callout safety">
+        <span class="ct">You control your own beds</span>
+        A transfer is only a <em>request</em> until you accept it. The sending hospital
+        can't put a patient in your bed — you choose the bed, and the patient isn't on
+        your census until you confirm they've arrived.
+      </div>
+
+      <footer>NewVistas User Manual · Nurse · Transfer Center</footer>
+    </main>
+  </div>
+  <script src="../assets/js/editions.js"></script>
+</body>
+</html>

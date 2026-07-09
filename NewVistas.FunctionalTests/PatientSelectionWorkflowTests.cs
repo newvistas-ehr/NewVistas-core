@@ -41,8 +41,28 @@ public class PatientSelectionWorkflowTests
     private IProviderPatientIndexGrain GetProviderIndex(string providerId) =>
         _cluster.GrainFactory.GetGrain<IProviderPatientIndexGrain>($"PROV-PAT-IDX:{providerId}");
 
-    private IWardCensusGrain GetWardCensus(string wardId) =>
-        _cluster.GrainFactory.GetGrain<IWardCensusGrain>($"WARD-CENSUS:{wardId}");
+    /// <summary>Fresh, isolated inpatient unit with beds B1..Bn — the census lives on the unit.</summary>
+    private async Task<(string Inst, string UnitId, IInpatientUnitGrain Grain)> NewUnitAsync(int beds = 4)
+    {
+        string inst = $"INST-{Guid.NewGuid():N}";
+        string unitId = $"U-{Guid.NewGuid():N}";
+        var unit = _cluster.GrainFactory.GetGrain<IInpatientUnitGrain>($"UNIT:{inst}:{unitId}");
+        await unit.ConfigureUnitAsync("Selection Test Unit", "MedSurg", "Internal Medicine");
+        for (int i = 1; i <= beds; i++)
+            await unit.AddBedAsync($"B{i}", null, BedType.Regular);
+        return (inst, unitId, unit);
+    }
+
+    private static UnitAdmissionRequest Admission(string patientId, string patientName, string bedId) => new()
+    {
+        PatientId = patientId,
+        PatientName = patientName,
+        MovementId = $"ADT-{Guid.NewGuid()}",
+        BedId = bedId,
+        AdmitDate = DateTime.UtcNow,
+        TreatingSpecialty = "INTERNAL MEDICINE",
+        AttendingPhysicianName = "DOCTOR,ATTENDING MD"
+    };
 
     private INewPersonGrain GetNewPerson(string userId) =>
         _cluster.GrainFactory.GetGrain<INewPersonGrain>(userId);
@@ -262,59 +282,38 @@ public class PatientSelectionWorkflowTests
     // ════════════════════════════════════════════════════════════════════════
 
     [Test]
-    public async Task WardCensus_AddPatient_AppearsInCensus()
+    public async Task WardCensus_AdmitPatient_AppearsInCensus()
     {
         // Arrange
-        string wardId = $"WARD-PSEL-{Guid.NewGuid()}";
+        var (_, _, unit) = await NewUnitAsync();
         string patientId = $"PAT-PSEL-{Guid.NewGuid()}";
-        IWardCensusGrain census = GetWardCensus(wardId);
 
-        WardCensusEntry entry = new()
-        {
-            PatientId = patientId,
-            PatientName = "CENSUS,PATIENT A",
-            AdmissionId = $"ADM-{Guid.NewGuid()}",
-            AdmitDate = DateTime.UtcNow.AddDays(-2),
-            RoomBed = "301-A",
-            TreatingSpecialty = "INTERNAL MEDICINE",
-            AttendingPhysicianName = "DOCTOR,ATTENDING MD",
-            LastMovementDate = DateTime.UtcNow
-        };
-
-        // Act
-        await census.AddOrUpdatePatientAsync(entry);
+        // Act — the admission itself puts the patient on the unit census (projection of bed truth)
+        await unit.AdmitPatientAsync(Admission(patientId, "CENSUS,PATIENT A", "B1"));
 
         // Assert
-        List<WardCensusEntry> patients = await census.GetCensusAsync();
+        List<UnitCensusEntry> patients = await unit.GetCensusAsync();
         Assert.That(patients, Has.Count.EqualTo(1));
         Assert.That(patients[0].PatientId, Is.EqualTo(patientId));
         Assert.That(patients[0].PatientName, Is.EqualTo("CENSUS,PATIENT A"));
-        Assert.That(patients[0].RoomBed, Is.EqualTo("301-A"));
+        Assert.That(patients[0].BedId, Is.EqualTo("B1"));
+        Assert.That(patients[0].TreatingSpecialty, Is.EqualTo("INTERNAL MEDICINE"));
+        Assert.That(patients[0].AttendingPhysicianName, Is.EqualTo("DOCTOR,ATTENDING MD"));
     }
 
     [Test]
-    public async Task WardCensus_RemovePatient_DisappearsFromCensus()
+    public async Task WardCensus_ReleasePatient_DisappearsFromCensus()
     {
         // Arrange
-        string wardId = $"WARD-PSEL-{Guid.NewGuid()}";
+        var (_, _, unit) = await NewUnitAsync();
         string patientId = $"PAT-PSEL-{Guid.NewGuid()}";
-        IWardCensusGrain census = GetWardCensus(wardId);
-
-        await census.AddOrUpdatePatientAsync(new WardCensusEntry
-        {
-            PatientId = patientId,
-            PatientName = "DISCHARGE,PATIENT",
-            AdmissionId = $"ADM-{Guid.NewGuid()}",
-            AdmitDate = DateTime.UtcNow.AddDays(-5),
-            RoomBed = "402-B",
-            LastMovementDate = DateTime.UtcNow
-        });
+        await unit.AdmitPatientAsync(Admission(patientId, "DISCHARGE,PATIENT", "B2"));
 
         // Act
-        await census.RemovePatientAsync(patientId);
+        await unit.ReleasePatientAsync(patientId, $"ADT-{Guid.NewGuid()}");
 
         // Assert
-        List<WardCensusEntry> patients = await census.GetCensusAsync();
+        List<UnitCensusEntry> patients = await unit.GetCensusAsync();
         Assert.That(patients, Has.Count.EqualTo(0));
     }
 
@@ -322,61 +321,38 @@ public class PatientSelectionWorkflowTests
     public async Task WardCensus_PatientCount_MatchesCensus()
     {
         // Arrange
-        string wardId = $"WARD-PSEL-{Guid.NewGuid()}";
-        IWardCensusGrain census = GetWardCensus(wardId);
+        var (_, _, unit) = await NewUnitAsync();
 
         for (int i = 0; i < 3; i++)
         {
-            await census.AddOrUpdatePatientAsync(new WardCensusEntry
-            {
-                PatientId = $"PAT-PSEL-{Guid.NewGuid()}",
-                PatientName = $"COUNT,PATIENT {i}",
-                AdmissionId = $"ADM-{Guid.NewGuid()}",
-                AdmitDate = DateTime.UtcNow.AddDays(-i),
-                RoomBed = $"50{i}-A",
-                LastMovementDate = DateTime.UtcNow
-            });
+            await unit.AdmitPatientAsync(Admission(
+                $"PAT-PSEL-{Guid.NewGuid()}", $"COUNT,PATIENT {i}", $"B{i + 1}"));
         }
 
         // Act
-        int count = await census.GetPatientCountAsync();
+        List<UnitCensusEntry> census = await unit.GetCensusAsync();
+        UnitCapacitySummary summary = await unit.GetCapacitySummaryAsync();
 
         // Assert
-        Assert.That(count, Is.EqualTo(3));
+        Assert.That(census, Has.Count.EqualTo(3));
+        Assert.That(summary.Occupied, Is.EqualTo(3));
     }
 
     [Test]
-    public async Task WardCensus_MultipleWards_IndependentCensus()
+    public async Task WardCensus_MultipleUnits_IndependentCensus()
     {
         // Arrange
-        string wardId1 = $"WARD-PSEL-{Guid.NewGuid()}";
-        string wardId2 = $"WARD-PSEL-{Guid.NewGuid()}";
+        var (_, _, unit1) = await NewUnitAsync();
+        var (_, _, unit2) = await NewUnitAsync();
         string patientA = $"PAT-PSEL-{Guid.NewGuid()}";
         string patientB = $"PAT-PSEL-{Guid.NewGuid()}";
 
-        await GetWardCensus(wardId1).AddOrUpdatePatientAsync(new WardCensusEntry
-        {
-            PatientId = patientA,
-            PatientName = "WARD1,ONLY",
-            AdmissionId = $"ADM-{Guid.NewGuid()}",
-            AdmitDate = DateTime.UtcNow.AddDays(-1),
-            RoomBed = "101-A",
-            LastMovementDate = DateTime.UtcNow
-        });
-
-        await GetWardCensus(wardId2).AddOrUpdatePatientAsync(new WardCensusEntry
-        {
-            PatientId = patientB,
-            PatientName = "WARD2,ONLY",
-            AdmissionId = $"ADM-{Guid.NewGuid()}",
-            AdmitDate = DateTime.UtcNow.AddDays(-1),
-            RoomBed = "201-B",
-            LastMovementDate = DateTime.UtcNow
-        });
+        await unit1.AdmitPatientAsync(Admission(patientA, "WARD1,ONLY", "B1"));
+        await unit2.AdmitPatientAsync(Admission(patientB, "WARD2,ONLY", "B2"));
 
         // Act
-        List<WardCensusEntry> ward1 = await GetWardCensus(wardId1).GetCensusAsync();
-        List<WardCensusEntry> ward2 = await GetWardCensus(wardId2).GetCensusAsync();
+        List<UnitCensusEntry> ward1 = await unit1.GetCensusAsync();
+        List<UnitCensusEntry> ward2 = await unit2.GetCensusAsync();
 
         // Assert
         Assert.That(ward1, Has.Count.EqualTo(1));

@@ -23,12 +23,34 @@ public class RegistrationEnhancedWorkflowTests
         => _cluster.GrainFactory.GetGrain<IAdvanceDirectiveGrain>($"ADV-DIR:{pid}");
     private IIdentityVerificationGrain NewIdentity(string pid)
         => _cluster.GrainFactory.GetGrain<IIdentityVerificationGrain>($"IDENTITY:{pid}");
-    private IBedGrain NewBed(string facilityId, string bedId)
-        => _cluster.GrainFactory.GetGrain<IBedGrain>($"BED:{facilityId}:{bedId}");
-    private IBedBoardGrain BedBoard(string facilityId)
-        => _cluster.GrainFactory.GetGrain<IBedBoardGrain>($"BED-BOARD:{facilityId}");
     private IPatientWorkflowGrain WF(string pid)
         => _cluster.GrainFactory.GetGrain<IPatientWorkflowGrain>(pid);
+
+    private IInpatientUnitGrain Unit(string institutionId, string unitId)
+        => _cluster.GrainFactory.GetGrain<IInpatientUnitGrain>($"UNIT:{institutionId}:{unitId}");
+
+    private IBedCapacityGrain Capacity(string institutionId)
+        => _cluster.GrainFactory.GetGrain<IBedCapacityGrain>($"BED-CAPACITY:{institutionId}");
+
+    /// <summary>Fresh, isolated unit in its own institution (no rooms).</summary>
+    private async Task<(string Inst, string UnitId, IInpatientUnitGrain Grain)> NewUnitAsync(
+        string name = "Med-Surg")
+    {
+        string inst = $"INST-{Guid.NewGuid():N}";
+        string unitId = $"U-{Guid.NewGuid():N}";
+        IInpatientUnitGrain unit = Unit(inst, unitId);
+        await unit.ConfigureUnitAsync(name, "MedSurg", null);
+        return (inst, unitId, unit);
+    }
+
+    private static UnitAdmissionRequest Admission(string patientId, string patientName, string bedId) => new()
+    {
+        PatientId = patientId,
+        PatientName = patientName,
+        MovementId = $"ADT-{Guid.NewGuid()}",
+        BedId = bedId,
+        AdmitDate = DateTime.UtcNow
+    };
 
     // ─── Advance Directives ──────────────────────────────────────────────────
 
@@ -124,59 +146,54 @@ public class RegistrationEnhancedWorkflowTests
     // ─── Bed Availability ────────────────────────────────────────────────────
 
     [Test]
-    public async Task BedBoard_AddAvailableBed_AppearsInAvailable()
+    public async Task BedAvailability_AddedBed_AppearsInAvailable()
     {
-        string facility = $"FAC-{Guid.NewGuid():N}";
-        IBedBoardGrain board = BedBoard(facility);
-        await board.AddOrUpdateBedAsync(new BedSummaryEntry
-        {
-            BedId = "MED-101-A", WardId = "WARD-MED", WardName = "Med-Surg",
-            RoomNumber = "101", BedPosition = "A", Status = "AVAILABLE", BedType = "REGULAR",
-        });
-        List<BedSummaryEntry> available = await board.GetAvailableBedsAsync();
+        var (inst, _, unit) = await NewUnitAsync();
+        await unit.AddBedAsync("MED-101-A", null, BedType.Regular);
+
+        string pid = $"PAT-REG-BA-{Guid.NewGuid()}";
+        List<InpatientBed> available = await WF(pid).FindAvailableBedsAsync(inst, null, null);
         Assert.That(available.Any(b => b.BedId == "MED-101-A"), Is.True);
     }
 
     [Test]
-    public async Task BedBoard_OccupiedBed_NotInAvailable()
+    public async Task BedAvailability_OccupiedBed_NotInAvailable()
     {
-        string facility = $"FAC-{Guid.NewGuid():N}";
-        IBedBoardGrain board = BedBoard(facility);
-        await board.AddOrUpdateBedAsync(new BedSummaryEntry
-        {
-            BedId = "MED-102-A", WardId = "WARD-MED", WardName = "Med-Surg",
-            Status = "OCCUPIED", BedType = "REGULAR", PatientName = "SMITH,JOHN",
-        });
-        List<BedSummaryEntry> available = await board.GetAvailableBedsAsync();
+        var (inst, _, unit) = await NewUnitAsync();
+        await unit.AddBedAsync("MED-102-A", null, BedType.Regular);
+        await unit.AdmitPatientAsync(Admission($"PAT-{Guid.NewGuid()}", "SMITH,JOHN", "MED-102-A"));
+
+        string pid = $"PAT-REG-BA2-{Guid.NewGuid()}";
+        List<InpatientBed> available = await WF(pid).FindAvailableBedsAsync(inst, null, null);
         Assert.That(available.Any(b => b.BedId == "MED-102-A"), Is.False);
     }
 
     [Test]
-    public async Task BedBoard_Counts_ReturnCorrectNumbers()
+    public async Task BedAvailability_Counts_ReturnCorrectNumbers()
     {
-        string facility = $"FAC-{Guid.NewGuid():N}";
-        IBedBoardGrain board = BedBoard(facility);
-        await board.AddOrUpdateBedAsync(new BedSummaryEntry { BedId = $"B1-{facility[..8]}", Status = "AVAILABLE", BedType = "REGULAR" });
-        await board.AddOrUpdateBedAsync(new BedSummaryEntry { BedId = $"B2-{facility[..8]}", Status = "AVAILABLE", BedType = "ICU" });
-        await board.AddOrUpdateBedAsync(new BedSummaryEntry { BedId = $"B3-{facility[..8]}", Status = "OCCUPIED", BedType = "REGULAR" });
-        int total = await board.GetTotalBedCountAsync();
-        int avail = await board.GetAvailableBedCountAsync();
-        int occ = await board.GetOccupiedBedCountAsync();
-        Assert.That(total, Is.GreaterThanOrEqualTo(3));
-        Assert.That(avail, Is.GreaterThanOrEqualTo(2));
-        Assert.That(occ, Is.GreaterThanOrEqualTo(1));
+        var (inst, _, unit) = await NewUnitAsync();
+        await unit.AddBedAsync("B1", null, BedType.Regular);
+        await unit.AddBedAsync("B2", null, BedType.Icu);
+        await unit.AddBedAsync("B3", null, BedType.Regular);
+        await unit.AdmitPatientAsync(Admission($"PAT-{Guid.NewGuid()}", "COUNT,PATIENT", "B3"));
+
+        (int total, int avail, int occ) = await WF($"PAT-REG-BA3-{Guid.NewGuid()}").GetBedCountsAsync(inst);
+        Assert.That(total, Is.EqualTo(3));
+        Assert.That(avail, Is.EqualTo(2));
+        Assert.That(occ, Is.EqualTo(1));
     }
 
     [Test]
-    public async Task BedBoard_FilterByType_ReturnsTyped()
+    public async Task BedAvailability_FilterByType_ReturnsTyped()
     {
-        string facility = $"FAC-{Guid.NewGuid():N}";
-        IBedBoardGrain board = BedBoard(facility);
-        string icuBedId = $"ICU-{facility[..8]}";
-        await board.AddOrUpdateBedAsync(new BedSummaryEntry { BedId = icuBedId, Status = "AVAILABLE", BedType = "ICU" });
-        await board.AddOrUpdateBedAsync(new BedSummaryEntry { BedId = $"REG-{facility[..8]}", Status = "AVAILABLE", BedType = "REGULAR" });
-        List<BedSummaryEntry> icu = await board.GetAvailableBedsByTypeAsync("ICU");
-        Assert.That(icu.Any(b => b.BedId == icuBedId), Is.True);
+        var (inst, _, unit) = await NewUnitAsync();
+        await unit.AddBedAsync("ICU-1", null, BedType.Icu);
+        await unit.AddBedAsync("REG-1", null, BedType.Regular);
+
+        List<InpatientBed> icu = await WF($"PAT-REG-BA4-{Guid.NewGuid()}")
+            .FindAvailableBedsAsync(inst, null, BedType.Icu);
+        Assert.That(icu.Any(b => b.BedId == "ICU-1"), Is.True);
+        Assert.That(icu.Any(b => b.BedId == "REG-1"), Is.False);
     }
 
     // ─── Workflow Integration ────────────────────────────────────────────────
@@ -227,11 +244,12 @@ public class RegistrationEnhancedWorkflowTests
     public async Task Workflow_FindAvailableBeds_ReturnsAvailable()
     {
         string pid = $"PAT-REG-WF5-{Guid.NewGuid()}";
-        string fac = $"FAC-WF-{Guid.NewGuid():N}";
-        IBedBoardGrain board = _cluster.GrainFactory.GetGrain<IBedBoardGrain>($"BED-BOARD:{fac}");
-        await board.AddOrUpdateBedAsync(new BedSummaryEntry { BedId = "WF-BED-1", Status = "AVAILABLE", BedType = "REGULAR", WardId = "W1", WardName = "Ward 1" });
-        await board.AddOrUpdateBedAsync(new BedSummaryEntry { BedId = "WF-BED-2", Status = "OCCUPIED", BedType = "REGULAR" });
-        List<BedSummaryEntry> avail = await WF(pid).FindAvailableBedsAsync(fac, null, null);
+        var (inst, _, unit) = await NewUnitAsync("Ward 1");
+        await unit.AddBedAsync("WF-BED-1", null, BedType.Regular);
+        await unit.AddBedAsync("WF-BED-2", null, BedType.Regular);
+        await unit.AdmitPatientAsync(Admission($"PAT-{Guid.NewGuid()}", "OCCUPYING,PATIENT", "WF-BED-2"));
+
+        List<InpatientBed> avail = await WF(pid).FindAvailableBedsAsync(inst, null, null);
         Assert.That(avail.Any(b => b.BedId == "WF-BED-1"), Is.True);
         Assert.That(avail.Any(b => b.BedId == "WF-BED-2"), Is.False);
     }

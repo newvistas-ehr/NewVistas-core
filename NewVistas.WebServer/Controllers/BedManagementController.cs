@@ -10,8 +10,13 @@ using NewVistas.Abstractions.GrainStates;
 namespace NewVistas.WebServer.Controllers;
 
 /// <summary>
-/// Bed Management Controller — real-time bed availability, assignment, and census.
-/// Maps to VistA DG Bed Control / File #405.4.
+/// Bed Management Controller — institution-aware unit boards, capacity, EVS turnover,
+/// and bed condition. Maps to VistA DGPM Bed Control / Files #42, #210, #405.4.
+///
+/// Bed truth lives on the unit grain ("UNIT:{institutionId}:{unitId}"); the per-institution
+/// capacity grain is its rollup. Patient placement is NOT done here — admissions,
+/// transfers, and discharges go through the ADT workflow (api/adt), which occupies and
+/// releases beds atomically with the movement record.
 /// </summary>
 [ApiController]
 [Route("api/beds")]
@@ -27,242 +32,286 @@ public class BedManagementController : ControllerBase
         _logger = logger;
     }
 
-    private IBedBoardGrain GetBoard(string facilityId = "MAIN")
-        => _grainFactory.GetGrain<IBedBoardGrain>($"BED-BOARD:{facilityId}");
+    private IBedCapacityGrain Capacity(string institutionId)
+        => _grainFactory.GetGrain<IBedCapacityGrain>($"BED-CAPACITY:{institutionId}");
 
-    // ─── Bed Board ───────────────────────────────────────────────────────────
+    private IInpatientUnitGrain Unit(string institutionId, string unitId)
+        => _grainFactory.GetGrain<IInpatientUnitGrain>($"UNIT:{institutionId}:{unitId}");
 
-    [HttpGet("board")]
-    public async Task<ActionResult> GetAllBeds([FromQuery] string facilityId = "MAIN")
+    // ─── Capacity + directory ────────────────────────────────────────────────
+
+    /// <summary>The institution's unit directory with live capacity counts.</summary>
+    [HttpGet("institutions/{institutionId}/capacity")]
+    public async Task<ActionResult> GetInstitutionCapacity(string institutionId)
     {
         try
         {
-            List<BedSummaryEntry> beds = await GetBoard(facilityId).GetAllBedsAsync();
+            List<UnitCapacitySummary> units = await Capacity(institutionId).GetUnitsAsync();
+            (int total, int available, int occupied, int dirty, int blocked, int outOfService)
+                = await Capacity(institutionId).GetInstitutionTotalsAsync();
+            return Ok(new
+            {
+                InstitutionId = institutionId,
+                TotalBeds = total,
+                Available = available,
+                Occupied = occupied,
+                Dirty = dirty,
+                Blocked = blocked,
+                OutOfService = outOfService,
+                OccupancyRate = total > 0 ? Math.Round((double)occupied / total * 100, 1) : 0,
+                Units = units
+            });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error getting capacity for institution {InstitutionId}", institutionId);
+            return StatusCode(500, "An error occurred.");
+        }
+    }
+
+    /// <summary>Full unit board: rooms + beds with lifecycle state, occupants, and reservations.</summary>
+    [HttpGet("institutions/{institutionId}/units/{unitId}/board")]
+    public async Task<ActionResult> GetUnitBoard(string institutionId, string unitId)
+    {
+        try
+        {
+            InpatientUnitState state = await Unit(institutionId, unitId).GetAsync();
+            if (string.IsNullOrEmpty(state.Name))
+                return NotFound($"Unit '{unitId}' not found at institution '{institutionId}'.");
+            return Ok(state);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error getting unit board {InstitutionId}/{UnitId}", institutionId, unitId);
+            return StatusCode(500, "An error occurred.");
+        }
+    }
+
+    /// <summary>Live unit census (occupied beds + boarders).</summary>
+    [HttpGet("institutions/{institutionId}/units/{unitId}/census")]
+    public async Task<ActionResult> GetUnitCensus(string institutionId, string unitId)
+    {
+        try
+        {
+            List<UnitCensusEntry> census = await Unit(institutionId, unitId).GetCensusAsync();
+            return Ok(census);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error getting census {InstitutionId}/{UnitId}", institutionId, unitId);
+            return StatusCode(500, "An error occurred.");
+        }
+    }
+
+    /// <summary>Institution-wide EVS worklist: dirty/cleaning beds, oldest first, with isolation precautions.</summary>
+    [HttpGet("institutions/{institutionId}/evs-queue")]
+    public async Task<ActionResult> GetEvsQueue(string institutionId)
+    {
+        try
+        {
+            List<(string UnitId, DirtyBedEntry Bed)> queue = await Capacity(institutionId).GetDirtyBedQueueAsync();
+            return Ok(queue.Select(x => new
+            {
+                x.UnitId,
+                x.Bed.BedId,
+                x.Bed.RoomId,
+                State = x.Bed.State.ToString(),
+                x.Bed.DirtySince,
+                Isolation = x.Bed.Isolation.ToString()
+            }));
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error getting EVS queue for institution {InstitutionId}", institutionId);
+            return StatusCode(500, "An error occurred.");
+        }
+    }
+
+    /// <summary>Placeable (Available) beds, optionally filtered by unit or bed type.</summary>
+    [HttpGet("institutions/{institutionId}/available")]
+    public async Task<ActionResult> GetAvailableBeds(string institutionId,
+        [FromQuery] string? unitId = null, [FromQuery] BedType? bedType = null)
+    {
+        try
+        {
+            // Directory first: only read units that actually have placeable beds.
+            List<string> unitIds;
+            if (!string.IsNullOrEmpty(unitId))
+            {
+                unitIds = new List<string> { unitId };
+            }
+            else
+            {
+                List<UnitCapacitySummary> units = await Capacity(institutionId).GetUnitsAsync();
+                unitIds = units.Where(u => u.Available > 0).Select(u => u.UnitId).ToList();
+            }
+
+            var reads = unitIds.Select(id => Unit(institutionId, id).GetAsync()).ToList();
+            InpatientUnitState[] states = await Task.WhenAll(reads);
+            var beds = states
+                .SelectMany(s => s.Beds.Select(b => new { s.UnitId, Bed = b }))
+                .Where(x => x.Bed.State == BedLifecycleState.Available)
+                .Where(x => bedType is null || x.Bed.BedType == bedType)
+                .Select(x => new { x.UnitId, x.Bed.BedId, x.Bed.RoomId, BedType = x.Bed.BedType.ToString(), Isolation = x.Bed.Isolation.ToString() })
+                .ToList();
             return Ok(beds);
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error getting bed board");
+            _logger.LogError(ex, "Error getting available beds for institution {InstitutionId}", institutionId);
             return StatusCode(500, "An error occurred.");
         }
     }
 
-    [HttpGet("board/ward/{wardId}")]
-    public async Task<ActionResult> GetBedsByWard(string wardId, [FromQuery] string facilityId = "MAIN")
+    // ─── Unit structure (DG BED CONTROL enforced at the grain) ──────────────
+
+    [HttpPost("institutions/{institutionId}/units/{unitId}")]
+    public async Task<ActionResult> ConfigureUnit(string institutionId, string unitId, [FromBody] ConfigureUnitRequest request)
     {
         try
         {
-            List<BedSummaryEntry> beds = await GetBoard(facilityId).GetBedsByWardAsync(wardId);
-            return Ok(beds);
+            await Unit(institutionId, unitId).ConfigureUnitAsync(request.Name, request.UnitType, request.DefaultTreatingSpecialty);
+            return Created($"api/beds/institutions/{institutionId}/units/{unitId}/board", new { Message = "Unit configured." });
         }
+        catch (UnauthorizedAccessException ex) { return StatusCode(403, ex.Message); }
+        catch (InvalidOperationException ex) { return BadRequest(ex.Message); }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error getting beds for ward {WardId}", wardId);
+            _logger.LogError(ex, "Error configuring unit {InstitutionId}/{UnitId}", institutionId, unitId);
             return StatusCode(500, "An error occurred.");
         }
     }
 
-    [HttpGet("board/available")]
-    public async Task<ActionResult> GetAvailableBeds([FromQuery] string facilityId = "MAIN", [FromQuery] string? bedType = null)
+    [HttpPost("institutions/{institutionId}/units/{unitId}/rooms")]
+    public async Task<ActionResult> AddOrUpdateRoom(string institutionId, string unitId, [FromBody] InpatientRoom room)
     {
         try
         {
-            List<BedSummaryEntry> beds = bedType != null
-                ? await GetBoard(facilityId).GetAvailableBedsByTypeAsync(bedType)
-                : await GetBoard(facilityId).GetAvailableBedsAsync();
-            return Ok(beds);
+            await Unit(institutionId, unitId).AddOrUpdateRoomAsync(room);
+            return Ok(new { Message = "Room saved." });
         }
+        catch (UnauthorizedAccessException ex) { return StatusCode(403, ex.Message); }
+        catch (InvalidOperationException ex) { return BadRequest(ex.Message); }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error getting available beds");
+            _logger.LogError(ex, "Error saving room on {InstitutionId}/{UnitId}", institutionId, unitId);
             return StatusCode(500, "An error occurred.");
         }
     }
 
-    [HttpGet("board/stats")]
-    public async Task<ActionResult> GetStats([FromQuery] string facilityId = "MAIN")
+    [HttpPost("institutions/{institutionId}/units/{unitId}/beds")]
+    public async Task<ActionResult> AddBed(string institutionId, string unitId, [FromBody] AddBedRequest request)
     {
         try
         {
-            var board = GetBoard(facilityId);
-            int total = await board.GetTotalBedCountAsync();
-            int available = await board.GetAvailableBedCountAsync();
-            int occupied = await board.GetOccupiedBedCountAsync();
-            return Ok(new { TotalBeds = total, AvailableBeds = available, OccupiedBeds = occupied, OccupancyRate = total > 0 ? Math.Round((double)occupied / total * 100, 1) : 0 });
+            await Unit(institutionId, unitId).AddBedAsync(request.BedId, request.RoomId, request.BedType);
+            return Created($"api/beds/institutions/{institutionId}/units/{unitId}/board", new { Message = "Bed added." });
         }
+        catch (UnauthorizedAccessException ex) { return StatusCode(403, ex.Message); }
+        catch (InvalidOperationException ex) { return BadRequest(ex.Message); }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error getting bed stats");
+            _logger.LogError(ex, "Error adding bed on {InstitutionId}/{UnitId}", institutionId, unitId);
             return StatusCode(500, "An error occurred.");
         }
     }
 
-    // ─── Bed Actions ─────────────────────────────────────────────────────────
+    // ─── Bed condition + EVS actions (keys enforced at the grain) ────────────
 
-    [HttpGet("{bedId}")]
-    public async Task<ActionResult> GetBed(string bedId, [FromQuery] string facilityId = "MAIN")
-    {
-        try
-        {
-            var grain = _grainFactory.GetGrain<IBedGrain>($"BED:{facilityId}:{bedId}");
-            BedState bed = await grain.GetBedAsync();
-            return Ok(bed);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error getting bed {BedId}", bedId);
-            return StatusCode(500, "An error occurred.");
-        }
-    }
+    [HttpPost("institutions/{institutionId}/units/{unitId}/beds/{bedId}/reserve")]
+    public Task<ActionResult> Reserve(string institutionId, string unitId, string bedId, [FromBody] BedReserveRequest request)
+        => BedAction(institutionId, unitId, bedId, "reserve",
+            unit => unit.ReserveBedAsync(bedId, request.PatientId, request.PatientName, request.ExpiresAt));
 
-    [HttpPost("{bedId}/assign")]
-    public async Task<ActionResult> AssignPatient(string bedId, [FromBody] BedAssignRequest request, [FromQuery] string facilityId = "MAIN")
-    {
-        try
-        {
-            var grain = _grainFactory.GetGrain<IBedGrain>($"BED:{facilityId}:{bedId}");
-            await grain.AssignPatientAsync(request.PatientId, request.PatientName, request.ExpectedDischargeDate);
+    [HttpPost("institutions/{institutionId}/units/{unitId}/beds/{bedId}/clear-reservation")]
+    public Task<ActionResult> ClearReservation(string institutionId, string unitId, string bedId)
+        => BedAction(institutionId, unitId, bedId, "clear-reservation",
+            unit => unit.ClearReservationAsync(bedId));
 
-            await SyncBoardAsync(facilityId, bedId, grain);
-            return Ok(new { Message = "Patient assigned to bed." });
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error assigning patient to bed {BedId}", bedId);
-            return StatusCode(500, "An error occurred.");
-        }
-    }
+    [HttpPost("institutions/{institutionId}/units/{unitId}/beds/{bedId}/start-cleaning")]
+    public Task<ActionResult> StartCleaning(string institutionId, string unitId, string bedId, [FromBody] EvsActionRequest? request = null)
+        => BedAction(institutionId, unitId, bedId, "start-cleaning",
+            unit => unit.StartCleaningAsync(bedId, request?.ByUserName));
 
-    [HttpPost("{bedId}/discharge")]
-    public async Task<ActionResult> DischargeBed(string bedId, [FromQuery] string facilityId = "MAIN")
-    {
-        try
-        {
-            var grain = _grainFactory.GetGrain<IBedGrain>($"BED:{facilityId}:{bedId}");
-            await grain.DischargePatientAsync();
-            await SyncBoardAsync(facilityId, bedId, grain);
-            return Ok(new { Message = "Patient discharged, bed set to cleaning." });
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error discharging bed {BedId}", bedId);
-            return StatusCode(500, "An error occurred.");
-        }
-    }
+    [HttpPost("institutions/{institutionId}/units/{unitId}/beds/{bedId}/mark-clean")]
+    public Task<ActionResult> MarkClean(string institutionId, string unitId, string bedId, [FromBody] EvsActionRequest? request = null)
+        => BedAction(institutionId, unitId, bedId, "mark-clean",
+            unit => unit.MarkBedCleanAsync(bedId, request?.ByUserName));
 
-    [HttpPost("{bedId}/reserve")]
-    public async Task<ActionResult> ReserveBed(string bedId, [FromBody] BedReserveRequest request, [FromQuery] string facilityId = "MAIN")
-    {
-        try
-        {
-            var grain = _grainFactory.GetGrain<IBedGrain>($"BED:{facilityId}:{bedId}");
-            await grain.ReserveForPatientAsync(request.PatientId, request.PatientName);
-            await SyncBoardAsync(facilityId, bedId, grain);
-            return Ok(new { Message = "Bed reserved." });
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error reserving bed {BedId}", bedId);
-            return StatusCode(500, "An error occurred.");
-        }
-    }
+    [HttpPost("institutions/{institutionId}/units/{unitId}/beds/{bedId}/mark-dirty")]
+    public Task<ActionResult> MarkDirty(string institutionId, string unitId, string bedId)
+        => BedAction(institutionId, unitId, bedId, "mark-dirty",
+            unit => unit.MarkBedDirtyAsync(bedId));
 
-    [HttpPost("{bedId}/clear-reservation")]
-    public async Task<ActionResult> ClearReservation(string bedId, [FromQuery] string facilityId = "MAIN")
-    {
-        try
-        {
-            var grain = _grainFactory.GetGrain<IBedGrain>($"BED:{facilityId}:{bedId}");
-            await grain.ClearReservationAsync();
-            await SyncBoardAsync(facilityId, bedId, grain);
-            return Ok(new { Message = "Reservation cleared." });
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error clearing reservation for bed {BedId}", bedId);
-            return StatusCode(500, "An error occurred.");
-        }
-    }
+    [HttpPost("institutions/{institutionId}/units/{unitId}/beds/{bedId}/block")]
+    public Task<ActionResult> Block(string institutionId, string unitId, string bedId, [FromBody] BedBlockRequest request)
+        => BedAction(institutionId, unitId, bedId, "block",
+            unit => unit.BlockBedAsync(bedId, request.Reason));
 
-    [HttpPost("{bedId}/block")]
-    public async Task<ActionResult> BlockBed(string bedId, [FromBody] BedBlockRequest request, [FromQuery] string facilityId = "MAIN")
-    {
-        try
-        {
-            var grain = _grainFactory.GetGrain<IBedGrain>($"BED:{facilityId}:{bedId}");
-            await grain.BlockBedAsync(request.Reason);
-            await SyncBoardAsync(facilityId, bedId, grain);
-            return Ok(new { Message = "Bed blocked." });
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error blocking bed {BedId}", bedId);
-            return StatusCode(500, "An error occurred.");
-        }
-    }
+    [HttpPost("institutions/{institutionId}/units/{unitId}/beds/{bedId}/unblock")]
+    public Task<ActionResult> Unblock(string institutionId, string unitId, string bedId)
+        => BedAction(institutionId, unitId, bedId, "unblock",
+            unit => unit.UnblockBedAsync(bedId));
 
-    [HttpPost("{bedId}/unblock")]
-    public async Task<ActionResult> UnblockBed(string bedId, [FromQuery] string facilityId = "MAIN")
-    {
-        try
-        {
-            var grain = _grainFactory.GetGrain<IBedGrain>($"BED:{facilityId}:{bedId}");
-            await grain.UnblockBedAsync();
-            await SyncBoardAsync(facilityId, bedId, grain);
-            return Ok(new { Message = "Bed unblocked." });
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error unblocking bed {BedId}", bedId);
-            return StatusCode(500, "An error occurred.");
-        }
-    }
+    [HttpPost("institutions/{institutionId}/units/{unitId}/beds/{bedId}/out-of-service")]
+    public Task<ActionResult> OutOfService(string institutionId, string unitId, string bedId, [FromBody] BedBlockRequest request)
+        => BedAction(institutionId, unitId, bedId, "out-of-service",
+            unit => unit.SetOutOfServiceAsync(bedId, request.Reason));
 
-    [HttpPost("{bedId}/available")]
-    public async Task<ActionResult> SetAvailable(string bedId, [FromQuery] string facilityId = "MAIN")
-    {
-        try
-        {
-            var grain = _grainFactory.GetGrain<IBedGrain>($"BED:{facilityId}:{bedId}");
-            await grain.SetAvailableAsync();
-            await SyncBoardAsync(facilityId, bedId, grain);
-            return Ok(new { Message = "Bed set to available." });
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error setting bed available {BedId}", bedId);
-            return StatusCode(500, "An error occurred.");
-        }
-    }
+    [HttpPost("institutions/{institutionId}/units/{unitId}/beds/{bedId}/return-to-service")]
+    public Task<ActionResult> ReturnToService(string institutionId, string unitId, string bedId)
+        => BedAction(institutionId, unitId, bedId, "return-to-service",
+            unit => unit.ReturnToServiceAsync(bedId));
+
+    [HttpPost("institutions/{institutionId}/units/{unitId}/beds/{bedId}/isolation")]
+    public Task<ActionResult> SetIsolation(string institutionId, string unitId, string bedId, [FromBody] BedIsolationRequest request)
+        => BedAction(institutionId, unitId, bedId, "isolation",
+            unit => unit.SetBedIsolationAsync(bedId, request.Isolation));
 
     // ─── Helpers ─────────────────────────────────────────────────────────────
 
-    private async Task SyncBoardAsync(string facilityId, string bedId, IBedGrain grain)
+    private async Task<ActionResult> BedAction(string institutionId, string unitId, string bedId,
+        string action, Func<IInpatientUnitGrain, Task> operation)
     {
-        BedState state = await grain.GetBedAsync();
-        await GetBoard(facilityId).AddOrUpdateBedAsync(new BedSummaryEntry
+        try
         {
-            BedId = bedId,
-            WardId = state.WardId,
-            WardName = state.WardName,
-            RoomNumber = state.RoomNumber,
-            BedPosition = state.BedPosition,
-            Status = state.Status,
-            BedType = state.BedType,
-            PatientName = state.PatientName,
-            IsolationType = state.IsolationType
-        });
+            await operation(Unit(institutionId, unitId));
+            return Ok(new { Message = $"Bed {bedId}: {action} succeeded." });
+        }
+        catch (UnauthorizedAccessException ex) { return StatusCode(403, ex.Message); }
+        catch (InvalidOperationException ex) { return BadRequest(ex.Message); }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error on bed {BedId} action {Action} ({InstitutionId}/{UnitId})",
+                bedId, action, institutionId, unitId);
+            return StatusCode(500, "An error occurred.");
+        }
     }
 }
 
 // ─── DTOs ────────────────────────────────────────────────────────────────────
 
-public record BedAssignRequest
+public record ConfigureUnitRequest
+{
+    public required string Name { get; init; }
+    public string? UnitType { get; init; }
+    public string? DefaultTreatingSpecialty { get; init; }
+}
+
+public record AddBedRequest
+{
+    public required string BedId { get; init; }
+    public string? RoomId { get; init; }
+    public BedType BedType { get; init; } = BedType.Regular;
+}
+
+public record BedReserveRequest
 {
     public required string PatientId { get; init; }
     public required string PatientName { get; init; }
-    public DateTime? ExpectedDischargeDate { get; init; }
+    public DateTime? ExpiresAt { get; init; }
 }
 
-public record BedReserveRequest { public required string PatientId { get; init; } public required string PatientName { get; init; } }
 public record BedBlockRequest { public required string Reason { get; init; } }
+public record EvsActionRequest { public string? ByUserName { get; init; } }
+public record BedIsolationRequest { public BedIsolationType Isolation { get; init; } }

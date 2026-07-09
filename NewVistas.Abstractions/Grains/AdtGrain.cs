@@ -52,13 +52,15 @@ public class AdtGrain : Grain, IAdtGrain
         string? roomBed, string? treatingSpecialtyId,
         string? treatingSpecialtyName,
         string? attendingPhysicianId, string? attendingPhysicianName,
-        string? typeOfPatient, string? admissionDiagnosis, string? comments)
+        string? typeOfPatient, string? admissionDiagnosis, string? comments,
+        string? institutionId = null)
     {
         // Idempotent: re-issued admission on the same grain key is a no-op.
         if (!string.IsNullOrEmpty(_state.State.PatientId))
             return;
 
         _state.State.PatientId = patientId;
+        _state.State.InstitutionId = institutionId;
         _state.State.TransactionType = "ADMISSION";
         _state.State.MovementDateTime = movementDateTime;
         _state.State.AdmissionDateTime = movementDateTime;
@@ -110,13 +112,15 @@ public class AdtGrain : Grain, IAdtGrain
         string patientId, DateTime admissionDateTime, DateTime transferDateTime,
         string? toWardLocationId, string? toWardLocationName, string? toRoomBed,
         string? toTreatingSpecialtyId, string? toTreatingSpecialtyName,
-        string? attendingPhysicianId, string? attendingPhysicianName, string? comments)
+        string? attendingPhysicianId, string? attendingPhysicianName, string? comments,
+        string? institutionId = null)
     {
         // Idempotent: re-issued transfer on the same grain key is a no-op.
         if (!string.IsNullOrEmpty(_state.State.PatientId))
             return;
 
         _state.State.PatientId = patientId;
+        _state.State.InstitutionId = institutionId;
         _state.State.TransactionType = "TRANSFER";
         _state.State.AdmissionDateTime = admissionDateTime;
         _state.State.MovementDateTime = transferDateTime;

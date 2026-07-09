@@ -129,8 +129,7 @@ public static class SharedCluster
             siloBuilder.AddMemoryGrainStorage("bbUnitStore");
             siloBuilder.AddMemoryGrainStorage("bcmaMarStore");
             siloBuilder.AddMemoryGrainStorage("bcmaStore");
-            siloBuilder.AddMemoryGrainStorage("bedBoardStore");
-            siloBuilder.AddMemoryGrainStorage("bedStore");
+            siloBuilder.AddMemoryGrainStorage("bedCapacityStore");
             siloBuilder.AddMemoryGrainStorage("brAdmissionIndexStore");
             siloBuilder.AddMemoryGrainStorage("brAdmissionStore");
             siloBuilder.AddMemoryGrainStorage("brCenterIndexStore");
@@ -301,6 +300,9 @@ public static class SharedCluster
             siloBuilder.AddMemoryGrainStorage("incompleteRecordStore");
             siloBuilder.AddMemoryGrainStorage("inpatientOrderStore");
             siloBuilder.AddMemoryGrainStorage("inpatientProfileStore");
+            siloBuilder.AddMemoryGrainStorage("inpatientUnitStore");
+            siloBuilder.AddMemoryGrainStorage("institutionIndexStore");
+            siloBuilder.AddMemoryGrainStorage("institutionStore");
             siloBuilder.AddMemoryGrainStorage("instrumentIndexStore");
             siloBuilder.AddMemoryGrainStorage("instrumentMessageQueueStore");
             siloBuilder.AddMemoryGrainStorage("insurancePlanIndexStore");
@@ -354,8 +356,6 @@ public static class SharedCluster
             siloBuilder.AddMemoryGrainStorage("nursingAssessmentIndexStore");
             siloBuilder.AddMemoryGrainStorage("nursingAssessmentStore");
             siloBuilder.AddMemoryGrainStorage("nursingCarePlanStore");
-            siloBuilder.AddMemoryGrainStorage("nursingUnitIndexStore");
-            siloBuilder.AddMemoryGrainStorage("nursingUnitStore");
             siloBuilder.AddMemoryGrainStorage("oncTreatmentIndexStore");
             siloBuilder.AddMemoryGrainStorage("oncTreatmentStore");
             siloBuilder.AddMemoryGrainStorage("oncTumorIndexStore");
@@ -460,6 +460,8 @@ public static class SharedCluster
             siloBuilder.AddMemoryGrainStorage("tiuDocumentStore");
             siloBuilder.AddMemoryGrainStorage("topReferralIndexStore");
             siloBuilder.AddMemoryGrainStorage("topReferralStore");
+            siloBuilder.AddMemoryGrainStorage("transferCenterStore");
+            siloBuilder.AddMemoryGrainStorage("transferRequestStore");
             siloBuilder.AddMemoryGrainStorage("treatingFacilityListStore");
             siloBuilder.AddMemoryGrainStorage("txDonorIndexStore");
             siloBuilder.AddMemoryGrainStorage("txDonorStore");
@@ -472,8 +474,6 @@ public static class SharedCluster
             siloBuilder.AddMemoryGrainStorage("vitalStore");
             siloBuilder.AddMemoryGrainStorage("vsIndexStore");
             siloBuilder.AddMemoryGrainStorage("vsVolunteerStore");
-            siloBuilder.AddMemoryGrainStorage("wardCensusStore");
-            siloBuilder.AddMemoryGrainStorage("wardLocationStore");
             siloBuilder.AddMemoryGrainStorage("wardReplenishLogStore");
             siloBuilder.AddMemoryGrainStorage("wardStockIndexStore");
             siloBuilder.AddMemoryGrainStorage("wardStockItemStore");

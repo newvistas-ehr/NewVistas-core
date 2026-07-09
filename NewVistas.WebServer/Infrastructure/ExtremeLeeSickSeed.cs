@@ -77,6 +77,21 @@ public static class ExtremeLeeSickSeed
 
             logger.LogInformation("Seeding rich demo patient {Id} (SICK,EXTREME LEE)...", Pid);
 
+            // ── Historical outside-facility units ──────────────────────────────────
+            // Admissions now require a real unit ("UNIT:{institutionId}:{unitId}").
+            // These stays happened at OUTSIDE hospitals in the story, so each gets a
+            // minimal bed-less unit at its own institution; the patient is carried as
+            // a unit BOARDER (bedId null) and released at discharge, leaving no
+            // dirty-bed residue in the demo bed board.
+            async Task EnsureUnit(string institutionId, string unitId, string name, string? specialty)
+                => await grainFactory.GetGrain<IInpatientUnitGrain>($"UNIT:{institutionId}:{unitId}")
+                    .ConfigureUnitAsync(name, null, specialty);
+            await EnsureUnit("LSH", "SURG", $"{Hospital} — Surgical Ward", "NEUROSURGERY");
+            await EnsureUnit("SRMC", "ICU", $"{Srmc} — Medical ICU", "CRITICAL CARE");
+            await EnsureUnit("SRMC", "SD", $"{Srmc} — Step-Down Unit", "PULMONARY");
+            await EnsureUnit("SRMC", "5E", $"{Srmc} — Med-Surg 5E", "HOSPITAL MEDICINE");
+            await EnsureUnit("REHAB-NSG", "UNIT-2", $"{Rehab} — Unit 2", "REHABILITATION");
+
             // ── Demographics (also registers the patient in the search index) ──────
             await wf.UpdateDemographicsAsync("SICK,EXTREME LEE", "M", new DateTime(1949, 3, 12), "666001234");
             await wf.UpdateAddressAsync("13 Mott Street", null, null, "Salem", "MA", "01970");
@@ -350,8 +365,8 @@ referred to Neurosurgery (Dr. NotYou) for decompression and fusion.",
             //  Jan 2025 — cervical decompression + fusion, complicated post-op course
             // ════════════════════════════════════════════════════════════════════════
             string adt = await wf.RecordAdmissionAsync(
-                new DateTime(2025, 1, 7, 6, 30, 0), "WARD-LSH-SURG", $"{Hospital} — Surgical Ward",
-                "S-12", "NEUROSURGERY", DrNotYouId, DrNotYou,
+                new DateTime(2025, 1, 7, 6, 30, 0), "LSH", "SURG",
+                null /* boarder — historical outside stay */, "NEUROSURGERY", DrNotYouId, DrNotYou,
                 "Cervical spondylotic myelopathy with multilevel stenosis and foraminal stenosis",
                 "Admitted for cervical decompression and posterior spinal fusion.");
 
@@ -486,11 +501,11 @@ further neurosurgical intervention. Follow up on an as-needed basis.",
             // ════════════════════════════════════════════════════════════════════════
             string F1(double v) => v.ToString("0.0", System.Globalization.CultureInfo.InvariantCulture);
             var srAdmit = new DateTime(2025, 8, 4);
-            const string IcuWardId = "WARD-SRMC-ICU", SdWardId = "WARD-SRMC-SD", FloorWardId = "WARD-SRMC-5E";
+            const string IcuUnitId = "ICU", SdUnitId = "SD", FloorUnitId = "5E";
             string IcuWard = $"{Srmc} — Medical ICU", SdWard = $"{Srmc} — Step-Down Unit", FloorWard = $"{Srmc} — Med-Surg 5E";
 
             string srAdt = await wf.RecordAdmissionAsync(
-                srAdmit.AddHours(2.5), IcuWardId, IcuWard, "ICU-7", "CRITICAL CARE",
+                srAdmit.AddHours(2.5), "SRMC", IcuUnitId, null /* boarder */, "CRITICAL CARE",
                 DrGaspId, DrGasp,
                 "Acute hypoxemic respiratory failure due to severe aspiration pneumonia with septic shock",
                 "Admitted via the ED while traveling out of state; intubated for respiratory failure and started on vasopressors and broad-spectrum antibiotics.");
@@ -563,11 +578,11 @@ cultures, ID and nutrition consults, DVT and stress-ulcer prophylaxis.",
                 // Unit transfers.
                 if (d == 11)
                     currentMovement = await wf.RecordTransferAsync(currentMovement, day.AddHours(10),
-                        SdWardId, SdWard, "SD-3", null, "PULMONARY", DrGaspId, DrGasp,
+                        "SRMC", SdUnitId, null /* boarder */, null, "PULMONARY", DrGaspId, DrGasp,
                         "Extubated and hemodynamically stable off pressors; transferred to step-down.");
                 if (d == 20)
                     currentMovement = await wf.RecordTransferAsync(currentMovement, day.AddHours(10),
-                        FloorWardId, FloorWard, "512-B", null, "HOSPITAL MEDICINE", DrCannotId, DrCannot,
+                        "SRMC", FloorUnitId, null /* boarder */, null, "HOSPITAL MEDICINE", DrCannotId, DrCannot,
                         "Off supplemental oxygen; transferred to the medical floor for continued recovery and rehab planning.");
 
                 // Vitals — values trend toward normal as the stay progresses.
@@ -683,9 +698,9 @@ primary care and pain management after rehab.",
             //  the second big volume generator. Synthetic.
             // ════════════════════════════════════════════════════════════════════════
             var rehabAdmit = new DateTime(2025, 9, 8, 15, 0, 0);
-            const string RehabWardId = "WARD-REHAB-2";
             string RehabWard = $"{Rehab} — Unit 2";
-            string rehabAdt = await wf.RecordAdmissionAsync(rehabAdmit, RehabWardId, RehabWard, "R-14",
+            string rehabAdt = await wf.RecordAdmissionAsync(rehabAdmit, "REHAB-NSG", "UNIT-2",
+                null /* boarder */,
                 "REHABILITATION MEDICINE", DrCannotId, DrCannot,
                 "Deconditioning and ICU-acquired weakness after prolonged hospitalization",
                 "Admitted for intensive PT/OT/speech therapy and reconditioning after a 35-day stay for pneumonia/sepsis.");

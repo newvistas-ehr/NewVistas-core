@@ -14,6 +14,10 @@ namespace NewVistas.WebServer.Controllers;
 /// <summary>
 /// ADT — Admission / Discharge / Transfer
 /// VistA PATIENT MOVEMENT file (#405) / WARD LOCATION file (#42)
+///
+/// Placement is structured: institutionId + unitId are required, bedId is optional
+/// (null = unit boarder). Bed truth lives on the inpatient unit grain; movements
+/// occupy/release beds atomically through the workflow.
 /// </summary>
 [Authorize]
 [ApiController]
@@ -50,12 +54,13 @@ public class AdtController : ControllerBase
         try
         {
             string id = await W(patientId).RecordAdmissionAsync(
-                r.MovementDateTime, r.WardLocationId, r.WardLocationName,
-                r.RoomBed, r.TreatingSpecialtyName,
+                r.MovementDateTime, r.InstitutionId ?? "500", r.UnitId, r.BedId,
+                r.TreatingSpecialtyName,
                 r.AttendingPhysicianId, r.AttendingPhysicianName,
                 r.AdmissionDiagnosis, r.Comments);
             return Created(string.Empty, new { MovementId = id });
         }
+        catch (InvalidOperationException ex) { return BadRequest(ex.Message); }
         catch (Exception ex) { _logger.LogError(ex, "Error admitting patient {PatientId}", patientId); return StatusCode(500, "Error recording admission."); }
     }
 
@@ -68,12 +73,13 @@ public class AdtController : ControllerBase
         {
             string id = await W(patientId).RecordTransferAsync(
                 movementId, r.TransferDateTime,
-                r.ToWardId, r.ToWardName, r.ToRoomBed,
+                r.ToInstitutionId ?? "500", r.ToUnitId, r.ToBedId,
                 r.ToSpecialtyId, r.ToSpecialtyName,
                 r.AttendingPhysicianId, r.AttendingPhysicianName,
-                r.Comments);
+                r.Comments, r.OverrideReservation);
             return Created(string.Empty, new { MovementId = id });
         }
+        catch (InvalidOperationException ex) { return BadRequest(ex.Message); }
         catch (Exception ex) { _logger.LogError(ex, "Error transferring patient {PatientId}", patientId); return StatusCode(500, "Error recording transfer."); }
     }
 
@@ -92,30 +98,30 @@ public class AdtController : ControllerBase
         catch (Exception ex) { _logger.LogError(ex, "Error discharging patient {PatientId}", patientId); return StatusCode(500, "Error recording discharge."); }
     }
 
-    // ── Ward locations ──────────────────────────────────────────────────
+    // ── Unit directory (route kept from the old ward list; payload is the live capacity summary) ──
 
     [HttpGet("wards")]
-    public async Task<IActionResult> GetWards()
+    public async Task<IActionResult> GetWards([FromQuery] string institutionId = "500")
     {
         try
         {
-            IWardLocationIndexGrain idx = _grainFactory.GetGrain<IWardLocationIndexGrain>("WARD-LOCATION-INDEX");
-            return Ok(await idx.GetAllWardsAsync());
+            IBedCapacityGrain capacity = _grainFactory.GetGrain<IBedCapacityGrain>($"BED-CAPACITY:{institutionId}");
+            return Ok(await capacity.GetUnitsAsync());
         }
-        catch (Exception ex) { _logger.LogError(ex, "Error getting ward list"); return StatusCode(500, "Error retrieving wards."); }
+        catch (Exception ex) { _logger.LogError(ex, "Error getting unit directory"); return StatusCode(500, "Error retrieving wards."); }
     }
 
-    // ── Ward census ─────────────────────────────────────────────────────
+    // ── Unit census ─────────────────────────────────────────────────────
 
-    [HttpGet("wards/{wardId}/census")]
-    public async Task<IActionResult> GetCensus(string wardId)
+    [HttpGet("wards/{unitId}/census")]
+    public async Task<IActionResult> GetCensus(string unitId, [FromQuery] string institutionId = "500")
     {
         try
         {
-            IWardCensusGrain census = _grainFactory.GetGrain<IWardCensusGrain>($"WARD-CENSUS:{wardId}");
-            return Ok(await census.GetCensusAsync());
+            IInpatientUnitGrain unit = _grainFactory.GetGrain<IInpatientUnitGrain>($"UNIT:{institutionId}:{unitId}");
+            return Ok(await unit.GetCensusAsync());
         }
-        catch (Exception ex) { _logger.LogError(ex, "Error getting census for ward {WardId}", wardId); return StatusCode(500, "Error retrieving census."); }
+        catch (Exception ex) { _logger.LogError(ex, "Error getting census for unit {UnitId}", unitId); return StatusCode(500, "Error retrieving census."); }
     }
 
     // ── Demo data load ──────────────────────────────────────────────────
@@ -132,14 +138,14 @@ public class AdtController : ControllerBase
 
             // Admit to Medical Ward 3A
             string admitId = await wf.RecordAdmissionAsync(
-                DateTime.UtcNow.AddDays(-3), "WARD-MED-3A", "Medical Ward 3A",
-                "301-A", "Internal Medicine", "PROV-001", "Dr. Smith",
+                DateTime.UtcNow.AddDays(-3), "500", "MED-3A", "301-A",
+                "Internal Medicine", "PROV-001", "Dr. Smith",
                 "Community-acquired pneumonia", "Demo admission");
 
             // Transfer to ICU after one day
             await wf.RecordTransferAsync(
                 admitId, DateTime.UtcNow.AddDays(-2),
-                "WARD-ICU-1", "Intensive Care Unit", "ICU-5",
+                "500", "ICU-1", "ICU-5",
                 null, "Critical Care", "PROV-002", "Dr. Jones",
                 "Deteriorating respiratory status");
 
@@ -154,9 +160,9 @@ public class AdtController : ControllerBase
 
 public record AdtAdmitRequest(
     DateTime MovementDateTime,
-    string? WardLocationId,
-    string? WardLocationName,
-    string? RoomBed,
+    string UnitId,
+    string? BedId,
+    string? InstitutionId,
     string? TreatingSpecialtyId,
     string? TreatingSpecialtyName,
     string? AttendingPhysicianId,
@@ -167,14 +173,15 @@ public record AdtAdmitRequest(
 
 public record AdtTransferRequest(
     DateTime TransferDateTime,
-    string? ToWardId,
-    string? ToWardName,
-    string? ToRoomBed,
+    string ToUnitId,
+    string? ToBedId,
+    string? ToInstitutionId,
     string? ToSpecialtyId,
     string? ToSpecialtyName,
     string? AttendingPhysicianId,
     string? AttendingPhysicianName,
-    string? Comments);
+    string? Comments,
+    bool OverrideReservation = false);
 
 public record AdtDischargeRequest(
     DateTime DischargeDateTime,

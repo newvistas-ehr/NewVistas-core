@@ -755,35 +755,96 @@ public interface IPatientWorkflowGrain : IGrainWithStringKey
 
     // ─── ADT — Admit/Discharge/Transfer (File #405) ─────────────────────
 
+    /// <summary>
+    /// Admit to a unit ("UNIT:{institutionId}:{unitId}" owns the bed truth). institutionId
+    /// and unitId are required — no free-text ward. bedId null = boarder (ED boarding, or
+    /// a small site that doesn't track beds); the census stays honest either way.
+    /// </summary>
     [RequiresSecurityKey(SecurityKeys.DG_ADMIT)]
     [AuditAction("ADT", "CREATE", EntityType = "ADMISSION", IsClinicalWrite = true)]
     Task<string> RecordAdmissionAsync(
-        DateTime movementDateTime, string? wardLocationId, string? wardLocationName,
-        string? roomBed, string? treatingSpecialtyName,
+        DateTime movementDateTime, string institutionId, string unitId, string? bedId,
+        string? treatingSpecialtyName,
         string? attendingPhysicianId, string? attendingPhysicianName,
         string? admissionDiagnosis, string? comments);
     [RequiresSecurityKey(SecurityKeys.DG_ADMIT)]
     [AuditAction("ADT", "DISCHARGE", EntityType = "MOVEMENT", IsClinicalWrite = true)]
     Task RecordDischargeAsync(string movementId, DateTime dischargeDateTime,
         string? dischargeDiagnosis, string? disposition, string? comments);
+    /// <summary>
+    /// Transfer to a unit/bed. Same-unit + bedId = an atomic bed swap; the vacated bed
+    /// goes to Dirty (EVS turnover) in both cases.
+    /// </summary>
     [RequiresSecurityKey(SecurityKeys.DG_ADMIT)]
     [AuditAction("ADT", "TRANSFER", EntityType = "MOVEMENT", IsClinicalWrite = true)]
     Task<string> RecordTransferAsync(
         string currentMovementId,
         DateTime transferDateTime,
-        string? toWardId, string? toWardName,
-        string? toRoomBed,
+        string toInstitutionId, string toUnitId,
+        string? toBedId,
         string? toSpecialtyId, string? toSpecialtyName,
         string? attendingPhysicianId, string? attendingPhysicianName,
-        string? comments);
+        string? comments,
+        bool overrideReservation = false);
     Task<List<GrainStates.AdtSummary>> GetAdtMovementsAsync();
 
     /// <summary>
     /// Paged full ADT movement history (newest first); default reads return only the recent window.
     /// </summary>
     Task<List<GrainStates.AdtSummary>> GetAdtHistoryAsync(int offset, int maxResults);
-    Task<List<GrainStates.WardCensusEntry>> GetWardCensusAsync(string wardId);
-    Task<List<GrainStates.WardLocationEntry>> GetWardListAsync();
+
+    /// <summary>Live unit census — a projection of the unit grain's bed + boarder state.</summary>
+    Task<List<GrainStates.UnitCensusEntry>> GetUnitCensusAsync(string institutionId, string unitId);
+
+    /// <summary>The institution's unit directory with live capacity counts.</summary>
+    Task<List<GrainStates.UnitCapacitySummary>> GetUnitDirectoryAsync(string institutionId);
+
+    // ─── Inter-facility Transfer Center (DGPM inter-facility; produces #405 movements) ───
+
+    /// <summary>
+    /// Submit a transfer/placement request to another institution (the transfer-center
+    /// analog of a consult). The receiving facility controls its own beds: it accepts
+    /// with a reserved bed, or declines.
+    /// </summary>
+    [RequiresSecurityKey(SecurityKeys.DG_BED_CONTROL)]
+    [AuditAction("ADT", "CREATE", EntityType = "TRANSFER_REQUEST", IsClinicalWrite = true)]
+    Task<string> RequestInterfacilityTransferAsync(
+        string sendingInstitutionId, string? sendingUnitId, string? sendingAdmissionId,
+        string? sendingAttendingId, string? sendingAttendingName,
+        string receivingInstitutionId,
+        string? requestedLevelOfCare, GrainStates.BedType? requestedBedType, GrainStates.BedIsolationType isolationRequired,
+        string urgency, string? clinicalSummary, string? reasonForTransfer);
+
+    /// <summary>Accept (receiving side only): reserves the named bed FIRST, then flips REQUESTED→ACCEPTED.</summary>
+    [RequiresSecurityKey(SecurityKeys.DG_BED_CONTROL)]
+    [AuditAction("ADT", "UPDATE", EntityType = "TRANSFER_REQUEST", IsClinicalWrite = true)]
+    Task AcceptInterfacilityTransferAsync(string transferId, string actingInstitutionId, string unitId, string bedId);
+
+    /// <summary>Re-reserve when the accepted bed became unavailable; the request stays ACCEPTED.</summary>
+    [RequiresSecurityKey(SecurityKeys.DG_BED_CONTROL)]
+    [AuditAction("ADT", "UPDATE", EntityType = "TRANSFER_REQUEST", IsClinicalWrite = true)]
+    Task ReassignTransferBedAsync(string transferId, string newUnitId, string newBedId);
+
+    [RequiresSecurityKey(SecurityKeys.DG_BED_CONTROL)]
+    [AuditAction("ADT", "UPDATE", EntityType = "TRANSFER_REQUEST", IsClinicalWrite = true)]
+    Task DeclineInterfacilityTransferAsync(string transferId, string actingInstitutionId, string reason);
+
+    /// <summary>Cancel (sender). Cancel-after-accept releases the bed reservation.</summary>
+    [RequiresSecurityKey(SecurityKeys.DG_BED_CONTROL)]
+    [AuditAction("ADT", "UPDATE", EntityType = "TRANSFER_REQUEST", IsClinicalWrite = true)]
+    Task CancelInterfacilityTransferAsync(string transferId, string? reason);
+
+    /// <summary>
+    /// Patient arrived: admission at the receiver (occupies the reserved bed, fires the
+    /// ADR-002 attending hook), then discharge at the sender (disposition TRANSFER),
+    /// then MPI/treating-facility updates. Returns the new admission movement id.
+    /// </summary>
+    [RequiresSecurityKey(SecurityKeys.DG_BED_CONTROL)]
+    [AuditAction("ADT", "CREATE", EntityType = "TRANSFER_COMPLETION", IsClinicalWrite = true)]
+    Task<string> CompleteInterfacilityTransferAsync(string transferId, DateTime arrivalDateTime,
+        string? receivingAttendingId, string? receivingAttendingName, string? admissionDiagnosis);
+
+    Task<GrainStates.TransferRequestState> GetInterfacilityTransferAsync(string transferId);
 
     // ─── Audit Trail (VistA AUDIT file #1.1, XUSEC routines) ────────────
 
@@ -4492,11 +4553,14 @@ public interface IPatientWorkflowGrain : IGrainWithStringKey
 
     // ─── Registration — Bed Availability, Advance Directives, Identity ──────
 
-    /// <summary>Queries available beds facility-wide, optionally filtered by ward or bed type.</summary>
-    Task<List<GrainStates.BedSummaryEntry>> FindAvailableBedsAsync(string facilityId, string? wardId, string? bedType);
+    /// <summary>
+    /// Queries placeable (Available) beds institution-wide, optionally filtered by unit or
+    /// bed type. Consults the capacity directory first so only units with availability are read.
+    /// </summary>
+    Task<List<GrainStates.InpatientBed>> FindAvailableBedsAsync(string institutionId, string? unitId, GrainStates.BedType? bedType);
 
-    /// <summary>Returns total, available, and occupied bed counts for a facility.</summary>
-    Task<(int Total, int Available, int Occupied)> GetBedCountsAsync(string facilityId);
+    /// <summary>Returns total, available (placeable), and occupied bed counts for an institution.</summary>
+    Task<(int Total, int Available, int Occupied)> GetBedCountsAsync(string institutionId);
 
     /// <summary>Returns the patient's advance directive state (code status, proxy, documents on file).</summary>
     Task<GrainStates.AdvanceDirectiveState> GetAdvanceDirectivesAsync();

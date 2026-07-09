@@ -42,12 +42,33 @@ public class NursingWorkflowTests
         => _cluster.GrainFactory.GetGrain<INursingAcuityGrain>(
             $"NURS-ACUITY:{Guid.NewGuid():N}");
 
-    private INursingUnitGrain NewUnit()
-        => _cluster.GrainFactory.GetGrain<INursingUnitGrain>(
-            $"NURS-UNIT:{Guid.NewGuid():N}");
+    /// <summary>Fresh inpatient unit (unit-owns-beds model) in its own institution.</summary>
+    private async Task<(string Inst, string UnitId, IInpatientUnitGrain Grain)> NewUnitAsync(
+        string name, string? unitType, int beds)
+    {
+        string inst = $"INST-{Guid.NewGuid():N}";
+        string unitId = $"U-{Guid.NewGuid():N}";
+        var unit = _cluster.GrainFactory.GetGrain<IInpatientUnitGrain>($"UNIT:{inst}:{unitId}");
+        await unit.ConfigureUnitAsync(name, unitType, null);
+        for (int i = 1; i <= beds; i++)
+            await unit.AddBedAsync($"B{i}", null, BedType.Regular);
+        return (inst, unitId, unit);
+    }
 
-    private INursingUnitIndexGrain GetUnitIndex()
-        => _cluster.GrainFactory.GetGrain<INursingUnitIndexGrain>("NURS-UNIT-IDX");
+    private IBedCapacityGrain Capacity(string institutionId)
+        => _cluster.GrainFactory.GetGrain<IBedCapacityGrain>($"BED-CAPACITY:{institutionId}");
+
+    private static UnitAdmissionRequest Admission(string patientId, string patientName, string bedId,
+        string? nurseId = null, string? nurseName = null) => new()
+    {
+        PatientId = patientId,
+        PatientName = patientName,
+        MovementId = $"ADT-{Guid.NewGuid()}",
+        BedId = bedId,
+        AdmitDate = DateTime.UtcNow,
+        AttendingNurseId = nurseId,
+        AttendingNurseName = nurseName
+    };
 
     private static NursingAssessmentState MakeAssessmentState(string id, string patientId) =>
         new()
@@ -359,134 +380,151 @@ public class NursingWorkflowTests
         Assert.That(state.AcuityHistory[1].Notes, Is.EqualTo("Condition deteriorated"));
     }
 
-    // ── NursingUnitGrain ───────────────────────────────────────────────────────
+    // ── InpatientUnitGrain (nursing surface — replaces the retired NursingUnitGrain) ──
 
     [Test]
-    public async Task NursingUnitGrain_Initialize_SetsUnitName()
+    public async Task InpatientUnitGrain_Configure_SetsUnitNameAndBeds()
     {
-        // Arrange
-        INursingUnitGrain unit = NewUnit();
-
-        // Act
-        await unit.InitializeAsync("4-North MedSurg", "MedSurg", 30);
-        NursingUnitState state = await unit.GetAsync();
+        // Arrange + Act
+        var (_, _, unit) = await NewUnitAsync("4-North MedSurg", "MedSurg", 30);
+        InpatientUnitState state = await unit.GetAsync();
+        UnitCapacitySummary summary = await unit.GetCapacitySummaryAsync();
 
         // Assert
-        Assert.That(state.UnitName, Is.EqualTo("4-North MedSurg"));
+        Assert.That(state.Name, Is.EqualTo("4-North MedSurg"));
         Assert.That(state.UnitType, Is.EqualTo("MedSurg"));
-        Assert.That(state.TotalBeds, Is.EqualTo(30));
+        Assert.That(summary.TotalBeds, Is.EqualTo(30));
+        Assert.That(summary.Available, Is.EqualTo(30));
     }
 
     [Test]
-    public async Task NursingUnitGrain_Initialize_IsIdempotent()
+    public async Task InpatientUnitGrain_Reconfigure_UpdatesProfile_KeepsBeds()
     {
         // Arrange
-        INursingUnitGrain unit = NewUnit();
-        await unit.InitializeAsync("ICU-A", "ICU", 8);
+        var (_, _, unit) = await NewUnitAsync("ICU-A", "ICU", 8);
 
-        // Act — second init call should not overwrite
-        await unit.InitializeAsync("DIFFERENT-NAME", "PACU", 12);
-        NursingUnitState state = await unit.GetAsync();
+        // Act — ConfigureUnitAsync is an idempotent create-or-update
+        await unit.ConfigureUnitAsync("ICU-A (Renovated)", "ICU", null);
+        InpatientUnitState state = await unit.GetAsync();
 
-        // Assert
-        Assert.That(state.UnitName, Is.EqualTo("ICU-A"));
+        // Assert — profile updated, structure untouched
+        Assert.That(state.Name, Is.EqualTo("ICU-A (Renovated)"));
+        Assert.That(state.Beds, Has.Count.EqualTo(8));
     }
 
     [Test]
-    public async Task NursingUnitGrain_AssignPatient_PopulatesBed()
+    public async Task InpatientUnitGrain_AdmitPatient_PopulatesBed()
     {
         // Arrange
-        INursingUnitGrain unit = NewUnit();
-        await unit.InitializeAsync("3-East", "MedSurg", 20);
+        var (_, _, unit) = await NewUnitAsync("3-East", "MedSurg", 20);
 
         // Act
-        await unit.AssignPatientAsync("301A", "PAT-001", "John Smith", DateTime.UtcNow, "RN-001", "Jane Nurse RN");
-        NursingUnitState state = await unit.GetAsync();
+        await unit.AdmitPatientAsync(Admission("PAT-001", "John Smith", "B1", "RN-001", "Jane Nurse RN"));
+        InpatientUnitState state = await unit.GetAsync();
 
         // Assert
-        NursingBedAssignment? bed = state.BedAssignments.FirstOrDefault(b => b.Bed == "301A");
+        InpatientBed? bed = state.Beds.FirstOrDefault(b => b.BedId == "B1");
         Assert.That(bed, Is.Not.Null);
-        Assert.That(bed!.IsOccupied, Is.True);
+        Assert.That(bed!.State, Is.EqualTo(BedLifecycleState.Occupied));
         Assert.That(bed.PatientId, Is.EqualTo("PAT-001"));
         Assert.That(bed.PatientName, Is.EqualTo("John Smith"));
+        Assert.That(bed.AttendingNurseId, Is.EqualTo("RN-001"));
     }
 
     [Test]
-    public async Task NursingUnitGrain_DischargeFromBed_ClearsOccupancy()
+    public async Task InpatientUnitGrain_ReleasePatient_ClearsOccupancy_BedGoesDirty()
     {
         // Arrange
-        INursingUnitGrain unit = NewUnit();
-        await unit.InitializeAsync("2-West", "PCU", 16);
-        await unit.AssignPatientAsync("201B", "PAT-002", "Mary Jones", DateTime.UtcNow, null, null);
+        var (_, _, unit) = await NewUnitAsync("2-West", "PCU", 16);
+        await unit.AdmitPatientAsync(Admission("PAT-002", "Mary Jones", "B1"));
 
         // Act
-        await unit.DischargeFromBedAsync("201B");
-        NursingUnitState state = await unit.GetAsync();
+        string? vacated = await unit.ReleasePatientAsync("PAT-002", $"ADT-{Guid.NewGuid()}");
+        InpatientUnitState state = await unit.GetAsync();
 
         // Assert
-        NursingBedAssignment? bed = state.BedAssignments.FirstOrDefault(b => b.Bed == "201B");
-        Assert.That(bed, Is.Not.Null);
-        Assert.That(bed!.IsOccupied, Is.False);
+        Assert.That(vacated, Is.EqualTo("B1"));
+        InpatientBed bed = state.Beds.First(b => b.BedId == "B1");
+        Assert.That(bed.State, Is.EqualTo(BedLifecycleState.Dirty));
         Assert.That(bed.PatientId, Is.Null);
     }
 
     [Test]
-    public async Task NursingUnitGrain_UpdateBedAcuity_ReflectsInState()
+    public async Task InpatientUnitGrain_UpdateBedAcuity_ReflectsInState()
     {
         // Arrange
-        INursingUnitGrain unit = NewUnit();
-        await unit.InitializeAsync("ICU-B", "ICU", 6);
-        await unit.AssignPatientAsync("ICU-1", "PAT-003", "Critical Pat", DateTime.UtcNow, "RN-003", "Alice Nurse RN");
+        var (_, _, unit) = await NewUnitAsync("ICU-B", "ICU", 6);
+        await unit.AdmitPatientAsync(Admission("PAT-003", "Critical Pat", "B1", "RN-003", "Alice Nurse RN"));
 
         // Act
-        await unit.UpdateBedAcuityAsync("ICU-1", AcuityLevel.CriticalCare);
-        NursingUnitState state = await unit.GetAsync();
+        await unit.UpdateBedAcuityAsync("B1", AcuityLevel.CriticalCare);
+        InpatientUnitState state = await unit.GetAsync();
 
         // Assert
-        Assert.That(state.BedAssignments.First(b => b.Bed == "ICU-1").AcuityLevel,
+        Assert.That(state.Beds.First(b => b.BedId == "B1").AcuityLevel,
             Is.EqualTo(AcuityLevel.CriticalCare));
     }
 
-    // ── NursingUnitIndexGrain ──────────────────────────────────────────────────
-
     [Test]
-    public async Task NursingUnitIndexGrain_UpsertUnit_AppearsInDirectory()
+    public async Task InpatientUnitGrain_AssignBedNurse_ShowsOnCensus()
     {
         // Arrange
-        INursingUnitIndexGrain idx = GetUnitIndex();
-        NursingUnitEntry entry = new()
-        {
-            UnitId       = $"UNIT-{Guid.NewGuid():N}",
-            UnitName     = "Oncology",
-            UnitType     = "Oncology",
-            TotalBeds    = 22,
-            OccupiedBeds = 10
-        };
+        var (_, _, unit) = await NewUnitAsync("5-South", "MedSurg", 4);
+        await unit.AdmitPatientAsync(Admission("PAT-004", "Covered Pat", "B2"));
 
         // Act
-        await idx.UpsertUnitAsync(entry);
-        NursingUnitIndexState state = await idx.GetAsync();
+        await unit.AssignBedNurseAsync("B2", "RN-010", "Cover Nurse RN");
+        List<UnitCensusEntry> census = await unit.GetCensusAsync();
 
         // Assert
-        Assert.That(state.Units.Any(u => u.UnitId == entry.UnitId), Is.True);
+        Assert.That(census.First(e => e.PatientId == "PAT-004").AttendingNurseName,
+            Is.EqualTo("Cover Nurse RN"));
+    }
+
+    // ── BedCapacityGrain (unit directory — replaces the retired NursingUnitIndexGrain) ──
+
+    [Test]
+    public async Task BedCapacityGrain_ConfiguredUnit_AppearsInDirectory()
+    {
+        // Arrange + Act — configuring a unit pushes its rollup to the capacity directory
+        var (inst, unitId, _) = await NewUnitAsync("Oncology", "Oncology", 22);
+        List<UnitCapacitySummary> units = await Capacity(inst).GetUnitsAsync();
+
+        // Assert
+        UnitCapacitySummary? entry = units.FirstOrDefault(u => u.UnitId == unitId);
+        Assert.That(entry, Is.Not.Null);
+        Assert.That(entry!.Name, Is.EqualTo("Oncology"));
+        Assert.That(entry.UnitType, Is.EqualTo("Oncology"));
+        Assert.That(entry.TotalBeds, Is.EqualTo(22));
     }
 
     [Test]
-    public async Task NursingUnitIndexGrain_RemoveUnit_NoLongerInDirectory()
+    public async Task BedCapacityGrain_OccupancyRollsUpToDirectory()
     {
         // Arrange
-        INursingUnitIndexGrain idx = GetUnitIndex();
-        string uid = $"UNIT-{Guid.NewGuid():N}";
-        await idx.UpsertUnitAsync(new NursingUnitEntry
-        {
-            UnitId = uid, UnitName = "Temp Unit", TotalBeds = 5
-        });
+        var (inst, unitId, unit) = await NewUnitAsync("Telemetry", "PCU", 10);
 
         // Act
-        await idx.RemoveUnitAsync(uid);
-        NursingUnitIndexState state = await idx.GetAsync();
+        await unit.AdmitPatientAsync(Admission("PAT-005", "Tele Pat", "B1"));
+        UnitCapacitySummary? entry = await Capacity(inst).GetUnitAsync(unitId);
 
         // Assert
-        Assert.That(state.Units.All(u => u.UnitId != uid), Is.True);
+        Assert.That(entry, Is.Not.Null);
+        Assert.That(entry!.Occupied, Is.EqualTo(1));
+        Assert.That(entry.Available, Is.EqualTo(9));
+    }
+
+    [Test]
+    public async Task BedCapacityGrain_DeactivatedUnit_NoLongerInDirectory()
+    {
+        // Arrange
+        var (inst, unitId, unit) = await NewUnitAsync("Temp Unit", null, 5);
+
+        // Act
+        await unit.DeactivateUnitAsync();
+        List<UnitCapacitySummary> units = await Capacity(inst).GetUnitsAsync();
+
+        // Assert
+        Assert.That(units.All(u => u.UnitId != unitId), Is.True);
     }
 }

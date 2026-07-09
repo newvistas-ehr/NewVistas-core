@@ -102,9 +102,11 @@ public class SiteParametersState
     ///                                    per-patient-then-viewer, over a non-suppressible safety spine (Modern; ENABLED BY DEFAULT, see SiteFeatures)
     ///   "PERSON_IDENTITY"              — Person anchor unifying one human across patient/staff/relative roles (ADR-002): cross-role view, link
     ///                                    workflow, employee-patient privacy guard, cascade opportunities (Modern; ENABLED BY DEFAULT, see SiteFeatures)
+    ///   "BED_MANAGEMENT"               — Institution-aware bed board (unit/room/bed lifecycle + EVS turnover) and the inter-facility Transfer
+    ///                                    Center (request→accept→complete; ADR-003) (Modern; ENABLED BY DEFAULT, see SiteFeatures)
     /// </summary>
     [Id(7)]
-    public HashSet<string> Features { get; set; } = new() { SiteFeatures.ExternalPharmacy, SiteFeatures.Oncology, SiteFeatures.PrecisionOncology, SiteFeatures.HomeBasedCare, SiteFeatures.HomeHealthMedicare, SiteFeatures.NeonatalCare, SiteFeatures.Pharmacogenomics, SiteFeatures.HereditaryGenetics, SiteFeatures.SpecialtyCoverSheet, SiteFeatures.PersonIdentity };
+    public HashSet<string> Features { get; set; } = new() { SiteFeatures.ExternalPharmacy, SiteFeatures.Oncology, SiteFeatures.PrecisionOncology, SiteFeatures.HomeBasedCare, SiteFeatures.HomeHealthMedicare, SiteFeatures.NeonatalCare, SiteFeatures.Pharmacogenomics, SiteFeatures.HereditaryGenetics, SiteFeatures.SpecialtyCoverSheet, SiteFeatures.PersonIdentity, SiteFeatures.BedManagement };
 
     [Id(3)]
     public DateTime CreatedDate { get; set; } = DateTime.UtcNow;
@@ -224,4 +226,14 @@ public static class SiteFeatures
     /// (<c>DisableFeatureAsync("PERSON_IDENTITY")</c>) — the nullable Person back-pointers simply go unused.
     /// </summary>
     public const string PersonIdentity = "PERSON_IDENTITY";
+
+    /// <summary>
+    /// Bed &amp; room management (ADR-003) — institution-aware bed board (unit/room/bed
+    /// lifecycle with EVS turnover, honest "placeable" capacity) plus the inter-facility
+    /// Transfer Center (request→accept-with-reserved-bed→complete). A "Modern" enhancement,
+    /// <b>enabled by default</b>. Gates the Bed Board / Transfer Center UI and the transfer
+    /// workflow; structured ADT unit/bed placement itself is core VistA and is not gated.
+    /// The Transfer Center additionally self-hides on single-institution sites.
+    /// </summary>
+    public const string BedManagement = "BED_MANAGEMENT";
 }

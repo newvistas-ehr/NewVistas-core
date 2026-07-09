@@ -1,0 +1,721 @@
+@* Copyright 2026 Merrimack Valley Software Works, LLC. All rights reserved. *@
+@* This Source Code Form is subject to the terms of the Mozilla Public *@
+@* License, v. 2.0. If a copy of the MPL was not distributed with this *@
+@* file, You can obtain one at https://mozilla.org/MPL/2.0/.            *@
+@page "/transfer-center"
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+@rendermode InteractiveServer
+@using NewVistas.BlazorWeb.Services
+@using NewVistas.Abstractions.GrainInterfaces
+@using NewVistas.Abstractions.GrainStates
+@using NewVistas.Abstractions.Security
+@inject OrleansGrainService Grains
+@inject UserSecurityContext SecurityContext
+@inject ILogger<TransferCenter> Logger
+
+<PageTitle>Transfer Center</PageTitle>
+
+@if (!SecurityContext.HasAccess(MenuArea.Clinical) || !SecurityContext.IsFeatureEnabled("BED_MANAGEMENT"))
+{
+    <div class="alert alert-info">The Transfer Center requires clinical access and the BED_MANAGEMENT feature to be enabled at this site.</div>
+}
+else
+{
+    <h1>Transfer Center</h1>
+
+    <div class="inst-bar">
+        <label for="tc-inst">Institution:</label>
+        <select id="tc-inst" @onchange="OnInstitutionChanged">
+            @if (institutions.All(i => i.InstitutionId != ActingId))
+            {
+                <option value="@ActingId" selected>@ActingId</option>
+            }
+            @foreach (var inst in institutions)
+            {
+                <option value="@inst.InstitutionId" selected="@(inst.InstitutionId == ActingId)">@inst.Name</option>
+            }
+        </select>
+    </div>
+
+    @if (activeCount <= 1)
+    {
+        <div class="info-card">
+            <h3>🏥 Single-institution site</h3>
+            <p>
+                Transfer Center needs more than one institution to be useful — inter-facility
+                transfers move a patient between facilities. Register additional institutions
+                under <a href="/admin/institutions">Institutions</a> to enable it.
+            </p>
+        </div>
+    }
+    else
+    {
+        @if (error != null) { <div class="alert alert-error">@error</div> }
+        @if (successMsg != null) { <div class="alert alert-success">@successMsg</div> }
+
+        <div class="tab-bar">
+            <button class="@TabClass(0)" @onclick="async () => { activeTab = 0; await LoadQueues(); }">Incoming</button>
+            <button class="@TabClass(1)" @onclick="async () => { activeTab = 1; await LoadQueues(); }">Outgoing</button>
+            <button class="@TabClass(2)" @onclick="() => activeTab = 2">New Request</button>
+        </div>
+
+        @* ─── Tab 0: Incoming ───────────────────────────────────────────── *@
+        @if (activeTab == 0)
+        {
+            <div class="board-actions">
+                <button class="btn btn-primary" @onclick="LoadQueues" disabled="@loading">@(loading ? "Loading..." : "Refresh")</button>
+                <label class="chk"><input type="checkbox" @bind="activeOnly" @bind:after="LoadQueues" /> Active only</label>
+            </div>
+
+            @if (incoming != null)
+            {
+                @if (incoming.Count == 0) { <div class="empty-state">No incoming transfer requests.</div> }
+                else
+                {
+                    <table class="data-table">
+                        <thead><tr><th>Urgency</th><th>Patient</th><th>From</th><th>Level of Care</th><th>Status</th><th>Requested</th><th>Actions</th></tr></thead>
+                        <tbody>
+                            @foreach (var row in incoming)
+                            {
+                                var t = row;
+                                <tr class="queue-row" @onclick="() => ToggleDetail(t)">
+                                    <td><span class="badge @UrgencyCss(t.Urgency)">@t.Urgency</span></td>
+                                    <td>@(t.PatientName ?? t.PatientId) <span class="muted">(@t.PatientId)</span></td>
+                                    <td>@(t.SendingInstitutionName ?? t.SendingInstitutionId)</td>
+                                    <td>@(t.RequestedLevelOfCare ?? "—")</td>
+                                    <td><span class="badge @StatusCss(t.Status)">@t.Status</span>@(t.ReservedBedId != null ? $" · bed {t.ReservedBedId}" : "")</td>
+                                    <td class="date">@(t.RequestDateTime?.ToLocalTime().ToString("MM/dd/yyyy HH:mm") ?? "—")</td>
+                                    <td class="actions" @onclick:stopPropagation="true">
+                                        @if (CanBedControl && t.Status == TransferRequestStatus.Requested)
+                                        {
+                                            <button class="btn-sm" @onclick="() => OpenBedPanel(t, accept: true)">Accept…</button>
+                                            <button class="btn-sm" @onclick="() => OpenDecline(t)">Decline…</button>
+                                        }
+                                        @if (CanBedControl && t.Status == TransferRequestStatus.Accepted)
+                                        {
+                                            <button class="btn-sm" @onclick="() => OpenComplete(t)">Complete arrival…</button>
+                                            <button class="btn-sm" @onclick="() => OpenBedPanel(t, accept: false)">Reassign bed…</button>
+                                        }
+                                    </td>
+                                </tr>
+
+                                @* Inline action panel *@
+                                @if (panelTransferId == t.TransferId)
+                                {
+                                    <tr class="panel-tr"><td colspan="7">
+                                        @if (panelKind is "accept" or "reassign")
+                                        {
+                                            <div class="inline-panel">
+                                                <strong>@(panelKind == "accept" ? "Accept transfer" : "Reassign reserved bed") — pick a bed at @ActingName</strong>
+                                                @if (panelRequest?.RequestedBedType != null)
+                                                {
+                                                    <div class="muted">Requested bed type: @panelRequest.RequestedBedType (matching beds listed first)</div>
+                                                }
+                                                <div class="panel-fields">
+                                                    <label>Unit
+                                                        <select @bind="panelUnitId" @bind:after="OnPanelUnitSelected">
+                                                            <option value="">— Select Unit —</option>
+                                                            @foreach (var u in panelUnits) { <option value="@u.UnitId">@u.Name — @u.Available available</option> }
+                                                        </select>
+                                                    </label>
+                                                    <label>Bed
+                                                        <select @bind="panelBedId" disabled="@(string.IsNullOrEmpty(panelUnitId))">
+                                                            <option value="">— Select Bed —</option>
+                                                            @if (panelBeds != null)
+                                                            {
+                                                                @foreach (var b in panelBeds)
+                                                                {
+                                                                    <option value="@b.BedId">@BedLabel(b, panelRequest?.RequestedBedType)</option>
+                                                                }
+                                                            }
+                                                        </select>
+                                                    </label>
+                                                    <button class="btn btn-primary" disabled="@(saving || string.IsNullOrEmpty(panelUnitId) || string.IsNullOrEmpty(panelBedId))"
+                                                            @onclick="() => ConfirmBedPanel(t)">
+                                                        @(saving ? "Saving..." : (panelKind == "accept" ? "Confirm accept" : "Confirm reassign"))
+                                                    </button>
+                                                    <button class="btn btn-secondary" @onclick="ClosePanel">Cancel</button>
+                                                </div>
+                                            </div>
+                                        }
+                                        else if (panelKind == "decline")
+                                        {
+                                            <div class="inline-panel">
+                                                <strong>Decline transfer — reason required</strong>
+                                                <div class="panel-fields">
+                                                    <input class="wide" @bind="declineReason" placeholder="Reason for declining" />
+                                                    <button class="btn btn-primary" disabled="@(saving || string.IsNullOrWhiteSpace(declineReason))" @onclick="() => ConfirmDecline(t)">@(saving ? "Saving..." : "Confirm decline")</button>
+                                                    <button class="btn btn-secondary" @onclick="ClosePanel">Cancel</button>
+                                                </div>
+                                            </div>
+                                        }
+                                        else if (panelKind == "complete")
+                                        {
+                                            <div class="inline-panel">
+                                                <strong>Complete arrival — admits at @ActingName and discharges at the sender</strong>
+                                                <div class="panel-fields wrap">
+                                                    <label>Arrival date/time <input type="datetime-local" @bind="cpArrival" /></label>
+                                                    <label>Receiving attending ID <input @bind="cpAttendingId" placeholder="optional" /></label>
+                                                    <label>Receiving attending name <input @bind="cpAttendingName" placeholder="optional" /></label>
+                                                    <label>Admission diagnosis <input class="wide" @bind="cpDiagnosis" placeholder="optional" /></label>
+                                                    <button class="btn btn-primary" disabled="@saving" @onclick="() => ConfirmComplete(t)">@(saving ? "Saving..." : "Confirm arrival")</button>
+                                                    <button class="btn btn-secondary" @onclick="ClosePanel">Cancel</button>
+                                                </div>
+                                            </div>
+                                        }
+                                    </td></tr>
+                                }
+
+                                @* Expanded request detail *@
+                                @if (expandedTransferId == t.TransferId && details.TryGetValue(t.TransferId, out var d))
+                                {
+                                    <tr class="panel-tr"><td colspan="7">
+                                        <div class="detail-panel">
+                                            <div class="detail-grid">
+                                                <div><span class="dl">Transfer ID</span> @d.TransferId</div>
+                                                <div><span class="dl">Route</span> @(d.SendingInstitutionName ?? d.SendingInstitutionId) → @(d.ReceivingInstitutionName ?? d.ReceivingInstitutionId)</div>
+                                                <div><span class="dl">Requested bed type</span> @(d.RequestedBedType?.ToString() ?? "any")</div>
+                                                <div><span class="dl">Isolation required</span> @d.IsolationRequired</div>
+                                                <div><span class="dl">Reserved unit / bed</span> @(d.ReservedUnitId ?? "—") / @(d.ReservedBedId ?? "—")</div>
+                                                <div><span class="dl">Sending admission</span> @(d.SendingAdmissionId ?? "—")</div>
+                                                @if (d.DeclineReason != null) { <div><span class="dl">Decline reason</span> @d.DeclineReason</div> }
+                                                @if (d.CancelReason != null) { <div><span class="dl">Cancel reason</span> @d.CancelReason</div> }
+                                            </div>
+                                            <div class="detail-block"><span class="dl">Reason for transfer</span><div>@(d.ReasonForTransfer ?? "—")</div></div>
+                                            <div class="detail-block"><span class="dl">Clinical summary</span><div class="pre">@(d.ClinicalSummary ?? "—")</div></div>
+                                            <h4>Timeline</h4>
+                                            <table class="data-table compact">
+                                                <thead><tr><th>Status</th><th>When</th><th>Who</th><th>Note</th></tr></thead>
+                                                <tbody>
+                                                    @foreach (var ev in d.Timeline)
+                                                    {
+                                                        <tr>
+                                                            <td><span class="badge @StatusCss(ev.Status)">@ev.Status</span></td>
+                                                            <td class="date">@ev.Timestamp.ToLocalTime().ToString("MM/dd/yyyy HH:mm")</td>
+                                                            <td>@(ev.ActorName ?? ev.ActorId ?? "—")</td>
+                                                            <td>@(ev.Note ?? "—")</td>
+                                                        </tr>
+                                                    }
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    </td></tr>
+                                }
+                            }
+                        </tbody>
+                    </table>
+                }
+            }
+        }
+
+        @* ─── Tab 1: Outgoing ───────────────────────────────────────────── *@
+        @if (activeTab == 1)
+        {
+            <div class="board-actions">
+                <button class="btn btn-primary" @onclick="LoadQueues" disabled="@loading">@(loading ? "Loading..." : "Refresh")</button>
+                <label class="chk"><input type="checkbox" @bind="activeOnly" @bind:after="LoadQueues" /> Active only</label>
+            </div>
+
+            @if (outgoing != null)
+            {
+                @if (outgoing.Count == 0) { <div class="empty-state">No outgoing transfer requests.</div> }
+                else
+                {
+                    <table class="data-table">
+                        <thead><tr><th>Urgency</th><th>Patient</th><th>To</th><th>Level of Care</th><th>Status</th><th>Requested</th><th>Actions</th></tr></thead>
+                        <tbody>
+                            @foreach (var row in outgoing)
+                            {
+                                var t = row;
+                                <tr class="queue-row" @onclick="() => ToggleDetail(t)">
+                                    <td><span class="badge @UrgencyCss(t.Urgency)">@t.Urgency</span></td>
+                                    <td>@(t.PatientName ?? t.PatientId) <span class="muted">(@t.PatientId)</span></td>
+                                    <td>@(t.ReceivingInstitutionName ?? t.ReceivingInstitutionId)</td>
+                                    <td>@(t.RequestedLevelOfCare ?? "—")</td>
+                                    <td><span class="badge @StatusCss(t.Status)">@t.Status</span>@(t.ReservedBedId != null ? $" · bed {t.ReservedBedId}" : "")</td>
+                                    <td class="date">@(t.RequestDateTime?.ToLocalTime().ToString("MM/dd/yyyy HH:mm") ?? "—")</td>
+                                    <td class="actions" @onclick:stopPropagation="true">
+                                        @if (CanBedControl && (t.Status == TransferRequestStatus.Requested || t.Status == TransferRequestStatus.Accepted))
+                                        {
+                                            <button class="btn-sm" @onclick="() => OpenCancel(t)">Cancel…</button>
+                                        }
+                                    </td>
+                                </tr>
+
+                                @if (panelTransferId == t.TransferId && panelKind == "cancel")
+                                {
+                                    <tr class="panel-tr"><td colspan="7">
+                                        <div class="inline-panel">
+                                            <strong>Cancel transfer request</strong>
+                                            <div class="panel-fields">
+                                                <input class="wide" @bind="cancelReason" placeholder="Reason (optional)" />
+                                                <button class="btn btn-primary" disabled="@saving" @onclick="() => ConfirmCancel(t)">@(saving ? "Saving..." : "Confirm cancel")</button>
+                                                <button class="btn btn-secondary" @onclick="ClosePanel">Keep request</button>
+                                            </div>
+                                        </div>
+                                    </td></tr>
+                                }
+
+                                @if (expandedTransferId == t.TransferId && details.TryGetValue(t.TransferId, out var d))
+                                {
+                                    <tr class="panel-tr"><td colspan="7">
+                                        <div class="detail-panel">
+                                            <div class="detail-grid">
+                                                <div><span class="dl">Transfer ID</span> @d.TransferId</div>
+                                                <div><span class="dl">Route</span> @(d.SendingInstitutionName ?? d.SendingInstitutionId) → @(d.ReceivingInstitutionName ?? d.ReceivingInstitutionId)</div>
+                                                <div><span class="dl">Requested bed type</span> @(d.RequestedBedType?.ToString() ?? "any")</div>
+                                                <div><span class="dl">Isolation required</span> @d.IsolationRequired</div>
+                                                <div><span class="dl">Reserved unit / bed</span> @(d.ReservedUnitId ?? "—") / @(d.ReservedBedId ?? "—")</div>
+                                                <div><span class="dl">Sending admission</span> @(d.SendingAdmissionId ?? "—")</div>
+                                                @if (d.DeclineReason != null) { <div><span class="dl">Decline reason</span> @d.DeclineReason</div> }
+                                                @if (d.CancelReason != null) { <div><span class="dl">Cancel reason</span> @d.CancelReason</div> }
+                                            </div>
+                                            <div class="detail-block"><span class="dl">Reason for transfer</span><div>@(d.ReasonForTransfer ?? "—")</div></div>
+                                            <div class="detail-block"><span class="dl">Clinical summary</span><div class="pre">@(d.ClinicalSummary ?? "—")</div></div>
+                                            <h4>Timeline</h4>
+                                            <table class="data-table compact">
+                                                <thead><tr><th>Status</th><th>When</th><th>Who</th><th>Note</th></tr></thead>
+                                                <tbody>
+                                                    @foreach (var ev in d.Timeline)
+                                                    {
+                                                        <tr>
+                                                            <td><span class="badge @StatusCss(ev.Status)">@ev.Status</span></td>
+                                                            <td class="date">@ev.Timestamp.ToLocalTime().ToString("MM/dd/yyyy HH:mm")</td>
+                                                            <td>@(ev.ActorName ?? ev.ActorId ?? "—")</td>
+                                                            <td>@(ev.Note ?? "—")</td>
+                                                        </tr>
+                                                    }
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    </td></tr>
+                                }
+                            }
+                        </tbody>
+                    </table>
+                }
+            }
+        }
+
+        @* ─── Tab 2: New Request ────────────────────────────────────────── *@
+        @if (activeTab == 2)
+        {
+            <div class="entry-form">
+                <h3>Request Inter-facility Transfer <span class="muted">— sending from @ActingName</span></h3>
+
+                <div class="lookup-bar">
+                    <input type="text" @bind="nrPatientId" @bind:event="oninput" placeholder="Patient ID" class="lookup-input" />
+                    <button class="btn btn-primary" @onclick="LoadNrPatient" disabled="@(string.IsNullOrWhiteSpace(nrPatientId) || nrLoading)">@(nrLoading ? "Loading..." : "Load")</button>
+                    @if (nrPatientName != null) { <span class="patient-chip">👤 @nrPatientName</span> }
+                </div>
+
+                @if (nrAdmissionNote != null) { <div class="admission-note">@nrAdmissionNote</div> }
+
+                <div class="form-grid">
+                    <div class="form-row">
+                        <label>Bed Type (optional)</label>
+                        <select @bind="nrBedType" @bind:after="LoadTargets">
+                            <option value="">— Any —</option>
+                            @foreach (BedType bt in Enum.GetValues<BedType>()) { <option value="@bt">@bt</option> }
+                        </select>
+                    </div>
+                    <div class="form-row">
+                        <label>Receiving Institution *</label>
+                        <select @bind="nrReceivingId">
+                            <option value="">— Select Institution —</option>
+                            @foreach (var target in nrTargets.Where(x => x.InstitutionId != ActingId))
+                            {
+                                <option value="@target.InstitutionId">@target.Name — @target.Available placeable</option>
+                            }
+                        </select>
+                    </div>
+                    <div class="form-row"><label>Level of Care</label><input type="text" @bind="nrLevelOfCare" placeholder="e.g. TELEMETRY, ICU, MED-SURG" /></div>
+                    <div class="form-row">
+                        <label>Isolation Required</label>
+                        <select @bind="nrIsolation">
+                            @foreach (BedIsolationType iso in Enum.GetValues<BedIsolationType>()) { <option value="@iso">@iso</option> }
+                        </select>
+                    </div>
+                    <div class="form-row">
+                        <label>Urgency</label>
+                        <select @bind="nrUrgency">
+                            <option value="ROUTINE">ROUTINE</option>
+                            <option value="URGENT">URGENT</option>
+                            <option value="EMERGENT">EMERGENT</option>
+                        </select>
+                    </div>
+                    <div class="form-row full"><label>Clinical Summary</label><textarea @bind="nrSummary" rows="3"></textarea></div>
+                    <div class="form-row full"><label>Reason for Transfer</label><textarea @bind="nrReason" rows="2"></textarea></div>
+                </div>
+                <div class="form-actions">
+                    <button class="btn btn-primary" @onclick="SubmitRequest"
+                            disabled="@(saving || string.IsNullOrWhiteSpace(nrPatientId) || string.IsNullOrEmpty(nrReceivingId) || !CanBedControl)">
+                        @(saving ? "Submitting..." : "Submit Request")
+                    </button>
+                    @if (!CanBedControl) { <span class="muted">Requesting a transfer requires the DG BED CONTROL key.</span> }
+                </div>
+            </div>
+        }
+    }
+}
+
+@code {
+    private string ActingId => SecurityContext.ActingInstitutionId;
+    private string ActingName => SecurityContext.ActingInstitutionName;
+    private bool CanBedControl => SecurityContext.HasKey(SecurityKeys.DG_BED_CONTROL);
+
+    private List<InstitutionIndexEntry> institutions = new();
+    private int activeCount;
+    private int activeTab;
+    private bool loading, saving, activeOnly = true;
+    private string? error, successMsg;
+
+    private List<TransferRequestEntry>? incoming, outgoing;
+
+    // Expanded row detail (full request state, cached per transfer)
+    private string? expandedTransferId;
+    private readonly Dictionary<string, TransferRequestState> details = new();
+
+    // Inline action panel ("accept" | "reassign" | "decline" | "complete" | "cancel")
+    private string? panelTransferId;
+    private string panelKind = "";
+    private TransferRequestState? panelRequest;
+    private List<UnitCapacitySummary> panelUnits = new();
+    private string panelUnitId = "";
+    private List<InpatientBed>? panelBeds;
+    private string panelBedId = "";
+    private string declineReason = "", cancelReason = "";
+    private DateTime cpArrival = DateTime.Now;
+    private string cpAttendingId = "", cpAttendingName = "", cpDiagnosis = "";
+
+    // New request form
+    private string nrPatientId = "";
+    private string? nrPatientName, nrAdmissionId, nrUnitId, nrAttendingId, nrAttendingName, nrAdmissionNote;
+    private bool nrLoading;
+    private List<InstitutionCapacitySummary> nrTargets = new();
+    private string nrReceivingId = "", nrLevelOfCare = "", nrBedType = "", nrUrgency = "ROUTINE";
+    private BedIsolationType nrIsolation = BedIsolationType.None;
+    private string nrSummary = "", nrReason = "";
+
+    private ITransferCenterGrain Center => Grains.GetGrain<ITransferCenterGrain>($"TRANSFER-CENTER:{ActingId}");
+    private IPatientWorkflowGrain Workflow(string patientId) => Grains.GetGrain<IPatientWorkflowGrain>(patientId.Trim());
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (!SecurityContext.HasAccess(MenuArea.Clinical) || !SecurityContext.IsFeatureEnabled("BED_MANAGEMENT")) return;
+        try
+        {
+            var index = Grains.GetGrain<IInstitutionIndexGrain>("INSTITUTION-INDEX");
+            institutions = await index.GetAllAsync();
+            activeCount = await index.GetActiveCountAsync();
+        }
+        catch (Exception ex) { error = ex.Message; }
+
+        if (activeCount > 1) { await LoadQueues(); await LoadTargets(); }
+    }
+
+    private async Task OnInstitutionChanged(ChangeEventArgs e)
+    {
+        string id = e.Value?.ToString() ?? "";
+        if (string.IsNullOrEmpty(id) || id == SecurityContext.ActingInstitutionId) return;
+        SecurityContext.ActingInstitutionId = id;
+        SecurityContext.ActingInstitutionName = institutions.FirstOrDefault(i => i.InstitutionId == id)?.Name ?? id;
+        ClosePanel(); expandedTransferId = null; details.Clear();
+        successMsg = null;
+        if (nrReceivingId == id) nrReceivingId = "";
+        await LoadQueues();
+        await LoadTargets();
+    }
+
+    private async Task LoadQueues()
+    {
+        loading = true; error = null;
+        try
+        {
+            incoming = await Center.GetIncomingAsync(activeOnly);
+            outgoing = await Center.GetOutgoingAsync(activeOnly);
+        }
+        catch (Exception ex) { error = ex.Message; }
+        finally { loading = false; }
+    }
+
+    // ─── Row detail ──────────────────────────────────────────────────────
+
+    private async Task ToggleDetail(TransferRequestEntry t)
+    {
+        if (expandedTransferId == t.TransferId) { expandedTransferId = null; return; }
+        try
+        {
+            details[t.TransferId] = await Workflow(t.PatientId).GetInterfacilityTransferAsync(t.TransferId);
+            expandedTransferId = t.TransferId;
+        }
+        catch (Exception ex) { error = ex.Message; }
+    }
+
+    // ─── Inline panels ───────────────────────────────────────────────────
+
+    private void ClosePanel()
+    {
+        panelTransferId = null; panelKind = ""; panelRequest = null;
+        panelUnitId = ""; panelBeds = null; panelBedId = "";
+        declineReason = ""; cancelReason = "";
+    }
+
+    /// <summary>Open the unit/bed picker panel — accept:true for Accept…, false for Reassign bed….</summary>
+    private async Task OpenBedPanel(TransferRequestEntry t, bool accept)
+    {
+        ClosePanel(); successMsg = null; error = null;
+        panelTransferId = t.TransferId; panelKind = accept ? "accept" : "reassign";
+        try
+        {
+            // Full request for the bed-type preference (and so the panel can show it).
+            panelRequest = await Workflow(t.PatientId).GetInterfacilityTransferAsync(t.TransferId);
+            panelUnits = await Grains.GetGrain<IBedCapacityGrain>($"BED-CAPACITY:{ActingId}").GetUnitsAsync();
+        }
+        catch (Exception ex) { error = ex.Message; ClosePanel(); }
+    }
+
+    private async Task OnPanelUnitSelected()
+    {
+        panelBedId = ""; panelBeds = null;
+        if (string.IsNullOrEmpty(panelUnitId)) return;
+        try
+        {
+            InpatientUnitState unit = await Grains.GetGrain<IInpatientUnitGrain>($"UNIT:{ActingId}:{panelUnitId}").GetAsync();
+            BedType? wanted = panelRequest?.RequestedBedType;
+            panelBeds = unit.Beds
+                .Where(b => b.State == BedLifecycleState.Available)
+                .OrderByDescending(b => wanted != null && b.BedType == wanted)   // matching type first
+                .ThenBy(b => b.BedId, StringComparer.OrdinalIgnoreCase)
+                .ToList();
+        }
+        catch (Exception ex) { error = ex.Message; }
+    }
+
+    private void OpenDecline(TransferRequestEntry t)
+    {
+        ClosePanel(); successMsg = null; error = null;
+        panelTransferId = t.TransferId; panelKind = "decline";
+    }
+
+    private void OpenComplete(TransferRequestEntry t)
+    {
+        ClosePanel(); successMsg = null; error = null;
+        panelTransferId = t.TransferId; panelKind = "complete";
+        cpArrival = DateTime.Now; cpAttendingId = ""; cpAttendingName = ""; cpDiagnosis = "";
+    }
+
+    private void OpenCancel(TransferRequestEntry t)
+    {
+        ClosePanel(); successMsg = null; error = null;
+        panelTransferId = t.TransferId; panelKind = "cancel";
+    }
+
+    // ─── Actions ─────────────────────────────────────────────────────────
+
+    private Task ConfirmBedPanel(TransferRequestEntry t)
+    {
+        Logger.LogInformation("ConfirmBedPanel fired: kind={Kind} unit={Unit} bed={Bed} transfer={Xfer}",
+            panelKind, panelUnitId, panelBedId, t.TransferId);
+        return panelKind == "accept" ? ConfirmAccept(t) : ConfirmReassign(t);
+    }
+
+    private Task ConfirmAccept(TransferRequestEntry t) =>
+        RunAction(() => Workflow(t.PatientId).AcceptInterfacilityTransferAsync(t.TransferId, ActingId, panelUnitId, panelBedId),
+            $"Transfer accepted — bed {panelBedId} on {panelUnitId} reserved for {t.PatientName ?? t.PatientId}.", t.TransferId);
+
+    private Task ConfirmReassign(TransferRequestEntry t) =>
+        RunAction(() => Workflow(t.PatientId).ReassignTransferBedAsync(t.TransferId, panelUnitId, panelBedId),
+            $"Reservation moved to bed {panelBedId} on {panelUnitId}.", t.TransferId);
+
+    private Task ConfirmDecline(TransferRequestEntry t) =>
+        RunAction(() => Workflow(t.PatientId).DeclineInterfacilityTransferAsync(t.TransferId, ActingId, declineReason.Trim()),
+            "Transfer declined.", t.TransferId);
+
+    private Task ConfirmCancel(TransferRequestEntry t) =>
+        RunAction(() => Workflow(t.PatientId).CancelInterfacilityTransferAsync(t.TransferId, NullIfEmpty(cancelReason)),
+            "Transfer request cancelled.", t.TransferId);
+
+    private Task ConfirmComplete(TransferRequestEntry t) =>
+        RunAction(() => Workflow(t.PatientId).CompleteInterfacilityTransferAsync(
+                t.TransferId, cpArrival, NullIfEmpty(cpAttendingId), NullIfEmpty(cpAttendingName), NullIfEmpty(cpDiagnosis)),
+            $"Arrival recorded — {t.PatientName ?? t.PatientId} admitted at {ActingName}.", t.TransferId);
+
+    private async Task RunAction(Func<Task> action, string ok, string transferId)
+    {
+        saving = true; error = null; successMsg = null;
+        try
+        {
+            await action();
+            successMsg = ok;
+            ClosePanel();
+            details.Remove(transferId);              // stale — re-fetched on next expand
+            if (expandedTransferId == transferId) expandedTransferId = null;
+        }
+        catch (UnauthorizedAccessException ex) { error = SecurityKeyError.Describe(ex); }
+        catch (InvalidOperationException ex) { error = ex.Message; }
+        catch (Exception ex) { error = ex.Message; }
+        finally { saving = false; }
+
+        try { await LoadQueues(); } catch (Exception ex) { error ??= ex.Message; }
+    }
+
+    // ─── New request ─────────────────────────────────────────────────────
+
+    private async Task LoadNrPatient()
+    {
+        if (string.IsNullOrWhiteSpace(nrPatientId)) return;
+        nrLoading = true; error = null;
+        nrPatientName = null; nrAdmissionId = null; nrUnitId = null; nrAttendingId = null; nrAttendingName = null; nrAdmissionNote = null;
+        try
+        {
+            var wf = Workflow(nrPatientId);
+            PatientState patient = await wf.GetPatientAsync();
+            nrPatientName = string.IsNullOrWhiteSpace(patient.Name) ? nrPatientId.Trim() : patient.Name;
+
+            // Latest non-discharged admission = the sending admission for the request.
+            List<AdtSummary> movements = await wf.GetAdtMovementsAsync();
+            AdtSummary? current = movements.FirstOrDefault(m => m.Status is "ADMITTED" or "TRANSFERRED");
+            if (current != null)
+            {
+                nrAdmissionId = current.MovementId;
+                // AdtSummary carries the ward NAME only — read the movement for the unit ID.
+                try
+                {
+                    AdtState movement = await Grains.GetGrain<IAdtGrain>(current.MovementId).GetMovementAsync();
+                    nrUnitId = movement.WardLocationId;
+                    nrAttendingId = movement.AttendingPhysicianId;
+                    nrAttendingName = movement.AttendingPhysicianName;
+                }
+                catch { /* unit id stays null — the request is still valid */ }
+                nrAdmissionNote = $"Current admission: {current.WardLocationName ?? nrUnitId ?? "?"} since {current.MovementDateTime:MM/dd/yyyy HH:mm} (movement {current.MovementId}).";
+            }
+            else
+            {
+                nrAdmissionNote = "No active admission found for this patient — the request will be sent without a sending admission.";
+            }
+        }
+        catch (Exception ex) { error = ex.Message; }
+        finally { nrLoading = false; }
+    }
+
+    private async Task LoadTargets()
+    {
+        try
+        {
+            nrTargets = await Grains.GetGrain<ISystemCapacityGrain>("SYSTEM-CAPACITY")
+                .FindPlacementTargetsAsync(ParseBedType(nrBedType), null);
+            if (nrReceivingId != "" && !nrTargets.Any(x => x.InstitutionId == nrReceivingId && x.InstitutionId != ActingId))
+                nrReceivingId = "";
+        }
+        catch (Exception ex) { error = ex.Message; }
+    }
+
+    private async Task SubmitRequest()
+    {
+        if (string.IsNullOrWhiteSpace(nrPatientId) || string.IsNullOrEmpty(nrReceivingId)) return;
+        saving = true; error = null; successMsg = null;
+        try
+        {
+            string transferId = await Workflow(nrPatientId).RequestInterfacilityTransferAsync(
+                ActingId, nrUnitId, nrAdmissionId, nrAttendingId, nrAttendingName,
+                nrReceivingId,
+                NullIfEmpty(nrLevelOfCare), ParseBedType(nrBedType), nrIsolation,
+                nrUrgency, NullIfEmpty(nrSummary), NullIfEmpty(nrReason));
+
+            successMsg = $"Transfer requested ({transferId}) — {nrPatientName ?? nrPatientId} → " +
+                $"{nrTargets.FirstOrDefault(x => x.InstitutionId == nrReceivingId)?.Name ?? nrReceivingId}.";
+
+            // Reset the form and show it in the outgoing queue.
+            nrPatientId = ""; nrPatientName = null; nrAdmissionId = null; nrUnitId = null;
+            nrAttendingId = null; nrAttendingName = null; nrAdmissionNote = null;
+            nrReceivingId = ""; nrLevelOfCare = ""; nrBedType = ""; nrIsolation = BedIsolationType.None;
+            nrUrgency = "ROUTINE"; nrSummary = ""; nrReason = "";
+            activeTab = 1;
+            await LoadQueues();
+        }
+        catch (UnauthorizedAccessException ex) { error = SecurityKeyError.Describe(ex); }
+        catch (InvalidOperationException ex) { error = ex.Message; }
+        catch (Exception ex) { error = ex.Message; }
+        finally { saving = false; }
+    }
+
+    // ─── Helpers ─────────────────────────────────────────────────────────
+
+    private static BedType? ParseBedType(string s) =>
+        Enum.TryParse<BedType>(s, out BedType bt) ? bt : null;
+
+    private static string? NullIfEmpty(string s) => string.IsNullOrWhiteSpace(s) ? null : s.Trim();
+
+    private static string BedLabel(InpatientBed b, BedType? wanted)
+    {
+        string label = string.IsNullOrEmpty(b.RoomId) ? $"{b.BedId} ({b.BedType})" : $"{b.BedId} — Room {b.RoomId} ({b.BedType})";
+        return wanted != null && b.BedType == wanted ? $"★ {label}" : label;
+    }
+
+    private string TabClass(int tab) => activeTab == tab ? "tab active" : "tab";
+
+    private static string UrgencyCss(string urgency) => urgency switch
+    {
+        "EMERGENT" => "badge-emergent",
+        "URGENT" => "badge-urgent",
+        _ => "badge-routine"
+    };
+
+    private static string StatusCss(string status) => status switch
+    {
+        TransferRequestStatus.Requested => "badge-warning",
+        TransferRequestStatus.Accepted => "badge-info",
+        TransferRequestStatus.Completed => "badge-success",
+        _ => "badge-neutral"
+    };
+}
+
+<style>
+    /* Canonical classes (lookup-bar, lookup-input, btn, btn-primary, btn-secondary,
+       tab-bar, tab, alert*, empty-state, data-table, badge, badge-*) live in app.css
+       per UI-CONVENTIONS.md. Only page-specific styles below. */
+    .inst-bar { display: flex; gap: .5rem; align-items: center; margin-bottom: 1rem; font-size: .85rem; }
+    .inst-bar label { font-weight: 600; color: #555; }
+    .inst-bar select { padding: .4rem .6rem; border: 1px solid #ccc; border-radius: 4px; font-size: .85rem; min-width: 260px; }
+    .info-card { border: 1px solid #c5d3e3; background: #eef3f9; color: #003f72; border-radius: 6px; padding: 1.25rem 1.5rem; max-width: 680px; }
+    .info-card h3 { margin: 0 0 .5rem; }
+    .board-actions { display: flex; gap: .75rem; margin-bottom: 1rem; align-items: center; }
+    .chk { font-size: .8rem; color: #555; display: flex; gap: .3rem; align-items: center; }
+    .muted { color: #888; font-size: .8rem; }
+    .date { color: #888; font-size: .8rem; white-space: nowrap; }
+    .actions { white-space: nowrap; }
+    .btn-sm { padding: .2rem .5rem; font-size: .7rem; border: 1px solid #ccc; border-radius: 3px; cursor: pointer; background: white; margin-right: .25rem; }
+    .queue-row { cursor: pointer; }
+    .panel-tr td { background: #f9fafb; }
+
+    .badge-emergent { background: #dc2626; color: white; }
+    .badge-urgent { background: #d97706; color: white; }
+    .badge-routine { background: #6b7280; color: white; }
+
+    .inline-panel { border: 1px solid #fde68a; background: #fffbeb; border-radius: 6px; padding: .75rem 1rem; }
+    .panel-fields { display: flex; gap: .75rem; align-items: flex-end; flex-wrap: wrap; margin-top: .5rem; }
+    .panel-fields.wrap { align-items: flex-end; }
+    .panel-fields label { display: flex; flex-direction: column; gap: .25rem; font-size: .8rem; font-weight: 600; color: #555; }
+    .panel-fields select, .panel-fields input { padding: .35rem .6rem; border: 1px solid #ccc; border-radius: 4px; font-size: .85rem; min-width: 220px; }
+    .panel-fields .wide { min-width: 320px; }
+
+    .detail-panel { border: 1px solid #d4d9e0; background: white; border-radius: 6px; padding: .75rem 1rem; }
+    .detail-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: .35rem .75rem; margin-bottom: .6rem; font-size: .85rem; }
+    .dl { font-weight: 600; color: #555; font-size: .75rem; display: block; }
+    .detail-block { margin-bottom: .6rem; font-size: .85rem; }
+    .detail-panel h4 { margin: .5rem 0 .35rem; color: #003f72; font-size: .85rem; }
+    .pre { white-space: pre-wrap; }
+    .data-table.compact th, .data-table.compact td { padding: .3rem .5rem; font-size: .8rem; }
+
+    .entry-form { border: 1px solid #d4d9e0; border-radius: 6px; padding: 1.25rem; margin-bottom: 1.5rem; background: #f9fafb; }
+    .entry-form h3 { margin-bottom: 1rem; color: #003f72; }
+    .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: .75rem; }
+    .form-row { display: flex; flex-direction: column; gap: .25rem; }
+    .form-row.full { grid-column: 1 / -1; }
+    .form-row label { font-size: .8rem; font-weight: 600; color: #555; }
+    .form-row input, .form-row select, .form-row textarea { padding: .4rem .6rem; border: 1px solid #ccc; border-radius: 4px; font-size: .85rem; }
+    .form-actions { display: flex; gap: .75rem; margin-top: .75rem; align-items: center; }
+    .patient-chip { background: #eef3f9; border: 1px solid #c5d3e3; border-radius: 12px; padding: .2rem .7rem; font-size: .8rem; color: #003f72; font-weight: 600; }
+    .admission-note { font-size: .8rem; color: #4b5563; background: #f0f4f8; border: 1px solid #d4d9e0; border-radius: 4px; padding: .4rem .7rem; margin-bottom: .75rem; }
+</style>

@@ -17,11 +17,13 @@ public class NursingPageTests : BlazorTestBase
 {
     private void StubUnitIndex()
     {
-        var mockUnitIndex = Substitute.For<INursingUnitIndexGrain>();
-        mockUnitIndex.GetAsync().Returns(new NursingUnitIndexState());
+        // The unit directory now lives on the per-institution BED-CAPACITY rollup grain
+        // (INursingUnitIndexGrain was retired by the bed-management rework).
+        var mockCapacity = Substitute.For<IBedCapacityGrain>();
+        mockCapacity.GetUnitsAsync(Arg.Any<bool>()).Returns(new List<UnitCapacitySummary>());
         MockGrainFactory
-            .GetGrain<INursingUnitIndexGrain>(Arg.Any<string>(), Arg.Any<string?>())
-            .Returns(mockUnitIndex);
+            .GetGrain<IBedCapacityGrain>(Arg.Any<string>(), Arg.Any<string?>())
+            .Returns(mockCapacity);
     }
 
     [Test]

@@ -218,8 +218,8 @@ public sealed class ApiClient
     public Task<List<AdtSummary>> GetAdtMovementsAsync(string patientId)
         => GetListAsync<AdtSummary>($"api/adt/{Esc(patientId)}/movements");
 
-    public Task<List<WardLocationEntry>> GetWardListAsync()
-        => GetListAsync<WardLocationEntry>("api/adt/wards");
+    public Task<List<UnitCapacitySummary>> GetWardListAsync(string institutionId = "500")
+        => GetListAsync<UnitCapacitySummary>($"api/adt/wards?institutionId={Uri.EscapeDataString(institutionId)}");
 
     // ── Drug Formulary (NDF reference data) ──────────────────────────────
 

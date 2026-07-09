@@ -13,22 +13,29 @@ namespace NewVistas.BlazorWeb_Tests;
 [TestFixture]
 public class BedManagementPageTests : BlazorTestBase
 {
-    private IBedBoardGrain _mockBedBoard = null!;
+    private IBedCapacityGrain _mockCapacity = null!;
+    private IInstitutionIndexGrain _mockInstitutionIndex = null!;
 
     public override void Setup()
     {
         base.Setup();
-        _mockBedBoard = Substitute.For<IBedBoardGrain>();
-        MockGrainFactory.GetGrain<IBedBoardGrain>(Arg.Any<string>(), Arg.Any<string?>())
-            .Returns(_mockBedBoard);
-        _mockBedBoard.GetAllBedsAsync().Returns(new List<BedSummaryEntry>());
+        _mockCapacity = Substitute.For<IBedCapacityGrain>();
+        MockGrainFactory.GetGrain<IBedCapacityGrain>(Arg.Any<string>(), Arg.Any<string?>())
+            .Returns(_mockCapacity);
+        _mockCapacity.GetUnitsAsync(Arg.Any<bool>()).Returns(new List<UnitCapacitySummary>());
+        _mockCapacity.GetInstitutionTotalsAsync().Returns((0, 0, 0, 0, 0, 0));
+
+        _mockInstitutionIndex = Substitute.For<IInstitutionIndexGrain>();
+        MockGrainFactory.GetGrain<IInstitutionIndexGrain>(Arg.Any<string>(), Arg.Any<string?>())
+            .Returns(_mockInstitutionIndex);
+        _mockInstitutionIndex.GetAllAsync(Arg.Any<bool>()).Returns(new List<InstitutionIndexEntry>());
     }
 
     [Test]
     public void BedManagement_RendersPageTitle()
     {
         var cut = Ctx.Render<BedManagement>();
-        Assert.That(cut.Markup, Does.Contain("Bed Management"));
+        Assert.That(cut.Markup, Does.Contain("Bed Board"));
     }
 
     [Test]
@@ -36,13 +43,13 @@ public class BedManagementPageTests : BlazorTestBase
     {
         var cut = Ctx.Render<BedManagement>();
         Assert.That(cut.Markup, Does.Contain("Bed Board"));
-        Assert.That(cut.Markup, Does.Contain("Statistics"));
+        Assert.That(cut.Markup, Does.Contain("EVS Queue"));
     }
 
     [Test]
-    public async Task BedManagement_ShowsErrorOnFailure()
+    public void BedManagement_ShowsErrorOnFailure()
     {
-        _mockBedBoard.GetAllBedsAsync().Returns<List<BedSummaryEntry>>(
+        _mockCapacity.GetUnitsAsync(Arg.Any<bool>()).Returns<List<UnitCapacitySummary>>(
             _ => throw new Exception("Board unavailable"));
 
         var cut = Ctx.Render<BedManagement>();

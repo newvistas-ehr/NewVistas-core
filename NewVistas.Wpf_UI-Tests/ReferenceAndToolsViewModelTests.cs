@@ -215,15 +215,20 @@ public class ReferenceAndToolsViewModelTests : ViewModelTestBase
     [Test]
     public async Task BedManagement_Load_PopulatesBeds()
     {
-        var mockBoard = Substitute.For<IBedBoardGrain>();
-        mockBoard.GetAllBedsAsync().Returns(new List<BedSummaryEntry>
+        var mockCapacity = Substitute.For<IBedCapacityGrain>();
+        mockCapacity.GetUnitsAsync(Arg.Any<bool>()).Returns(new List<UnitCapacitySummary>
         {
-            new() { BedId = "B1", WardId = "W1", Status = "Available" }
+            new() { UnitId = "MED-3A", InstitutionId = "500", TotalBeds = 10, Available = 5, Occupied = 4 }
         });
-        mockBoard.GetTotalBedCountAsync().Returns(10);
-        mockBoard.GetAvailableBedCountAsync().Returns(5);
-        mockBoard.GetOccupiedBedCountAsync().Returns(4);
-        MockGrainFactory.GetGrain<IBedBoardGrain>(Arg.Any<string>(), Arg.Any<string?>()).Returns(mockBoard);
+        var mockUnit = Substitute.For<IInpatientUnitGrain>();
+        mockUnit.GetAsync().Returns(new InpatientUnitState
+        {
+            UnitId = "MED-3A",
+            InstitutionId = "500",
+            Beds = new List<InpatientBed> { new() { BedId = "B1", State = BedLifecycleState.Available } }
+        });
+        MockGrainFactory.GetGrain<IBedCapacityGrain>(Arg.Any<string>(), Arg.Any<string?>()).Returns(mockCapacity);
+        MockGrainFactory.GetGrain<IInpatientUnitGrain>(Arg.Any<string>(), Arg.Any<string?>()).Returns(mockUnit);
 
         var vm = new BedManagementViewModel(ApiClient, GrainService);
         await vm.LoadCommand.ExecuteAsync(null);
@@ -236,39 +241,33 @@ public class ReferenceAndToolsViewModelTests : ViewModelTestBase
     [Test]
     public async Task BedManagement_MarkAvailable_CallsGrain()
     {
-        var mockBoard = Substitute.For<IBedBoardGrain>();
-        var mockBed = Substitute.For<IBedGrain>();
-        mockBoard.GetAllBedsAsync().Returns(new List<BedSummaryEntry>());
-        mockBoard.GetTotalBedCountAsync().Returns(0);
-        mockBoard.GetAvailableBedCountAsync().Returns(0);
-        mockBoard.GetOccupiedBedCountAsync().Returns(0);
-        MockGrainFactory.GetGrain<IBedBoardGrain>(Arg.Any<string>(), Arg.Any<string?>()).Returns(mockBoard);
-        MockGrainFactory.GetGrain<IBedGrain>(Arg.Any<string>(), Arg.Any<string?>()).Returns(mockBed);
+        var mockCapacity = Substitute.For<IBedCapacityGrain>();
+        var mockUnit = Substitute.For<IInpatientUnitGrain>();
+        mockCapacity.GetUnitsAsync(Arg.Any<bool>()).Returns(new List<UnitCapacitySummary>());
+        MockGrainFactory.GetGrain<IBedCapacityGrain>(Arg.Any<string>(), Arg.Any<string?>()).Returns(mockCapacity);
+        MockGrainFactory.GetGrain<IInpatientUnitGrain>(Arg.Any<string>(), Arg.Any<string?>()).Returns(mockUnit);
 
         var vm = new BedManagementViewModel(ApiClient, GrainService);
-        vm.SelectedBed = new BedBoardEntry("B1", "W1", "Cleaning", null, null);
+        vm.SelectedBed = new BedBoardEntry("B1", "MED-3A", "Cleaning", null, null);
         await vm.MarkAvailableCommand.ExecuteAsync(null);
 
-        await mockBed.Received().SetAvailableAsync();
+        await mockUnit.Received().MarkBedCleanAsync("B1", Arg.Any<string?>());
     }
 
     [Test]
-    public async Task BedManagement_Discharge_CallsGrain()
+    public async Task BedManagement_MarkDirty_CallsGrain()
     {
-        var mockBoard = Substitute.For<IBedBoardGrain>();
-        var mockBed = Substitute.For<IBedGrain>();
-        mockBoard.GetAllBedsAsync().Returns(new List<BedSummaryEntry>());
-        mockBoard.GetTotalBedCountAsync().Returns(0);
-        mockBoard.GetAvailableBedCountAsync().Returns(0);
-        mockBoard.GetOccupiedBedCountAsync().Returns(0);
-        MockGrainFactory.GetGrain<IBedBoardGrain>(Arg.Any<string>(), Arg.Any<string?>()).Returns(mockBoard);
-        MockGrainFactory.GetGrain<IBedGrain>(Arg.Any<string>(), Arg.Any<string?>()).Returns(mockBed);
+        var mockCapacity = Substitute.For<IBedCapacityGrain>();
+        var mockUnit = Substitute.For<IInpatientUnitGrain>();
+        mockCapacity.GetUnitsAsync(Arg.Any<bool>()).Returns(new List<UnitCapacitySummary>());
+        MockGrainFactory.GetGrain<IBedCapacityGrain>(Arg.Any<string>(), Arg.Any<string?>()).Returns(mockCapacity);
+        MockGrainFactory.GetGrain<IInpatientUnitGrain>(Arg.Any<string>(), Arg.Any<string?>()).Returns(mockUnit);
 
         var vm = new BedManagementViewModel(ApiClient, GrainService);
-        vm.SelectedBed = new BedBoardEntry("B1", "W1", "Occupied", "Test Patient", null);
-        await vm.DischargeCommand.ExecuteAsync(null);
+        vm.SelectedBed = new BedBoardEntry("B1", "MED-3A", "Available", null, null);
+        await vm.MarkDirtyCommand.ExecuteAsync(null);
 
-        await mockBed.Received().DischargePatientAsync();
+        await mockUnit.Received().MarkBedDirtyAsync("B1");
     }
 
     // ── Site Parameters ───────────────────────────────────────────────────

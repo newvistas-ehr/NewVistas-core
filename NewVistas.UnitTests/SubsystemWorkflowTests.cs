@@ -22,6 +22,18 @@ public class SubsystemWorkflowTests
     private IPatientWorkflowGrain NewWorkflow()
         => _cluster.GrainFactory.GetGrain<IPatientWorkflowGrain>($"PATIENT-{Guid.NewGuid()}");
 
+    /// <summary>Configures a fresh, isolated inpatient unit with beds B1..Bn (admissions require one).</summary>
+    private async Task<(string Inst, string UnitId)> NewUnitAsync(string name, int beds = 2)
+    {
+        string inst = $"INST-{Guid.NewGuid():N}";
+        string unitId = $"U-{Guid.NewGuid():N}";
+        var unit = _cluster.GrainFactory.GetGrain<IInpatientUnitGrain>($"UNIT:{inst}:{unitId}");
+        await unit.ConfigureUnitAsync(name, "MEDICINE", "Internal Medicine");
+        for (int i = 1; i <= beds; i++)
+            await unit.AddBedAsync($"B{i}", null, BedType.Regular);
+        return (inst, unitId);
+    }
+
     // ─── Surgery ─────────────────────────────────────────────────────────
 
     [Test]
@@ -287,8 +299,9 @@ public class SubsystemWorkflowTests
     public async Task Adt_AdmitAndDischarge()
     {
         var w = NewWorkflow();
+        var (inst, unitId) = await NewUnitAsync("Ward 3A");
         var id = await w.RecordAdmissionAsync(DateTime.UtcNow,
-            "WARD-3A", "Ward 3A", "301-A", "Internal Medicine",
+            inst, unitId, "B1", "Internal Medicine",
             "PROV-001", "Dr. Attending", "Pneumonia", null);
 
         Assert.That(id, Does.StartWith("ADT-"));
@@ -309,10 +322,12 @@ public class SubsystemWorkflowTests
     public async Task Adt_MultipleAdmissions()
     {
         var w = NewWorkflow();
-        await w.RecordAdmissionAsync(DateTime.UtcNow.AddDays(-30), "WARD-2B", "Ward 2B",
-            "201-C", "Cardiology", null, null, "CHF exacerbation", null);
-        var id2 = await w.RecordAdmissionAsync(DateTime.UtcNow, "WARD-ICU", "ICU",
-            "ICU-1", "Critical Care", "PROV-002", "Dr. Intensivist", "Sepsis", null);
+        var (inst2B, unit2B) = await NewUnitAsync("Ward 2B");
+        var (instIcu, unitIcu) = await NewUnitAsync("ICU");
+        await w.RecordAdmissionAsync(DateTime.UtcNow.AddDays(-30), inst2B, unit2B,
+            "B1", "Cardiology", null, null, "CHF exacerbation", null);
+        var id2 = await w.RecordAdmissionAsync(DateTime.UtcNow, instIcu, unitIcu,
+            "B1", "Critical Care", "PROV-002", "Dr. Intensivist", "Sepsis", null);
 
         var list = await w.GetAdtMovementsAsync();
         Assert.That(list, Has.Count.EqualTo(2));

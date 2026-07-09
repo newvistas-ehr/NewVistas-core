@@ -1,0 +1,263 @@
+@* Copyright 2026 Merrimack Valley Software Works, LLC. All rights reserved. *@
+@* This Source Code Form is subject to the terms of the Mozilla Public *@
+@* License, v. 2.0. If a copy of the MPL was not distributed with this *@
+@* file, You can obtain one at https://mozilla.org/MPL/2.0/.            *@
+@page "/admin/institutions"
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+@rendermode InteractiveServer
+@using NewVistas.BlazorWeb.Services
+@using NewVistas.Abstractions.GrainInterfaces
+@using NewVistas.Abstractions.GrainStates
+@using NewVistas.Abstractions.Security
+@inject OrleansGrainService Grains
+@inject UserSecurityContext SecurityContext
+
+<PageTitle>Institutions</PageTitle>
+
+@* There is no MenuArea.Administration — system-management pages (register/update require
+   the XUMGR key) gate on SystemAdmin, the same area that shows the admin nav items. *@
+@if (!SecurityContext.HasAccess(MenuArea.SystemAdmin))
+{
+    <div class="alert alert-info">Institution administration requires system-administration access (XUMGR).</div>
+}
+else
+{
+    <h1>Institutions</h1>
+    <p class="subtitle">Facility directory (File #4) — registration, capabilities, transfer acceptance</p>
+
+    @if (error != null) { <div class="alert alert-error">@error</div> }
+    @if (successMsg != null) { <div class="alert alert-success">@successMsg</div> }
+
+    <div class="board-actions">
+        <button class="btn btn-primary" @onclick="Load" disabled="@loading">@(loading ? "Loading..." : "Refresh")</button>
+        <button class="btn btn-secondary" @onclick="ShowNewForm">+ New Institution</button>
+    </div>
+
+    @if (showForm)
+    {
+        <div class="entry-form">
+            <h3>@(editingId == null ? "Register Institution" : $"Edit {editingId}")</h3>
+            <div class="form-grid">
+                @if (editingId == null)
+                {
+                    <div class="form-row"><label>Institution ID *</label><input type="text" @bind="f_id" placeholder='e.g. "500", "LAHEY-BURLINGTON"' /></div>
+                }
+                <div class="form-row"><label>Name *</label><input type="text" @bind="f_name" /></div>
+                <div class="form-row">
+                    <label>Type</label>
+                    <select @bind="f_type">
+                        @foreach (InstitutionType t in Enum.GetValues<InstitutionType>()) { <option value="@t">@t</option> }
+                    </select>
+                </div>
+                <div class="form-row"><label>Station Number</label><input type="text" @bind="f_station" /></div>
+                <div class="form-row"><label>Health System ID</label><input type="text" @bind="f_hsId" placeholder='e.g. "BILH"' /></div>
+                <div class="form-row"><label>Health System Name</label><input type="text" @bind="f_hsName" /></div>
+                <div class="form-row"><label>Street Address</label><input type="text" @bind="f_street" /></div>
+                <div class="form-row"><label>City</label><input type="text" @bind="f_city" /></div>
+                <div class="form-row"><label>State</label><input type="text" @bind="f_state" /></div>
+                <div class="form-row"><label>Zip</label><input type="text" @bind="f_zip" /></div>
+                <div class="form-row"><label>Phone</label><input type="text" @bind="f_phone" /></div>
+                <div class="form-row full">
+                    <label>Capabilities</label>
+                    <div class="cap-checks">
+                        @foreach (var cap in AllCapabilities)
+                        {
+                            var c = cap;
+                            <label class="cap-check">
+                                <input type="checkbox" checked="@f_capabilities.Contains(c)"
+                                       @onchange='e => ToggleCapability(c, e.Value is true)' /> @c
+                            </label>
+                        }
+                    </div>
+                </div>
+                @if (editingId == null)
+                {
+                    <div class="form-row full"><label>Legacy Aliases (comma-separated)</label><input type="text" @bind="f_aliases" placeholder='e.g. "MAIN, INST-500"' /></div>
+                }
+                @if (editingId != null)
+                {
+                    <div class="form-row"><label class="cap-check"><input type="checkbox" @bind="f_active" /> Active</label></div>
+                    <div class="form-row"><label class="cap-check"><input type="checkbox" @bind="f_acceptsTransfers" /> Accepts inbound transfers</label></div>
+                }
+            </div>
+            <div class="form-actions">
+                <button class="btn btn-primary" @onclick="Save"
+                        disabled="@(saving || string.IsNullOrWhiteSpace(f_name) || (editingId == null && string.IsNullOrWhiteSpace(f_id)))">
+                    @(saving ? "Saving..." : (editingId == null ? "Register" : "Save Changes"))
+                </button>
+                <button class="btn btn-secondary" @onclick="() => showForm = false">Cancel</button>
+            </div>
+        </div>
+    }
+
+    @if (items != null)
+    {
+        @if (items.Count == 0) { <div class="empty-state">No institutions registered.</div> }
+        else
+        {
+            <table class="data-table">
+                <thead><tr><th>ID</th><th>Name</th><th>Type</th><th>Health System</th><th>City</th><th>Active</th><th>Accepts Transfers</th><th>Capabilities</th><th></th></tr></thead>
+                <tbody>
+                    @foreach (var inst in items)
+                    {
+                        var i = inst;
+                        <tr class="@(i.IsActive ? "" : "row-inactive")">
+                            <td>@i.InstitutionId</td>
+                            <td>@i.Name</td>
+                            <td><span class="badge badge-neutral">@i.Type</span></td>
+                            <td>@(i.HealthSystemName ?? i.HealthSystemId ?? "—")</td>
+                            <td>@(i.City ?? "—")@(i.State != null ? $", {i.State}" : "")</td>
+                            <td>@(i.IsActive ? "✔" : "✖")</td>
+                            <td>@(i.AcceptsInboundTransfers ? "✔" : "✖")</td>
+                            <td>
+                                @foreach (var cap in i.Capabilities.OrderBy(x => x)) { <span class="cap-chip">@cap</span> }
+                                @if (i.Capabilities.Count == 0) { <span class="muted">—</span> }
+                            </td>
+                            <td class="actions"><button class="btn-sm" @onclick="() => ShowEditForm(i.InstitutionId)">Edit</button></td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        }
+    }
+}
+
+@code {
+    private static readonly string[] AllCapabilities =
+    [
+        InstitutionCapabilities.Icu, InstitutionCapabilities.Telemetry,
+        InstitutionCapabilities.Pediatrics, InstitutionCapabilities.Nicu,
+        InstitutionCapabilities.Obstetrics, InstitutionCapabilities.BehavioralHealth,
+        InstitutionCapabilities.Rehab, InstitutionCapabilities.EmergencyDept,
+    ];
+
+    private List<InstitutionIndexEntry>? items;
+    private bool loading, saving, showForm;
+    private string? error, successMsg;
+
+    // Form (editingId == null → register new; otherwise editing that institution)
+    private string? editingId;
+    private InstitutionState? original;    // snapshot for change-only setter calls
+    private string f_id = "", f_name = "", f_station = "", f_hsId = "", f_hsName = "";
+    private string f_street = "", f_city = "", f_state = "", f_zip = "", f_phone = "", f_aliases = "";
+    private InstitutionType f_type = InstitutionType.Hospital;
+    private HashSet<string> f_capabilities = new();
+    private bool f_active = true, f_acceptsTransfers = true;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (SecurityContext.HasAccess(MenuArea.SystemAdmin)) await Load();
+    }
+
+    private async Task Load()
+    {
+        loading = true; error = null;
+        try
+        {
+            items = await Grains.GetGrain<IInstitutionIndexGrain>("INSTITUTION-INDEX").GetAllAsync(activeOnly: false);
+        }
+        catch (Exception ex) { error = ex.Message; }
+        finally { loading = false; }
+    }
+
+    private void ShowNewForm()
+    {
+        showForm = true; editingId = null; original = null; successMsg = null;
+        f_id = ""; f_name = ""; f_station = ""; f_hsId = ""; f_hsName = "";
+        f_street = ""; f_city = ""; f_state = ""; f_zip = ""; f_phone = ""; f_aliases = "";
+        f_type = InstitutionType.Hospital; f_capabilities = new();
+        f_active = true; f_acceptsTransfers = true;
+    }
+
+    private async Task ShowEditForm(string institutionId)
+    {
+        error = null; successMsg = null;
+        try
+        {
+            InstitutionState st = await Grains.GetGrain<IInstitutionGrain>($"INST:{institutionId}").GetAsync();
+            original = st;
+            editingId = institutionId; showForm = true;
+            f_id = st.InstitutionId; f_name = st.Name; f_type = st.Type;
+            f_station = st.StationNumber ?? ""; f_hsId = st.HealthSystemId ?? ""; f_hsName = st.HealthSystemName ?? "";
+            f_street = st.StreetAddress ?? ""; f_city = st.City ?? ""; f_state = st.State ?? "";
+            f_zip = st.Zip ?? ""; f_phone = st.Phone ?? "";
+            f_capabilities = new HashSet<string>(st.Capabilities);
+            f_active = st.IsActive; f_acceptsTransfers = st.AcceptsInboundTransfers;
+        }
+        catch (Exception ex) { error = ex.Message; }
+    }
+
+    private void ToggleCapability(string capability, bool on)
+    {
+        if (on) f_capabilities.Add(capability);
+        else f_capabilities.Remove(capability);
+    }
+
+    private async Task Save()
+    {
+        saving = true; error = null; successMsg = null;
+        try
+        {
+            if (editingId == null)
+            {
+                string id = f_id.Trim();
+                List<string> aliases = f_aliases
+                    .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                    .ToList();
+                await Grains.GetGrain<IInstitutionGrain>($"INST:{id}").RegisterAsync(
+                    f_name.Trim(), f_type, NullIfEmpty(f_station),
+                    NullIfEmpty(f_hsId), NullIfEmpty(f_hsName),
+                    NullIfEmpty(f_street), NullIfEmpty(f_city), NullIfEmpty(f_state), NullIfEmpty(f_zip), NullIfEmpty(f_phone),
+                    f_capabilities, aliases.Count > 0 ? aliases : null);
+                successMsg = $"Institution {id} registered.";
+            }
+            else
+            {
+                IInstitutionGrain grain = Grains.GetGrain<IInstitutionGrain>($"INST:{editingId}");
+                await grain.UpdateAsync(
+                    f_name.Trim(), f_type, NullIfEmpty(f_station),
+                    NullIfEmpty(f_hsId), NullIfEmpty(f_hsName),
+                    NullIfEmpty(f_street), NullIfEmpty(f_city), NullIfEmpty(f_state), NullIfEmpty(f_zip), NullIfEmpty(f_phone));
+
+                // Change-only setter calls — SetAcceptsInboundTransfers is DG BED CONTROL-gated
+                // (not XUMGR), so an unchanged checkbox must not trip a spurious key error.
+                if (original == null || !f_capabilities.SetEquals(original.Capabilities))
+                    await grain.SetCapabilitiesAsync(f_capabilities);
+                if (original == null || f_active != original.IsActive)
+                    await grain.SetActiveAsync(f_active);
+                if (original == null || f_acceptsTransfers != original.AcceptsInboundTransfers)
+                    await grain.SetAcceptsInboundTransfersAsync(f_acceptsTransfers);
+
+                successMsg = $"Institution {editingId} updated.";
+            }
+            showForm = false;
+            await Load();
+        }
+        catch (UnauthorizedAccessException ex) { error = SecurityKeyError.Describe(ex); }
+        catch (InvalidOperationException ex) { error = ex.Message; }
+        catch (Exception ex) { error = ex.Message; }
+        finally { saving = false; }
+    }
+
+    private static string? NullIfEmpty(string s) => string.IsNullOrWhiteSpace(s) ? null : s.Trim();
+}
+
+<style>
+    .subtitle { color: #6b7280; margin-top: -.5rem; margin-bottom: 1rem; }
+    .board-actions { display: flex; gap: .75rem; margin-bottom: 1rem; align-items: center; }
+    .btn-sm { padding: .2rem .5rem; font-size: .7rem; border: 1px solid #ccc; border-radius: 3px; cursor: pointer; background: white; }
+    .actions { white-space: nowrap; }
+    .muted { color: #888; font-size: .8rem; }
+    .row-inactive td { color: #9ca3af; }
+    .cap-chip { display: inline-block; background: #eef3f9; border: 1px solid #c5d3e3; color: #003f72; border-radius: 8px; padding: .05rem .45rem; font-size: .68rem; font-weight: 600; margin: 0 .15rem .15rem 0; }
+    .cap-checks { display: flex; gap: .75rem; flex-wrap: wrap; }
+    .cap-check { display: flex; gap: .3rem; align-items: center; font-size: .85rem; font-weight: 400; }
+    .entry-form { border: 1px solid #d4d9e0; border-radius: 6px; padding: 1.25rem; margin-bottom: 1.5rem; background: #f9fafb; }
+    .entry-form h3 { margin-bottom: 1rem; color: #003f72; }
+    .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: .75rem; }
+    .form-row { display: flex; flex-direction: column; gap: .25rem; }
+    .form-row.full { grid-column: 1 / -1; }
+    .form-row label { font-size: .8rem; font-weight: 600; color: #555; }
+    .form-row input, .form-row select { padding: .4rem .6rem; border: 1px solid #ccc; border-radius: 4px; font-size: .85rem; }
+    .form-actions { display: flex; gap: .5rem; margin-top: .75rem; }
+</style>

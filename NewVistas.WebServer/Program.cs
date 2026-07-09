@@ -300,6 +300,8 @@ using (var scope = app.Services.CreateScope())
     // serving (app.StartAsync above), so a clinician who logs straight in can Open P9001,
     // find him by name, and see him in "My Patients" within seconds, while the P1..P500
     // cohort streams in behind. Both calls are idempotent.
+    await InstitutionSeed.SeedAsync(grainFactory, seedLogger);       // File #4 directory + BILH hospitals/units (transfer-center demo)
+    await InpatientUnitSeed.SeedAsync(grainFactory, seedLogger);     // institution 500's units/rooms/beds (bed board + ADT placement)
     await ExtremeLeeSickSeed.SeedAsync(grainFactory, seedLogger);
     await MaternalNewbornSeed.SeedAsync(grainFactory, seedLogger);   // P9002 mother + newborn (maternity + neonatal demo)
     await PretermNicuSeed.SeedAsync(grainFactory, seedLogger);       // P9003 mother + preterm NICU newborn (Phase 2 NICU depth)
@@ -307,6 +309,7 @@ using (var scope = app.Services.CreateScope())
     await HereditaryGeneticsSeed.SeedAsync(grainFactory, seedLogger);// P9004 hereditary cancer (germline + family history)
     await SpecialtyCoverSheetSeed.SeedAsync(grainFactory, seedLogger); // P9001 rotator-cuff surgery + shoulder MRI (specialty cover-sheet prototype)
     await PersonIdentitySeed.SeedAsync(grainFactory, seedLogger);      // P9005 nurse-patient + P9006/P9007 mother-patient-relative (Person identity ADR-002)
+    await InterfacilityTransferSeed.SeedAsync(grainFactory, seedLogger); // P9008 in-flight Burlington→Lawrence transfer (Transfer Center demo)
     await SeedDemoCareTeamsAsync(app.Services, seedLogger);   // assigns P9001 now; P1..P30 skipped until imported
 
     // Auto-import demo patients if none exist
@@ -664,11 +667,11 @@ static async Task<Dictionary<int, string>> SeedDemoUsersAsync(IServiceProvider s
     logger.LogInformation("Seeded {Count} demo users ({Mapped} mapped for IEN resolution)",
         userIndex, userIenMap.Count);
 
-    // ── Assign default wards to floor nurses ────────────────────────────────
+    // ── Assign default units to floor nurses (unit ids at institution 500) ──
     var nurseWards = new Dictionary<string, (string WardId, string WardName)>
     {
-        ["NURSE1"] = ("WARD-MED-3A", "MEDICAL 3A"),
-        ["NURSE2"] = ("WARD-ICU-1", "ICU 1"),
+        ["NURSE1"] = ("MED-3A", "Medical Ward 3A"),
+        ["NURSE2"] = ("ICU-1", "Intensive Care Unit"),
     };
 
     foreach (var (userName, (wardId, wardName)) in nurseWards)
@@ -700,13 +703,13 @@ static async Task SeedDemoSecurityKeysAsync(IServiceProvider services)
     var roleKeyMap = new Dictionary<string, string[]>
     {
         ["Provider"]          = [SecurityKeys.PROVIDER, SecurityKeys.ORES, SecurityKeys.TIU_SIGN, SecurityKeys.GMRA_ALLERGY, SecurityKeys.GMRV_VITALS, SecurityKeys.GMPL_PROBLEM, SecurityKeys.HBHC_MANAGER],
-        ["Nurse"]             = [SecurityKeys.ORELSE, SecurityKeys.GMRV_VITALS, SecurityKeys.GMRA_ALLERGY, SecurityKeys.GMPL_PROBLEM, SecurityKeys.SD_SCHEDULING, SecurityKeys.HBHC_MANAGER],
+        ["Nurse"]             = [SecurityKeys.ORELSE, SecurityKeys.GMRV_VITALS, SecurityKeys.GMRA_ALLERGY, SecurityKeys.GMPL_PROBLEM, SecurityKeys.SD_SCHEDULING, SecurityKeys.HBHC_MANAGER, SecurityKeys.DG_BED_CONTROL],
         ["Pharmacist"]        = [SecurityKeys.PSO_PHARMACY, SecurityKeys.PSJ_RPHARM, SecurityKeys.PSA_ORDERS, SecurityKeys.PSB_MANAGER],
         ["LabTechnician"]     = [SecurityKeys.LRLAB, SecurityKeys.LRVERIFY],
         ["Radiologist"]       = [SecurityKeys.RA_VERIFY, SecurityKeys.PROVIDER, SecurityKeys.TIU_SIGN],
         ["Surgeon"]           = [SecurityKeys.PROVIDER, SecurityKeys.ORES, SecurityKeys.TIU_SIGN, SecurityKeys.SR_SURGERY],
-        ["Administrator"]     = [SecurityKeys.XUMGR, SecurityKeys.XUAUDIT, SecurityKeys.DG_SENSITIVITY],
-        ["RegistrationClerk"] = [SecurityKeys.SD_SCHEDULING, SecurityKeys.DG_ADMIT],
+        ["Administrator"]     = [SecurityKeys.XUMGR, SecurityKeys.XUAUDIT, SecurityKeys.DG_SENSITIVITY, SecurityKeys.DG_BED_CONTROL],
+        ["RegistrationClerk"] = [SecurityKeys.SD_SCHEDULING, SecurityKeys.DG_ADMIT, SecurityKeys.DG_BED_CONTROL],
         ["MentalHealth"]      = [SecurityKeys.PROVIDER, SecurityKeys.TIU_SIGN, SecurityKeys.YS_MH_INSTRUMENT],
         ["Oncologist"]        = [SecurityKeys.PROVIDER, SecurityKeys.ORES, SecurityKeys.TIU_SIGN, SecurityKeys.GMRA_ALLERGY, SecurityKeys.GMRV_VITALS, SecurityKeys.GMPL_PROBLEM, SecurityKeys.ONCO_MANAGER],
     };

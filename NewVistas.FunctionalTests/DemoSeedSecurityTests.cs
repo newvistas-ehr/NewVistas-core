@@ -53,8 +53,8 @@ public class DemoSeedSecurityTests
             siloBuilder.AddMemoryGrainStorage("patientVitalIndexStore");
             siloBuilder.AddMemoryGrainStorage("patientEnrollmentStore");
             siloBuilder.AddMemoryGrainStorage("adtStore");
-            siloBuilder.AddMemoryGrainStorage("wardCensusStore");
-            siloBuilder.AddMemoryGrainStorage("wardLocationStore");
+            siloBuilder.AddMemoryGrainStorage("inpatientUnitStore");
+            siloBuilder.AddMemoryGrainStorage("bedCapacityStore");
             siloBuilder.AddMemoryGrainStorage("PubSubStore");
             siloBuilder.AddMemoryStreams("LabStreams");
 
@@ -246,11 +246,13 @@ public class DemoSeedSecurityTests
         SetRequestContext(userId, "NURSE,JANE");
         IPatientWorkflowGrain workflow = NewWorkflow();
 
-        // Act & Assert — RecordAdmissionAsync requires DG_ADMIT, which the nurse does not hold
+        // Act & Assert — RecordAdmissionAsync requires DG_ADMIT, which the nurse does not
+        // hold; the authorization filter rejects the call before any unit/bed placement,
+        // so no unit needs to exist for this denial test.
         UnauthorizedAccessException ex = Assert.ThrowsAsync<UnauthorizedAccessException>(async () =>
             await workflow.RecordAdmissionAsync(
-                DateTime.UtcNow, "WARD-MED-3A", "MEDICINE 3A",
-                "301-A", "INTERNAL MEDICINE",
+                DateTime.UtcNow, "500", "WARD-MED-3A",
+                null, "INTERNAL MEDICINE",
                 null, null, "CHEST PAIN", null))!;
 
         Assert.That(ex.Message, Does.Contain(SecurityKeys.DG_ADMIT));
