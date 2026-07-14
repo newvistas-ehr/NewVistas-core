@@ -26,7 +26,8 @@ public interface IHomeCareEpisodeGrain : IGrainWithStringKey
         HomeCareLevelOfCare levelOfCare,
         string clinicalNeedNarrative,
         string primaryCaregiver,
-        string homeAddress);
+        string homeAddress,
+        HomeCareDeliveryModel deliveryModel = HomeCareDeliveryModel.HospitalProvided);
 
     Task UpdateLevelOfCareAsync(HomeCareLevelOfCare levelOfCare);
     Task UpdateEligibilityAsync(HomeCareEligibility eligibility);
@@ -53,6 +54,19 @@ public interface IHomeCareEpisodeGrain : IGrainWithStringKey
 
     /// <summary>Stores the PDGM grouping result on a payment period within a certification period.</summary>
     Task SetPaymentPeriodGroupingAsync(string certificationPeriodId, string paymentPeriodId, PdgmGroupingResult grouping);
+
+    // ── Delivery model (who delivers): hospital-provided vs external agency; Hospital-at-Home ──
+    /// <summary>Sets who delivers the episode. HospitalAtHome episodes are forced to HospitalProvided.</summary>
+    Task SetDeliveryModelAsync(HomeCareDeliveryModel deliveryModel);
+
+    /// <summary>Attaches agency-coordination detail and switches the episode to ExternalAgency delivery.</summary>
+    Task SetAgencyCoordinationAsync(HomeCareAgencyCoordination coordination);
+
+    /// <summary>Appends a coordinated-care milestone (start-of-care, recert, discharge…) to an agency episode.</summary>
+    Task AddAgencyMilestoneAsync(AgencyCareMilestone milestone);
+
+    /// <summary>Sets the Hospital-at-Home acute-substitution context (the freed-bed source-admission link).</summary>
+    Task SetHospitalAtHomeContextAsync(HospitalAtHomeContext context);
 
     Task<HomeCareEpisodeState> GetEpisodeAsync();
 }

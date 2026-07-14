@@ -69,7 +69,8 @@ public class HomeCareController : ControllerBase
                 request.LevelOfCare,
                 request.ClinicalNeedNarrative,
                 request.PrimaryCaregiver,
-                request.HomeAddress);
+                request.HomeAddress,
+                request.DeliveryModel);
             return Created($"/api/homecare/{patientId}/episodes/{episodeId}",
                 new AdmitHomeCareResponse { EpisodeId = episodeId });
         }
@@ -129,6 +130,89 @@ public class HomeCareController : ControllerBase
             _logger.LogError(ex, "Error retrieving home-care episode {EpisodeId} for patient {PatientId}",
                 episodeId, patientId);
             return StatusCode(500, "An error occurred while retrieving the home-care episode");
+        }
+    }
+
+    // ─── Delivery model (who delivers): hospital vs agency; Hospital-at-Home ──
+
+    /// <summary>Sets who delivers an episode (HospitalAtHome episodes are forced to HospitalProvided).</summary>
+    [HttpPut("{patientId}/episodes/{episodeId}/delivery-model")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    public async Task<IActionResult> SetDeliveryModel(
+        string patientId, string episodeId, [FromBody] SetDeliveryModelRequest request)
+    {
+        try
+        {
+            await GetWorkflow(patientId).SetHomeCareDeliveryModelAsync(episodeId, request.DeliveryModel);
+            return NoContent();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error setting delivery model for episode {EpisodeId} (patient {PatientId})", episodeId, patientId);
+            return StatusCode(500, "An error occurred while setting the delivery model");
+        }
+    }
+
+    /// <summary>Links an episode to a delivering home-health agency (switches it to ExternalAgency).</summary>
+    [HttpPut("{patientId}/episodes/{episodeId}/agency")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    public async Task<IActionResult> LinkAgency(
+        string patientId, string episodeId, [FromBody] LinkAgencyRequest request)
+    {
+        try
+        {
+            await GetWorkflow(patientId).LinkHomeCareAgencyAsync(
+                episodeId, request.AgencyId, request.CoordinatorProviderId, request.CoordinatorName, request.ExternalReferralId);
+            return NoContent();
+        }
+        catch (InvalidOperationException ex)
+        {
+            return BadRequest(new { Error = ex.Message });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error linking agency {AgencyId} to episode {EpisodeId} (patient {PatientId})", request.AgencyId, episodeId, patientId);
+            return StatusCode(500, "An error occurred while linking the agency");
+        }
+    }
+
+    /// <summary>Records a coordinated-care milestone on an agency-delivered episode.</summary>
+    [HttpPost("{patientId}/episodes/{episodeId}/agency/milestones")]
+    [ProducesResponseType(StatusCodes.Status201Created)]
+    public async Task<IActionResult> AddAgencyMilestone(
+        string patientId, string episodeId, [FromBody] AgencyMilestoneRequest request)
+    {
+        try
+        {
+            string milestoneId = await GetWorkflow(patientId).AddAgencyCareMilestoneAsync(
+                episodeId, request.Type, request.Date, request.Note, request.RecordedById, request.RecordedByName);
+            return Created($"/api/homecare/{patientId}/episodes/{episodeId}/agency/milestones/{milestoneId}",
+                new { MilestoneId = milestoneId });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error adding agency milestone to episode {EpisodeId} (patient {PatientId})", episodeId, patientId);
+            return StatusCode(500, "An error occurred while adding the milestone");
+        }
+    }
+
+    /// <summary>Sets the Hospital-at-Home acute-substitution context (the freed-bed source-admission link).</summary>
+    [HttpPut("{patientId}/episodes/{episodeId}/hospital-at-home")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    public async Task<IActionResult> SetHospitalAtHome(
+        string patientId, string episodeId, [FromBody] HospitalAtHomeRequest request)
+    {
+        try
+        {
+            await GetWorkflow(patientId).SetHospitalAtHomeContextAsync(
+                episodeId, request.SourceAdmissionId, request.SourceFacilityId, request.SourceFacilityName,
+                request.SourceUnitId, request.SourceBedId, request.SubstitutionStartDate, request.ClinicalRationale);
+            return NoContent();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error setting Hospital-at-Home context for episode {EpisodeId} (patient {PatientId})", episodeId, patientId);
+            return StatusCode(500, "An error occurred while setting the Hospital-at-Home context");
         }
     }
 
@@ -867,11 +951,45 @@ public record AdmitHomeCareRequest
     public string ClinicalNeedNarrative { get; init; } = string.Empty;
     public string PrimaryCaregiver { get; init; } = string.Empty;
     public string HomeAddress { get; init; } = string.Empty;
+    public HomeCareDeliveryModel DeliveryModel { get; init; } = HomeCareDeliveryModel.HospitalProvided;
 }
 
 public record AdmitHomeCareResponse
 {
     public string EpisodeId { get; init; } = string.Empty;
+}
+
+public record SetDeliveryModelRequest
+{
+    public HomeCareDeliveryModel DeliveryModel { get; init; }
+}
+
+public record LinkAgencyRequest
+{
+    public string AgencyId { get; init; } = string.Empty;
+    public string CoordinatorProviderId { get; init; } = string.Empty;
+    public string CoordinatorName { get; init; } = string.Empty;
+    public string? ExternalReferralId { get; init; }
+}
+
+public record AgencyMilestoneRequest
+{
+    public AgencyMilestoneType Type { get; init; }
+    public DateTime Date { get; init; }
+    public string Note { get; init; } = string.Empty;
+    public string RecordedById { get; init; } = string.Empty;
+    public string RecordedByName { get; init; } = string.Empty;
+}
+
+public record HospitalAtHomeRequest
+{
+    public string SourceAdmissionId { get; init; } = string.Empty;
+    public string SourceFacilityId { get; init; } = string.Empty;
+    public string SourceFacilityName { get; init; } = string.Empty;
+    public string? SourceUnitId { get; init; }
+    public string? SourceBedId { get; init; }
+    public DateTime? SubstitutionStartDate { get; init; }
+    public string ClinicalRationale { get; init; } = string.Empty;
 }
 
 public record AssignTeamMemberRequest

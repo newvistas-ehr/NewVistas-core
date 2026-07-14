@@ -1,0 +1,109 @@
+@* Copyright 2026 Merrimack Valley Software Works, LLC. All rights reserved. *@
+@* This Source Code Form is subject to the terms of the Mozilla Public *@
+@* License, v. 2.0. If a copy of the MPL was not distributed with this *@
+@* file, You can obtain one at https://mozilla.org/MPL/2.0/.            *@
+@page "/home-health-agencies"
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+@rendermode InteractiveServer
+@using NewVistas.BlazorWeb.Services
+@using NewVistas.Abstractions.GrainInterfaces
+@using NewVistas.Abstractions.GrainStates
+@using NewVistas.Abstractions.Security
+@inject OrleansGrainService Grains
+@inject UserSecurityContext SecurityContext
+
+<PageTitle>Home-Health Agencies</PageTitle>
+
+@if (!SecurityContext.IsFeatureEnabled("HOME_BASED_CARE"))
+{
+    <div class="empty-state">Home-Based Care is not enabled for this site.</div>
+}
+else
+{
+    <h1>🏥 Home-Health Agency Directory</h1>
+    <p class="lede">The catalog of home-health agencies an <strong>externally-delivered</strong> home-care
+    episode points at. The in-house agency is the health system's own program (it delivers hospital-provided
+    care); external agencies are the ones we refer patients out to and coordinate with.</p>
+
+    <div class="filter-bar">
+        <input placeholder="Search name / id…" @bind="search" @bind:event="oninput" @onkeyup="OnKey" />
+        <label><input type="checkbox" @bind="externalOnly" @bind:after="Load" /> External only</label>
+        <button class="btn btn-secondary" @onclick="Load">Search</button>
+    </div>
+
+    @if (error != null) { <div class="alert-error">@error</div> }
+
+    @if (loading)
+    {
+        <div class="loading">Loading…</div>
+    }
+    else if (agencies == null || agencies.Count == 0)
+    {
+        <div class="empty-state">No agencies match.</div>
+    }
+    else
+    {
+        <table class="data-table">
+            <thead>
+                <tr><th>Agency</th><th>Kind</th><th>NPI</th><th>CCN</th><th>Service Area</th><th>Disciplines</th><th>Contact</th></tr>
+            </thead>
+            <tbody>
+                @foreach (HomeHealthAgencyEntry a in agencies)
+                {
+                    <tr>
+                        <td>@a.Name <span class="code">@a.AgencyId</span></td>
+                        <td><span class="badge @(a.Kind == HomeHealthAgencyKinds.InHouse ? "badge-info" : "badge-warning")">@(a.Kind == HomeHealthAgencyKinds.InHouse ? "In-house" : "External")</span></td>
+                        <td>@(string.IsNullOrWhiteSpace(a.Npi) ? "—" : a.Npi)</td>
+                        <td>@(string.IsNullOrWhiteSpace(a.Ccn) ? "—" : a.Ccn)</td>
+                        <td>@(string.IsNullOrWhiteSpace(a.ServiceArea) ? "—" : a.ServiceArea)</td>
+                        <td>@(a.Disciplines.Count == 0 ? "—" : string.Join(", ", a.Disciplines))</td>
+                        <td>@(string.IsNullOrWhiteSpace(a.Phone) ? "—" : a.Phone)@(string.IsNullOrWhiteSpace(a.City) ? "" : $" · {a.City}, {a.State}")</td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    }
+}
+
+@code {
+    private List<HomeHealthAgencyEntry>? agencies;
+    private bool loading;
+    private string? error;
+    private string search = string.Empty;
+    private bool externalOnly;
+
+    private IHomeHealthAgencyDirectoryGrain Directory => Grains.GetGrain<IHomeHealthAgencyDirectoryGrain>("HHA-DIRECTORY");
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (SecurityContext.IsFeatureEnabled("HOME_BASED_CARE"))
+            await Load();
+    }
+
+    private Task OnKey(Microsoft.AspNetCore.Components.Web.KeyboardEventArgs e) =>
+        e.Key == "Enter" ? Load() : Task.CompletedTask;
+
+    private async Task Load()
+    {
+        loading = true; error = null;
+        try
+        {
+            agencies = string.IsNullOrWhiteSpace(search)
+                ? await Directory.GetAllAsync(externalOnly)
+                : await Directory.SearchAsync(search, externalOnly);
+        }
+        catch { error = "Failed to load the agency directory."; }
+        finally { loading = false; }
+    }
+}
+
+<style>
+    .lede { color: #556; max-width: 62rem; }
+    .filter-bar { display: flex; gap: 0.8rem; align-items: center; margin: 1rem 0; flex-wrap: wrap; }
+    .filter-bar input[type=text], .filter-bar input:not([type]) { min-width: 16rem; }
+    .code { font-family: monospace; font-size: 0.78rem; color: #889; margin-left: 0.3rem; }
+    .badge { font-size: 0.72rem; padding: 0.05rem 0.4rem; border-radius: 10px; }
+    .badge-info { background: #e6eefb; color: #2a5aa8; }
+    .badge-warning { background: #f7f0e0; color: #96742a; }
+    .alert-error { color: #a33; margin: 0.5rem 0; }
+</style>

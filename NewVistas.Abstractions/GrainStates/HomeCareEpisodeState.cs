@@ -14,7 +14,39 @@ public enum HomeCareProgramType
     /// <summary>VA-style longitudinal, team-based primary care in the home (clinical-need eligibility).</summary>
     HomeBasedPrimaryCare,
     /// <summary>Reserved (Phase 2): episodic, certified, OASIS/PDGM-driven Medicare skilled home health.</summary>
-    MedicareSkilledHomeHealth
+    MedicareSkilledHomeHealth,
+    /// <summary>
+    /// Acute, inpatient-substitutive care delivered in the home (CMS "Acute Hospital Care at Home").
+    /// The hospital renders hospital-level care in the home to free an inpatient bed — so a
+    /// HospitalAtHome episode is ALWAYS <see cref="HomeCareDeliveryModel.HospitalProvided"/>.
+    /// Appended last: Orleans persists enums by integer — never reorder or insert.
+    /// </summary>
+    HospitalAtHome
+}
+
+/// <summary>
+/// WHO delivers the home care — orthogonal to <see cref="HomeCareProgramType"/> (what kind of care).
+/// Defaults to <see cref="HospitalProvided"/> so every pre-existing episode (which has no stored value)
+/// deserializes to the original implicit model with no data migration.
+/// </summary>
+public enum HomeCareDeliveryModel
+{
+    /// <summary>Our own program/staff deliver the care (the original implicit model, made explicit).</summary>
+    HospitalProvided = 0,
+    /// <summary>An independent home-health agency delivers the care; we coordinate (a coordination shell).</summary>
+    ExternalAgency = 1
+}
+
+/// <summary>A tracked milestone in an externally-delivered (agency) episode we coordinate but do not staff.</summary>
+public enum AgencyMilestoneType
+{
+    ReferralSent,
+    StartOfCare,
+    Recertification,
+    PlanOfCareSigned,
+    Hospitalization,
+    Discharge,
+    Other
 }
 
 /// <summary>Where the patient was admitted to home care from. VistA File #750 admission source.</summary>
@@ -161,6 +193,69 @@ public class PdgmGroupingResult
 }
 
 /// <summary>
+/// A milestone in an agency-delivered episode (a coordination shell). We track the agency's
+/// start-of-care / recert / discharge as a thin timeline — NOT full visits (their staff render those).
+/// </summary>
+[GenerateSerializer]
+public class AgencyCareMilestone
+{
+    [Id(0)] public string MilestoneId { get; set; } = string.Empty;
+    [Id(1)] public AgencyMilestoneType Type { get; set; }
+    [Id(2)] public DateTime Date { get; set; }
+    [Id(3)] public string Note { get; set; } = string.Empty;
+    [Id(4)] public string RecordedById { get; set; } = string.Empty;
+    [Id(5)] public string RecordedByName { get; set; } = string.Empty;
+}
+
+/// <summary>
+/// Coordination detail for an <see cref="HomeCareDeliveryModel.ExternalAgency"/> episode. Null on
+/// hospital-provided episodes. Denormalizes the delivering agency's identity (from the
+/// <c>HHA-DIRECTORY</c>) and holds the coordinated-care milestone timeline.
+/// </summary>
+[GenerateSerializer]
+public class HomeCareAgencyCoordination
+{
+    /// <summary>Delivering agency id → <c>HHA-DIRECTORY</c> entry.</summary>
+    [Id(0)] public string AgencyId { get; set; } = string.Empty;
+    /// <summary>Agency name (denormalized for roster/detail display).</summary>
+    [Id(1)] public string AgencyName { get; set; } = string.Empty;
+    [Id(2)] public string? AgencyNpi { get; set; }
+    /// <summary>CMS Certification Number (the agency's Medicare provider number).</summary>
+    [Id(3)] public string? AgencyCcn { get; set; }
+    /// <summary>Optional link to the community-care referral (<c>EXT-REF:{guid}</c>) that sent the patient out.</summary>
+    [Id(4)] public string? ExternalReferralId { get; set; }
+    /// <summary>Our internal coordinator/case-manager for the referred-out patient.</summary>
+    [Id(5)] public string CoordinatorProviderId { get; set; } = string.Empty;
+    [Id(6)] public string CoordinatorName { get; set; } = string.Empty;
+    /// <summary>The coordinated-care milestone timeline (start-of-care, recert, discharge…).</summary>
+    [Id(7)] public List<AgencyCareMilestone> Milestones { get; set; } = new();
+}
+
+/// <summary>
+/// Acute-substitution detail for a <see cref="HomeCareProgramType.HospitalAtHome"/> episode. Null on
+/// other episodes. A soft handoff link to the inpatient admission/bed the home care substitutes for —
+/// "we freed this bed by moving the patient to Hospital-at-Home." Normal discharge already releases the
+/// bed; this is a reference, not a bed-management rewrite.
+/// </summary>
+[GenerateSerializer]
+public class HospitalAtHomeContext
+{
+    /// <summary>The ADT/bed admission id this episode substitutes for.</summary>
+    [Id(0)] public string SourceAdmissionId { get; set; } = string.Empty;
+    /// <summary>Institution id of the discharging facility (e.g. "500").</summary>
+    [Id(1)] public string SourceFacilityId { get; set; } = string.Empty;
+    [Id(2)] public string SourceFacilityName { get; set; } = string.Empty;
+    /// <summary>The freed inpatient unit (optional).</summary>
+    [Id(3)] public string? SourceUnitId { get; set; }
+    /// <summary>The freed inpatient bed (optional) — the bed the substitution released.</summary>
+    [Id(4)] public string? SourceBedId { get; set; }
+    /// <summary>When acute-at-home substitution began.</summary>
+    [Id(5)] public DateTime? SubstitutionStartDate { get; set; }
+    /// <summary>Clinical rationale for treating this acute problem at home instead of a ward bed.</summary>
+    [Id(6)] public string ClinicalRationale { get; set; } = string.Empty;
+}
+
+/// <summary>
 /// A home-care episode — the spine of the Home-Based Care module. One open-ended episode per
 /// HBPC enrollment (a patient may have a history of episodes; they are GUID-keyed and indexed
 /// per patient). Designed so the reserved Phase-2 fields light up the Medicare program without
@@ -247,6 +342,18 @@ public class HomeCareEpisodeState
     /// Reserved (Phase 2): Medicare 60-day certification periods. Empty for HBPC episodes.
     /// </summary>
     [Id(28)] public List<CertificationPeriod> CertificationPeriods { get; set; } = new();
+
+    /// <summary>
+    /// WHO delivers this episode (orthogonal to <see cref="ProgramType"/>). Defaults to
+    /// <see cref="HomeCareDeliveryModel.HospitalProvided"/> so pre-existing episodes need no migration.
+    /// </summary>
+    [Id(29)] public HomeCareDeliveryModel DeliveryModel { get; set; } = HomeCareDeliveryModel.HospitalProvided;
+
+    /// <summary>Agency-coordination detail when <see cref="DeliveryModel"/> is ExternalAgency; null otherwise.</summary>
+    [Id(30)] public HomeCareAgencyCoordination? AgencyCoordination { get; set; }
+
+    /// <summary>Acute-substitution detail when <see cref="ProgramType"/> is HospitalAtHome; null otherwise.</summary>
+    [Id(31)] public HospitalAtHomeContext? HospitalAtHome { get; set; }
 }
 
 /// <summary>Summary entry for the home-care census / caseload roster (the VistA HBH workload analog).</summary>
@@ -266,4 +373,10 @@ public class HomeCareCensusEntry
     [Id(10)] public DateTime? LastVisitDate { get; set; }
     [Id(11)] public DateTime? NextVisitDate { get; set; }
     [Id(12)] public int OpenProblemCount { get; set; }
+
+    /// <summary>Who delivers the episode — for the caseload delivery column/filter.</summary>
+    [Id(13)] public HomeCareDeliveryModel DeliveryModel { get; set; } = HomeCareDeliveryModel.HospitalProvided;
+
+    /// <summary>Delivering agency name when ExternalAgency; empty for hospital-provided.</summary>
+    [Id(14)] public string AgencyName { get; set; } = string.Empty;
 }

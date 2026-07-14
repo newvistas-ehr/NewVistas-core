@@ -2597,7 +2597,8 @@ public interface IPatientWorkflowGrain : IGrainWithStringKey
         GrainStates.HomeCareLevelOfCare levelOfCare,
         string clinicalNeedNarrative,
         string primaryCaregiver,
-        string homeAddress);
+        string homeAddress,
+        GrainStates.HomeCareDeliveryModel deliveryModel = GrainStates.HomeCareDeliveryModel.HospitalProvided);
 
     /// <summary>Assigns (upserts) an interdisciplinary team member to an episode.</summary>
     [RequiresSecurityKey(SecurityKeys.HBHC_MANAGER)]
@@ -2715,6 +2716,24 @@ public interface IPatientWorkflowGrain : IGrainWithStringKey
 
     /// <summary>Returns the episode's Medicare billing (NOA + claims). Readable by any clinician.</summary>
     Task<GrainStates.HomeHealthBillingState> GetHomeHealthBillingAsync(string episodeId);
+
+    // ─── Delivery model: hospital-provided vs external agency; Hospital-at-Home ──
+
+    /// <summary>Sets who delivers an episode. A HospitalAtHome episode is always forced to HospitalProvided.</summary>
+    [RequiresSecurityKey(SecurityKeys.HBHC_MANAGER)]
+    Task SetHomeCareDeliveryModelAsync(string episodeId, GrainStates.HomeCareDeliveryModel deliveryModel);
+
+    /// <summary>Links an episode to a delivering home-health agency (from HHA-DIRECTORY) and switches it to ExternalAgency delivery.</summary>
+    [RequiresSecurityKey(SecurityKeys.HBHC_MANAGER)]
+    Task LinkHomeCareAgencyAsync(string episodeId, string agencyId, string coordinatorProviderId, string coordinatorName, string? externalReferralId);
+
+    /// <summary>Records a coordinated-care milestone (start-of-care, recert, discharge…) on an agency-delivered episode. Returns the milestone id.</summary>
+    [RequiresSecurityKey(SecurityKeys.HBHC_MANAGER)]
+    Task<string> AddAgencyCareMilestoneAsync(string episodeId, GrainStates.AgencyMilestoneType type, DateTime date, string note, string recordedById, string recordedByName);
+
+    /// <summary>Sets the Hospital-at-Home acute-substitution context (the freed-bed source-admission handoff link).</summary>
+    [RequiresSecurityKey(SecurityKeys.HBHC_MANAGER)]
+    Task SetHospitalAtHomeContextAsync(string episodeId, string sourceAdmissionId, string sourceFacilityId, string sourceFacilityName, string? sourceUnitId, string? sourceBedId, DateTime? substitutionStartDate, string clinicalRationale);
 
     // ─── Medicine (Procedures) — Files #691-699 — MDAPI.m, MDEV.m, MDEC.m ────────
 

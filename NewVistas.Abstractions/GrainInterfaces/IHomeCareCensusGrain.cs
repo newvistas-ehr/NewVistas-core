@@ -17,6 +17,7 @@ public interface IHomeCareCensusGrain : IGrainWithStringKey
     Task<List<HomeCareCensusEntry>> GetAllAsync();
     Task<List<HomeCareCensusEntry>> GetActiveAsync();
     Task<List<HomeCareCensusEntry>> GetByLevelOfCareAsync(HomeCareLevelOfCare levelOfCare);
+    Task<List<HomeCareCensusEntry>> GetByDeliveryModelAsync(HomeCareDeliveryModel deliveryModel);
     Task<List<HomeCareCensusEntry>> GetByProviderAsync(string providerId);
     Task<List<HomeCareCensusEntry>> GetWithUpcomingVisitsAsync(int withinDays);
     Task<List<HomeCareCensusEntry>> GetWithNoRecentVisitAsync(int daysSinceLastVisit);

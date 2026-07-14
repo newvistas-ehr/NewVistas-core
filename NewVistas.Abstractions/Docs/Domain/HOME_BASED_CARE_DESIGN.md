@@ -23,6 +23,13 @@
 >   also has a 2025 post-cervical-fusion Medicare skilled episode (eligibility → cert → OASIS →
 >   PDGM → EVV visits → NOA + claim → discharged) alongside his 2026 HBPC episode.
 >
+> **Delivery model (who delivers) — added later:** a `DeliveryModel` axis on the episode, **orthogonal
+> to `ProgramType`**: `HospitalProvided` (our own program/staff — the original implicit model, now
+> explicit and the default) vs `ExternalAgency` (an independent home-health agency delivers; we
+> coordinate via a milestone timeline). Adds a home-health-agency directory (`HHA-DIRECTORY`), a
+> `HospitalAtHome` program type (acute, always hospital-provided) with a freed-bed source-admission
+> handoff, and the `HOSPITAL_AT_HOME` flag. See [Delivery model](#delivery-model-who-delivers) below.
+>
 > **Phase 1 implementation notes (delta from this design):**
 >
 > **Implementation notes (delta from this design):**
@@ -269,6 +276,56 @@ each reserved hook activates — **no core grain rewrite**:
 | `CertificationPeriod.PdgmGroupingResult?` | `HomeHealthGrouper` deterministic service — **structurally a clone of `Clinical.PrecisionOncology`** (inputs → classification, curated rules), classifying each 30-day period into a PDGM case-mix group |
 | `IHomeHealthBillingGrain` (new) | Notice of Admission (NOA) within 5 days; claims; LUPA adjustment |
 | Census workload roll-up | Extends to HH QRP / quality-measure inputs |
+
+---
+
+## Delivery model (who delivers)
+
+`ProgramType` answers *what kind* of home care (HBPC / Medicare skilled / Hospital-at-Home). A separate,
+**orthogonal** axis — `HomeCareDeliveryModel` on the episode — answers *who delivers* it:
+
+| `DeliveryModel` | Meaning | Detail carried |
+|---|---|---|
+| `HospitalProvided` (default, `= 0`) | Our own program/staff deliver the care (the article's health-system-run home care; also VA HBPC and Hospital-at-Home). The original implicit model, now explicit. | none — the internal team is the delivering org |
+| `ExternalAgency` | An independent home-health agency delivers; we refer out and **coordinate**. The episode is a coordination shell. | `HomeCareAgencyCoordination` (`[Id(30)]`): the delivering agency (denormalized from `HHA-DIRECTORY` — name/NPI/CCN), an optional `EXT-REF` link, our coordinator, and a **milestone timeline** (`AgencyCareMilestone`: referral-sent / start-of-care / recert / discharge) — NOT full visits (their staff render those) |
+
+**Hospital-at-Home** is a new `HomeCareProgramType.HospitalAtHome` value (acute, inpatient-substitutive —
+CMS "Acute Hospital Care at Home"). It is **always** `HospitalProvided` (enforced in `AdmitAsync` and
+`SetDeliveryModelAsync` — you cannot outsource an acute inpatient substitution). It carries a
+`HospitalAtHomeContext` (`[Id(31)]`): a soft handoff link to the source ADT/bed admission it substitutes
+for (facility + freed unit/bed) — "we freed this bed by moving the patient home." This is a reference,
+**not** a bed-management rewrite; normal discharge still releases the bed.
+
+**Serialization safety:** the new episode fields are `[Id(29)]` DeliveryModel, `[Id(30)]`
+AgencyCoordination?, `[Id(31)]` HospitalAtHome?; the census entry gains `[Id(13)]` DeliveryModel +
+`[Id(14)]` AgencyName. `HospitalProvided = 0` is the CLR default, so every pre-existing episode
+deserializes to the original model with **zero migration**; the nullable sub-records default null. Enum
+values are append-only (`HospitalAtHome` last on `HomeCareProgramType`).
+
+**Directory** — `IHomeHealthAgencyDirectoryGrain` (singleton `HHA-DIRECTORY`), a PharmacyDirectory-style
+catalog. `Kind = IN_HOUSE` (the health system's own licensed agency — the hospital-provided delivering
+org) or `EXTERNAL`. Auto-seeds a demo set (guarded by a `DemoSeeded` flag, deterministic regardless of
+prior adds). Facility-wide, so the controller/Blazor call it directly (not via the workflow grain).
+
+**Workflow façade** (`PatientWorkflowGrain.HomeCareDelivery.cs`, writes gated `HBHC MANAGER`):
+`AdmitToHomeCareAsync` gained an optional trailing `deliveryModel` param (default HospitalProvided — every
+existing caller compiles unchanged); plus `SetHomeCareDeliveryModelAsync`, `LinkHomeCareAgencyAsync`
+(denormalizes from the directory, forces ExternalAgency), `AddAgencyCareMilestoneAsync`,
+`SetHospitalAtHomeContextAsync`. Each refreshes the census so the caseload delivery column/filter stay
+current.
+
+**Flag** — the delivery-model axis + agency directory + coordination ride on the existing
+`HOME_BASED_CARE` flag (core who-delivers). A new `HOSPITAL_AT_HOME` flag (Modern, ON by default) gates
+only the Hospital-at-Home program option + acute panel, so a site without an acute-care-at-home waiver can
+hide it while keeping the hospital-vs-agency distinction.
+
+**Surface** — `HomeCare.razor` gains a caseload Delivery column + filter, a delivery picker in the admit
+form (with an agency picker when ExternalAgency, and source-admission fields + a locked-to-hospital picker
+when HospitalAtHome), and episode-detail Coordination / Hospital-at-Home panels. New page
+`/home-health-agencies` browses the directory (REST: `api/homehealthagencies`). Demo: **P9001** now shows
+all three delivery models — his in-house HBPC/Medicare episodes, a Valley VNA agency-delivered episode
+(3 coordination milestones), and a Hospital-at-Home cellulitis episode linked to a freed med-surg bed.
+Coverage: 6 `HomeCareDeliveryWorkflowTests` + 3 `HomeHealthAgencyDirectoryGrainTests`.
 
 ---
 

@@ -61,6 +61,13 @@ public class HomeCareCensusGrain : Grain, IHomeCareCensusGrain
             .OrderBy(e => e.PatientName)
             .ToList());
 
+    public Task<List<HomeCareCensusEntry>> GetByDeliveryModelAsync(HomeCareDeliveryModel deliveryModel) =>
+        Task.FromResult(_state.State.Entries
+            .Where(e => e.DeliveryModel == deliveryModel
+                        && (e.Status == HomeCareEpisodeStatus.Active || e.Status == HomeCareEpisodeStatus.OnHold))
+            .OrderBy(e => e.PatientName)
+            .ToList());
+
     public Task<List<HomeCareCensusEntry>> GetByProviderAsync(string providerId) =>
         Task.FromResult(_state.State.Entries
             .Where(e => e.PrimaryProviderId == providerId

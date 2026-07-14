@@ -1171,6 +1171,57 @@ PLAN:
 
             logger.LogInformation("  + home health (Medicare): episode {Id} certified, OASIS scrubbed, PDGM {Hipps} ({Group}), NOA + claim, discharged", medEpisodeId, medGrouping.CaseMixGroup, medGrouping.ClinicalGrouping);
 
+            // ── Home care delivered by an EXTERNAL agency (a coordination shell) ─────
+            // The hospital refers the patient out to an independent agency and coordinates; the
+            // agency's own staff render the visits, so we track milestones, not individual visits.
+            string agencyEpisodeId = await wf.AdmitToHomeCareAsync(
+                HomeCareProgramType.MedicareSkilledHomeHealth,
+                new DateTime(2026, 5, 1),
+                HomeCareAdmissionSource.AcuteHospital,
+                DrCannotId, DrCannot,
+                "I50.9", "Congestive heart failure",
+                HomeCareLevelOfCare.Enhanced,
+                "Post-discharge skilled needs; care delivered by a contracted community agency.",
+                "Spouse", "12 Shady Lane",
+                HomeCareDeliveryModel.ExternalAgency);
+            await wf.LinkHomeCareAgencyAsync(agencyEpisodeId, "HHA-VALLEY-VNA", DrCannotId, DrCannot, null);
+            await wf.AddAgencyCareMilestoneAsync(agencyEpisodeId, AgencyMilestoneType.ReferralSent,
+                new DateTime(2026, 5, 1), "Referred to Valley VNA on discharge.", DrCannotId, DrCannot);
+            await wf.AddAgencyCareMilestoneAsync(agencyEpisodeId, AgencyMilestoneType.StartOfCare,
+                new DateTime(2026, 5, 3), "Agency start-of-care visit completed; OASIS on file at the agency.", NurseRatchedId, NurseRatched);
+            await wf.AddAgencyCareMilestoneAsync(agencyEpisodeId, AgencyMilestoneType.Recertification,
+                new DateTime(2026, 7, 1), "Recertified for a second 60-day episode.", NurseRatchedId, NurseRatched);
+
+            logger.LogInformation("  + home health (external agency): episode {Id} delivered by Valley VNA, 3 coordination milestones", agencyEpisodeId);
+
+            // ── Hospital-at-Home (acute inpatient substitution — frees a ward bed) ──
+            // Delivery is auto-forced HospitalProvided; the episode links back to the admission it
+            // substitutes for. Hospital-provided, so it reuses the normal daily-visit machinery.
+            string hahEpisodeId = await wf.AdmitToHomeCareAsync(
+                HomeCareProgramType.HospitalAtHome,
+                new DateTime(2026, 6, 15),
+                HomeCareAdmissionSource.AcuteHospital,
+                DrCannotId, DrCannot,
+                "L03.116", "Cellulitis of left lower limb requiring IV antibiotics",
+                HomeCareLevelOfCare.Enhanced,
+                "Acute cellulitis suitable for hospital-level care at home (CMS Acute Hospital Care at Home).",
+                "Spouse", "12 Shady Lane");
+            await wf.SetHospitalAtHomeContextAsync(hahEpisodeId, "ADT-P9001-2026-06-15", "500", "Springfield Medical Center",
+                "MED-3A", "3A-12", new DateTime(2026, 6, 15),
+                "IV antibiotics + daily nurse/physician home visits; freed a med-surg bed.");
+            await wf.AssignHomeCareTeamMemberAsync(hahEpisodeId, DrCannotId, DrCannot, HomeCareDiscipline.Physician, "Attending (Hospital-at-Home)", true);
+            await wf.AssignHomeCareTeamMemberAsync(hahEpisodeId, NurseRatchedId, NurseRatched, HomeCareDiscipline.SkilledNursing, "Acute Home RN", false);
+            string hahV1 = await wf.ScheduleHomeVisitAsync(hahEpisodeId, HomeCareDiscipline.SkilledNursing,
+                HomeVisitType.Initial, new DateTime(2026, 6, 15, 8, 0, 0), NurseRatchedId, NurseRatched, "Admit to Hospital-at-Home; start IV antibiotics");
+            await wf.CompleteHomeVisitAsync(hahV1, 60, "T 38.1, HR 92",
+                new List<string> { "IV cefazolin administered; erythema margins marked" }, "Acute home admission visit.", string.Empty, new DateTime(2026, 6, 16));
+            string hahV2 = await wf.ScheduleHomeVisitAsync(hahEpisodeId, HomeCareDiscipline.Physician,
+                HomeVisitType.Routine, new DateTime(2026, 6, 16, 9, 0, 0), DrCannotId, DrCannot, "Daily physician assessment");
+            await wf.CompleteHomeVisitAsync(hahV2, 30, "Improving erythema",
+                new List<string> { "Continue IV antibiotics; reassess in 24h" }, "Day-2 physician visit.", string.Empty, null);
+
+            logger.LogInformation("  + hospital-at-home: episode {Id} substituting for admission ADT-P9001-2026-06-15 (freed bed MED-3A/3A-12)", hahEpisodeId);
+
             logger.LogInformation("Rich demo patient {Id} (SICK,EXTREME LEE) seeded successfully", Pid);
         }
         catch (Exception ex)

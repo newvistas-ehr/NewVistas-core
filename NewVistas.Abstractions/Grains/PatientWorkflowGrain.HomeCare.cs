@@ -62,7 +62,9 @@ public partial class PatientWorkflowGrain
             AdmissionDate = e.AdmissionDate,
             LastVisitDate = e.LastVisitDate,
             NextVisitDate = e.NextVisitDate,
-            OpenProblemCount = openProblems
+            OpenProblemCount = openProblems,
+            DeliveryModel = e.DeliveryModel,
+            AgencyName = e.AgencyCoordination?.AgencyName ?? string.Empty
         });
     }
 
@@ -85,13 +87,14 @@ public partial class PatientWorkflowGrain
         HomeCareLevelOfCare levelOfCare,
         string clinicalNeedNarrative,
         string primaryCaregiver,
-        string homeAddress)
+        string homeAddress,
+        HomeCareDeliveryModel deliveryModel = HomeCareDeliveryModel.HospitalProvided)
     {
         string episodeId = $"HHC-EPISODE:{Guid.NewGuid()}";
         await HomeEpisode(episodeId).AdmitAsync(
             PatientId, await ResolvePatientNameAsync(), programType, admissionDate, admissionSource,
             referringProviderId, referringProviderName, primaryDiagnosisCode, primaryDiagnosisText,
-            levelOfCare, clinicalNeedNarrative, primaryCaregiver, homeAddress);
+            levelOfCare, clinicalNeedNarrative, primaryCaregiver, homeAddress, deliveryModel);
         await RefreshHomeCensusAsync(episodeId);
         return episodeId;
     }

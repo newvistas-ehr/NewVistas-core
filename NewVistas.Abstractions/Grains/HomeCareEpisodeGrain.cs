@@ -42,7 +42,8 @@ public class HomeCareEpisodeGrain : Grain, IHomeCareEpisodeGrain
         HomeCareLevelOfCare levelOfCare,
         string clinicalNeedNarrative,
         string primaryCaregiver,
-        string homeAddress)
+        string homeAddress,
+        HomeCareDeliveryModel deliveryModel = HomeCareDeliveryModel.HospitalProvided)
     {
         _state.State.PatientId = patientId;
         _state.State.PatientName = patientName;
@@ -57,6 +58,11 @@ public class HomeCareEpisodeGrain : Grain, IHomeCareEpisodeGrain
         _state.State.Eligibility.ClinicalNeedNarrative = clinicalNeedNarrative;
         _state.State.PrimaryCaregiver = primaryCaregiver;
         _state.State.HomeAddress = homeAddress;
+        // An acute Hospital-at-Home episode is always hospital-provided — you cannot outsource an
+        // inpatient substitution to an independent agency.
+        _state.State.DeliveryModel = programType == HomeCareProgramType.HospitalAtHome
+            ? HomeCareDeliveryModel.HospitalProvided
+            : deliveryModel;
         _state.State.Status = HomeCareEpisodeStatus.Active;
         _state.State.LastModifiedDate = DateTime.UtcNow;
         await _state.WriteStateAsync();
@@ -183,6 +189,41 @@ public class HomeCareEpisodeGrain : Grain, IHomeCareEpisodeGrain
         PaymentPeriod? pp = cert?.PaymentPeriods.FirstOrDefault(p => p.PeriodId == paymentPeriodId);
         if (pp is null) return;
         pp.Grouping = grouping;
+        _state.State.LastModifiedDate = DateTime.UtcNow;
+        await _state.WriteStateAsync();
+    }
+
+    public async Task SetDeliveryModelAsync(HomeCareDeliveryModel deliveryModel)
+    {
+        // Guard the invariant: an acute Hospital-at-Home episode is always hospital-provided.
+        _state.State.DeliveryModel = _state.State.ProgramType == HomeCareProgramType.HospitalAtHome
+            ? HomeCareDeliveryModel.HospitalProvided
+            : deliveryModel;
+        _state.State.LastModifiedDate = DateTime.UtcNow;
+        await _state.WriteStateAsync();
+    }
+
+    public async Task SetAgencyCoordinationAsync(HomeCareAgencyCoordination coordination)
+    {
+        _state.State.AgencyCoordination = coordination;
+        _state.State.DeliveryModel = HomeCareDeliveryModel.ExternalAgency;
+        _state.State.LastModifiedDate = DateTime.UtcNow;
+        await _state.WriteStateAsync();
+    }
+
+    public async Task AddAgencyMilestoneAsync(AgencyCareMilestone milestone)
+    {
+        _state.State.AgencyCoordination ??= new HomeCareAgencyCoordination();
+        if (string.IsNullOrEmpty(milestone.MilestoneId))
+            milestone.MilestoneId = Guid.NewGuid().ToString();
+        _state.State.AgencyCoordination.Milestones.Add(milestone);
+        _state.State.LastModifiedDate = DateTime.UtcNow;
+        await _state.WriteStateAsync();
+    }
+
+    public async Task SetHospitalAtHomeContextAsync(HospitalAtHomeContext context)
+    {
+        _state.State.HospitalAtHome = context;
         _state.State.LastModifiedDate = DateTime.UtcNow;
         await _state.WriteStateAsync();
     }

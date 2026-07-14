@@ -92,6 +92,8 @@ public class SiteParametersState
     ///                                    caseload/census (Modern enhancement; ENABLED BY DEFAULT, see SiteFeatures)
     ///   "HOME_HEALTH_MEDICARE"         — Medicare skilled home health on top of HBPC — OASIS, PDGM, certification, EVV, NOA billing
     ///                                    (Modern enhancement; ENABLED BY DEFAULT for demos, see SiteFeatures)
+    ///   "HOSPITAL_AT_HOME"             — Acute inpatient-substitutive care in the home (CMS Acute Hospital Care at Home) — the HospitalAtHome
+    ///                                    program type + the freed-bed source-admission handoff (Modern enhancement; ENABLED BY DEFAULT, see SiteFeatures)
     ///   "NEONATAL_CARE"                — Newborn nursery on top of the OB module — newborn chart, gestational-age/growth classification,
     ///                                    newborn screening, nursery census (Modern enhancement; ENABLED BY DEFAULT, see SiteFeatures)
     ///   "PHARMACOGENOMICS"             — Coded pharmacogenomic gene results (star-allele diplotype + CPIC phenotype) that drive drug-gene
@@ -106,7 +108,7 @@ public class SiteParametersState
     ///                                    Center (request→accept→complete; ADR-003) (Modern; ENABLED BY DEFAULT, see SiteFeatures)
     /// </summary>
     [Id(7)]
-    public HashSet<string> Features { get; set; } = new() { SiteFeatures.ExternalPharmacy, SiteFeatures.Oncology, SiteFeatures.PrecisionOncology, SiteFeatures.HomeBasedCare, SiteFeatures.HomeHealthMedicare, SiteFeatures.NeonatalCare, SiteFeatures.Pharmacogenomics, SiteFeatures.HereditaryGenetics, SiteFeatures.SpecialtyCoverSheet, SiteFeatures.PersonIdentity, SiteFeatures.BedManagement, SiteFeatures.EmergingConditions, SiteFeatures.SocialCare };
+    public HashSet<string> Features { get; set; } = new() { SiteFeatures.ExternalPharmacy, SiteFeatures.Oncology, SiteFeatures.PrecisionOncology, SiteFeatures.HomeBasedCare, SiteFeatures.HomeHealthMedicare, SiteFeatures.HospitalAtHome, SiteFeatures.NeonatalCare, SiteFeatures.Pharmacogenomics, SiteFeatures.HereditaryGenetics, SiteFeatures.SpecialtyCoverSheet, SiteFeatures.PersonIdentity, SiteFeatures.BedManagement, SiteFeatures.EmergingConditions, SiteFeatures.SocialCare };
 
     [Id(3)]
     public DateTime CreatedDate { get; set; } = DateTime.UtcNow;
@@ -171,6 +173,16 @@ public static class SiteFeatures
     /// leaving the longitudinal HBPC model from Phase 1.
     /// </summary>
     public const string HomeHealthMedicare = "HOME_HEALTH_MEDICARE";
+
+    /// <summary>
+    /// Hospital-at-Home — acute, inpatient-substitutive care delivered in the home (CMS "Acute
+    /// Hospital Care at Home"): the <c>HospitalAtHome</c> program type on a home-care episode plus the
+    /// acute-substitution handoff panel (the freed-bed source-admission link). A "Modern" enhancement,
+    /// <b>enabled by default</b> so it appears in demos; a site without an acute-care-at-home waiver can
+    /// turn it off (<c>DisableFeatureAsync("HOSPITAL_AT_HOME")</c>), leaving the delivery-model axis
+    /// (hospital-provided vs external agency) and the rest of Home-Based Care intact.
+    /// </summary>
+    public const string HospitalAtHome = "HOSPITAL_AT_HOME";
 
     /// <summary>
     /// Neonatal care — a newborn nursery layered on top of the OB/prenatal module. Each newborn

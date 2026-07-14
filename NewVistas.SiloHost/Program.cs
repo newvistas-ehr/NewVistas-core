@@ -142,6 +142,7 @@ static partial class Program
         "clinicStore", "clinicIndexStore", "scheduleIndexStore",
         "auditEventStore", "patientAuditIndexStore", "newPersonStore", "providerDirectoryStore",
         "pharmacyDirectoryStore",
+        "homeHealthAgencyDirectoryStore",
         "patientClinicalStreamStore",
         "provisioningTokenStore",
         "provisioningTokenIndexStore",

@@ -103,6 +103,8 @@ else
                         <option value="Basic">Level: Basic</option>
                         <option value="Enhanced">Level: Enhanced</option>
                         <option value="Palliative">Level: Palliative</option>
+                        <option value="delivery-hospital">Delivery: Hospital-provided</option>
+                        <option value="delivery-agency">Delivery: External agency</option>
                     </select>
                     <button class="btn btn-secondary" @onclick="LoadCaseload">Refresh</button>
                 </div>
@@ -118,6 +120,7 @@ else
                             <tr>
                                 <th>Patient</th>
                                 <th>Program</th>
+                                <th>Delivery</th>
                                 <th>Level of Care</th>
                                 <th>Primary Provider</th>
                                 <th>Last Visit</th>
@@ -132,6 +135,13 @@ else
                                 <tr class="clickable-row" @onclick="() => OpenEpisodeForPatient(e.PatientId)">
                                     <td>@e.PatientName <span class="code">@e.PatientId</span></td>
                                     <td>@ProgramText(e.ProgramType)</td>
+                                    <td>
+                                        <span class="badge @DeliveryBadge(e.DeliveryModel)">@DeliveryText(e.DeliveryModel)</span>
+                                        @if (e.DeliveryModel == HomeCareDeliveryModel.ExternalAgency && !string.IsNullOrWhiteSpace(e.AgencyName))
+                                        {
+                                            <span class="code">@e.AgencyName</span>
+                                        }
+                                    </td>
                                     <td>@e.LevelOfCare</td>
                                     <td>@(string.IsNullOrWhiteSpace(e.PrimaryProviderName) ? "—" : e.PrimaryProviderName)</td>
                                     <td>@(e.LastVisitDate.HasValue ? e.LastVisitDate.Value.ToString("yyyy-MM-dd") : "—")</td>
@@ -219,22 +229,61 @@ else
                 @if (CanEdit)
                 {
                     <div class="tab-controls">
-                        <button class="btn btn-primary" @onclick="() => showAdmitPanel = !showAdmitPanel">Admit to HBPC</button>
+                        <button class="btn btn-primary" @onclick="OpenAdmitPanel">Admit to Home Care</button>
                     </div>
                     @if (showAdmitPanel)
                     {
                         <div class="action-panel">
-                            <h5>Admit to HBPC</h5>
+                            <h5>Admit to Home Care</h5>
                             <div class="form-row">
                                 <label>Program</label>
-                                <select @bind="admitProgram">
+                                <select @bind="admitProgram" @bind:after="OnAdmitProgramChanged">
                                     @foreach (HomeCareProgramType pt in Enum.GetValues<HomeCareProgramType>())
                                     {
-                                        <option value="@pt">@ProgramText(pt)</option>
+                                        @if (pt != HomeCareProgramType.HospitalAtHome || HospitalAtHomeEnabled)
+                                        {
+                                            <option value="@pt">@ProgramText(pt)</option>
+                                        }
                                     }
                                 </select>
                                 <label>Admission Date</label><input type="date" @bind="admitDate" />
                             </div>
+                            <div class="form-row">
+                                <label>Delivery Model</label>
+                                <select @bind="admitDelivery" disabled="@(admitProgram == HomeCareProgramType.HospitalAtHome)">
+                                    <option value="@HomeCareDeliveryModel.HospitalProvided">Hospital-provided (our staff)</option>
+                                    <option value="@HomeCareDeliveryModel.ExternalAgency">External agency</option>
+                                </select>
+                                @if (admitProgram == HomeCareProgramType.HospitalAtHome)
+                                {
+                                    <span class="hint">Hospital-at-Home is always hospital-provided.</span>
+                                }
+                                @if (admitDelivery == HomeCareDeliveryModel.ExternalAgency && admitProgram != HomeCareProgramType.HospitalAtHome)
+                                {
+                                    <label>Agency</label>
+                                    <select @bind="admitAgencyId">
+                                        <option value="">— select agency —</option>
+                                        @foreach (HomeHealthAgencyEntry a in externalAgencies ?? new())
+                                        {
+                                            <option value="@a.AgencyId">@a.Name</option>
+                                        }
+                                    </select>
+                                }
+                            </div>
+                            @if (admitProgram == HomeCareProgramType.HospitalAtHome)
+                            {
+                                <div class="form-row">
+                                    <label>Source Admission ID</label><input @bind="hahAdmissionId" placeholder="ADT/bed admission" />
+                                    <label>Source Facility</label><input @bind="hahFacilityName" placeholder="e.g. Springfield Medical Center" />
+                                </div>
+                                <div class="form-row">
+                                    <label>Facility ID</label><input @bind="hahFacilityId" placeholder="e.g. 500" />
+                                    <label>Freed Unit / Bed</label><input @bind="hahUnitId" placeholder="unit" /><input @bind="hahBedId" placeholder="bed" />
+                                </div>
+                                <div class="form-row">
+                                    <label>Clinical Rationale</label><textarea @bind="hahRationale" rows="2" placeholder="Why treat this acute problem at home instead of a ward bed?"></textarea>
+                                </div>
+                            }
                             <div class="form-row">
                                 <label>Admission Source</label>
                                 <select @bind="admitSource">
@@ -280,6 +329,13 @@ else
                     <h4>@episode.PatientName — @ProgramText(episode.ProgramType)</h4>
                     <div class="detail-grid">
                         <div><label>Status</label><span><span class="badge @EpisodeStatusBadge(episode.Status)">@episode.Status</span></span></div>
+                        <div><label>Delivery</label><span>
+                            <span class="badge @DeliveryBadge(episode.DeliveryModel)">@DeliveryText(episode.DeliveryModel)</span>
+                            @if (episode.DeliveryModel == HomeCareDeliveryModel.ExternalAgency && episode.AgencyCoordination != null)
+                            {
+                                <span class="code">@episode.AgencyCoordination.AgencyName</span>
+                            }
+                        </span></div>
                         <div><label>Admission Date</label><span>@episode.AdmissionDate.ToString("yyyy-MM-dd")</span></div>
                         <div><label>Admission Source</label><span>@episode.AdmissionSource</span></div>
                         <div><label>Level of Care</label><span>@episode.LevelOfCare</span></div>
@@ -307,10 +363,169 @@ else
                             {
                                 <button class="btn btn-primary" @onclick="() => Toggle(ref showPlanProblemPanel)">Add Plan Problem</button>
                             }
+                            @if (episode.DeliveryModel == HomeCareDeliveryModel.ExternalAgency)
+                            {
+                                <button class="btn btn-primary" @onclick="OpenLinkAgencyPanel">@(episode.AgencyCoordination == null ? "Link Agency" : "Change Agency")</button>
+                                <button class="btn btn-primary" @onclick="() => Toggle(ref showMilestonePanel)">Record Milestone</button>
+                            }
+                            else if (episode.ProgramType != HomeCareProgramType.HospitalAtHome)
+                            {
+                                <button class="btn btn-secondary" @onclick="OpenLinkAgencyPanel">Refer to Agency</button>
+                            }
+                            @if (episode.ProgramType == HomeCareProgramType.HospitalAtHome)
+                            {
+                                <button class="btn btn-primary" @onclick="() => Toggle(ref showHospitalAtHomePanel)">Set Source Admission</button>
+                            }
                             <button class="btn btn-primary" @onclick="() => Toggle(ref showDischargePanel)">Discharge</button>
                         </div>
                     }
                 </div>
+
+                @* ── Coordination panel (external-agency delivery) ── *@
+                @if (episode.DeliveryModel == HomeCareDeliveryModel.ExternalAgency)
+                {
+                    <div class="detail-panel">
+                        <h4>Agency Coordination</h4>
+                        @if (episode.AgencyCoordination == null)
+                        {
+                            <div class="empty-state">No agency linked yet. Use “Link Agency” to record the delivering agency.</div>
+                        }
+                        else
+                        {
+                            <div class="detail-grid">
+                                <div><label>Agency</label><span>@episode.AgencyCoordination.AgencyName</span></div>
+                                <div><label>NPI</label><span>@(string.IsNullOrWhiteSpace(episode.AgencyCoordination.AgencyNpi) ? "—" : episode.AgencyCoordination.AgencyNpi)</span></div>
+                                <div><label>CCN</label><span>@(string.IsNullOrWhiteSpace(episode.AgencyCoordination.AgencyCcn) ? "—" : episode.AgencyCoordination.AgencyCcn)</span></div>
+                                <div><label>Coordinator</label><span>@(string.IsNullOrWhiteSpace(episode.AgencyCoordination.CoordinatorName) ? "—" : episode.AgencyCoordination.CoordinatorName)</span></div>
+                                @if (!string.IsNullOrWhiteSpace(episode.AgencyCoordination.ExternalReferralId))
+                                {
+                                    <div><label>Referral</label><span class="code">@episode.AgencyCoordination.ExternalReferralId</span></div>
+                                }
+                            </div>
+                            <p class="hint">The agency's own staff render the visits; we track coordinated-care milestones, not individual visits.</p>
+                            @if (episode.AgencyCoordination.Milestones.Count == 0)
+                            {
+                                <div class="empty-state">No milestones recorded.</div>
+                            }
+                            else
+                            {
+                                <table class="data-table">
+                                    <thead><tr><th>Date</th><th>Milestone</th><th>Note</th><th>Recorded By</th></tr></thead>
+                                    <tbody>
+                                        @foreach (AgencyCareMilestone ms in episode.AgencyCoordination.Milestones.OrderBy(m => m.Date))
+                                        {
+                                            <tr>
+                                                <td>@ms.Date.ToString("yyyy-MM-dd")</td>
+                                                <td>@MilestoneText(ms.Type)</td>
+                                                <td>@(string.IsNullOrWhiteSpace(ms.Note) ? "—" : ms.Note)</td>
+                                                <td>@(string.IsNullOrWhiteSpace(ms.RecordedByName) ? "—" : ms.RecordedByName)</td>
+                                            </tr>
+                                        }
+                                    </tbody>
+                                </table>
+                            }
+                        }
+                    </div>
+                }
+
+                @* ── Hospital-at-Home acute panel ── *@
+                @if (episode.ProgramType == HomeCareProgramType.HospitalAtHome)
+                {
+                    <div class="detail-panel">
+                        <h4>Hospital-at-Home — Acute Substitution</h4>
+                        @if (episode.HospitalAtHome == null)
+                        {
+                            <div class="empty-state">No source-admission link recorded. Use “Set Source Admission” to record the freed bed.</div>
+                        }
+                        else
+                        {
+                            <div class="detail-grid">
+                                <div><label>Source Facility</label><span>@(string.IsNullOrWhiteSpace(episode.HospitalAtHome.SourceFacilityName) ? episode.HospitalAtHome.SourceFacilityId : episode.HospitalAtHome.SourceFacilityName)</span></div>
+                                <div><label>Source Admission</label><span class="code">@episode.HospitalAtHome.SourceAdmissionId</span></div>
+                                <div><label>Freed Unit / Bed</label><span>@(string.IsNullOrWhiteSpace(episode.HospitalAtHome.SourceUnitId) ? "—" : episode.HospitalAtHome.SourceUnitId) / @(string.IsNullOrWhiteSpace(episode.HospitalAtHome.SourceBedId) ? "—" : episode.HospitalAtHome.SourceBedId)</span></div>
+                                @if (episode.HospitalAtHome.SubstitutionStartDate.HasValue)
+                                {
+                                    <div><label>Substitution Start</label><span>@episode.HospitalAtHome.SubstitutionStartDate.Value.ToString("yyyy-MM-dd")</span></div>
+                                }
+                                <div class="full-width"><label>Clinical Rationale</label><span>@(string.IsNullOrWhiteSpace(episode.HospitalAtHome.ClinicalRationale) ? "—" : episode.HospitalAtHome.ClinicalRationale)</span></div>
+                            </div>
+                        }
+                    </div>
+                }
+
+                @* ── Link-agency panel ── *@
+                @if (showLinkAgencyPanel)
+                {
+                    <div class="action-panel">
+                        <h5>Link Delivering Agency</h5>
+                        <div class="form-row">
+                            <label>Agency</label>
+                            <select @bind="linkAgencyId">
+                                <option value="">— select agency —</option>
+                                @foreach (HomeHealthAgencyEntry a in externalAgencies ?? new())
+                                {
+                                    <option value="@a.AgencyId">@a.Name</option>
+                                }
+                            </select>
+                            <label>Referral ID (optional)</label><input @bind="linkExternalReferralId" placeholder="EXT-REF:…" />
+                        </div>
+                        <div class="panel-btns">
+                            <button class="btn btn-primary" @onclick="SubmitLinkAgency" disabled="@string.IsNullOrWhiteSpace(linkAgencyId)">Link</button>
+                            <button class="btn btn-secondary" @onclick="CloseAllPanels">Cancel</button>
+                        </div>
+                    </div>
+                }
+
+                @* ── Agency-milestone panel ── *@
+                @if (showMilestonePanel)
+                {
+                    <div class="action-panel">
+                        <h5>Record Coordinated-Care Milestone</h5>
+                        <div class="form-row">
+                            <label>Type</label>
+                            <select @bind="milestoneType">
+                                @foreach (AgencyMilestoneType t in Enum.GetValues<AgencyMilestoneType>())
+                                {
+                                    <option value="@t">@MilestoneText(t)</option>
+                                }
+                            </select>
+                            <label>Date</label><input type="date" @bind="milestoneDate" />
+                        </div>
+                        <div class="form-row">
+                            <label>Note</label><input @bind="milestoneNote" />
+                        </div>
+                        <div class="panel-btns">
+                            <button class="btn btn-primary" @onclick="SubmitMilestone">Record</button>
+                            <button class="btn btn-secondary" @onclick="CloseAllPanels">Cancel</button>
+                        </div>
+                    </div>
+                }
+
+                @* ── Hospital-at-Home source-admission panel ── *@
+                @if (showHospitalAtHomePanel)
+                {
+                    <div class="action-panel">
+                        <h5>Set Source Admission (freed bed)</h5>
+                        <div class="form-row">
+                            <label>Source Admission ID</label><input @bind="hahAdmissionId" />
+                            <label>Source Facility</label><input @bind="hahFacilityName" />
+                        </div>
+                        <div class="form-row">
+                            <label>Facility ID</label><input @bind="hahFacilityId" placeholder="e.g. 500" />
+                            <label>Freed Unit / Bed</label><input @bind="hahUnitId" placeholder="unit" /><input @bind="hahBedId" placeholder="bed" />
+                        </div>
+                        <div class="form-row">
+                            <label>Substitution Start</label><input type="date" @bind="hahSubstitutionStart" />
+                        </div>
+                        <div class="form-row">
+                            <label>Clinical Rationale</label><textarea @bind="hahRationale" rows="2"></textarea>
+                        </div>
+                        <div class="panel-btns">
+                            <button class="btn btn-primary" @onclick="SubmitHospitalAtHome">Save</button>
+                            <button class="btn btn-secondary" @onclick="CloseAllPanels">Cancel</button>
+                        </div>
+                    </div>
+                }
 
                 @* ── Team panel ── *@
                 <div class="detail-panel">
@@ -1058,6 +1273,7 @@ else
     .detail-panel h4 { margin: 0 0 0.75rem; color: #003f72; }
     .detail-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 0.5rem; margin-bottom: 0.75rem; }
     .detail-grid div { background: #fff; border: 1px solid #d4d9e0; border-radius: 4px; padding: 0.4rem 0.6rem; }
+    .hint { font-size: 0.8rem; color: #667; font-style: italic; }
     .detail-grid label { display: block; font-size: 0.75rem; color: #555; margin-bottom: 2px; }
     .detail-grid span { font-size: 0.9rem; color: #333; }
     .full-width { grid-column: 1 / -1; }
@@ -1099,6 +1315,7 @@ else
     [SupplyParameterFromQuery] public string? patientId { get; set; }
     private bool CanEdit => SecurityContext.HasKey(SecurityKeys.HBHC_MANAGER);
     private bool MedicareEnabled => SecurityContext.IsFeatureEnabled("HOME_HEALTH_MEDICARE");
+    private bool HospitalAtHomeEnabled => SecurityContext.IsFeatureEnabled("HOSPITAL_AT_HOME");
 
     string activeTab = "caseload";
     string? error;
@@ -1130,6 +1347,7 @@ else
     bool showAdmitPanel, showTeamPanel, showVisitPanel, showCompleteVisitPanel;
     bool showCreatePlanPanel, showPlanProblemPanel, showAssessPanel, showDischargePanel;
     bool showEligibilityPanel, showCertifyPanel, showOasisPanel, showCheckInPanel, showCheckOutPanel;
+    bool showLinkAgencyPanel, showMilestonePanel, showHospitalAtHomePanel;
 
     // ── Admit form ──
     HomeCareProgramType admitProgram = HomeCareProgramType.HomeBasedPrimaryCare;
@@ -1139,6 +1357,24 @@ else
     string admitRefId = string.Empty, admitRefName = string.Empty;
     string admitDxCode = string.Empty, admitDxText = string.Empty;
     string admitNarrative = string.Empty, admitCaregiver = string.Empty, admitHomeAddress = string.Empty;
+    HomeCareDeliveryModel admitDelivery = HomeCareDeliveryModel.HospitalProvided;
+    string admitAgencyId = string.Empty;
+
+    // ── Agency directory (external-agency picker) ──
+    List<HomeHealthAgencyEntry>? externalAgencies;
+
+    // ── Link-agency form ──
+    string linkAgencyId = string.Empty, linkCoordinatorId = string.Empty, linkCoordinatorName = string.Empty, linkExternalReferralId = string.Empty;
+
+    // ── Agency milestone form ──
+    AgencyMilestoneType milestoneType = AgencyMilestoneType.StartOfCare;
+    DateTime milestoneDate = DateTime.Today;
+    string milestoneNote = string.Empty;
+
+    // ── Hospital-at-Home form ──
+    string hahAdmissionId = string.Empty, hahFacilityId = string.Empty, hahFacilityName = string.Empty;
+    string hahUnitId = string.Empty, hahBedId = string.Empty, hahRationale = string.Empty;
+    DateTime hahSubstitutionStart = DateTime.Today;
 
     // ── Team form ──
     string teamProviderId = string.Empty, teamName = string.Empty, teamRole = string.Empty;
@@ -1250,6 +1486,17 @@ else
         showAdmitPanel = showTeamPanel = showVisitPanel = showCompleteVisitPanel = false;
         showCreatePlanPanel = showPlanProblemPanel = showAssessPanel = showDischargePanel = false;
         showEligibilityPanel = showCertifyPanel = showOasisPanel = showCheckInPanel = showCheckOutPanel = false;
+        showLinkAgencyPanel = showMilestonePanel = showHospitalAtHomePanel = false;
+    }
+
+    async Task EnsureExternalAgenciesLoadedAsync()
+    {
+        if (externalAgencies != null) return;
+        try
+        {
+            externalAgencies = await Grains.GetGrain<IHomeHealthAgencyDirectoryGrain>("HHA-DIRECTORY").GetAllAsync(externalOnly: true);
+        }
+        catch { externalAgencies = new(); }
     }
 
     // ── Display helpers ──
@@ -1257,7 +1504,33 @@ else
     {
         HomeCareProgramType.HomeBasedPrimaryCare    => "Home-Based Primary Care",
         HomeCareProgramType.MedicareSkilledHomeHealth => "Medicare Skilled Home Health",
+        HomeCareProgramType.HospitalAtHome          => "Hospital-at-Home (Acute)",
         _ => pt.ToString(),
+    };
+
+    static string DeliveryText(HomeCareDeliveryModel d) => d switch
+    {
+        HomeCareDeliveryModel.HospitalProvided => "Hospital-provided",
+        HomeCareDeliveryModel.ExternalAgency   => "External agency",
+        _ => d.ToString(),
+    };
+
+    static string DeliveryBadge(HomeCareDeliveryModel d) => d switch
+    {
+        HomeCareDeliveryModel.HospitalProvided => "badge-info",
+        HomeCareDeliveryModel.ExternalAgency   => "badge-warning",
+        _ => "badge-neutral",
+    };
+
+    static string MilestoneText(AgencyMilestoneType t) => t switch
+    {
+        AgencyMilestoneType.ReferralSent      => "Referral sent",
+        AgencyMilestoneType.StartOfCare       => "Start of care",
+        AgencyMilestoneType.Recertification   => "Recertification",
+        AgencyMilestoneType.PlanOfCareSigned  => "Plan of care signed",
+        AgencyMilestoneType.Hospitalization   => "Hospitalization",
+        AgencyMilestoneType.Discharge         => "Discharge",
+        _ => t.ToString(),
     };
 
     static string DisciplineText(HomeCareDiscipline d) => d switch
@@ -1331,6 +1604,8 @@ else
                 "Basic"     => await census.GetByLevelOfCareAsync(HomeCareLevelOfCare.Basic),
                 "Enhanced"  => await census.GetByLevelOfCareAsync(HomeCareLevelOfCare.Enhanced),
                 "Palliative"=> await census.GetByLevelOfCareAsync(HomeCareLevelOfCare.Palliative),
+                "delivery-hospital" => await census.GetByDeliveryModelAsync(HomeCareDeliveryModel.HospitalProvided),
+                "delivery-agency"   => await census.GetByDeliveryModelAsync(HomeCareDeliveryModel.ExternalAgency),
                 _           => await census.GetActiveAsync(),
             };
         }
@@ -1440,23 +1715,120 @@ else
         visitDetails = details;
     }
 
+    async Task OpenAdmitPanel()
+    {
+        bool target = !showAdmitPanel;
+        CloseAllPanels();
+        showAdmitPanel = target;
+        if (showAdmitPanel) await EnsureExternalAgenciesLoadedAsync();
+    }
+
+    void OnAdmitProgramChanged()
+    {
+        // Hospital-at-Home is always hospital-provided — you cannot outsource an acute inpatient substitution.
+        if (admitProgram == HomeCareProgramType.HospitalAtHome)
+            admitDelivery = HomeCareDeliveryModel.HospitalProvided;
+    }
+
     async Task SubmitAdmit()
     {
         if (string.IsNullOrWhiteSpace(patientId)) return;
         try
         {
             var workflow = Grains.GetGrain<IPatientWorkflowGrain>(patientId.Trim());
-            await workflow.AdmitToHomeCareAsync(
+            string episodeId = await workflow.AdmitToHomeCareAsync(
                 admitProgram, admitDate, admitSource,
                 admitRefId, admitRefName,
                 admitDxCode, admitDxText,
-                admitLevel, admitNarrative, admitCaregiver, admitHomeAddress);
-            successMsg = "Patient admitted to HBPC.";
+                admitLevel, admitNarrative, admitCaregiver, admitHomeAddress,
+                admitDelivery);
+
+            // Wire up the delivery-specific detail from the admit form.
+            if (admitProgram != HomeCareProgramType.HospitalAtHome
+                && admitDelivery == HomeCareDeliveryModel.ExternalAgency
+                && !string.IsNullOrWhiteSpace(admitAgencyId))
+            {
+                await workflow.LinkHomeCareAgencyAsync(episodeId, admitAgencyId,
+                    Grains.CurrentUserId ?? string.Empty, Grains.CurrentUserName ?? string.Empty, null);
+            }
+            else if (admitProgram == HomeCareProgramType.HospitalAtHome && !string.IsNullOrWhiteSpace(hahAdmissionId))
+            {
+                await workflow.SetHospitalAtHomeContextAsync(episodeId, hahAdmissionId, hahFacilityId, hahFacilityName,
+                    string.IsNullOrWhiteSpace(hahUnitId) ? null : hahUnitId,
+                    string.IsNullOrWhiteSpace(hahBedId) ? null : hahBedId,
+                    hahSubstitutionStart, hahRationale);
+            }
+
+            successMsg = "Patient admitted to home care.";
+            admitAgencyId = hahAdmissionId = hahFacilityId = hahFacilityName = hahUnitId = hahBedId = hahRationale = string.Empty;
             CloseAllPanels();
             await LoadEpisode();
             await LoadCaseload();
         }
-        catch { error = "Failed to admit to HBPC."; }
+        catch { error = "Failed to admit to home care."; }
+    }
+
+    async Task OpenLinkAgencyPanel()
+    {
+        bool target = !showLinkAgencyPanel;
+        CloseAllPanels();
+        showLinkAgencyPanel = target;
+        if (showLinkAgencyPanel)
+        {
+            await EnsureExternalAgenciesLoadedAsync();
+            linkAgencyId = episode?.AgencyCoordination?.AgencyId ?? string.Empty;
+        }
+    }
+
+    async Task SubmitLinkAgency()
+    {
+        if (episode == null || string.IsNullOrWhiteSpace(linkAgencyId)) return;
+        try
+        {
+            var workflow = Grains.GetGrain<IPatientWorkflowGrain>(patientId!.Trim());
+            await workflow.LinkHomeCareAgencyAsync(episode.EpisodeId, linkAgencyId,
+                Grains.CurrentUserId ?? string.Empty, Grains.CurrentUserName ?? string.Empty,
+                string.IsNullOrWhiteSpace(linkExternalReferralId) ? null : linkExternalReferralId);
+            successMsg = "Delivering agency linked.";
+            linkAgencyId = linkExternalReferralId = string.Empty;
+            CloseAllPanels();
+            await SelectEpisode(episode.EpisodeId);
+            await LoadCaseload();
+        }
+        catch { error = "Failed to link the agency."; }
+    }
+
+    async Task SubmitMilestone()
+    {
+        if (episode == null) return;
+        try
+        {
+            var workflow = Grains.GetGrain<IPatientWorkflowGrain>(patientId!.Trim());
+            await workflow.AddAgencyCareMilestoneAsync(episode.EpisodeId, milestoneType, milestoneDate, milestoneNote,
+                Grains.CurrentUserId ?? string.Empty, Grains.CurrentUserName ?? string.Empty);
+            successMsg = "Milestone recorded.";
+            milestoneNote = string.Empty;
+            CloseAllPanels();
+            await SelectEpisode(episode.EpisodeId);
+        }
+        catch { error = "Failed to record the milestone."; }
+    }
+
+    async Task SubmitHospitalAtHome()
+    {
+        if (episode == null || string.IsNullOrWhiteSpace(hahAdmissionId)) return;
+        try
+        {
+            var workflow = Grains.GetGrain<IPatientWorkflowGrain>(patientId!.Trim());
+            await workflow.SetHospitalAtHomeContextAsync(episode.EpisodeId, hahAdmissionId, hahFacilityId, hahFacilityName,
+                string.IsNullOrWhiteSpace(hahUnitId) ? null : hahUnitId,
+                string.IsNullOrWhiteSpace(hahBedId) ? null : hahBedId,
+                hahSubstitutionStart, hahRationale);
+            successMsg = "Source admission recorded.";
+            CloseAllPanels();
+            await SelectEpisode(episode.EpisodeId);
+        }
+        catch { error = "Failed to set the source admission."; }
     }
 
     async Task SubmitTeamMember()
