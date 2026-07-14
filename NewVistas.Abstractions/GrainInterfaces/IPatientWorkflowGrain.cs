@@ -4633,4 +4633,41 @@ public interface IPatientWorkflowGrain : IGrainWithStringKey
     [RequiresSecurityKey(SecurityKeys.EPI_MANAGER)]
     [AuditAction("SURVEILLANCE", "SKIP_MIGRATION", EntityType = "PROTO")]
     Task SkipMemberMigrationAsync(string protoConditionId, string reason, string byUser);
+
+    // ─── Whole-Person Social Care — Household (Phase 1) ──────────────────
+
+    /// <summary>The patient's current household (resolved via their Person anchor). Open read; null when the
+    /// SOCIAL_CARE feature is off, the patient has no Person, or they belong to no household.</summary>
+    Task<GrainStates.HouseholdState?> GetPatientHouseholdAsync();
+
+    /// <summary>Creates a new household with this patient (via their Person) as head. Returns the household id.</summary>
+    Task<string> CreateHouseholdForPatientAsync(string label, string relationship, string facilityId, string byUser);
+
+    /// <summary>Adds this patient (via their Person) to an existing household.</summary>
+    Task AddPatientToHouseholdAsync(string householdId, string relationship, GrainStates.HouseholdMemberRole role, string facilityId, string byUser);
+
+    /// <summary>Adds a non-patient family member to a household by minting a bare Person for them. Returns the Person id.</summary>
+    Task<string> AddNonPatientMemberToHouseholdAsync(string householdId, string name, DateTime? dateOfBirth,
+        string sex, string ssnLast4, string relationship, GrainStates.HouseholdMemberRole role, string byUser);
+
+    // ─── Whole-Person Social Care — Coded SDOH screening (Phase 2) ───────
+
+    /// <summary>Records a coded SDOH screening; computes positive domains and updates the cohort indexes. Returns the screening id.</summary>
+    [AuditAction("SOCIAL_CARE", "SDOH_SCREEN", EntityType = "SDOH")]
+    Task<string> RecordSdohScreeningAsync(string instrumentName, List<GrainStates.SdohScreeningResponse> responses, string byUser);
+
+    /// <summary>The patient's SDOH screening history (summaries). Open read; empty when SOCIAL_CARE is off.</summary>
+    Task<List<GrainStates.SdohScreeningSummary>> GetSdohScreeningsAsync();
+
+    /// <summary>Full detail of one SDOH screening (responses + positive-domain findings + actions taken).</summary>
+    Task<GrainStates.SdohScreeningState> GetSdohScreeningAsync(string screeningId);
+
+    /// <summary>Closes the loop: adds the positive domain's mapped Z-code to the problem list, citing the screening.</summary>
+    [RequiresSecurityKey(SecurityKeys.GMPL_PROBLEM)]
+    [AuditAction("PROBLEMS", "SDOH_ZCODE", EntityType = "PROBLEM", IsClinicalWrite = true)]
+    Task<string> AddSdohProblemAsync(string screeningId, GrainStates.SdohDomain domain, string byUser);
+
+    /// <summary>Closes the loop: opens a Social Work referral to the positive domain's matching service type.</summary>
+    [AuditAction("SOCIAL_CARE", "SDOH_REFERRAL", EntityType = "REFERRAL")]
+    Task<string> CreateSdohReferralAsync(string screeningId, GrainStates.SdohDomain domain, string byUser);
 }

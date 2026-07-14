@@ -294,6 +294,24 @@
             </NavLink>
             }
 
+            @* Whole-Person Social Care (ADR-005) — Modern module gated on the SOCIAL_CARE site flag.
+               Person-anchored household + coded SDOH screening that closes the loop to Z-codes and
+               the existing Social Work referral machinery. Reads open; the Z-code apply needs
+               GMPL PROBLEM (a problem-list write). *@
+            @if (SecurityContext.HasAccess(MenuArea.Clinical) && SecurityContext.IsFeatureEnabled("SOCIAL_CARE"))
+            {
+            <div class="nav-divider"></div>
+            <div class="nav-section-title">Social Care</div>
+            <NavLink class="nav-item" href="/sdoh-screening">
+                <span class="nav-icon">🧭</span>
+                <span class="nav-label">SDOH Screening</span>
+            </NavLink>
+            <NavLink class="nav-item" href="/household">
+                <span class="nav-icon">🏘️</span>
+                <span class="nav-label">Household</span>
+            </NavLink>
+            }
+
             @if (SecurityContext.HasAccess(MenuArea.Nursing))
             {
             <div class="nav-divider"></div>

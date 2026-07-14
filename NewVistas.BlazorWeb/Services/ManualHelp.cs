@@ -63,6 +63,8 @@ public static class ManualHelp
             ["home-care"] = "home-care.html",
             ["emerging-conditions"] = "emerging-conditions.html",
             ["symptom-survey"] = "symptom-survey.html",
+            ["sdoh-screening"] = "sdoh-screening.html",
+            ["household"] = "household.html",
         },
         ["nurse"] = new()
         {
@@ -78,6 +80,7 @@ public static class ManualHelp
             ["beds"] = "bed-board.html",
             ["transfer-center"] = "transfer-center.html",
             ["symptom-survey"] = "symptom-survey.html",
+            ["sdoh-screening"] = "sdoh-screening.html",
         },
         ["pharmacist"] = new()
         {
@@ -107,6 +110,7 @@ public static class ManualHelp
             ["security-keys"] = "security-keys.html",
             ["site-parameters"] = "site-parameters.html",
             ["emerging-conditions"] = "emerging-conditions.html",
+            ["household"] = "household.html",
         },
     };
 

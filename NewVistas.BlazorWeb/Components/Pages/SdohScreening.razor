@@ -1,0 +1,207 @@
+@* Copyright 2026 Merrimack Valley Software Works, LLC. All rights reserved. *@
+@* This Source Code Form is subject to the terms of the Mozilla Public *@
+@* License, v. 2.0. If a copy of the MPL was not distributed with this *@
+@* file, You can obtain one at https://mozilla.org/MPL/2.0/.            *@
+@page "/sdoh-screening"
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+@rendermode InteractiveServer
+@using NewVistas.BlazorWeb.Services
+@using NewVistas.Abstractions.Clinical
+@using NewVistas.Abstractions.GrainInterfaces
+@using NewVistas.Abstractions.GrainStates
+@inject OrleansGrainService Grains
+@inject UserSecurityContext SecurityContext
+
+<PageTitle>SDOH Screening</PageTitle>
+
+<h1>🧭 Social Determinants of Health Screening</h1>
+<p class="lede">A coded social-needs screen (AHC-HRSN). Positive domains map to a billable
+<strong>Z-code</strong> and a matching <strong>community referral</strong> — the screen becomes a
+tracked intervention, not just a note. Answer <strong>Yes / No / Not asked</strong>.</p>
+
+<PatientBar @bind-PatientId="patientId" Loading="loading" OnLoad="Load" />
+<AlertBanner Error="@error" Success="@success" />
+
+@if (patientId != null)
+{
+    <div class="toolbar">
+        <button class="btn-primary" @onclick="Save" disabled="@saving">@(saving ? "Recording…" : "Record screening")</button>
+    </div>
+
+    <fieldset class="survey-group">
+        <legend>Health-related social needs</legend>
+        @foreach (SdohDomain d in SdohScreeningCatalog.AllDomains)
+        {
+            <div class="survey-row">
+                <span class="survey-label">@SdohScreeningCatalog.DisplayFor(d)
+                    <span class="mono" title="mapped code">@SdohScreeningCatalog.ZCodeFor(d)</span></span>
+                <div class="survey-choices">
+                    @foreach (SdohResponse r in new[] { SdohResponse.Positive, SdohResponse.Negative, SdohResponse.Unknown })
+                    {
+                        <label class="@ChoiceClass(d, r)">
+                            <input type="radio" name="@d" checked="@(Answer(d) == r)" @onchange="() => SetAnswer(d, r)" />
+                            @Label(r)
+                        </label>
+                    }
+                </div>
+            </div>
+        }
+    </fieldset>
+
+    @if (current != null)
+    {
+        <h2>Positive findings — close the loop</h2>
+        @if (current.Findings.Count == 0)
+        {
+            <div class="empty-state">No positive social needs on this screen.</div>
+        }
+        else
+        {
+            <table class="data-table">
+                <thead><tr><th>Need</th><th>Z-code</th><th>Referral</th><th>Actions</th></tr></thead>
+                <tbody>
+                    @foreach (SdohFinding f in current.Findings)
+                    {
+                        <tr>
+                            <td>@f.Display</td>
+                            <td class="mono">@f.ZCode</td>
+                            <td>@f.ReferralServiceType</td>
+                            <td>
+                                @if (HasAction(f.Domain, SdohActionType.ProblemAdded))
+                                { <span class="done">✓ Z-code added</span> }
+                                else if (CanAddProblem)
+                                { <button class="btn-sm" @onclick="() => AddZCode(f.Domain)">Add Z-code</button> }
+                                else
+                                { <span class="muted" title="needs the GMPL PROBLEM key">Z-code (no key)</span> }
+
+                                @if (HasAction(f.Domain, SdohActionType.ReferralCreated))
+                                { <span class="done">✓ referred</span> }
+                                else
+                                { <button class="btn-sm" @onclick="() => Refer(f.Domain)">Create referral</button> }
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        }
+    }
+
+    @if (history != null && history.Count > 0)
+    {
+        <h2>Screening history</h2>
+        <table class="data-table">
+            <thead><tr><th>Date</th><th>Instrument</th><th>Positive needs</th><th></th></tr></thead>
+            <tbody>
+                @foreach (SdohScreeningSummary s in history)
+                {
+                    <tr>
+                        <td>@s.ScreeningDate.ToString("yyyy-MM-dd")</td>
+                        <td>@s.InstrumentName</td>
+                        <td>@s.PositiveDomainCount</td>
+                        <td><button class="btn-sm" @onclick="() => Open(s.ScreeningId)">Open</button></td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    }
+}
+
+@code {
+    private string? patientId;
+    private bool loading, saving;
+    private string? error, success;
+    private readonly Dictionary<SdohDomain, SdohResponse> answers = new();
+    private SdohScreeningState? current;
+    private List<SdohScreeningSummary>? history;
+
+    private string Me => Grains.CurrentUserName ?? Grains.CurrentUserId ?? "web";
+    private bool CanAddProblem => SecurityContext.HasKey("GMPL PROBLEM");
+
+    private async Task Load()
+    {
+        error = success = null; current = null; answers.Clear();
+        if (patientId == null) return;
+        loading = true;
+        try { history = await Grains.GetGrain<IPatientWorkflowGrain>(patientId).GetSdohScreeningsAsync(); }
+        catch (Exception ex) { error = ex.Message; }
+        finally { loading = false; }
+    }
+
+    private SdohResponse Answer(SdohDomain d) => answers.TryGetValue(d, out SdohResponse r) ? r : SdohResponse.Unknown;
+    private void SetAnswer(SdohDomain d, SdohResponse r) => answers[d] = r;
+    private string ChoiceClass(SdohDomain d, SdohResponse r) => Answer(d) == r ? $"choice choice-{r} selected" : "choice";
+    private static string Label(SdohResponse r) => r switch { SdohResponse.Positive => "Yes", SdohResponse.Negative => "No", _ => "Not asked" };
+    private bool HasAction(SdohDomain d, SdohActionType t) => current?.Actions.Any(a => a.Domain == d && a.ActionType == t) ?? false;
+
+    private async Task Save()
+    {
+        if (patientId == null) return;
+        error = success = null; saving = true;
+        try
+        {
+            var responses = answers
+                .Where(a => a.Value != SdohResponse.Unknown)
+                .Select(a => new SdohScreeningResponse { Domain = a.Key, Response = a.Value })
+                .ToList();
+            string screeningId = await Grains.GetGrain<IPatientWorkflowGrain>(patientId).RecordSdohScreeningAsync("AHC-HRSN", responses, Me);
+            success = "Screening recorded.";
+            await Open(screeningId);
+            history = await Grains.GetGrain<IPatientWorkflowGrain>(patientId).GetSdohScreeningsAsync();
+        }
+        catch (System.InvalidOperationException ex) { error = ex.Message; }
+        catch (Exception ex) { error = ex.Message; }
+        finally { saving = false; }
+    }
+
+    private async Task Open(string screeningId)
+    {
+        if (patientId == null) return;
+        current = await Grains.GetGrain<IPatientWorkflowGrain>(patientId).GetSdohScreeningAsync(screeningId);
+    }
+
+    private async Task AddZCode(SdohDomain domain)
+    {
+        if (patientId == null || current == null) return;
+        error = success = null;
+        try
+        {
+            await Grains.GetGrain<IPatientWorkflowGrain>(patientId).AddSdohProblemAsync(current.ScreeningId, domain, Me);
+            success = $"{SdohScreeningCatalog.ZCodeFor(domain)} added to the problem list.";
+            await Open(current.ScreeningId);
+        }
+        catch (UnauthorizedAccessException) { error = "You don't have the GMPL PROBLEM key to add a diagnosis code."; }
+        catch (Exception ex) { error = ex.Message; }
+    }
+
+    private async Task Refer(SdohDomain domain)
+    {
+        if (patientId == null || current == null) return;
+        error = success = null;
+        try
+        {
+            await Grains.GetGrain<IPatientWorkflowGrain>(patientId).CreateSdohReferralAsync(current.ScreeningId, domain, Me);
+            success = "Referral created in the Social Work queue.";
+            await Open(current.ScreeningId);
+        }
+        catch (Exception ex) { error = ex.Message; }
+    }
+}
+
+<style>
+    .lede { color: #556; max-width: 62rem; }
+    .toolbar { display: flex; gap: .5rem; margin: 1rem 0; }
+    .survey-group { border: 1px solid #ccd; border-radius: 8px; margin: 0 0 1rem; padding: .5rem 1rem 1rem; }
+    .survey-group legend { font-weight: 600; padding: 0 .4rem; }
+    .survey-row { display: flex; align-items: center; justify-content: space-between; padding: .3rem 0; border-bottom: 1px dotted #e5e5ef; }
+    .survey-label { flex: 1; }
+    .survey-choices { display: flex; gap: .4rem; }
+    .choice { border: 1px solid #ccd; border-radius: 6px; padding: .15rem .5rem; cursor: pointer; font-size: .85rem; }
+    .choice input { margin-right: .25rem; }
+    .choice-Positive.selected { background: #fdecea; border-color: #e0736a; }
+    .choice-Negative.selected { background: #eafaf1; border-color: #3fae72; }
+    .choice-Unknown.selected { background: #eef1f6; border-color: #98a0b3; }
+    .btn-sm { font-size: .8rem; padding: .15rem .5rem; margin-right: .3rem; }
+    .done { color: #1c7c43; font-size: .82rem; margin-right: .4rem; }
+    .mono { font-family: monospace; font-size: .8rem; color: #778; }
+    .muted { color: #889; font-size: .82rem; }
+</style>

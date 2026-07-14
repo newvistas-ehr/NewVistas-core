@@ -1,0 +1,152 @@
+@* Copyright 2026 Merrimack Valley Software Works, LLC. All rights reserved. *@
+@* This Source Code Form is subject to the terms of the Mozilla Public *@
+@* License, v. 2.0. If a copy of the MPL was not distributed with this *@
+@* file, You can obtain one at https://mozilla.org/MPL/2.0/.            *@
+@page "/household"
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+@rendermode InteractiveServer
+@using NewVistas.BlazorWeb.Services
+@using NewVistas.Abstractions.GrainInterfaces
+@using NewVistas.Abstractions.GrainStates
+@inject OrleansGrainService Grains
+
+<PageTitle>Household</PageTitle>
+
+<h1>🏘️ Household</h1>
+<p class="lede">A family/residential unit of <strong>people</strong> — anchored on the Person identity,
+so a member who isn't a patient (a child, a spouse not yet registered) still belongs. The household
+outlives any one member; people join and leave over time.</p>
+
+<PatientBar @bind-PatientId="patientId" Loading="loading" OnLoad="Load" />
+<AlertBanner Error="@error" Success="@success" />
+
+@if (patientId != null)
+{
+    @if (household == null)
+    {
+        <div class="empty-state">
+            This patient isn't in a household yet.
+            <div class="create-row">
+                <input placeholder="Household label (e.g. Smith Household)" @bind="newLabel" />
+                <input placeholder="Patient's relationship (e.g. Self)" @bind="newRelationship" />
+                <button class="btn-primary" @onclick="Create" disabled="@(string.IsNullOrWhiteSpace(newLabel))">Create household</button>
+            </div>
+        </div>
+    }
+    else
+    {
+        <div class="hh-head">
+            <h2>@household.Label</h2>
+            <span class="badge">@household.HousingType</span>
+        </div>
+
+        <table class="data-table">
+            <thead><tr><th>Member</th><th>Relationship</th><th>Role</th><th>Status</th><th></th></tr></thead>
+            <tbody>
+                @foreach (HouseholdMember m in household.Members.OrderBy(m => m.LeftDate != null))
+                {
+                    <tr class="@(m.LeftDate != null ? "left" : "")">
+                        <td>@m.DisplayName @if (m.PersonId == household.HeadOfHouseholdPersonId) { <span class="badge head">Head</span> }</td>
+                        <td>@m.Relationship</td>
+                        <td>@m.Role</td>
+                        <td>@(m.LeftDate == null ? "Active" : $"Left {m.LeftDate:yyyy-MM-dd}")</td>
+                        <td>
+                            @if (m.LeftDate == null && m.PersonId != household.HeadOfHouseholdPersonId)
+                            { <button class="btn-sm danger" @onclick="() => Remove(m.PersonId)">Remove</button> }
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+
+        <fieldset class="add-member">
+            <legend>Add a non-patient family member</legend>
+            <input placeholder="Name (Last,First)" @bind="memberName" />
+            <input placeholder="Relationship (e.g. Son)" @bind="memberRelationship" />
+            <select @bind="memberRole">
+                @foreach (HouseholdMemberRole r in Enum.GetValues<HouseholdMemberRole>())
+                { <option value="@r">@r</option> }
+            </select>
+            <button class="btn" @onclick="AddMember" disabled="@(string.IsNullOrWhiteSpace(memberName))">Add</button>
+        </fieldset>
+    }
+}
+
+@code {
+    private string? patientId;
+    private bool loading;
+    private string? error, success;
+    private HouseholdState? household;
+
+    // create
+    private string newLabel = "", newRelationship = "Self";
+    // add member
+    private string memberName = "", memberRelationship = "";
+    private HouseholdMemberRole memberRole = HouseholdMemberRole.Child;
+
+    private string Me => Grains.CurrentUserName ?? Grains.CurrentUserId ?? "web";
+
+    private async Task Load()
+    {
+        error = success = null;
+        if (patientId == null) return;
+        loading = true;
+        try { household = await Grains.GetGrain<IPatientWorkflowGrain>(patientId).GetPatientHouseholdAsync(); }
+        catch (Exception ex) { error = ex.Message; }
+        finally { loading = false; }
+    }
+
+    private async Task Create()
+    {
+        if (patientId == null) return;
+        error = success = null;
+        try
+        {
+            await Grains.GetGrain<IPatientWorkflowGrain>(patientId).CreateHouseholdForPatientAsync(newLabel, newRelationship, "500", Me);
+            success = "Household created.";
+            await Load();
+        }
+        catch (System.InvalidOperationException ex) { error = ex.Message; }
+        catch (Exception ex) { error = ex.Message; }
+    }
+
+    private async Task AddMember()
+    {
+        if (patientId == null || household == null) return;
+        error = success = null;
+        try
+        {
+            await Grains.GetGrain<IPatientWorkflowGrain>(patientId)
+                .AddNonPatientMemberToHouseholdAsync(household.HouseholdId, memberName, null, string.Empty, string.Empty, memberRelationship, memberRole, Me);
+            memberName = memberRelationship = "";
+            success = "Member added.";
+            await Load();
+        }
+        catch (Exception ex) { error = ex.Message; }
+    }
+
+    private async Task Remove(string personId)
+    {
+        if (household == null) return;
+        error = success = null;
+        try
+        {
+            await Grains.GetGrain<IHouseholdGrain>(household.HouseholdId).RemoveMemberAsync(personId, Me);
+            success = "Member removed.";
+            await Load();
+        }
+        catch (Exception ex) { error = ex.Message; }
+    }
+}
+
+<style>
+    .lede { color: #556; max-width: 62rem; }
+    .create-row { display: flex; gap: .5rem; margin-top: .75rem; flex-wrap: wrap; }
+    .hh-head { display: flex; align-items: center; gap: .75rem; }
+    .badge { font-size: .75rem; padding: .1rem .5rem; border-radius: 10px; background: #eef1f6; }
+    .badge.head { background: #e6f6ec; color: #1c7c43; }
+    tr.left { color: #99a; }
+    .add-member { border: 1px solid #dde; border-radius: 6px; padding: .6rem; margin-top: 1rem; display: flex; gap: .4rem; flex-wrap: wrap; align-items: center; }
+    .btn-sm { font-size: .8rem; padding: .15rem .5rem; }
+    .danger { color: #a33; }
+</style>

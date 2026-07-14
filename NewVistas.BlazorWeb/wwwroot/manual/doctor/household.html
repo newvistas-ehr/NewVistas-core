@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Household — Provider Manual — NewVistas</title>
+  <link rel="stylesheet" href="../assets/css/manual.css" />
+</head>
+<body>
+  <div class="topbar">
+    <div class="brand"><a href="../index.html">NewVistas</a> <span>· User Manual</span></div>
+    <div class="role-pill">🩺 Provider</div>
+  </div>
+
+  <div class="layout">
+    <nav class="sidebar">
+      <div class="section">Provider Manual</div>
+      <a href="index.html">Overview</a>
+      <a href="getting-started.html">Getting Started</a>
+      <div class="section">Social Care</div>
+      <a href="sdoh-screening.html">SDOH Screening</a>
+      <a href="household.html" class="active">Household</a>
+      <div class="section">&nbsp;</div>
+      <a href="../index.html">← All roles</a>
+    </nav>
+
+    <main class="content" data-flag="SOCIAL_CARE">
+      <div class="crumb"><a href="../index.html">Manual</a> › <a href="index.html">Provider</a> › Household</div>
+      <h1>Household — the family unit, not just the patient</h1>
+      <p class="lead">
+        The Household page (<code>/household</code>) shows a patient's family/residential unit as a set of
+        <strong>people</strong>. Because it is anchored on the Person identity (not the patient chart), a
+        family member who is <em>not</em> a patient — a child, a spouse not yet registered — still belongs,
+        and a member who is also a staff member or a relative on another chart resolves to the same human.
+        The household outlives any one member: people join and leave, and that history is kept.
+      </p>
+
+      <h2>Using it</h2>
+      <ul>
+        <li>If the patient isn't in a household yet, create one (a label + the patient's relationship to
+          the household). The patient becomes the head.</li>
+        <li><strong>Add a non-patient family member</strong> by name + relationship — a bare Person record
+          is created for them so they can be referenced without a full registration.</li>
+        <li><strong>Remove</strong> a member when they move out — the membership is retained with a
+          "left" date rather than deleted.</li>
+      </ul>
+
+      <div class="note">
+        The household depends on the Person-identity feature (<code>PERSON_IDENTITY</code>); if a patient
+        has no Person link, the page shows an empty household rather than guessing. This is distinct from
+        the financial <em>means-test income household</em>, which is a separate, money-focused record.
+      </div>
+    </main>
+  </div>
+</body>
+</html>

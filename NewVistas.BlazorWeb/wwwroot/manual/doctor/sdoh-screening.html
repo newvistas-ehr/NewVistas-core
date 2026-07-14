@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>SDOH Screening — Provider Manual — NewVistas</title>
+  <link rel="stylesheet" href="../assets/css/manual.css" />
+</head>
+<body>
+  <div class="topbar">
+    <div class="brand"><a href="../index.html">NewVistas</a> <span>· User Manual</span></div>
+    <div class="role-pill">🩺 Provider</div>
+  </div>
+
+  <div class="layout">
+    <nav class="sidebar">
+      <div class="section">Provider Manual</div>
+      <a href="index.html">Overview</a>
+      <a href="getting-started.html">Getting Started</a>
+      <div class="section">Social Care</div>
+      <a href="sdoh-screening.html" class="active">SDOH Screening</a>
+      <a href="household.html">Household</a>
+      <div class="section">&nbsp;</div>
+      <a href="../index.html">← All roles</a>
+    </nav>
+
+    <main class="content" data-flag="SOCIAL_CARE">
+      <div class="crumb"><a href="../index.html">Manual</a> › <a href="index.html">Provider</a> › SDOH Screening</div>
+      <h1>SDOH Screening — screen, code, refer</h1>
+      <p class="lead">
+        The SDOH Screening page (<code>/sdoh-screening</code>) is a coded social-needs screen (the CMS
+        <strong>AHC-HRSN</strong> domains: housing, food, transportation, utilities, safety, financial
+        strain, employment, education). What makes it more than a note: a positive answer maps to a
+        <strong>billable ICD-10 Z-code</strong> and a matching <strong>community referral</strong>, so
+        the screen becomes a tracked intervention. Gated by the <code>SOCIAL_CARE</code> feature.
+      </p>
+
+      <h2>Answer honestly — three states</h2>
+      <p>
+        Each domain is <strong>Yes / No / Not asked</strong>. "Not asked" is never treated as a negative,
+        so population rates stay honest and you can come back and finish the screen later.
+      </p>
+
+      <h2>Close the loop</h2>
+      <ol>
+        <li>Answer the domains and click <strong>Record screening</strong>.</li>
+        <li>The <em>positive findings</em> table shows each positive need with its mapped Z-code and the
+          suggested referral service.</li>
+        <li><strong>Add Z-code</strong> places the code (e.g. <code>Z59.41</code> Food insecurity) on the
+          problem list, citing the screening. (This is a problem-list write — it needs the
+          <code>GMPL PROBLEM</code> key.)</li>
+        <li><strong>Create referral</strong> opens a Social Work referral to the matching service (Food,
+          Housing, …) in the queue the social-work team already uses.</li>
+      </ol>
+
+      <div class="note">
+        <strong>Demo:</strong> open patient <code>P9301</code> (SOCIAL,SAM) — the seeded screen already
+        shows food + housing positive with the Z-codes applied and referrals open. Population counts per
+        domain are available via the API (<code>/api/social-care/sdoh-cohort/&#123;domain&#125;</code>).
+      </div>
+    </main>
+  </div>
+</body>
+</html>

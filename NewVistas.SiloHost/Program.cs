@@ -343,6 +343,8 @@ static partial class Program
         "patientSummaryStore", "radiologyFindingStore",
         "patientSymptomStore", "symptomCohortStore",
         "protoConditionStore", "protoConditionIndexStore", "protoCohortStore",
-        "protoSweepStore"
+        "protoSweepStore",
+        "householdStore", "personHouseholdIndexStore",
+        "sdohScreeningStore", "sdohScreeningIndexStore", "sdohCohortStore"
     ];
 }

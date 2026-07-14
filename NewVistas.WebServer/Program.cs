@@ -311,6 +311,7 @@ using (var scope = app.Services.CreateScope())
     await PersonIdentitySeed.SeedAsync(grainFactory, seedLogger);      // P9005 nurse-patient + P9006/P9007 mother-patient-relative (Person identity ADR-002)
     await InterfacilityTransferSeed.SeedAsync(grainFactory, seedLogger); // P9008 in-flight Burlington→Lawrence transfer (Transfer Center demo)
     await EmergingConditionSeed.SeedAsync(grainFactory, seedLogger);  // P9201-P9214 novel respiratory cluster + controls (ProtoCondition ADR-004)
+    await SocialCareSeed.SeedAsync(grainFactory, seedLogger);         // P9301 household + closed-loop SDOH screen (Whole-Person Social Care ADR-005)
     await SeedDemoCareTeamsAsync(app.Services, seedLogger);   // assigns P9001 now; P1..P30 skipped until imported
 
     // Auto-import demo patients if none exist

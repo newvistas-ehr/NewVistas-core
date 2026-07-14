@@ -547,6 +547,11 @@ public static class SharedCluster
             siloBuilder.AddMemoryGrainStorage("protoConditionIndexStore");
             siloBuilder.AddMemoryGrainStorage("protoCohortStore");
             siloBuilder.AddMemoryGrainStorage("protoSweepStore");
+            siloBuilder.AddMemoryGrainStorage("householdStore");
+            siloBuilder.AddMemoryGrainStorage("personHouseholdIndexStore");
+            siloBuilder.AddMemoryGrainStorage("sdohScreeningStore");
+            siloBuilder.AddMemoryGrainStorage("sdohScreeningIndexStore");
+            siloBuilder.AddMemoryGrainStorage("sdohCohortStore");
         }
     }
 }

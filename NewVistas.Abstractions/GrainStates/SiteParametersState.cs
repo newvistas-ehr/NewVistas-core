@@ -106,7 +106,7 @@ public class SiteParametersState
     ///                                    Center (request→accept→complete; ADR-003) (Modern; ENABLED BY DEFAULT, see SiteFeatures)
     /// </summary>
     [Id(7)]
-    public HashSet<string> Features { get; set; } = new() { SiteFeatures.ExternalPharmacy, SiteFeatures.Oncology, SiteFeatures.PrecisionOncology, SiteFeatures.HomeBasedCare, SiteFeatures.HomeHealthMedicare, SiteFeatures.NeonatalCare, SiteFeatures.Pharmacogenomics, SiteFeatures.HereditaryGenetics, SiteFeatures.SpecialtyCoverSheet, SiteFeatures.PersonIdentity, SiteFeatures.BedManagement, SiteFeatures.EmergingConditions };
+    public HashSet<string> Features { get; set; } = new() { SiteFeatures.ExternalPharmacy, SiteFeatures.Oncology, SiteFeatures.PrecisionOncology, SiteFeatures.HomeBasedCare, SiteFeatures.HomeHealthMedicare, SiteFeatures.NeonatalCare, SiteFeatures.Pharmacogenomics, SiteFeatures.HereditaryGenetics, SiteFeatures.SpecialtyCoverSheet, SiteFeatures.PersonIdentity, SiteFeatures.BedManagement, SiteFeatures.EmergingConditions, SiteFeatures.SocialCare };
 
     [Id(3)]
     public DateTime CreatedDate { get; set; } = DateTime.UtcNow;
@@ -248,4 +248,17 @@ public static class SiteFeatures
     /// symptom survey, banners, and screening all go quiet.
     /// </summary>
     public const string EmergingConditions = "EMERGING_CONDITIONS";
+
+    /// <summary>
+    /// Whole-Person Social Care (ADR-005) — the HITS harvest first increment. A Person-anchored
+    /// general <b>household</b> (a family/residential unit of people that outlives any one member,
+    /// distinct from the financial means-test household), and a coded <b>SDOH screening</b> (AHC-HRSN)
+    /// that closes the loop: positive social-need domains map to billable Z55–Z65 codes placed on the
+    /// problem list and to referrals opened in the existing Social Work referral machinery, with a
+    /// per-domain cohort index for population reporting. Composes over the existing Social Work module;
+    /// does not replace it. A "Modern" enhancement, <b>enabled by default</b>; a site can turn it off
+    /// (<c>DisableFeatureAsync("SOCIAL_CARE")</c>) — the Social Care nav, household, and SDOH surface go
+    /// quiet. Household resolution additionally depends on PERSON_IDENTITY.
+    /// </summary>
+    public const string SocialCare = "SOCIAL_CARE";
 }

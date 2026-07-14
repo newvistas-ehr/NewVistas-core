@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Household — Administrator Manual — NewVistas</title>
+  <link rel="stylesheet" href="../assets/css/manual.css" />
+</head>
+<body>
+  <div class="topbar">
+    <div class="brand"><a href="../index.html">NewVistas</a> <span>· User Manual</span></div>
+    <div class="role-pill">⚙️ Administrator</div>
+  </div>
+
+  <div class="layout">
+    <nav class="sidebar">
+      <div class="section">Administrator Manual</div>
+      <a href="index.html">Overview</a>
+      <a href="getting-started.html">Getting Started</a>
+      <div class="section">Social Care</div>
+      <a href="household.html" class="active">Household</a>
+      <div class="section">&nbsp;</div>
+      <a href="../index.html">← All roles</a>
+    </nav>
+
+    <main class="content" data-flag="SOCIAL_CARE">
+      <div class="crumb"><a href="../index.html">Manual</a> › <a href="index.html">Administrator</a> › Household</div>
+      <h1>Household — a Person-anchored family unit</h1>
+      <p class="lead">
+        The Household (<code>/household</code>) is a family/residential unit of <strong>people</strong>,
+        anchored on the Person identity (ADR-002) rather than the patient chart. That is the structural
+        difference that matters at registration: a household member who is not a patient still has a place,
+        and one human who appears as a patient, a staff member, and a relative on another chart resolves to
+        the same Person. Gated by the <code>SOCIAL_CARE</code> feature (and, for resolution,
+        <code>PERSON_IDENTITY</code>).
+      </p>
+
+      <h2>Registration &amp; administration notes</h2>
+      <ul>
+        <li>Creating a household from a patient bootstraps that patient's Person if needed and makes them
+          head of household.</li>
+        <li>Non-patient members get a bare Person record (name + relationship) — enough to model the family
+          without a full patient registration.</li>
+        <li>Membership is time-bounded: a member who moves out is retained with a "left" date, so household
+          history is preserved (people move between households).</li>
+      </ul>
+
+      <div class="note">
+        This general social household is <strong>distinct</strong> from the VA <em>means-test income
+        household</em> (File #408.13), which is a financial, patient-anchored record used for eligibility.
+        The two are complementary.
+      </div>
+    </main>
+  </div>
+</body>
+</html>

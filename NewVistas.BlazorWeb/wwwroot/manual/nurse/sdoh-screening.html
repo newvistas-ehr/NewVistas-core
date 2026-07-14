@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>SDOH Screening — Nurse Manual — NewVistas</title>
+  <link rel="stylesheet" href="../assets/css/manual.css" />
+</head>
+<body>
+  <div class="topbar">
+    <div class="brand"><a href="../index.html">NewVistas</a> <span>· User Manual</span></div>
+    <div class="role-pill">💉 Nurse</div>
+  </div>
+
+  <div class="layout">
+    <nav class="sidebar">
+      <div class="section">Nurse Manual</div>
+      <a href="index.html">Overview</a>
+      <a href="getting-started.html">Getting Started</a>
+      <div class="section">Social Care</div>
+      <a href="sdoh-screening.html" class="active">SDOH Screening</a>
+      <div class="section">&nbsp;</div>
+      <a href="../index.html">← All roles</a>
+    </nav>
+
+    <main class="content" data-flag="SOCIAL_CARE">
+      <div class="crumb"><a href="../index.html">Manual</a> › <a href="index.html">Nurse</a> › SDOH Screening</div>
+      <h1>SDOH Screening — the social vital signs</h1>
+      <p class="lead">
+        Nursing is often the front door for the social-needs screen (<code>/sdoh-screening</code>) — a
+        coded AHC-HRSN review of housing, food, transportation, utilities, safety, financial strain,
+        employment, and education. Answer each <strong>Yes / No / Not asked</strong>; "Not asked" is never
+        counted as a negative, so it's honest to finish the screen over more than one visit.
+      </p>
+
+      <h2>What you can do</h2>
+      <ul>
+        <li><strong>Record the screening</strong> — this computes which needs are positive and maps each to
+          a Z-code and a suggested referral.</li>
+        <li><strong>Create a referral</strong> for a positive need (Food, Housing, …) — it opens in the
+          Social Work queue. You can do this with your <code>ORELSE</code> access.</li>
+        <li>Placing the diagnosis <strong>Z-code</strong> on the problem list needs the
+          <code>GMPL PROBLEM</code> key — a provider handles that half if you don't hold it.</li>
+      </ul>
+
+      <div class="note">
+        The point of the coded screen: a social need you record honestly today becomes a tracked
+        intervention (a code + a referral) rather than a line in a note nobody can act on.
+      </div>
+    </main>
+  </div>
+</body>
+</html>
