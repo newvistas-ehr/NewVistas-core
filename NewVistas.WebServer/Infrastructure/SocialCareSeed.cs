@@ -26,6 +26,9 @@ public static class SocialCareSeed
             // Ensure the feature is on for the seed path (it is on by default).
             await grainFactory.GetGrain<ISiteParametersGrain>("SITE:DEFAULT").EnableFeatureAsync("SOCIAL_CARE");
 
+            // ── Community-resource directory (R3) — idempotent, independent of the patient guard ──
+            await SeedResourceDirectoryAsync(grainFactory, logger);
+
             IPatientWorkflowGrain wf = grainFactory.GetGrain<IPatientWorkflowGrain>(Pid);
             if ((await wf.GetPatientHouseholdAsync()) is not null)
             {
@@ -71,5 +74,50 @@ public static class SocialCareSeed
         {
             DemoSeedHelper.RestoreContext(saved);
         }
+    }
+
+    /// <summary>
+    /// Seeds a small community-resource directory so SDOH / Social Work referrals have real agencies to
+    /// point at. Idempotent — skips when the directory already holds entries.
+    /// </summary>
+    private static async Task SeedResourceDirectoryAsync(IGrainFactory grainFactory, ILogger logger)
+    {
+        IResourceDirectoryGrain dir = grainFactory.GetGrain<IResourceDirectoryGrain>("RESOURCE-DIRECTORY");
+        if ((await dir.GetAllAsync()).Count > 0)
+            return;
+
+        CommunityResource[] resources =
+        [
+            new() { Name = "Salem Food Pantry", ServiceType = SocialWorkReferralServiceType.Food, TaxonomyCode = "BD-1800",
+                Description = "Emergency food boxes and weekly pantry; SNAP application help.",
+                Phone = "978-555-0142", Website = "https://salemfoodpantry.example.org",
+                Address = "22 Church St", City = "Salem", State = "MA", Zip = "01970",
+                ServiceArea = "Essex County", Eligibility = "Open to all; ID helpful, not required." },
+            new() { Name = "North Shore Housing First", ServiceType = SocialWorkReferralServiceType.Housing, TaxonomyCode = "BH-8500",
+                Description = "Rapid-rehousing and eviction-prevention case management.",
+                Phone = "978-555-0188", Website = "https://nshousingfirst.example.org",
+                Address = "5 Federal St", City = "Salem", State = "MA", Zip = "01970",
+                ServiceArea = "North Shore", Eligibility = "Households at risk of or experiencing homelessness." },
+            new() { Name = "RideConnect Regional Transit", ServiceType = SocialWorkReferralServiceType.Transportation, TaxonomyCode = "BT-4500",
+                Description = "Non-emergency medical transportation and bus-pass assistance.",
+                Phone = "978-555-0173", Website = "https://rideconnect.example.org",
+                City = "Beverly", State = "MA", Zip = "01915",
+                ServiceArea = "Essex County", Eligibility = "Medical appointments; income-based bus passes." },
+            new() { Name = "Greater Salem Legal Aid", ServiceType = SocialWorkReferralServiceType.LegalServices, TaxonomyCode = "FT-3200",
+                Description = "Free civil legal help: benefits appeals, housing, consumer.",
+                Phone = "978-555-0120", Website = "https://salemlegalaid.example.org",
+                Address = "70 Washington St", City = "Salem", State = "MA", Zip = "01970",
+                ServiceArea = "Essex County", Eligibility = "Income-eligible residents." },
+            new() { Name = "Veterans Outreach Center — North Shore", ServiceType = SocialWorkReferralServiceType.HomelessServices, TaxonomyCode = "YR-9000",
+                Description = "HUD-VASH navigation, VSO benefits counseling, homeless veteran outreach.",
+                Phone = "978-555-0199", Website = "https://nsveterans.example.org",
+                Address = "1 Veterans Way", City = "Peabody", State = "MA", Zip = "01960",
+                ServiceArea = "North Shore", Eligibility = "Veterans and their families." },
+        ];
+
+        foreach (CommunityResource r in resources)
+            await dir.AddOrUpdateAsync(r);
+
+        logger.LogInformation("Community-resource directory seeded ({Count} resources)", resources.Length);
     }
 }

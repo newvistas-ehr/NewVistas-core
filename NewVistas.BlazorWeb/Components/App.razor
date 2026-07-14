@@ -21,7 +21,11 @@
 </head>
 
 <body>
-    <Routes @rendermode="InteractiveServer" />
+    @* prerender: false — the JWT auth lives in the interactive circuit, so a prerendered
+       static pass renders the (empty, nav-less) shell for a protected route before it can
+       know the user is unauthenticated, then redirects. Disabling prerender means an
+       unauthenticated hit goes straight to /login with no shell flash. *@
+    <Routes @rendermode="@(new Microsoft.AspNetCore.Components.Web.InteractiveServerRenderMode(prerender: false))" />
     <ReconnectModal />
     <script src="@Assets["_framework/blazor.web.js"]"></script>
 </body>

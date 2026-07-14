@@ -49,6 +49,18 @@ public class IncomeHouseholdGrain : Grain, IIncomeHouseholdGrain
         return personId;
     }
 
+    public async Task SetMemberIncomeSourcesAsync(string personId, List<IncomeSourceItem> sources)
+    {
+        int idx = _state.State.HouseholdMembers.FindIndex(m => m.PersonId == personId);
+        if (idx < 0)
+            return;
+
+        _state.State.HouseholdMembers[idx] = _state.State.HouseholdMembers[idx] with { IncomeSources = sources ?? new() };
+        RecalculateTotals();
+        _state.State.LastModifiedDate = DateTime.UtcNow;
+        await _state.WriteStateAsync();
+    }
+
     public async Task RemoveMemberAsync(string personId)
     {
         int idx = _state.State.HouseholdMembers.FindIndex(m => m.PersonId == personId);
@@ -73,9 +85,12 @@ public class IncomeHouseholdGrain : Grain, IIncomeHouseholdGrain
 
     private void RecalculateTotals()
     {
-        _state.State.TotalHouseholdIncome = _state.State.HouseholdMembers
-            .Sum(m => m.GrossAnnualIncome ?? 0m);
+        _state.State.TotalHouseholdIncome = _state.State.HouseholdMembers.Sum(EffectiveIncome);
         _state.State.TotalNetWorth = _state.State.HouseholdMembers
             .Sum(m => m.NetWorth ?? 0m);
     }
+
+    /// <summary>A member's annual income: the itemized sources' sum when present, else the gross figure.</summary>
+    private static decimal EffectiveIncome(IncomePerson m) =>
+        m.IncomeSources.Count > 0 ? m.IncomeSources.Sum(s => s.Amount) : (m.GrossAnnualIncome ?? 0m);
 }

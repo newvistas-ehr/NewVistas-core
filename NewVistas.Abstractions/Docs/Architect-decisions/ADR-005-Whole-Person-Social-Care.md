@@ -72,3 +72,19 @@ design (it degrades, never guesses).
   treatment planning (gated on a MentalHealth overlap analysis), and a shelter/bed subsystem (gated on a
   concrete homeless-veteran use case). The agency back-office (volunteer mgmt, ledger, multi-tenant
   sharing, reporting subsystem) is explicitly out of scope.
+
+## Roadmap status (built after the first increment)
+
+| Item | Status | What it added |
+| --- | --- | --- |
+| **R1 — Income-source typing** | ✅ Built | Typed income-source breakdown (`IncomeSourceType` / `IncomeSourceItem`) on `IncomePerson`; totals derive from itemized sources when present, else the legacy `GrossAnnualIncome`. |
+| **R2 — Case-management goal spine** | ✅ Built | Program-agnostic `ICaseManagementGrain` (`CASE-MGMT:{patientId}`): goal → work-step → follow-up → outcome, with a caseload index tracking active goals. Goals can cite what opened them (an SDOH domain / referral). `/case-management` page. |
+| **R3 — Community-resource directory** | ✅ Built | `IResourceDirectoryGrain` (`RESOURCE-DIRECTORY`) — searchable catalog of agencies by service type / text; `ReferToResourceAsync` opens a Social Work referral populated from the chosen resource (the referral now points *at* a real agency). `/resource-directory` page + seed. |
+| **R4 — Veteran psychosocial enrichment** | ✅ Built | `VeteranPsychosocialProfile` on `PatientState` (`[Id(84)]`): combat flag, service era(s), presumptive exposures (PACT Act), Purple Heart, homeless/at-risk, VSO representative + POA. Era-suggestion helper mirrors the reporting materializer's buckets. `/veteran-psychosocial` page. |
+| **R5 — Behavioral-health treatment planning** | ⏸ Deferred (gated) | Still awaits the explicit MentalHealth-vs-new-grain overlap analysis before any code. |
+| **R6 — Shelter / bed subsystem** | ⏸ Deferred (gated) | Still awaits a concrete homeless-veteran (HUD-VASH) use case. |
+
+R1–R4 are additive: R2/R3 register their own stores (`caseManagementStore`, `caseManagementIndexStore`,
+`resourceDirectoryStore`); R1 and R4 extend existing aggregates by appending new `[Id(n)]` fields (never
+reordering). All surfaced under the `SOCIAL_CARE`-gated Social Care nav section; R4's data methods are
+core patient data (ungated) while its page lives under the gated nav.

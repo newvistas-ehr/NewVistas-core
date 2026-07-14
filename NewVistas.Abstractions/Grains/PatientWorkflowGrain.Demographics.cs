@@ -65,6 +65,12 @@ public partial class PatientWorkflowGrain
         await GetPatientGrain().UpdateMilitaryServiceAsync(serviceEntryDate, serviceSeparationDate, serviceBranch, dischargeType, prisonerOfWar);
     }
 
+    public Task<VeteranPsychosocialProfile?> GetVeteranPsychosocialAsync() =>
+        GetPatientGrain().GetVeteranPsychosocialAsync();
+
+    public async Task UpdateVeteranPsychosocialAsync(VeteranPsychosocialProfile profile, string byUser) =>
+        await GetPatientGrain().SetVeteranPsychosocialAsync(profile, byUser);
+
     public async Task UpdateMaritalStatusAsync(string? maritalStatus)
     {
         await GetPatientGrain().UpdateMaritalStatusAsync(maritalStatus);

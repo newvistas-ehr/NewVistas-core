@@ -246,6 +246,13 @@ public class PatientState : EventSourcedStateBase
     public string? PrisonerOfWar { get; set; }
 
     /// <summary>
+    /// Veteran psychosocial enrichment (Whole-Person Social Care roadmap R4): combat/era/exposure/VSO
+    /// context beyond the rating-and-eligibility veteran fields above. Null until first recorded.
+    /// </summary>
+    [Id(84)]
+    public VeteranPsychosocialProfile? VeteranPsychosocial { get; set; }
+
+    /// <summary>
     /// Date Record Created
     /// </summary>
     [Id(38)]

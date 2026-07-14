@@ -150,6 +150,20 @@ public class PatientGrain : Grain, IPatientGrain
         await _state.WriteStateAsync();
     }
 
+    public Task<VeteranPsychosocialProfile?> GetVeteranPsychosocialAsync() =>
+        Task.FromResult(_state.State.VeteranPsychosocial);
+
+    public async Task SetVeteranPsychosocialAsync(VeteranPsychosocialProfile profile, string byUser)
+    {
+        _state.State.VeteranPsychosocial = profile with
+        {
+            LastUpdatedDate = DateTime.UtcNow,
+            LastUpdatedBy = string.IsNullOrWhiteSpace(byUser) ? _state.State.VeteranPsychosocial?.LastUpdatedBy : byUser,
+        };
+        _state.State.LastModifiedDate = DateTime.UtcNow;
+        await _state.WriteStateAsync();
+    }
+
     public async Task AddAppointmentAsync(DateTime appointmentDateTime)
     {
         if (!_state.State.Appointments.Contains(appointmentDateTime))

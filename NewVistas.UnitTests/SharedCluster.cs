@@ -552,6 +552,9 @@ public static class SharedCluster
             siloBuilder.AddMemoryGrainStorage("sdohScreeningStore");
             siloBuilder.AddMemoryGrainStorage("sdohScreeningIndexStore");
             siloBuilder.AddMemoryGrainStorage("sdohCohortStore");
+            siloBuilder.AddMemoryGrainStorage("caseManagementStore");
+            siloBuilder.AddMemoryGrainStorage("caseManagementIndexStore");
+            siloBuilder.AddMemoryGrainStorage("resourceDirectoryStore");
         }
     }
 }

@@ -1,0 +1,150 @@
+@* Copyright 2026 Merrimack Valley Software Works, LLC. All rights reserved. *@
+@* This Source Code Form is subject to the terms of the Mozilla Public *@
+@* License, v. 2.0. If a copy of the MPL was not distributed with this *@
+@* file, You can obtain one at https://mozilla.org/MPL/2.0/.            *@
+@page "/veteran-psychosocial"
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+@rendermode InteractiveServer
+@using NewVistas.BlazorWeb.Services
+@using NewVistas.Abstractions.GrainInterfaces
+@using NewVistas.Abstractions.GrainStates
+@inject OrleansGrainService Grains
+
+<PageTitle>Veteran Psychosocial</PageTitle>
+
+<h1>🎖️ Veteran Psychosocial Profile</h1>
+<p class="lede">The service-context and advocacy facts that matter for whole-person and homeless-veteran
+care — combat service, era, presumptive exposures (PACT Act), and the veteran's service-organization
+representative — beyond the rating-and-eligibility fields. Ties the harvest to the VA-alignment story.</p>
+
+<PatientBar @bind-PatientId="patientId" Loading="loading" OnLoad="Load" />
+<AlertBanner Error="@error" Success="@success" />
+
+@if (patientId != null && profile != null)
+{
+    <div class="vp-grid">
+        <fieldset>
+            <legend>Service context</legend>
+            <label class="chk"><input type="checkbox" @bind="profile.CombatVeteran" /> Combat veteran</label>
+            <label class="chk"><input type="checkbox" @bind="profile.PurpleHeart" /> Purple Heart</label>
+            <label class="chk homeless"><input type="checkbox" @bind="profile.HomelessOrAtRisk" /> Homeless / at-risk</label>
+            @if (suggestedEra is { } se && !profile.ServiceEras.Contains(se))
+            {
+                <div class="hint">Suggested era from service dates: <strong>@Pretty(se.ToString())</strong>
+                    <button class="btn-xs" @onclick="() => profile.ServiceEras.Add(se)">+ add</button></div>
+            }
+        </fieldset>
+
+        <fieldset>
+            <legend>Service era(s)</legend>
+            @foreach (MilitaryServiceEra e in Enum.GetValues<MilitaryServiceEra>())
+            {
+                <label class="chk"><input type="checkbox" checked="@profile.ServiceEras.Contains(e)"
+                    @onchange="ev => Toggle(profile.ServiceEras, e, (bool)ev.Value!)" /> @Pretty(e.ToString())</label>
+            }
+        </fieldset>
+
+        <fieldset>
+            <legend>Presumptive exposures</legend>
+            @foreach (MilitaryEnvironmentalExposure x in Enum.GetValues<MilitaryEnvironmentalExposure>())
+            {
+                <label class="chk"><input type="checkbox" checked="@profile.Exposures.Contains(x)"
+                    @onchange="ev => Toggle(profile.Exposures, x, (bool)ev.Value!)" /> @Pretty(x.ToString())</label>
+            }
+        </fieldset>
+
+        <fieldset>
+            <legend>Service Organization (VSO) representative</legend>
+            <label>Organization <input @bind="vsoOrg" placeholder="VFW, DAV, county VSO…" /></label>
+            <label>Representative <input @bind="vsoRep" /></label>
+            <label>Phone <input @bind="vsoPhone" /></label>
+            <label>Email <input @bind="vsoEmail" /></label>
+            <label class="chk"><input type="checkbox" @bind="vsoPoa" /> Power of attorney (VA 21-22) on file</label>
+        </fieldset>
+    </div>
+
+    <label class="notes">Notes
+        <textarea rows="2" @bind="profile.Notes" placeholder="Reintegration, MST context, etc."></textarea></label>
+
+    <div class="actions">
+        <button class="btn-primary" @onclick="Save" disabled="@saving">@(saving ? "Saving…" : "Save profile")</button>
+        @if (profile.LastUpdatedDate is { } lu) { <span class="muted">Last updated @lu.ToString("yyyy-MM-dd") by @profile.LastUpdatedBy</span> }
+    </div>
+}
+else if (patientId != null && !loading)
+{
+    <div class="empty-state">Loading profile…</div>
+}
+
+@code {
+    private string? patientId;
+    private bool loading, saving;
+    private string? error, success;
+    private VeteranPsychosocialProfile? profile;
+    private MilitaryServiceEra? suggestedEra;
+    private string vsoOrg = "", vsoRep = "", vsoPhone = "", vsoEmail = "";
+    private bool vsoPoa;
+
+    private string Me => Grains.CurrentUserName ?? Grains.CurrentUserId ?? "web";
+    private IPatientWorkflowGrain Wf => Grains.GetGrain<IPatientWorkflowGrain>(patientId!);
+
+    private static string Pretty(string s) => s.Replace("_", " / ").Replace("OefOif", "(OEF/OIF)");
+
+    private static void Toggle<T>(List<T> list, T item, bool on)
+    {
+        if (on) { if (!list.Contains(item)) list.Add(item); }
+        else list.Remove(item);
+    }
+
+    private async Task Load()
+    {
+        error = success = null;
+        if (patientId == null) return;
+        loading = true;
+        try
+        {
+            profile = await Wf.GetVeteranPsychosocialAsync() ?? new VeteranPsychosocialProfile();
+            PatientState p = await Wf.GetPatientAsync();
+            suggestedEra = VeteranEraHelper.SuggestEraFromEntryDate(p.ServiceEntryDate);
+            VsoContact? v = profile.Vso;
+            vsoOrg = v?.OrganizationName ?? ""; vsoRep = v?.RepresentativeName ?? "";
+            vsoPhone = v?.Phone ?? ""; vsoEmail = v?.Email ?? ""; vsoPoa = v?.PowerOfAttorneyOnFile ?? false;
+        }
+        catch (Exception ex) { error = ex.Message; }
+        finally { loading = false; }
+    }
+
+    private async Task Save()
+    {
+        if (profile == null) return;
+        error = success = null; saving = true;
+        try
+        {
+            profile.Vso = string.IsNullOrWhiteSpace(vsoOrg) && string.IsNullOrWhiteSpace(vsoRep)
+                ? null
+                : new VsoContact { OrganizationName = vsoOrg, RepresentativeName = vsoRep, Phone = vsoPhone, Email = vsoEmail, PowerOfAttorneyOnFile = vsoPoa };
+            await Wf.UpdateVeteranPsychosocialAsync(profile, Me);
+            success = "Veteran psychosocial profile saved.";
+            await Load();
+        }
+        catch (System.UnauthorizedAccessException) { error = "Not authorized to update this record."; }
+        catch (Exception ex) { error = ex.Message; }
+        finally { saving = false; }
+    }
+}
+
+<style>
+    .lede { color: #556; max-width: 62rem; }
+    .vp-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr)); gap: .8rem; margin: 1rem 0; }
+    fieldset { border: 1px solid #dde; border-radius: 6px; padding: .5rem .7rem; }
+    legend { font-weight: 600; font-size: .9rem; }
+    .chk { display: block; font-size: .88rem; margin: .15rem 0; }
+    .chk.homeless { color: #a33; }
+    label { display: block; font-size: .85rem; margin: .3rem 0; }
+    label input:not([type=checkbox]), textarea { width: 100%; }
+    .hint { font-size: .8rem; color: #667; margin-top: .4rem; }
+    .notes { display: block; margin: .5rem 0; }
+    .actions { display: flex; gap: .8rem; align-items: center; margin-top: .6rem; }
+    .btn-xs { font-size: .72rem; padding: .05rem .4rem; }
+    .muted { color: #889; font-size: .82rem; }
+</style>

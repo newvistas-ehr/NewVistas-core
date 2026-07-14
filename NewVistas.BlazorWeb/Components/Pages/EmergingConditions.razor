@@ -59,7 +59,7 @@ one arrives. @(CanManage ? "" : "(Read-only — you don't hold the EPI MANAGER k
         else
         {
             <div class="ec-detail-head">
-                <h2>@proto.Name <span class="badge status-@proto.Status">@proto.Status</span> <span class="ver">v@proto.DefinitionVersion</span></h2>
+                <h2>@proto.Name <span class="badge status-@proto.Status">@proto.Status</span> <span class="ver">v@(proto.DefinitionVersion)</span></h2>
                 @if (CanManage && proto.Status == ProtoConditionStatus.Draft)
                 {
                     <button class="btn-primary" @onclick="Activate">Activate</button>
@@ -81,7 +81,7 @@ one arrives. @(CanManage ? "" : "(Read-only — you don't hold the EPI MANAGER k
             {
                 <p class="muted">@proto.Description</p>
 
-                <h3>Case definition (v@proto.DefinitionVersion) · threshold @proto.MatchThreshold.ToString("P0")</h3>
+                <h3>Case definition (v@(proto.DefinitionVersion)) · threshold @proto.MatchThreshold.ToString("P0")</h3>
                 @if (proto.Features.Count == 0) { <div class="empty-state">No features yet — add the wide net below.</div> }
                 else
                 {

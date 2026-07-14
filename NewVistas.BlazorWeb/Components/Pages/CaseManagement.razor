@@ -1,0 +1,158 @@
+@* Copyright 2026 Merrimack Valley Software Works, LLC. All rights reserved. *@
+@* This Source Code Form is subject to the terms of the Mozilla Public *@
+@* License, v. 2.0. If a copy of the MPL was not distributed with this *@
+@* file, You can obtain one at https://mozilla.org/MPL/2.0/.            *@
+@page "/case-management"
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+@rendermode InteractiveServer
+@using NewVistas.BlazorWeb.Services
+@using NewVistas.Abstractions.GrainInterfaces
+@using NewVistas.Abstractions.GrainStates
+@inject OrleansGrainService Grains
+
+<PageTitle>Case Management</PageTitle>
+
+<h1>🎯 Case Management</h1>
+<p class="lede">The goal → work-step → follow-up → outcome spine that follows a person across programs.
+Program-agnostic: it serves a housing goal and a chronic-disease goal the same way, and each goal can
+cite what opened it (an SDOH screen, a referral).</p>
+
+<PatientBar @bind-PatientId="patientId" Loading="loading" OnLoad="Load" />
+<AlertBanner Error="@error" Success="@success" />
+
+@if (patientId != null)
+{
+    <fieldset class="add-goal">
+        <legend>Open a goal</legend>
+        <input placeholder="Goal (e.g. Obtain stable housing)" @bind="goalText" />
+        <select @bind="goalDomain">
+            @foreach (CaseGoalDomain d in Enum.GetValues<CaseGoalDomain>()) { <option value="@d">@d</option> }
+        </select>
+        <button class="btn-primary" @onclick="AddGoal" disabled="@(string.IsNullOrWhiteSpace(goalText))">Add goal</button>
+    </fieldset>
+
+    @if (state == null || state.Goals.Count == 0)
+    {
+        <div class="empty-state">No goals yet.</div>
+    }
+    else
+    {
+        @foreach (CaseGoal g in state.Goals.OrderByDescending(g => g.CreatedDate))
+        {
+            <div class="goal @(g.Status == CaseGoalStatus.Active ? "active" : "closed")">
+                <div class="goal-head">
+                    <span class="goal-title">@g.Description</span>
+                    <span class="badge domain">@g.Domain</span>
+                    <span class="badge status-@g.Status">@g.Status</span>
+                    @if (g.TargetDate is { } t) { <span class="muted">by @t.ToString("yyyy-MM-dd")</span> }
+                    @if (g.SourceReference is { } src) { <span class="mono" title="source">@src</span> }
+                </div>
+
+                @if (g.WorkSteps.Count > 0)
+                {
+                    <ul class="steps">
+                        @foreach (CaseWorkStep s in g.WorkSteps)
+                        {
+                            <li>
+                                <span class="@(s.Status == CaseWorkStepStatus.Done ? "step-done" : "")">@s.Description</span>
+                                <span class="badge">@s.Status</span>
+                                @if (g.Status == CaseGoalStatus.Active && s.Status != CaseWorkStepStatus.Done)
+                                { <button class="btn-xs" @onclick="() => StepDone(g.GoalId, s.StepId)">✓ done</button> }
+                            </li>
+                        }
+                    </ul>
+                }
+                @if (g.FollowUps.Count > 0)
+                {
+                    <div class="followups">
+                        @foreach (CaseFollowUp f in g.FollowUps)
+                        { <span class="fu @(f.Completed ? "done" : "")">📌 @f.Date.ToString("MM/dd") @f.Note @(f.Completed ? "✓" : "")</span> }
+                    </div>
+                }
+                @if (g.OutcomeAchieved is { } oc)
+                {
+                    <div class="outcome @(oc ? "ok" : "no")">Outcome: @(oc ? "Achieved" : "Discontinued") — @g.OutcomeNote (@g.OutcomeDate?.ToString("yyyy-MM-dd"))</div>
+                }
+
+                @if (g.Status == CaseGoalStatus.Active)
+                {
+                    <div class="goal-actions">
+                        <input placeholder="Add work-step" @bind="stepText" @bind:event="oninput" />
+                        <button class="btn-sm" @onclick="() => AddStep(g.GoalId)">+ step</button>
+                        <input placeholder="Follow-up note" @bind="fuText" @bind:event="oninput" />
+                        <button class="btn-sm" @onclick="() => AddFollowUp(g.GoalId)">+ follow-up</button>
+                        <input placeholder="Outcome note" @bind="outcomeText" @bind:event="oninput" />
+                        <button class="btn-sm" @onclick="() => Outcome(g.GoalId, true)">✓ achieved</button>
+                        <button class="btn-sm danger" @onclick="() => Outcome(g.GoalId, false)">discontinue</button>
+                    </div>
+                }
+            </div>
+        }
+    }
+}
+
+@code {
+    private string? patientId;
+    private bool loading;
+    private string? error, success;
+    private CaseManagementState? state;
+    private string goalText = "", stepText = "", fuText = "", outcomeText = "";
+    private CaseGoalDomain goalDomain = CaseGoalDomain.Housing;
+
+    private string Me => Grains.CurrentUserName ?? Grains.CurrentUserId ?? "web";
+    private IPatientWorkflowGrain Wf => Grains.GetGrain<IPatientWorkflowGrain>(patientId!);
+    private ICaseManagementGrain Case => Grains.GetGrain<ICaseManagementGrain>($"CASE-MGMT:{patientId}");
+
+    private async Task Load()
+    {
+        error = success = null;
+        if (patientId == null) return;
+        loading = true;
+        try { state = await Wf.GetCaseManagementAsync(); }
+        catch (Exception ex) { error = ex.Message; }
+        finally { loading = false; }
+    }
+
+    private async Task Run(Func<Task> action, string ok)
+    {
+        error = success = null;
+        try { await action(); success = ok; await Load(); }
+        catch (System.InvalidOperationException ex) { error = ex.Message; }
+        catch (Exception ex) { error = ex.Message; }
+    }
+
+    private Task AddGoal() => Run(async () => { await Wf.AddCaseGoalAsync(goalText, goalDomain, null, null, Me); goalText = ""; }, "Goal added.");
+    private Task AddStep(string goalId) => Run(async () => { if (!string.IsNullOrWhiteSpace(stepText)) { await Case.AddWorkStepAsync(goalId, stepText, null, Me); stepText = ""; } }, "Step added.");
+    private Task StepDone(string goalId, string stepId) => Run(() => Case.UpdateWorkStepStatusAsync(goalId, stepId, CaseWorkStepStatus.Done, Me), "Step done.");
+    private Task AddFollowUp(string goalId) => Run(async () => { if (!string.IsNullOrWhiteSpace(fuText)) { await Case.AddFollowUpAsync(goalId, DateTime.UtcNow.AddDays(30), fuText, Me); fuText = ""; } }, "Follow-up added.");
+    private Task Outcome(string goalId, bool achieved) => Run(async () => { await Case.RecordOutcomeAsync(goalId, achieved, string.IsNullOrWhiteSpace(outcomeText) ? (achieved ? "Achieved" : "Discontinued") : outcomeText, Me); outcomeText = ""; }, "Outcome recorded.");
+}
+
+<style>
+    .lede { color: #556; max-width: 62rem; }
+    .add-goal { border: 1px solid #dde; border-radius: 6px; padding: .6rem; margin: 1rem 0; display: flex; gap: .5rem; align-items: center; flex-wrap: wrap; }
+    .goal { border: 1px solid #dde; border-radius: 8px; padding: .6rem .8rem; margin-bottom: .75rem; }
+    .goal.closed { opacity: .7; }
+    .goal-head { display: flex; align-items: center; gap: .5rem; flex-wrap: wrap; }
+    .goal-title { font-weight: 600; }
+    .badge { font-size: .72rem; padding: .05rem .4rem; border-radius: 10px; background: #eef1f6; }
+    .badge.domain { background: #eef; }
+    .status-Active { background: #e6f6ec; color: #1c7c43; }
+    .status-Achieved { background: #e6f6ec; color: #1c7c43; }
+    .status-Discontinued { background: #f6eaea; color: #a33; }
+    .status-OnHold { background: #f7f0e0; color: #96742a; }
+    .steps { margin: .4rem 0; padding-left: 1.2rem; }
+    .steps li { display: flex; gap: .4rem; align-items: center; }
+    .step-done { text-decoration: line-through; color: #889; }
+    .followups { display: flex; gap: .5rem; flex-wrap: wrap; margin: .3rem 0; }
+    .fu { font-size: .8rem; color: #667; } .fu.done { color: #1c7c43; }
+    .outcome { margin: .3rem 0; font-size: .85rem; }
+    .outcome.ok { color: #1c7c43; } .outcome.no { color: #a33; }
+    .goal-actions { display: flex; gap: .35rem; flex-wrap: wrap; margin-top: .5rem; }
+    .goal-actions input { width: 12rem; }
+    .btn-sm, .btn-xs { font-size: .8rem; padding: .12rem .5rem; }
+    .btn-xs { font-size: .72rem; }
+    .danger { color: #a33; }
+    .mono { font-family: monospace; font-size: .78rem; color: #889; }
+    .muted { color: #889; font-size: .82rem; }
+</style>

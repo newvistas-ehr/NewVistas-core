@@ -134,6 +134,126 @@ public class SocialCareController : ControllerBase
         catch (Exception ex) { return Fail(ex); }
     }
 
+    // ─── Case management (goal / step / follow-up / outcome) ────────────
+
+    private ICaseManagementGrain Case(string patientId) => _grainFactory.GetGrain<ICaseManagementGrain>($"CASE-MGMT:{patientId}");
+
+    [HttpGet("patients/{patientId}/case")]
+    public async Task<IActionResult> GetCase(string patientId)
+    {
+        try { return Ok(await Workflow(patientId).GetCaseManagementAsync()); }
+        catch (Exception ex) { return Fail(ex); }
+    }
+
+    [HttpGet("caseload")]
+    public async Task<IActionResult> Caseload()
+    {
+        try { return Ok(await _grainFactory.GetGrain<ICaseManagementIndexGrain>("CASE-MGMT-INDEX").GetCaseloadAsync()); }
+        catch (Exception ex) { return Fail(ex); }
+    }
+
+    [HttpPost("patients/{patientId}/case/goals")]
+    public async Task<IActionResult> AddGoal(string patientId, [FromBody] CaseGoalRequest req)
+    {
+        try { return Ok(new { GoalId = await Workflow(patientId).AddCaseGoalAsync(req.Description, req.Domain, req.TargetDate, req.SourceReference, CurrentUser) }); }
+        catch (InvalidOperationException ex) { return BadRequest(new { Error = ex.Message }); }
+        catch (Exception ex) { return Fail(ex); }
+    }
+
+    [HttpPut("patients/{patientId}/case/goals/{goalId}/status")]
+    public async Task<IActionResult> SetGoalStatus(string patientId, string goalId, [FromBody] GoalStatusRequest req) =>
+        await Mutate(() => Case(patientId).UpdateGoalStatusAsync(goalId, req.Status, CurrentUser));
+
+    [HttpPost("patients/{patientId}/case/goals/{goalId}/steps")]
+    public async Task<IActionResult> AddStep(string patientId, string goalId, [FromBody] WorkStepRequest req)
+    {
+        try { return Ok(new { StepId = await Case(patientId).AddWorkStepAsync(goalId, req.Description, req.DueDate, CurrentUser) }); }
+        catch (InvalidOperationException ex) { return BadRequest(new { Error = ex.Message }); }
+        catch (Exception ex) { return Fail(ex); }
+    }
+
+    [HttpPut("patients/{patientId}/case/goals/{goalId}/steps/{stepId}/status")]
+    public async Task<IActionResult> SetStepStatus(string patientId, string goalId, string stepId, [FromBody] StepStatusRequest req) =>
+        await Mutate(() => Case(patientId).UpdateWorkStepStatusAsync(goalId, stepId, req.Status, CurrentUser));
+
+    [HttpPost("patients/{patientId}/case/goals/{goalId}/followups")]
+    public async Task<IActionResult> AddFollowUp(string patientId, string goalId, [FromBody] CaseFollowUpRequest req)
+    {
+        try { return Ok(new { FollowUpId = await Case(patientId).AddFollowUpAsync(goalId, req.Date, req.Note ?? string.Empty, CurrentUser) }); }
+        catch (InvalidOperationException ex) { return BadRequest(new { Error = ex.Message }); }
+        catch (Exception ex) { return Fail(ex); }
+    }
+
+    [HttpPost("patients/{patientId}/case/goals/{goalId}/outcome")]
+    public async Task<IActionResult> RecordOutcome(string patientId, string goalId, [FromBody] OutcomeRequest req) =>
+        await Mutate(() => Case(patientId).RecordOutcomeAsync(goalId, req.Achieved, req.Note ?? string.Empty, CurrentUser));
+
+    // ─── Community-resource directory (R3) ──────────────────────────────
+
+    private IResourceDirectoryGrain Directory() => _grainFactory.GetGrain<IResourceDirectoryGrain>("RESOURCE-DIRECTORY");
+
+    [HttpGet("resources")]
+    public async Task<IActionResult> ListResources([FromQuery] SocialWorkReferralServiceType? serviceType, [FromQuery] string? q)
+    {
+        try
+        {
+            List<CommunityResource> results = (serviceType is null && string.IsNullOrWhiteSpace(q))
+                ? await Directory().GetAllAsync()
+                : await Directory().SearchAsync(serviceType, q);
+            return Ok(results);
+        }
+        catch (Exception ex) { return Fail(ex); }
+    }
+
+    [HttpGet("resources/{resourceId}")]
+    public async Task<IActionResult> GetResource(string resourceId)
+    {
+        try
+        {
+            CommunityResource? r = await Directory().GetAsync(resourceId);
+            return r is null ? NotFound() : Ok(r);
+        }
+        catch (Exception ex) { return Fail(ex); }
+    }
+
+    [HttpPost("resources")]
+    public async Task<IActionResult> AddResource([FromBody] CommunityResource resource)
+    {
+        try
+        {
+            string id = await Directory().AddOrUpdateAsync(resource);
+            return Created($"api/social-care/resources/{id}", new { ResourceId = id });
+        }
+        catch (Exception ex) { return Fail(ex); }
+    }
+
+    [HttpDelete("resources/{resourceId}")]
+    public async Task<IActionResult> RemoveResource(string resourceId) =>
+        await Mutate(() => Directory().RemoveAsync(resourceId));
+
+    /// <summary>Refer this patient to a directory resource (opens a Social Work referral to that agency).</summary>
+    [HttpPost("patients/{patientId}/refer-to-resource/{resourceId}")]
+    public async Task<IActionResult> ReferToResource(string patientId, string resourceId, [FromBody] ReferToResourceRequest? req)
+    {
+        try { return Ok(new { ReferralId = await Workflow(patientId).ReferToResourceAsync(resourceId, req?.Reason ?? string.Empty, CurrentUser) }); }
+        catch (UnauthorizedAccessException ex) { return StatusCode(403, new { Error = ex.Message }); }
+        catch (InvalidOperationException ex) { return BadRequest(new { Error = ex.Message }); }
+        catch (Exception ex) { return Fail(ex); }
+    }
+
+    // ─── Veteran psychosocial enrichment (R4) ───────────────────────────
+
+    [HttpGet("patients/{patientId}/veteran-psychosocial")]
+    public async Task<IActionResult> GetVeteranPsychosocial(string patientId)
+    {
+        try { return Ok(await Workflow(patientId).GetVeteranPsychosocialAsync()); }
+        catch (Exception ex) { return Fail(ex); }
+    }
+
+    [HttpPut("patients/{patientId}/veteran-psychosocial")]
+    public async Task<IActionResult> SetVeteranPsychosocial(string patientId, [FromBody] VeteranPsychosocialProfile profile) =>
+        await Mutate(() => Workflow(patientId).UpdateVeteranPsychosocialAsync(profile, CurrentUser));
+
     // ─── Helpers ────────────────────────────────────────────────────────
 
     private async Task<IActionResult> Mutate(Func<Task> action)
@@ -156,3 +276,10 @@ public record JoinHouseholdRequest(string? Relationship, HouseholdMemberRole Rol
 public record NonPatientMemberRequest(string Name, DateTime? DateOfBirth, string? Sex, string? SsnLast4, string? Relationship, HouseholdMemberRole Role);
 public record HousingRequest(HouseholdHousingType HousingType, string? Street, string? City, string? State, string? Zip);
 public record SdohScreeningRequest(string? InstrumentName, List<SdohScreeningResponse>? Responses);
+public record CaseGoalRequest(string Description, CaseGoalDomain Domain, DateTime? TargetDate, string? SourceReference);
+public record GoalStatusRequest(CaseGoalStatus Status);
+public record WorkStepRequest(string Description, DateTime? DueDate);
+public record StepStatusRequest(CaseWorkStepStatus Status);
+public record CaseFollowUpRequest(DateTime Date, string? Note);
+public record OutcomeRequest(bool Achieved, string? Note);
+public record ReferToResourceRequest(string? Reason);

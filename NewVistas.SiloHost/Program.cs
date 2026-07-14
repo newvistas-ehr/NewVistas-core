@@ -345,6 +345,8 @@ static partial class Program
         "protoConditionStore", "protoConditionIndexStore", "protoCohortStore",
         "protoSweepStore",
         "householdStore", "personHouseholdIndexStore",
-        "sdohScreeningStore", "sdohScreeningIndexStore", "sdohCohortStore"
+        "sdohScreeningStore", "sdohScreeningIndexStore", "sdohCohortStore",
+        "caseManagementStore", "caseManagementIndexStore",
+        "resourceDirectoryStore"
     ];
 }

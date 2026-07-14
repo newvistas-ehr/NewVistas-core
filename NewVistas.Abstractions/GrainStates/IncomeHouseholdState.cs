@@ -5,6 +5,40 @@
 namespace NewVistas.Abstractions.GrainStates;
 
 /// <summary>
+/// Type of an itemized income source (VistA Annual Means Test income categories, File #408.31).
+/// Replaces a single opaque gross figure with a breakdown, so the means test and the SDOH
+/// financial-strain picture see WHERE the income comes from (earned vs benefit vs support).
+/// </summary>
+[GenerateSerializer]
+public enum IncomeSourceType
+{
+    Wages = 0,
+    SelfEmployment = 1,
+    SocialSecurity = 2,          // SSA retirement / survivor
+    SupplementalSecurityIncome = 3, // SSI
+    SocialSecurityDisability = 4,   // SSDI
+    VaCompensationOrPension = 5,
+    MilitaryRetirement = 6,
+    PrivatePension = 7,
+    ChildSupportOrAlimony = 8,
+    Unemployment = 9,
+    InterestOrDividends = 10,
+    RentalIncome = 11,
+    PublicAssistance = 12,
+    Other = 13
+}
+
+/// <summary>One itemized income source for a household member.</summary>
+[GenerateSerializer]
+public record IncomeSourceItem
+{
+    [Id(0)] public IncomeSourceType SourceType { get; init; }
+    /// <summary>Annual amount from this source.</summary>
+    [Id(1)] public decimal Amount { get; init; }
+    [Id(2)] public string? Note { get; init; }
+}
+
+/// <summary>
 /// A single household member's income information for means test purposes
 /// (VistA File #408.13 INCOME PERSON).
 /// </summary>
@@ -26,7 +60,10 @@ public record IncomePerson
     /// <summary>Date of birth of the household member.</summary>
     [Id(4)] public DateTime? DateOfBirth { get; init; }
 
-    /// <summary>Gross annual income for the reporting year.</summary>
+    /// <summary>
+    /// Gross annual income for the reporting year. When <see cref="IncomeSources"/> is populated it is
+    /// the authoritative total (their sum); this field remains for records captured without a breakdown.
+    /// </summary>
     [Id(5)] public decimal? GrossAnnualIncome { get; init; }
 
     /// <summary>Total net worth (assets minus liabilities).</summary>
@@ -37,6 +74,10 @@ public record IncomePerson
 
     /// <summary>Whether this record represents the veteran themselves (self).</summary>
     [Id(8)] public bool IsVeteranSelf { get; init; }
+
+    /// <summary>Itemized income sources (wages / SSI / SSDI / pension / …). When present, their sum is
+    /// the member's annual income; when empty, <see cref="GrossAnnualIncome"/> is used.</summary>
+    [Id(9)] public List<IncomeSourceItem> IncomeSources { get; init; } = new();
 }
 
 /// <summary>

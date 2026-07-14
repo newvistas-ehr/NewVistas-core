@@ -1,0 +1,133 @@
+@* Copyright 2026 Merrimack Valley Software Works, LLC. All rights reserved. *@
+@* This Source Code Form is subject to the terms of the Mozilla Public *@
+@* License, v. 2.0. If a copy of the MPL was not distributed with this *@
+@* file, You can obtain one at https://mozilla.org/MPL/2.0/.            *@
+@page "/resource-directory"
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+@rendermode InteractiveServer
+@using NewVistas.BlazorWeb.Services
+@using NewVistas.Abstractions.GrainInterfaces
+@using NewVistas.Abstractions.GrainStates
+@inject OrleansGrainService Grains
+
+<PageTitle>Community Resource Directory</PageTitle>
+
+<h1>🤝 Community Resource Directory</h1>
+<p class="lede">A searchable catalog of community agencies and services — the place a Social Work / SDOH
+referral points <em>at</em>. Set a patient in the bar below to refer them to a resource (opens a
+Social Work referral to that agency).</p>
+
+<PatientBar @bind-PatientId="patientId" Loading="false" OnLoad="OnPatient" />
+<AlertBanner Error="@error" Success="@success" />
+
+<fieldset class="filter">
+    <legend>Search</legend>
+    <select @bind="filterType" @bind:after="Load">
+        <option value="">All service types</option>
+        @foreach (SocialWorkReferralServiceType t in Enum.GetValues<SocialWorkReferralServiceType>())
+        { <option value="@t">@t</option> }
+    </select>
+    <input placeholder="Name, description, area…" @bind="filterText" @bind:event="oninput" @onkeyup="OnSearchKey" />
+    <button class="btn-sm" @onclick="Load">Search</button>
+</fieldset>
+
+@if (loading)
+{
+    <div class="empty-state">Loading…</div>
+}
+else if (resources.Count == 0)
+{
+    <div class="empty-state">No resources match.</div>
+}
+else
+{
+    @foreach (CommunityResource r in resources)
+    {
+        <div class="resource">
+            <div class="res-head">
+                <span class="res-name">@r.Name</span>
+                <span class="badge type">@r.ServiceType</span>
+                @if (!string.IsNullOrWhiteSpace(r.TaxonomyCode)) { <span class="mono" title="AIRS/2-1-1 taxonomy">@r.TaxonomyCode</span> }
+            </div>
+            @if (!string.IsNullOrWhiteSpace(r.Description)) { <div class="res-desc">@r.Description</div> }
+            <div class="res-meta">
+                @if (!string.IsNullOrWhiteSpace(r.Phone)) { <span>📞 @r.Phone</span> }
+                @if (!string.IsNullOrWhiteSpace(r.Website)) { <span>🌐 @r.Website</span> }
+                @{ var loc = string.Join(", ", new[] { r.City, r.State }.Where(s => !string.IsNullOrWhiteSpace(s))); }
+                @if (!string.IsNullOrWhiteSpace(loc)) { <span>📍 @loc</span> }
+                @if (!string.IsNullOrWhiteSpace(r.ServiceArea)) { <span>🗺️ @r.ServiceArea</span> }
+            </div>
+            @if (!string.IsNullOrWhiteSpace(r.Eligibility)) { <div class="res-elig">Eligibility: @r.Eligibility</div> }
+            @if (patientId != null)
+            {
+                <div class="res-actions">
+                    <button class="btn-sm btn-primary" @onclick="() => Refer(r)">Refer patient →</button>
+                </div>
+            }
+        </div>
+    }
+}
+
+@code {
+    private string? patientId;
+    private bool loading;
+    private string? error, success;
+    private List<CommunityResource> resources = new();
+    private string filterText = "";
+    private string filterType = "";
+
+    private string Me => Grains.CurrentUserName ?? Grains.CurrentUserId ?? "web";
+    private IResourceDirectoryGrain Directory => Grains.GetGrain<IResourceDirectoryGrain>("RESOURCE-DIRECTORY");
+
+    protected override Task OnInitializedAsync() => Load();
+
+    private void OnPatient() => success = error = null;
+
+    private Task OnSearchKey(Microsoft.AspNetCore.Components.Web.KeyboardEventArgs e) =>
+        e.Key == "Enter" ? Load() : Task.CompletedTask;
+
+    private async Task Load()
+    {
+        loading = true; error = null;
+        try
+        {
+            SocialWorkReferralServiceType? st = Enum.TryParse<SocialWorkReferralServiceType>(filterType, out var v) ? v : null;
+            resources = (st is null && string.IsNullOrWhiteSpace(filterText))
+                ? await Directory.GetAllAsync()
+                : await Directory.SearchAsync(st, filterText);
+        }
+        catch (Exception ex) { error = ex.Message; }
+        finally { loading = false; }
+    }
+
+    private async Task Refer(CommunityResource r)
+    {
+        error = success = null;
+        if (patientId == null) return;
+        try
+        {
+            string id = await Grains.GetGrain<IPatientWorkflowGrain>(patientId)
+                .ReferToResourceAsync(r.ResourceId, $"Referral to {r.Name}", Me);
+            success = $"Referred to {r.Name} (referral {id}). It's in the Social Work referral queue.";
+        }
+        catch (System.UnauthorizedAccessException) { error = "Social Care is not enabled for this site."; }
+        catch (Exception ex) { error = ex.Message; }
+    }
+}
+
+<style>
+    .lede { color: #556; max-width: 62rem; }
+    .filter { border: 1px solid #dde; border-radius: 6px; padding: .6rem; margin: 1rem 0; display: flex; gap: .5rem; align-items: center; flex-wrap: wrap; }
+    .filter input { min-width: 16rem; }
+    .resource { border: 1px solid #dde; border-radius: 8px; padding: .6rem .8rem; margin-bottom: .7rem; }
+    .res-head { display: flex; align-items: center; gap: .5rem; flex-wrap: wrap; }
+    .res-name { font-weight: 600; }
+    .badge { font-size: .72rem; padding: .05rem .4rem; border-radius: 10px; background: #eef1f6; }
+    .badge.type { background: #eef; }
+    .res-desc { color: #445; margin: .25rem 0; }
+    .res-meta { display: flex; gap: .9rem; flex-wrap: wrap; font-size: .82rem; color: #667; }
+    .res-elig { font-size: .8rem; color: #778; margin-top: .25rem; }
+    .res-actions { margin-top: .5rem; }
+    .mono { font-family: monospace; font-size: .78rem; color: #889; }
+    .btn-sm { font-size: .8rem; padding: .12rem .5rem; }
+</style>

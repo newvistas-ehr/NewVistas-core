@@ -80,6 +80,12 @@ public interface IPatientGrain : IGrainWithStringKey
         string? dischargeType,
         string? prisonerOfWar);
 
+    /// <summary>Returns the veteran psychosocial enrichment profile (combat/era/exposure/VSO), or null if none recorded.</summary>
+    Task<GrainStates.VeteranPsychosocialProfile?> GetVeteranPsychosocialAsync();
+
+    /// <summary>Records/replaces the veteran psychosocial enrichment profile.</summary>
+    Task SetVeteranPsychosocialAsync(GrainStates.VeteranPsychosocialProfile profile, string byUser);
+
     /// <summary>
     /// Adds an appointment for the patient
     /// </summary>

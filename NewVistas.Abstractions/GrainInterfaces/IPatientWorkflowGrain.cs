@@ -53,6 +53,12 @@ public interface IPatientWorkflowGrain : IGrainWithStringKey
     Task UpdateMilitaryServiceAsync(DateTime? serviceEntryDate, DateTime? serviceSeparationDate, string? serviceBranch, string? dischargeType, string? prisonerOfWar);
     Task UpdateMaritalStatusAsync(string? maritalStatus);
 
+    /// <summary>Veteran psychosocial enrichment (combat/era/exposure/VSO) — returns null until first recorded.</summary>
+    Task<GrainStates.VeteranPsychosocialProfile?> GetVeteranPsychosocialAsync();
+    /// <summary>Records/replaces the veteran psychosocial enrichment profile.</summary>
+    [AuditAction("PATIENT", "VETERAN_PSYCHOSOCIAL", EntityType = "PATIENT")]
+    Task UpdateVeteranPsychosocialAsync(GrainStates.VeteranPsychosocialProfile profile, string byUser);
+
     // ─── Patient Identity — DFN / ICN (ORWPT.m, MPIF001.m GETICN) ───────
 
     /// <summary>
@@ -4670,4 +4676,17 @@ public interface IPatientWorkflowGrain : IGrainWithStringKey
     /// <summary>Closes the loop: opens a Social Work referral to the positive domain's matching service type.</summary>
     [AuditAction("SOCIAL_CARE", "SDOH_REFERRAL", EntityType = "REFERRAL")]
     Task<string> CreateSdohReferralAsync(string screeningId, GrainStates.SdohDomain domain, string byUser);
+
+    // ─── Whole-Person Social Care — Case management (roadmap R2) ─────────
+
+    /// <summary>The patient's case-management record (goals / steps / follow-ups / outcomes). Open read; empty when SOCIAL_CARE is off.</summary>
+    Task<GrainStates.CaseManagementState> GetCaseManagementAsync();
+
+    /// <summary>Opens a case-management goal for this patient (optionally citing an SDOH domain / referral).</summary>
+    [AuditAction("SOCIAL_CARE", "CASE_GOAL", EntityType = "CASE")]
+    Task<string> AddCaseGoalAsync(string description, GrainStates.CaseGoalDomain domain, DateTime? targetDate, string? sourceReference, string byUser);
+
+    /// <summary>Refers this patient to a community-resource-directory entry (opens a Social Work referral to that agency). Returns the referral id.</summary>
+    [AuditAction("SOCIAL_CARE", "RESOURCE_REFERRAL", EntityType = "REFERRAL")]
+    Task<string> ReferToResourceAsync(string resourceId, string reason, string byUser);
 }

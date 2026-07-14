@@ -26,6 +26,9 @@ public interface IIncomeHouseholdGrain : IGrainWithStringKey
     /// </summary>
     Task<string> AddOrUpdateMemberAsync(IncomePerson member);
 
+    /// <summary>Sets a member's itemized income sources (wages / SSI / SSDI / pension / …) and recomputes totals.</summary>
+    Task SetMemberIncomeSourcesAsync(string personId, List<IncomeSourceItem> sources);
+
     /// <summary>Removes a household member by PersonId.</summary>
     Task RemoveMemberAsync(string personId);
 
