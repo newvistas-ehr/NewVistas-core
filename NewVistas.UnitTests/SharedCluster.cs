@@ -92,6 +92,7 @@ public static class SharedCluster
             siloBuilder.Services.AddSingleton<IRouteValidationService, RouteValidationService>();
             siloBuilder.Services.AddSingleton<IRxNavDoseFormClient, NullRxNavDoseFormClient>();
             siloBuilder.Services.AddSingleton<IOutboundPrescriptionTransmitter, NullOutboundPrescriptionTransmitter>();
+            siloBuilder.Services.AddSingleton<IProcedurePriorAuthTransmitter, NullProcedurePriorAuthTransmitter>();
             siloBuilder.Services.AddSingleton<IClinicalNarrativeService, TemplateClinicalNarrativeService>();
             siloBuilder.Services.AddSingleton<IRadiologyFindingExtractor, HeuristicRadiologyFindingExtractor>();
 
@@ -410,6 +411,9 @@ public static class SharedCluster
             siloBuilder.AddMemoryGrainStorage("prfAssignmentStore");
             siloBuilder.AddMemoryGrainStorage("prfNationalFlagIndexStore");
             siloBuilder.AddMemoryGrainStorage("priorAuthIndexStore");
+            siloBuilder.AddMemoryGrainStorage("procAuthStore");
+            siloBuilder.AddMemoryGrainStorage("procAuthIndexStore");
+            siloBuilder.AddMemoryGrainStorage("payerProcReqStore");
             siloBuilder.AddMemoryGrainStorage("priorAuthStore");
             siloBuilder.AddMemoryGrainStorage("problemStore");
             siloBuilder.AddMemoryGrainStorage("ptRecordStore");

@@ -28,6 +28,8 @@ builder.Services.AddSingleton<IPatientIndexSnapshotService, PatientIndexSnapshot
 builder.Services.AddSingleton<IRouteValidationService, RouteValidationService>();
 builder.Services.TryAddSingleton<IRxNavDoseFormClient, NullRxNavDoseFormClient>();
 builder.Services.TryAddSingleton<IOutboundPrescriptionTransmitter, NullOutboundPrescriptionTransmitter>();
+// Procedure prior-auth 278 / Da Vinci PAS transmitter — offline null-object default (manual-first).
+builder.Services.TryAddSingleton<IProcedurePriorAuthTransmitter, NullProcedurePriorAuthTransmitter>();
 
 // Clinical-summary narrative seam. When the "ClinicalNarrative" config section is
 // Enabled, a live Claude client (Anthropic SDK), wrapped in a resilient fallback, is
@@ -138,6 +140,7 @@ static partial class Program
         "inpatientOrderStore", "inpatientProfileStore",
         "drugAccountabilityStore", "daLocationStore",
         "patientBenefitStore", "formularyStore", "priorAuthStore", "priorAuthIndexStore",
+        "procAuthStore", "procAuthIndexStore", "payerProcReqStore",
         "visitStore", "visitIndexStore",
         "clinicStore", "clinicIndexStore", "scheduleIndexStore",
         "auditEventStore", "patientAuditIndexStore", "newPersonStore", "providerDirectoryStore",

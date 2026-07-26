@@ -496,6 +496,13 @@
                 <span class="nav-icon">📄</span>
                 <span class="nav-label">Fee Basis</span>
             </NavLink>
+            @if (SecurityContext.IsFeatureEnabled("PROCEDURE_PRIOR_AUTH"))
+            {
+            <NavLink class="nav-item" href="/prior-auth">
+                <span class="nav-icon">✅</span>
+                <span class="nav-label">Prior Authorization</span>
+            </NavLink>
+            }
             <NavLink class="nav-item" href="/ambulatory-copay">
                 <span class="nav-icon">💵</span>
                 <span class="nav-label">Ambulatory Copay</span>

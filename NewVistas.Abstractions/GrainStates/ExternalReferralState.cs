@@ -183,6 +183,14 @@ public class ExternalReferralState
     /// <summary>Display name of the CHS coordinator who approved or denied.</summary>
     [Id(37)]
     public string? ChsAuthorizedByName { get; set; }
+
+    /// <summary>
+    /// Links to a payer-facing medical/procedure prior authorization (<c>PROC-AUTH:{guid}</c>) when an
+    /// out-of-network procedure at the external facility needs the patient's insurer to authorize it —
+    /// distinct from the CHS/fee-basis authorization above (where the facility is the payer). Appended.
+    /// </summary>
+    [Id(38)]
+    public string? ProcedureAuthorizationId { get; set; }
 }
 
 [GenerateSerializer]

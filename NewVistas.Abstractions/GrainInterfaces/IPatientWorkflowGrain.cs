@@ -4278,6 +4278,54 @@ public interface IPatientWorkflowGrain : IGrainWithStringKey
     /// <summary>Returns payers that support real-time 270/271 verification.</summary>
     Task<List<GrainStates.PayerConfigIndexEntry>> GetRealTimePayersAsync();
 
+    // ─── Procedure Prior Authorization (IB Claims Tracking / X12 278) ──────
+    // Medical/procedure PA (parallel to the drug PA) + the payer×procedure requirements intelligence.
+    // Writes gated IBCNR PRECERT + audited; the requirements checklist read is open (advisory).
+
+    /// <summary>Submits a medical/procedure prior-auth request. Returns the new PROC-AUTH id.</summary>
+    [RequiresSecurityKey(SecurityKeys.IB_PROC_PRECERT)]
+    [AuditAction("PRIOR_AUTH", "SUBMIT", EntityType = "PROC_AUTH")]
+    Task<string> SubmitProcedureAuthAsync(
+        string cptCode, string cptDescription, string payerId, string payerName,
+        string orderingProviderId, string orderingProviderName, List<string> diagnosisCodes,
+        string clinicalJustification, DateTime? serviceStartDate, DateTime? serviceEndDate,
+        GrainStates.ProcedureAuthSubmissionChannel channel, string? orderId, string? consultId, string? externalReferralId);
+
+    /// <summary>Records that the payer pended the request for more information.</summary>
+    [RequiresSecurityKey(SecurityKeys.IB_PROC_PRECERT)]
+    [AuditAction("PRIOR_AUTH", "PEND", EntityType = "PROC_AUTH")]
+    Task PendProcedureAuthAsync(string procAuthId, string infoRequested);
+
+    /// <summary>Approves a procedure PA and records which requirement categories it satisfied (feeds the KB).</summary>
+    [RequiresSecurityKey(SecurityKeys.IB_PROC_PRECERT)]
+    [AuditAction("PRIOR_AUTH", "APPROVE", EntityType = "PROC_AUTH")]
+    Task ApproveProcedureAuthAsync(
+        string procAuthId, string reviewerId, string reviewerName, string authorizationNumber,
+        DateTime? expirationDate, List<GrainStates.PriorAuthRequirementCategory> categoriesSatisfied);
+
+    /// <summary>Denies a procedure PA with categorized reasons (feeds the learned requirements KB).</summary>
+    [RequiresSecurityKey(SecurityKeys.IB_PROC_PRECERT)]
+    [AuditAction("PRIOR_AUTH", "DENY", EntityType = "PROC_AUTH")]
+    Task DenyProcedureAuthAsync(
+        string procAuthId, string reviewerId, string reviewerName, List<GrainStates.ProcedureDenialReason> denialReasons);
+
+    [RequiresSecurityKey(SecurityKeys.IB_PROC_PRECERT)]
+    [AuditAction("PRIOR_AUTH", "EXPIRE", EntityType = "PROC_AUTH")]
+    Task ExpireProcedureAuthAsync(string procAuthId);
+
+    [RequiresSecurityKey(SecurityKeys.IB_PROC_PRECERT)]
+    [AuditAction("PRIOR_AUTH", "CANCEL", EntityType = "PROC_AUTH")]
+    Task CancelProcedureAuthAsync(string procAuthId);
+
+    /// <summary>All procedure-PA requests for this patient (per-patient index).</summary>
+    Task<List<GrainStates.ProcedureAuthIndexEntry>> GetProcedureAuthsAsync();
+
+    /// <summary>A single procedure-PA request.</summary>
+    Task<GrainStates.ProcedureAuthorizationState> GetProcedureAuthAsync(string procAuthId);
+
+    /// <summary>The ranked "fill these boxes" requirements checklist for a (procedure, payer). Open read.</summary>
+    Task<Clinical.PriorAuthRequirementChecklist> GetPriorAuthRequirementsAsync(string cptCode, string payerId);
+
     // ─── Collection Letters (PRCA) — RCCLLT*.m, RCCL*.m ────────────────────
 
     /// <summary>

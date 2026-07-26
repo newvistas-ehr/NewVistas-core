@@ -94,6 +94,8 @@ public class SiteParametersState
     ///                                    (Modern enhancement; ENABLED BY DEFAULT for demos, see SiteFeatures)
     ///   "HOSPITAL_AT_HOME"             — Acute inpatient-substitutive care in the home (CMS Acute Hospital Care at Home) — the HospitalAtHome
     ///                                    program type + the freed-bed source-admission handoff (Modern enhancement; ENABLED BY DEFAULT, see SiteFeatures)
+    ///   "PROCEDURE_PRIOR_AUTH"         — Medical/procedure prior auth (X12 278 concept) + a payer×procedure requirements-intelligence tool
+    ///                                    that learns from denial reasons into a documentation checklist (Modern enhancement; ENABLED BY DEFAULT, see SiteFeatures)
     ///   "NEONATAL_CARE"                — Newborn nursery on top of the OB module — newborn chart, gestational-age/growth classification,
     ///                                    newborn screening, nursery census (Modern enhancement; ENABLED BY DEFAULT, see SiteFeatures)
     ///   "PHARMACOGENOMICS"             — Coded pharmacogenomic gene results (star-allele diplotype + CPIC phenotype) that drive drug-gene
@@ -108,7 +110,7 @@ public class SiteParametersState
     ///                                    Center (request→accept→complete; ADR-003) (Modern; ENABLED BY DEFAULT, see SiteFeatures)
     /// </summary>
     [Id(7)]
-    public HashSet<string> Features { get; set; } = new() { SiteFeatures.ExternalPharmacy, SiteFeatures.Oncology, SiteFeatures.PrecisionOncology, SiteFeatures.HomeBasedCare, SiteFeatures.HomeHealthMedicare, SiteFeatures.HospitalAtHome, SiteFeatures.NeonatalCare, SiteFeatures.Pharmacogenomics, SiteFeatures.HereditaryGenetics, SiteFeatures.SpecialtyCoverSheet, SiteFeatures.PersonIdentity, SiteFeatures.BedManagement, SiteFeatures.EmergingConditions, SiteFeatures.SocialCare };
+    public HashSet<string> Features { get; set; } = new() { SiteFeatures.ExternalPharmacy, SiteFeatures.Oncology, SiteFeatures.PrecisionOncology, SiteFeatures.HomeBasedCare, SiteFeatures.HomeHealthMedicare, SiteFeatures.HospitalAtHome, SiteFeatures.ProcedurePriorAuth, SiteFeatures.NeonatalCare, SiteFeatures.Pharmacogenomics, SiteFeatures.HereditaryGenetics, SiteFeatures.SpecialtyCoverSheet, SiteFeatures.PersonIdentity, SiteFeatures.BedManagement, SiteFeatures.EmergingConditions, SiteFeatures.SocialCare };
 
     [Id(3)]
     public DateTime CreatedDate { get; set; } = DateTime.UtcNow;
@@ -183,6 +185,16 @@ public static class SiteFeatures
     /// (hospital-provided vs external agency) and the rest of Home-Based Care intact.
     /// </summary>
     public const string HospitalAtHome = "HOSPITAL_AT_HOME";
+
+    /// <summary>
+    /// Procedure prior authorization — medical/procedure prior-auth (the X12 278 concept, parallel to
+    /// drug PA) with a manual-first record and a payer×procedure "requirements intelligence" tool that
+    /// learns from denial reasons and produces a forward-looking documentation checklist. A "Modern"
+    /// enhancement, <b>enabled by default</b> so it appears in demos; a site can turn it off
+    /// (<c>DisableFeatureAsync("PROCEDURE_PRIOR_AUTH")</c>), hiding the /prior-auth hub and the
+    /// order-entry advisory while leaving the drug PA untouched.
+    /// </summary>
+    public const string ProcedurePriorAuth = "PROCEDURE_PRIOR_AUTH";
 
     /// <summary>
     /// Neonatal care — a newborn nursery layered on top of the OB/prenatal module. Each newborn

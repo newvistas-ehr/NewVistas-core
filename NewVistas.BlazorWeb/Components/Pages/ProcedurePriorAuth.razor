@@ -1,0 +1,297 @@
+@* Copyright 2026 Merrimack Valley Software Works, LLC. All rights reserved. *@
+@* This Source Code Form is subject to the terms of the Mozilla Public *@
+@* License, v. 2.0. If a copy of the MPL was not distributed with this *@
+@* file, You can obtain one at https://mozilla.org/MPL/2.0/.            *@
+@page "/prior-auth"
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+@rendermode InteractiveServer
+@using NewVistas.BlazorWeb.Services
+@using NewVistas.Abstractions.GrainInterfaces
+@using NewVistas.Abstractions.GrainStates
+@using NewVistas.Abstractions.Clinical
+@inject OrleansGrainService Grains
+@inject UserSecurityContext SecurityContext
+
+<PageTitle>Procedure Prior Authorization</PageTitle>
+
+@if (!SecurityContext.IsFeatureEnabled("PROCEDURE_PRIOR_AUTH"))
+{
+    <div class="empty-state">Procedure prior authorization is not enabled for this site.</div>
+}
+else
+{
+    <h1>✅ Procedure Prior Authorization</h1>
+    <p class="lede">Track a medical/procedure prior-auth (by phone, portal, fax, or electronic) and — the
+    payoff — get a <strong>"fill these boxes"</strong> checklist for a procedure + payer that learns from
+    real denial reasons. Denied a TKA for missing conservative-therapy docs once? Next time it's at the top.</p>
+
+    <PatientBar @bind-PatientId="patientId" Loading="loading" OnLoad="Load" />
+    <AlertBanner Error="@error" Success="@success" />
+
+    @* ── Check requirements (the intelligence) ── *@
+    <fieldset class="req-check">
+        <legend>Check requirements — "fill these boxes"</legend>
+        <div class="row">
+            <label>Procedure (CPT)</label>
+            <input list="cptlist" @bind="reqCpt" placeholder="e.g. 27447" />
+            <datalist id="cptlist">
+                @foreach (string c in PriorAuthRequirementCatalog.KnownCptCodes) { <option value="@c" /> }
+            </datalist>
+            <label>Payer</label>
+            <select @bind="reqPayerId">
+                <option value="">— select payer —</option>
+                @foreach (PayerConfigIndexEntry p in payers) { <option value="@p.PayerId">@p.PayerName</option> }
+            </select>
+            <button class="btn btn-primary" @onclick="CheckRequirements" disabled="@(string.IsNullOrWhiteSpace(reqCpt) || string.IsNullOrWhiteSpace(reqPayerId))">Check</button>
+        </div>
+
+        @if (checklist != null)
+        {
+            <div class="checklist">
+                <div class="checklist-head">
+                    <strong>@checklist.CptCode</strong> @checklist.CptDescription → <strong>@checklist.PayerName</strong>
+                    <span class="muted">(@checklist.PayerType)</span>
+                    @if (checklist.IsColdStart) { <span class="badge cold">baseline only — no denials seen yet</span> }
+                    else { <span class="badge learned">@checklist.ObservedDenialTotal observed denial(s)</span> }
+                </div>
+                @if (checklist.Items.Count == 0)
+                {
+                    <div class="empty-state">No curated requirements for this procedure. Verify via the payer portal/phone.</div>
+                }
+                else
+                {
+                    <ol class="req-list">
+                        @foreach (PriorAuthRequirementLine line in checklist.Items)
+                        {
+                            <li class="@(line.DenialCount > 0 ? "hot" : "")">
+                                <span class="cat">@line.CategoryDisplay</span>
+                                @if (line.TypicallyRequired) { <span class="badge req">required</span> }
+                                <span class="badge src-@line.Source">@line.Source</span>
+                                @if (line.DenialCount > 0) { <span class="badge deny">@line.WhyLabel</span> }
+                                <div class="desc">@line.Description</div>
+                                @if (!string.IsNullOrWhiteSpace(line.SampleDenialReason)) { <div class="sample">“@line.SampleDenialReason”</div> }
+                            </li>
+                        }
+                    </ol>
+                }
+                @if (checklist.OtherObservedReasons.Count > 0)
+                {
+                    <div class="other">Other observed denial reasons: @string.Join("; ", checklist.OtherObservedReasons.Select(o => $"{o.ReasonText} ({o.Count}×"))</div>
+                }
+            </div>
+        }
+    </fieldset>
+
+    @if (patientId != null)
+    {
+        @* ── Record a PA ── *@
+        @if (CanEdit)
+        {
+            <fieldset class="new-pa">
+                <legend>Record a prior-auth request</legend>
+                <div class="row">
+                    <label>CPT</label><input @bind="paCpt" placeholder="27447" />
+                    <label>Description</label><input @bind="paCptDesc" placeholder="Total knee arthroplasty" />
+                </div>
+                <div class="row">
+                    <label>Payer</label>
+                    <select @bind="paPayerId">
+                        <option value="">— select payer —</option>
+                        @foreach (PayerConfigIndexEntry p in payers) { <option value="@p.PayerId">@p.PayerName</option> }
+                    </select>
+                    <label>Channel</label>
+                    <select @bind="paChannel">
+                        @foreach (ProcedureAuthSubmissionChannel ch in Enum.GetValues<ProcedureAuthSubmissionChannel>()) { <option value="@ch">@ch</option> }
+                    </select>
+                </div>
+                <div class="row">
+                    <label>Dx codes (comma)</label><input @bind="paDx" placeholder="M17.11" />
+                    <label>Justification</label><input @bind="paJustification" />
+                </div>
+                <button class="btn btn-primary" @onclick="SubmitPa" disabled="@(string.IsNullOrWhiteSpace(paCpt) || string.IsNullOrWhiteSpace(paPayerId))">Submit PA</button>
+            </fieldset>
+        }
+
+        @* ── Patient's PAs ── *@
+        @if (pas == null || pas.Count == 0)
+        {
+            <div class="empty-state">No procedure prior-auths for this patient.</div>
+        }
+        else
+        {
+            <table class="data-table">
+                <thead><tr><th>Procedure</th><th>Payer</th><th>Status</th><th>Submitted</th><th>Auth #</th>@if (CanEdit) { <th>Outcome</th> }</tr></thead>
+                <tbody>
+                    @foreach (ProcedureAuthIndexEntry e in pas)
+                    {
+                        <tr>
+                            <td>@e.CptCode <span class="muted">@e.CptDescription</span></td>
+                            <td>@e.PayerName</td>
+                            <td><span class="badge status-@e.Status">@e.Status</span></td>
+                            <td>@(e.SubmittedDate?.ToString("yyyy-MM-dd") ?? "—")</td>
+                            <td>@(e.Status == ProcedureAuthorizationStatus.Approved ? "✓" : "—")</td>
+                            @if (CanEdit)
+                            {
+                                <td>
+                                    @if (e.Status is ProcedureAuthorizationStatus.Submitted or ProcedureAuthorizationStatus.Pended)
+                                    {
+                                        <button class="btn-xs" @onclick="() => OpenDeny(e.ProcAuthId)">Deny</button>
+                                        <button class="btn-xs" @onclick="() => Approve(e.ProcAuthId)">Approve</button>
+                                    }
+                                </td>
+                            }
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        }
+
+        @* ── Deny panel (feeds the KB) ── *@
+        @if (denyingId != null)
+        {
+            <fieldset class="deny-panel">
+                <legend>Deny — select the missing requirement(s) (this teaches the checklist)</legend>
+                @foreach (PriorAuthRequirementCategory cat in Enum.GetValues<PriorAuthRequirementCategory>())
+                {
+                    <label class="chk"><input type="checkbox" checked="@denyCats.Contains(cat)"
+                        @onchange="ev => ToggleCat(cat, (bool)ev.Value!)" /> @PriorAuthRequirementCatalog.DisplayName(cat)</label>
+                }
+                <div class="row"><label>Reason note</label><input @bind="denyReason" /></div>
+                <button class="btn btn-primary" @onclick="SubmitDeny" disabled="@(denyCats.Count == 0)">Record denial</button>
+                <button class="btn btn-secondary" @onclick="() => denyingId = null">Cancel</button>
+            </fieldset>
+        }
+    }
+}
+
+@code {
+    private string? patientId;
+    private bool loading;
+    private string? error, success;
+    private List<PayerConfigIndexEntry> payers = new();
+    private List<ProcedureAuthIndexEntry>? pas;
+
+    // Check-requirements form
+    private string reqCpt = "27447", reqPayerId = "";
+    private PriorAuthRequirementChecklist? checklist;
+
+    // New-PA form
+    private string paCpt = "", paCptDesc = "", paPayerId = "", paDx = "", paJustification = "";
+    private ProcedureAuthSubmissionChannel paChannel = ProcedureAuthSubmissionChannel.PayerPortal;
+
+    // Deny form
+    private string? denyingId;
+    private readonly HashSet<PriorAuthRequirementCategory> denyCats = new();
+    private string denyReason = "";
+
+    private bool CanEdit => SecurityContext.HasKey("IBCNR PRECERT");
+    private string Me => Grains.CurrentUserName ?? Grains.CurrentUserId ?? "web";
+    private IPatientWorkflowGrain Wf => Grains.GetGrain<IPatientWorkflowGrain>(patientId!);
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (!SecurityContext.IsFeatureEnabled("PROCEDURE_PRIOR_AUTH")) return;
+        try { payers = await Grains.GetGrain<IPayerConfigIndexGrain>("PAYER-CFG-INDEX").GetAllAsync(); }
+        catch { payers = new(); }
+    }
+
+    private async Task Load()
+    {
+        error = success = null;
+        if (patientId == null) return;
+        loading = true;
+        try { pas = await Wf.GetProcedureAuthsAsync(); }
+        catch (Exception ex) { error = ex.Message; }
+        finally { loading = false; }
+    }
+
+    private async Task CheckRequirements()
+    {
+        error = success = null;
+        try
+        {
+            // Any patient context works — the checklist is payer×procedure. Use the loaded patient, else a probe key.
+            IPatientWorkflowGrain wf = Grains.GetGrain<IPatientWorkflowGrain>(patientId ?? "REQ-PROBE");
+            checklist = await wf.GetPriorAuthRequirementsAsync(reqCpt, reqPayerId);
+        }
+        catch (Exception ex) { error = ex.Message; }
+    }
+
+    private async Task SubmitPa()
+    {
+        error = success = null;
+        try
+        {
+            List<string> dx = paDx.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).ToList();
+            string payerName = payers.FirstOrDefault(p => p.PayerId == paPayerId)?.PayerName ?? paPayerId;
+            await Wf.SubmitProcedureAuthAsync(paCpt, paCptDesc, paPayerId, payerName,
+                Grains.CurrentUserId ?? "", Me, dx, paJustification, null, null, paChannel, null, null, null);
+            success = "Prior-auth submitted.";
+            paCpt = paCptDesc = paDx = paJustification = "";
+            await Load();
+        }
+        catch (System.UnauthorizedAccessException) { error = "Not authorized (requires the IBCNR PRECERT key)."; }
+        catch (Exception ex) { error = ex.Message; }
+    }
+
+    private void OpenDeny(string id) { denyingId = id; denyCats.Clear(); denyReason = ""; }
+    private void ToggleCat(PriorAuthRequirementCategory c, bool on) { if (on) denyCats.Add(c); else denyCats.Remove(c); }
+
+    private async Task SubmitDeny()
+    {
+        if (denyingId == null) return;
+        error = success = null;
+        try
+        {
+            List<ProcedureDenialReason> reasons = denyCats
+                .Select(c => new ProcedureDenialReason { Category = c, ReasonText = denyReason }).ToList();
+            await Wf.DenyProcedureAuthAsync(denyingId, Grains.CurrentUserId ?? "", Me, reasons);
+            success = "Denial recorded — the checklist for this payer + procedure just got smarter.";
+            denyingId = null;
+            await Load();
+        }
+        catch (Exception ex) { error = ex.Message; }
+    }
+
+    private async Task Approve(string id)
+    {
+        error = success = null;
+        try
+        {
+            await Wf.ApproveProcedureAuthAsync(id, Grains.CurrentUserId ?? "", Me, "AUTH-" + id[^6..], null, new());
+            success = "Approved.";
+            await Load();
+        }
+        catch (Exception ex) { error = ex.Message; }
+    }
+}
+
+<style>
+    .lede { color: #556; max-width: 64rem; }
+    fieldset { border: 1px solid #dde; border-radius: 6px; padding: .6rem .8rem; margin: 1rem 0; }
+    legend { font-weight: 600; font-size: .9rem; }
+    .row { display: flex; gap: .5rem; align-items: center; flex-wrap: wrap; margin: .3rem 0; }
+    .row input, .row select { min-width: 10rem; }
+    .checklist { margin-top: .7rem; }
+    .checklist-head { margin-bottom: .4rem; }
+    .req-list { margin: .3rem 0 0 1.1rem; }
+    .req-list li { margin: .35rem 0; }
+    .req-list li.hot .cat { color: #a33; font-weight: 600; }
+    .cat { font-weight: 600; }
+    .desc { font-size: .85rem; color: #556; }
+    .sample { font-size: .8rem; color: #888; font-style: italic; }
+    .other { font-size: .8rem; color: #778; margin-top: .5rem; }
+    .badge { font-size: .68rem; padding: .05rem .4rem; border-radius: 10px; margin-left: .3rem; background: #eef1f6; }
+    .badge.req { background: #f6eaea; color: #a33; }
+    .badge.deny { background: #f7e0e0; color: #a33; }
+    .badge.cold { background: #eef1f6; color: #667; }
+    .badge.learned { background: #e6f6ec; color: #1c7c43; }
+    .badge.src-Both { background: #e6eefb; color: #2a5aa8; }
+    .badge.src-Learned { background: #f7f0e0; color: #96742a; }
+    .status-Approved { background: #e6f6ec; color: #1c7c43; }
+    .status-Denied { background: #f6eaea; color: #a33; }
+    .status-Submitted, .status-Pended { background: #f7f0e0; color: #96742a; }
+    .muted { color: #889; font-size: .82rem; }
+    .chk { display: inline-block; width: 15rem; font-size: .85rem; }
+    .btn-xs { font-size: .72rem; padding: .1rem .45rem; margin-left: .2rem; }
+</style>

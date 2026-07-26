@@ -153,6 +153,15 @@ public static class SecurityKeys
     /// </summary>
     public const string SD_SCHEDULING = "SD SCHEDULING";
 
+    // ─── Integrated Billing / Claims Tracking (IB Package) ──────────────
+
+    /// <summary>
+    /// IBCNR PRECERT — Procedure pre-certification / prior authorization (utilization management).
+    /// Required to submit, pend, approve, deny, expire, or cancel a medical/procedure prior-auth
+    /// request (X12 278 concept). Requirements-checklist reads are open (advisory decision support).
+    /// </summary>
+    public const string IB_PROC_PRECERT = "IBCNR PRECERT";
+
     // ─── ADT (DG Package) ───────────────────────────────────────────────
 
     /// <summary>
