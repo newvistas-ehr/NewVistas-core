@@ -113,13 +113,35 @@ public class AuthController : ControllerBase
         {
             NewVistasUser? user = await _userManager.FindByNameAsync(request.UserName);
             if (user == null)
+            {
+                // Logged (not returned) so the console distinguishes "no such user" —
+                // e.g. a login attempt that beat demo-user seeding on a cold start —
+                // from a wrong password, without telling the caller which it was.
+                _logger.LogWarning("Login rejected: no such user {UserName}", request.UserName);
                 return Unauthorized(new { Error = "Invalid credentials." });
+            }
 
             Microsoft.AspNetCore.Identity.SignInResult result = await _signInManager.CheckPasswordSignInAsync(user, request.Password, lockoutOnFailure: true);
             if (!result.Succeeded)
             {
                 if (result.IsLockedOut)
-                    return Unauthorized(new { Error = "Account is locked. Try again later." });
+                {
+                    // Say how long. "Try again later" left users retyping a correct
+                    // password for 15 minutes with no idea the account was locked.
+                    DateTimeOffset? until = await _userManager.GetLockoutEndDateAsync(user);
+                    int minutes = until.HasValue
+                        ? Math.Max(1, (int)Math.Ceiling((until.Value - DateTimeOffset.UtcNow).TotalMinutes))
+                        : 15;
+                    _logger.LogWarning("Login rejected for {UserName}: account locked out until {LockoutEnd}",
+                        user.UserName, until);
+                    return Unauthorized(new
+                    {
+                        Error = $"Account is locked after too many failed sign-in attempts. Try again in {minutes} minute(s)."
+                    });
+                }
+
+                _logger.LogWarning("Login rejected for {UserName}: incorrect password (failed attempts: {Count})",
+                    user.UserName, await _userManager.GetAccessFailedCountAsync(user));
                 return Unauthorized(new { Error = "Invalid credentials." });
             }
 

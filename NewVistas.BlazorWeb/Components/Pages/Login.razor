@@ -16,49 +16,82 @@
 @inject UserSecurityContext SecurityContext
 @inject OrleansGrainService Grains
 
+<PageTitle>NewVistas — Sign In</PageTitle>
+
 <div class="login-container">
     <div class="login-card">
         <h2>NewVistas Sign-In</h2>
         <p class="login-subtitle">Clinical Information System</p>
 
+        @* Restricted-system notice. This is the first thing an unauthenticated
+           visitor sees — every other route redirects here (see Routes.razor). *@
+        <div class="system-notice" role="note">
+            <div class="system-notice-title">⚠ Restricted System — Authorized Users Only</div>
+            <p>
+                This is a private clinical information system. You must sign in with your own
+                account to continue. Access is permitted only to authorized users, for
+                authorized purposes.
+            </p>
+            <p>
+                Unauthorized access to, use of, or modification of this system or the protected
+                health information it holds may violate federal and state law and can result in
+                disciplinary action, civil penalties, and criminal prosecution.
+            </p>
+            <p>
+                By signing in you consent to the monitoring and auditing of all activity, and you
+                confirm that you will access only the records you have a legitimate clinical or
+                business need to see.
+            </p>
+        </div>
+
         @if (!string.IsNullOrEmpty(error))
         {
-            <div class="alert alert-danger">@error</div>
+            <div class="alert alert-danger" role="alert">@error</div>
         }
 
-        <div class="form-group">
-            <label>Access Code (Username)</label>
-            <input type="text" @bind="userName" @bind:event="oninput"
-                   @onkeydown="HandleKeyDown" disabled="@isLoading" />
-        </div>
+        @* A real <form> submit, NOT per-keystroke @bind:event="oninput" + an
+           @onkeydown Enter handler. Over Blazor Server every keystroke was a
+           SignalR round trip, so a dropped/slow circuit could leave the server's
+           copy of the password one or more characters behind what the box showed
+           — the user then "typed the right password" and got Invalid credentials,
+           and five of those lock the account for 15 minutes. On submit the browser
+           sends the complete field values once, which also makes password-manager
+           autofill work. *@
+        <EditForm Model="model" OnValidSubmit="LoginAsync" FormName="login">
+            <div class="form-group">
+                <label for="access-code">Access Code (Username)</label>
+                <InputText id="access-code" @bind-Value="model.UserName"
+                           autocomplete="username" autocapitalize="characters"
+                           disabled="@isLoading" />
+            </div>
 
-        <div class="form-group">
-            <label>Verify Code (Password)</label>
-            <input type="password" @bind="password" @bind:event="oninput"
-                   @onkeydown="HandleKeyDown" disabled="@isLoading" />
-        </div>
+            <div class="form-group">
+                <label for="verify-code">Verify Code (Password)</label>
+                <InputText id="verify-code" type="password" @bind-Value="model.Password"
+                           autocomplete="current-password" disabled="@isLoading" />
+            </div>
 
-        <button class="btn-login" @onclick="LoginAsync" disabled="@isLoading">
-            @if (isLoading) { <span>Signing in...</span> } else { <span>Sign In</span> }
-        </button>
+            <button type="submit" class="btn-login" disabled="@isLoading">
+                @if (isLoading) { <span>Signing in...</span> } else { <span>Sign In</span> }
+            </button>
+        </EditForm>
     </div>
 </div>
 
 @code {
-    private string userName = string.Empty;
-    private string password = string.Empty;
+    private readonly LoginModel model = new();
     private string? error;
     private bool isLoading;
 
-    private async Task HandleKeyDown(Microsoft.AspNetCore.Components.Web.KeyboardEventArgs e)
+    private sealed class LoginModel
     {
-        if (e.Key == "Enter")
-            await LoginAsync();
+        public string UserName { get; set; } = string.Empty;
+        public string Password { get; set; } = string.Empty;
     }
 
     private async Task LoginAsync()
     {
-        if (string.IsNullOrWhiteSpace(userName) || string.IsNullOrWhiteSpace(password))
+        if (string.IsNullOrWhiteSpace(model.UserName) || string.IsNullOrWhiteSpace(model.Password))
         {
             error = "Please enter both access code and verify code.";
             return;
@@ -69,9 +102,11 @@
 
         try
         {
-            LoginResult result = await AuthProvider.LoginAsync(userName, password);
+            LoginResult result = await AuthProvider.LoginAsync(model.UserName.Trim(), model.Password);
             if (result.Success)
             {
+                model.Password = string.Empty;
+
                 // Load security keys once — cached for the session lifetime — straight from
                 // the silo's AccessControl grain (not the WebServer; that's auth-only).
                 // All menu visibility checks are O(1) HashSet lookups from here on.
@@ -79,7 +114,12 @@
                 string? userId = authState.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value
                     ?? authState.User.FindFirst("http://schemas.xmlsoap.org/ws/2005/05/identity/claims/nameidentifier")?.Value;
                 if (userId is not null)
-                    await SecurityContext.InitializeAsync(Grains, userId);
+                {
+                    // Best-effort: a silo hiccup here must not throw out of the login
+                    // handler and kill the circuit. MainLayout re-initializes it.
+                    try { await SecurityContext.InitializeAsync(Grains, userId); }
+                    catch { /* menu falls back to General until MainLayout retries */ }
+                }
 
                 Navigation.NavigateTo("/", forceLoad: false);
             }
@@ -111,17 +151,40 @@
         border: 1px solid #ddd;
         border-radius: 8px;
         padding: 2rem;
-        width: 360px;
+        width: 420px;
+        max-width: 100%;
         box-shadow: 0 2px 8px rgba(0,0,0,0.1);
     }
     .login-card h2 { margin: 0 0 0.25rem; color: #003366; }
-    .login-subtitle { color: #666; margin: 0 0 1.5rem; font-size: 0.9rem; }
+    .login-subtitle { color: #666; margin: 0 0 1.25rem; font-size: 0.9rem; }
+    .system-notice {
+        background: #fff8e6;
+        border: 1px solid #e0c068;
+        border-left: 4px solid #b8860b;
+        border-radius: 4px;
+        padding: 0.75rem 0.9rem;
+        margin-bottom: 1.25rem;
+        font-size: 0.78rem;
+        line-height: 1.4;
+        color: #4a3b12;
+    }
+    .system-notice-title {
+        font-weight: 700;
+        color: #7a5c00;
+        margin-bottom: 0.4rem;
+        font-size: 0.82rem;
+    }
+    .system-notice p { margin: 0 0 0.5rem; }
+    .system-notice p:last-child { margin-bottom: 0; }
     .form-group { margin-bottom: 1rem; }
     .form-group label { display: block; margin-bottom: 0.25rem; font-weight: 600; font-size: 0.85rem; }
     .form-group input {
         width: 100%; padding: 0.5rem; border: 1px solid #ccc; border-radius: 4px;
         font-size: 0.95rem; box-sizing: border-box;
     }
+    /* This form has no field validation, so app.css's green "valid.modified" outline
+       is meaningless here — and reads as a success cue right beside a sign-in error. */
+    .login-card .valid.modified:not([type=checkbox]) { outline: none; }
     .btn-login {
         width: 100%; padding: 0.6rem; background: #003366; color: #fff;
         border: none; border-radius: 4px; font-size: 1rem; cursor: pointer;

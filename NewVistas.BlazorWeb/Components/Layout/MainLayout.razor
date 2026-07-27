@@ -645,8 +645,19 @@
 
                 if (userId is not null)
                 {
-                    await SecurityContext.InitializeAsync(Grains, userId);
-                    StateHasChanged();
+                    // Best-effort. An exception thrown out of OnInitializedAsync in the
+                    // *layout* tears down the whole circuit — that is the "An unhandled
+                    // error has occurred / Reload" bar. A silo that is still starting or
+                    // briefly unreachable must degrade the menu, not kill the session.
+                    try
+                    {
+                        await SecurityContext.InitializeAsync(Grains, userId);
+                        StateHasChanged();
+                    }
+                    catch (Exception ex)
+                    {
+                        Console.Error.WriteLine($"[MainLayout] Security context load failed: {ex.Message}");
+                    }
                 }
             }
 

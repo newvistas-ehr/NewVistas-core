@@ -1,16 +1,51 @@
-﻿@* Copyright 2026 Merrimack Valley Software Works, LLC. All rights reserved. *@
+@* Copyright 2026 Merrimack Valley Software Works, LLC. All rights reserved. *@
 @* This Source Code Form is subject to the terms of the Mozilla Public *@
 @* License, v. 2.0. If a copy of the MPL was not distributed with this *@
 @* file, You can obtain one at https://mozilla.org/MPL/2.0/.            *@
+@using Microsoft.AspNetCore.Authorization
 @using Microsoft.AspNetCore.Components.Authorization
 
+@* Login-first is DEFAULT-DENY at the router, not per-page. Requiring every page to
+   remember @attribute [Authorize] meant 162 of 164 pages forgot it, so an anonymous
+   visitor was served the Home page (the whole feature map) instead of the Sign-In
+   screen. Here a route is anonymous only if its page opts in with [AllowAnonymous]
+   (Login and NotFound do); everything else redirects to /login.
+
+   Deliberately NOT done with @attribute [Authorize] in _Imports.razor: that also
+   attaches authorization metadata to the SSR endpoints, and this app has no
+   UseAuthorization middleware (Blazor Server authenticates inside the circuit), which
+   makes the endpoint middleware throw. Gating in the router keeps auth where the JWT
+   actually lives. *@
 <Router AppAssembly="typeof(Program).Assembly" NotFoundPage="typeof(Pages.NotFound)">
     <Found Context="routeData">
-        <AuthorizeRouteView RouteData="routeData" DefaultLayout="typeof(Layout.MainLayout)">
-            <NotAuthorized>
-                <RedirectToLogin />
-            </NotAuthorized>
-        </AuthorizeRouteView>
+        @if (AllowsAnonymous(routeData.PageType))
+        {
+            <RouteView RouteData="routeData" DefaultLayout="typeof(Layout.MainLayout)" />
+        }
+        else
+        {
+            <AuthorizeView Context="authState">
+                <Authorized>
+                    <AuthorizeRouteView RouteData="routeData" DefaultLayout="typeof(Layout.MainLayout)">
+                        <NotAuthorized>
+                            <RedirectToLogin />
+                        </NotAuthorized>
+                    </AuthorizeRouteView>
+                </Authorized>
+                <NotAuthorized>
+                    <RedirectToLogin />
+                </NotAuthorized>
+            </AuthorizeView>
+        }
         <FocusOnNavigate RouteData="routeData" Selector="h1" />
     </Found>
 </Router>
+
+@code {
+    /// <summary>
+    /// True when the page opts out of login-first with [AllowAnonymous].
+    /// Everything else requires an authenticated circuit.
+    /// </summary>
+    private static bool AllowsAnonymous(Type pageType)
+        => pageType.IsDefined(typeof(AllowAnonymousAttribute), inherit: true);
+}

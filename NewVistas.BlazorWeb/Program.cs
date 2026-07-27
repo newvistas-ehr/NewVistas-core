@@ -92,8 +92,9 @@ builder.Services.AddAuthentication("BlazorServer")
 
 // Authorization for Blazor components — do NOT set FallbackPolicy here.
 // FallbackPolicy applies to all HTTP requests including static files (JS/CSS),
-// which breaks Blazor. Instead, use [Authorize] on components/pages and
-// <AuthorizeRouteView> in Routes.razor to enforce auth at the component level.
+// which breaks Blazor. Auth is enforced at the component level instead: Routes.razor
+// is default-deny (every route requires an authenticated circuit unless its page
+// carries [AllowAnonymous]), so pages do not each have to remember [Authorize].
 builder.Services.AddAuthorizationCore();
 builder.Services.AddCascadingAuthenticationState();
 

@@ -32,16 +32,37 @@ public class JwtAuthenticationStateProvider : AuthenticationStateProvider
     /// </summary>
     public async Task<LoginResult> LoginAsync(string userName, string password)
     {
-        var response = await _http.PostAsJsonAsync("api/auth/login", new { UserName = userName, Password = password });
+        HttpResponseMessage response;
+        try
+        {
+            response = await _http.PostAsJsonAsync("api/auth/login", new { UserName = userName, Password = password });
+        }
+        catch (Exception ex)
+        {
+            // The WebServer is down, still starting, or on a different port. Saying
+            // "Invalid credentials" here sends people off retyping a correct password.
+            return new LoginResult(false,
+                $"Cannot reach the NewVistas API at {_http.BaseAddress}. Is the WebServer running? ({ex.Message})");
+        }
+
         if (!response.IsSuccessStatusCode)
         {
-            string body = await response.Content.ReadAsStringAsync();
-            return new LoginResult(false, "Invalid credentials.");
+            // Report what the server actually said. This previously collapsed every
+            // failure into "Invalid credentials.", which hid the one message that
+            // matters most: after 5 failed attempts the account is locked for 15
+            // minutes, so the correct password keeps being rejected with no clue why.
+            return new LoginResult(false, await ReadServerErrorAsync(response));
         }
 
         var loginResponse = await response.Content.ReadFromJsonAsync<LoginResponse>();
         if (loginResponse == null)
             return new LoginResult(false, "Invalid server response.");
+
+        // A 200 with no token means the server issued an MFA challenge, which this UI
+        // does not implement yet. Treat it as a failure rather than "signing in" with
+        // an empty token — that used to land on a blank, silently-anonymous session.
+        if (string.IsNullOrEmpty(loginResponse.Token))
+            return new LoginResult(false, "This account requires multi-factor authentication, which this sign-in screen does not support yet.");
 
         _token = loginResponse.Token;
         _http.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", _token);
@@ -87,6 +108,36 @@ public class JwtAuthenticationStateProvider : AuthenticationStateProvider
         var identity = new ClaimsIdentity(jwt.Claims, "jwt");
         var principal = new ClaimsPrincipal(identity);
         return Task.FromResult(new AuthenticationState(principal));
+    }
+
+    /// <summary>
+    /// Pull the message out of the API's { "error": "..." } failure body, falling back
+    /// to the status code when the body is empty or not the expected shape.
+    /// </summary>
+    private static async Task<string> ReadServerErrorAsync(HttpResponseMessage response)
+    {
+        try
+        {
+            string body = await response.Content.ReadAsStringAsync();
+            if (!string.IsNullOrWhiteSpace(body) && body.TrimStart().StartsWith('{'))
+            {
+                var error = System.Text.Json.JsonSerializer.Deserialize<ApiError>(body,
+                    new System.Text.Json.JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+                if (!string.IsNullOrWhiteSpace(error?.Error))
+                    return error.Error;
+            }
+        }
+        catch
+        {
+            // fall through to the status-code message
+        }
+
+        return $"Sign-in failed ({(int)response.StatusCode} {response.ReasonPhrase}).";
+    }
+
+    private sealed record ApiError
+    {
+        public string? Error { get; init; }
     }
 }
 
