@@ -15,7 +15,14 @@
 # NewVistas.SiloHost/, NewVistas.WebServer/, and NewVistas.BlazorWeb/ instead.
 
 # ── Stage 1: Build ────────────────────────────────────────────────────────────
-FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
+# SDK is PINNED, not floating on :10.0. SDK 10.0.301 omits the framework static web
+# assets from the publish manifest, so the published app has neither an endpoint nor a
+# physical file for _framework/blazor.web.js — it 404s, no Blazor circuit starts, and
+# because Routes renders with prerender:false the browser gets a blank page. (The
+# UseStaticFiles fallback in BlazorWeb/Program.cs cannot cover it: with 10.0.301 the
+# file is absent from the publish output entirely.) 10.0.302 emits both. Verify any
+# future bump still produces wwwroot/_framework/blazor.web.js before shipping it.
+FROM mcr.microsoft.com/dotnet/sdk:10.0.302 AS build
 WORKDIR /src
 
 # Copy csproj files first for restore-layer caching — the union of project
