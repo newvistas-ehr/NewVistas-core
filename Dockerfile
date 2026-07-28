@@ -15,13 +15,9 @@
 # NewVistas.SiloHost/, NewVistas.WebServer/, and NewVistas.BlazorWeb/ instead.
 
 # ── Stage 1: Build ────────────────────────────────────────────────────────────
-# SDK is PINNED, not floating on :10.0. SDK 10.0.301 omits the framework static web
-# assets from the publish manifest, so the published app has neither an endpoint nor a
-# physical file for _framework/blazor.web.js — it 404s, no Blazor circuit starts, and
-# because Routes renders with prerender:false the browser gets a blank page. (The
-# UseStaticFiles fallback in BlazorWeb/Program.cs cannot cover it: with 10.0.301 the
-# file is absent from the publish output entirely.) 10.0.302 emits both. Verify any
-# future bump still produces wwwroot/_framework/blazor.web.js before shipping it.
+# SDK pinned rather than floating on :10.0 purely so image builds are reproducible —
+# the floating tag silently moved from 10.0.301 to 10.0.302 between releases. This pin
+# is NOT what fixes the missing-blazor.web.js bug; see the publish step below.
 FROM mcr.microsoft.com/dotnet/sdk:10.0.302 AS build
 WORKDIR /src
 
@@ -54,9 +50,20 @@ COPY NewVistas.BlazorWeb/ NewVistas.BlazorWeb/
 COPY exports/ exports/
 
 # Publish each app into its own output folder.
-RUN dotnet publish NewVistas.SiloHost/NewVistas.SiloHost.csproj   -c Release -o /app/silo      --no-restore \
- && dotnet publish NewVistas.WebServer/NewVistas.WebServer.csproj -c Release -o /app/webserver --no-restore \
- && dotnet publish NewVistas.BlazorWeb/NewVistas.BlazorWeb.csproj -c Release -o /app/blazor    --no-restore
+#
+# Do NOT add --no-restore here. The csproj-only restore layer above cannot see that the
+# Blazor app needs Microsoft.AspNetCore.App.Internal.Assets — the implicit package that
+# carries wwwroot/_framework/blazor.web.js — so with --no-restore that package is never
+# fetched and publish silently emits an app with no Blazor script. The UI then serves a
+# blank page (blazor.web.js 404s, no circuit starts, and Routes renders with
+# prerender:false so there is no static fallback). It reproduces only in a clean
+# environment: on a dev machine the package is already in the global NuGet cache, so
+# --no-restore appears to work right up until you build the image.
+#
+# Letting publish restore costs little — every other package is already in this layer.
+RUN dotnet publish NewVistas.SiloHost/NewVistas.SiloHost.csproj   -c Release -o /app/silo \
+ && dotnet publish NewVistas.WebServer/NewVistas.WebServer.csproj -c Release -o /app/webserver \
+ && dotnet publish NewVistas.BlazorWeb/NewVistas.BlazorWeb.csproj -c Release -o /app/blazor
 
 # ── Stage 2: Runtime ──────────────────────────────────────────────────────────
 FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS runtime
