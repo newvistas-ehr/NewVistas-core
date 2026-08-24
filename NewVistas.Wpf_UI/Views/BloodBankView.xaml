@@ -30,10 +30,10 @@ file, You can obtain one at https://mozilla.org/MPL/2.0/.
             <TextBlock Style="{StaticResource SectionHeader}" Text="Crossmatches"/>
             <DataGrid ItemsSource="{Binding Crossmatches}" AutoGenerateColumns="False" MaxHeight="200">
                 <DataGrid.Columns>
-                    <DataGridTextColumn Header="Date" Binding="{Binding RequestDate, StringFormat=d}" Width="110"/>
+                    <DataGridTextColumn Header="Date" Binding="{Binding RequestedDate, StringFormat=d}" Width="110"/>
                     <DataGridTextColumn Header="Product" Binding="{Binding ProductType}" Width="160"/>
-                    <DataGridTextColumn Header="Status" Binding="{Binding Status}" Width="120"/>
-                    <DataGridTextColumn Header="Units" Binding="{Binding UnitsRequested}" Width="70"/>
+                    <DataGridTextColumn Header="Result" Binding="{Binding Result}" Width="120"/>
+                    <DataGridTextColumn Header="Urgency" Binding="{Binding Urgency}" Width="90"/>
                 </DataGrid.Columns>
             </DataGrid>
             <TextBlock Style="{StaticResource SectionHeader}" Text="Transfusion History" Margin="0,12,0,0"/>
@@ -42,7 +42,7 @@ file, You can obtain one at https://mozilla.org/MPL/2.0/.
                     <DataGridTextColumn Header="Start" Binding="{Binding StartDateTime, StringFormat=g}" Width="140"/>
                     <DataGridTextColumn Header="Product" Binding="{Binding ProductType}" Width="160"/>
                     <DataGridTextColumn Header="Status" Binding="{Binding Status}" Width="120"/>
-                    <DataGridTextColumn Header="Volume (mL)" Binding="{Binding VolumeInfusedMl}" Width="100"/>
+                    <DataGridTextColumn Header="Reaction" Binding="{Binding ReactionType}" Width="100"/>
                 </DataGrid.Columns>
             </DataGrid>
         </StackPanel>

@@ -1,4 +1,4 @@
-// Copyright 2026 Merrimack Valley Software Works, LLC. All rights reserved.
+﻿// Copyright 2026 Merrimack Valley Software Works, LLC. All rights reserved.
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
@@ -16,6 +16,16 @@ public partial class PceViewModel : BasePatientViewModel
     [ObservableProperty] private ObservableCollection<PceVisitEntry> _encounters = new();
     [ObservableProperty] private VisitState? _selectedEncounter;
 
+    /// <summary>Grid selection; loads the full visit into <see cref="SelectedEncounter"/>.</summary>
+    [ObservableProperty] private PceVisitEntry? _selectedVisit;
+
+    partial void OnSelectedVisitChanged(PceVisitEntry? value)
+    {
+        // Actions gate on the detail object; clear it before the async fetch so they can never target the previously selected record.
+        SelectedEncounter = null;
+        if (value is not null) _ = SelectEncounter(value);
+    }
+
     // Create form
     [ObservableProperty] private bool _showCreateForm;
     [ObservableProperty] private string _serviceCategory = "AMBULATORY";
@@ -30,8 +40,10 @@ public partial class PceViewModel : BasePatientViewModel
         "DAY TREATMENT", "HOME VISIT", "NURSING HOME"
     ];
 
-    public PceViewModel(OrleansGrainService grains, ApiClient api, PatientContext patientContext)
-        : base(grains, api, patientContext) { }
+    public string[] VisitTypeOptions { get; } = ["NEW", "ESTABLISHED"];
+
+    public PceViewModel(OrleansGrainService grains, PatientContext patientContext)
+        : base(grains, patientContext) { }
 
     protected override async Task LoadDataAsync()
     {

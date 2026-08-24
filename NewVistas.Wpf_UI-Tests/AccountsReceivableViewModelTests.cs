@@ -1,4 +1,4 @@
-// Copyright 2026 Merrimack Valley Software Works, LLC. All rights reserved.
+﻿// Copyright 2026 Merrimack Valley Software Works, LLC. All rights reserved.
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
@@ -39,7 +39,7 @@ public class AccountsReceivableViewModelTests : ViewModelTestBase
             new() { ARAccountId = "AR1" }
         });
 
-        var vm = new AccountsReceivableViewModel(ApiClient, GrainService) { PatientId = "P1" };
+        var vm = new AccountsReceivableViewModel(GrainService) { PatientId = "P1" };
         await vm.LoadCommand.ExecuteAsync(null);
 
         Assert.That(vm.Debtor, Is.Not.Null);
@@ -50,7 +50,7 @@ public class AccountsReceivableViewModelTests : ViewModelTestBase
     [Test]
     public async Task Load_EmptyPatientId_DoesNothing()
     {
-        var vm = new AccountsReceivableViewModel(ApiClient, GrainService) { PatientId = "" };
+        var vm = new AccountsReceivableViewModel(GrainService) { PatientId = "" };
         await vm.LoadCommand.ExecuteAsync(null);
 
         Assert.That(vm.Loaded, Is.False);
@@ -66,7 +66,7 @@ public class AccountsReceivableViewModelTests : ViewModelTestBase
         _mockDebtor.GetAsync().Returns(new ARDebtorState());
         _mockAccountIndex.GetAllAsync().Returns(new List<ARAccountIndexEntry>());
 
-        var vm = new AccountsReceivableViewModel(ApiClient, GrainService) { PatientId = "P1" };
+        var vm = new AccountsReceivableViewModel(GrainService) { PatientId = "P1" };
         vm.SelectedAccount = new ARAccountIndexEntry { ARAccountId = "AR1" };
         vm.PaymentAmount = 50m;
         vm.PaymentMethod = "Cash";

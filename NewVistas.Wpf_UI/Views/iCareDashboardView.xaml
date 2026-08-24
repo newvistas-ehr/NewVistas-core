@@ -81,7 +81,7 @@ file, You can obtain one at https://mozilla.org/MPL/2.0/.
                     <DataGridTextColumn Header="Status" Binding="{Binding OverallStatus}" Width="100"/>
                     <DataGridTextColumn Header="Due Reminders" Binding="{Binding DueReminderCount}" Width="120"/>
                     <DataGridTextColumn Header="Quality Gaps" Binding="{Binding QualityGapCount}" Width="110"/>
-                    <DataGridTextColumn Header="Registries" Binding="{Binding RegistryCount}" Width="100"/>
+                    <DataGridTextColumn Header="Registries" Binding="{Binding Registries.Count}" Width="100"/>
                 </DataGrid.Columns>
             </DataGrid>
 

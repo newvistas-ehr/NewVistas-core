@@ -21,29 +21,29 @@ file, You can obtain one at https://mozilla.org/MPL/2.0/.
             </StackPanel>
 
             <TextBlock Style="{StaticResource SectionHeader}" Text="Due Medications"/>
-            <DataGrid ItemsSource="{Binding DueMedications}" SelectedItem="{Binding SelectedAdministration}">
+            <DataGrid ItemsSource="{Binding MarEntries}" SelectedItem="{Binding SelectedMarEntry}">
                 <DataGrid.Columns>
                     <DataGridTextColumn Header="Drug" Binding="{Binding DrugName}" Width="*"/>
-                    <DataGridTextColumn Header="Dose" Binding="{Binding ScheduledDose}" Width="100"/>
+                    <DataGridTextColumn Header="Dose" Binding="{Binding Dosage}" Width="100"/>
                     <DataGridTextColumn Header="Route" Binding="{Binding Route}" Width="80"/>
-                    <DataGridTextColumn Header="Due Time" Binding="{Binding ScheduledTime, StringFormat=t}" Width="90"/>
-                    <DataGridTextColumn Header="Status" Binding="{Binding Status}" Width="100"/>
+                    <DataGridTextColumn Header="Schedule" Binding="{Binding Schedule}" Width="90"/>
+                    <DataGridTextColumn Header="Last Status" Binding="{Binding LastAdminStatus}" Width="100"/>
                 </DataGrid.Columns>
             </DataGrid>
 
             <!-- Administer form -->
-            <StackPanel Visibility="{Binding SelectedAdministration, Converter={StaticResource NullToVisibility}}" Margin="0,12,0,0">
+            <StackPanel Visibility="{Binding SelectedMarEntry, Converter={StaticResource NullToVisibility}}" Margin="0,12,0,0">
                 <Border Style="{StaticResource FormPanel}">
                     <StackPanel>
                         <TextBlock Style="{StaticResource SectionHeader}" Text="Administer Medication"/>
                         <TextBlock Style="{StaticResource FieldLabel}" Text="Status"/>
-                        <ComboBox ItemsSource="{Binding AdminStatusOptions}" SelectedItem="{Binding AdminStatus}"
+                        <ComboBox ItemsSource="{Binding ActionStatuses}" SelectedItem="{Binding ActionStatus}"
                                   Width="200" HorizontalAlignment="Left"/>
                         <TextBlock Style="{StaticResource FieldLabel}" Text="Notes"/>
                         <TextBox Text="{Binding AdminNotes, UpdateSourceTrigger=PropertyChanged}"
                                  Width="400" HorizontalAlignment="Left"/>
                         <Button Content="Record Administration" Style="{StaticResource PrimaryButton}"
-                                Command="{Binding AdministerCommand}" Margin="0,12,0,0"
+                                Command="{Binding AdministerMedicationCommand}" Margin="0,12,0,0"
                                 HorizontalAlignment="Left"/>
                     </StackPanel>
                 </Border>
@@ -53,9 +53,9 @@ file, You can obtain one at https://mozilla.org/MPL/2.0/.
             <DataGrid ItemsSource="{Binding Administrations}">
                 <DataGrid.Columns>
                     <DataGridTextColumn Header="Drug" Binding="{Binding DrugName}" Width="*"/>
-                    <DataGridTextColumn Header="Dose Given" Binding="{Binding DoseGiven}" Width="100"/>
-                    <DataGridTextColumn Header="Status" Binding="{Binding Status}" Width="100"/>
-                    <DataGridTextColumn Header="Given At" Binding="{Binding AdministeredTime, StringFormat=g}" Width="140"/>
+                    <DataGridTextColumn Header="Dose" Binding="{Binding Dosage}" Width="100"/>
+                    <DataGridTextColumn Header="Status" Binding="{Binding ActionStatus}" Width="100"/>
+                    <DataGridTextColumn Header="Given At" Binding="{Binding AdministrationDateTime, StringFormat=g}" Width="140"/>
                     <DataGridTextColumn Header="Nurse" Binding="{Binding AdministeredByName}" Width="160"/>
                 </DataGrid.Columns>
             </DataGrid>

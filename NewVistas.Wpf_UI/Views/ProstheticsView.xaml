@@ -27,11 +27,11 @@ file, You can obtain one at https://mozilla.org/MPL/2.0/.
                 <StackPanel>
                     <TextBlock Style="{StaticResource SectionHeader}" Text="Issue Prosthetic Item"/>
                     <TextBlock Style="{StaticResource FieldLabel}" Text="Item Name"/>
-                    <TextBox Text="{Binding ItemName, UpdateSourceTrigger=PropertyChanged}" Width="400" HorizontalAlignment="Left"/>
-                    <TextBlock Style="{StaticResource FieldLabel}" Text="Item Type"/>
-                    <ComboBox ItemsSource="{Binding ItemTypeOptions}" SelectedItem="{Binding ItemType}" Width="200" HorizontalAlignment="Left"/>
-                    <TextBlock Style="{StaticResource FieldLabel}" Text="Vendor"/>
-                    <TextBox Text="{Binding VendorName, UpdateSourceTrigger=PropertyChanged}" Width="300" HorizontalAlignment="Left"/>
+                    <TextBox Text="{Binding ItemDescription, UpdateSourceTrigger=PropertyChanged}" Width="400" HorizontalAlignment="Left"/>
+                    <TextBlock Style="{StaticResource FieldLabel}" Text="Category"/>
+                    <ComboBox ItemsSource="{Binding CategoryOptions}" SelectedItem="{Binding ItemCategory}" Width="200" HorizontalAlignment="Left"/>
+                    <TextBlock Style="{StaticResource FieldLabel}" Text="HCPCS Code"/>
+                    <TextBox Text="{Binding HcpcsCode, UpdateSourceTrigger=PropertyChanged}" Width="300" HorizontalAlignment="Left"/>
                     <TextBlock Style="{StaticResource FieldLabel}" Text="Cost ($)"/>
                     <TextBox Text="{Binding Cost, UpdateSourceTrigger=PropertyChanged}" Width="120" HorizontalAlignment="Left"/>
                     <StackPanel Orientation="Horizontal" Margin="0,12,0,0">
@@ -43,14 +43,13 @@ file, You can obtain one at https://mozilla.org/MPL/2.0/.
                 </StackPanel>
             </Border>
 
-            <DataGrid ItemsSource="{Binding Prosthetics}">
+            <DataGrid ItemsSource="{Binding Items}">
                 <DataGrid.Columns>
-                    <DataGridTextColumn Header="Item Name" Binding="{Binding ItemName}" Width="*"/>
-                    <DataGridTextColumn Header="Type" Binding="{Binding ItemType}" Width="130"/>
+                    <DataGridTextColumn Header="Item Name" Binding="{Binding ItemDescription}" Width="*"/>
+                    <DataGridTextColumn Header="HCPCS" Binding="{Binding HcpcsCode}" Width="130"/>
                     <DataGridTextColumn Header="Status" Binding="{Binding Status}" Width="100"/>
-                    <DataGridTextColumn Header="Issue Date" Binding="{Binding IssueDate, StringFormat=d}" Width="110"/>
-                    <DataGridTextColumn Header="Vendor" Binding="{Binding VendorName}" Width="160"/>
-                    <DataGridTextColumn Header="Cost" Binding="{Binding Cost, StringFormat=C}" Width="90"/>
+                    <DataGridTextColumn Header="Issue Date" Binding="{Binding DateIssued, StringFormat=d}" Width="110"/>
+                    <DataGridCheckBoxColumn Header="SC" Binding="{Binding IsServiceConnected}" IsReadOnly="True" Width="60"/>
                 </DataGrid.Columns>
             </DataGrid>
         </StackPanel>

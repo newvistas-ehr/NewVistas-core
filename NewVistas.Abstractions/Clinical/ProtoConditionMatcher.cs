@@ -123,6 +123,24 @@ public static class ProtoConditionMatcher
     private static (bool, bool, string) EvalLab(ProtoFeature f, PatientFeatureSnapshot s)
     {
         SnapshotLab? lab = s.Labs.FirstOrDefault(l => Norm(l.Loinc) == Norm(f.Code));
+
+        // Absent means "no result on file" and is decided BEFORE the early return below.
+        // Previously this method returned "no result" (unassessed) whenever the lab was
+        // missing, so Absent could never be satisfied — "tested and negative" and "never
+        // tested" both scored zero, and the record could not tell them apart. Symptoms,
+        // diagnoses and exposures already handled Absent correctly; labs were the odd one out,
+        // which matters because "the etiologic workup was not done" is exactly the signal an
+        // undiagnosed cluster is made of.
+        if (f.Operator == ProtoFeatureOperator.Absent)
+        {
+            bool stale = lab is not null && IsStale(lab.ResultedDate, f.RecencyWindowDays, s.AssembledAt);
+            if (lab is null)
+                return (true, true, "no result on file");
+            if (stale)
+                return (true, true, $"only a stale result ({Fmt(lab.ResultedDate)})");
+            return (false, true, $"result present '{lab.Value}'");
+        }
+
         if (lab is null)
             return (false, false, "no result");
         if (IsStale(lab.ResultedDate, f.RecencyWindowDays, s.AssembledAt))
@@ -132,8 +150,11 @@ public static class ProtoConditionMatcher
         {
             case ProtoFeatureOperator.Present:
                 return (true, true, $"result '{lab.Value}'");
-            case ProtoFeatureOperator.Absent:
-                return (false, true, $"result present '{lab.Value}'");
+            case ProtoFeatureOperator.Abnormal:
+                // "Abnormal, whatever the number" — uses the lab's own flag rather than making
+                // the definition restate a reference range per analyte.
+                bool abnormal = lab.AbnormalFlag != LabAbnormalFlag.Normal;
+                return (abnormal, true, abnormal ? $"{lab.AbnormalFlag} '{lab.Value}'" : $"normal '{lab.Value}'");
             case ProtoFeatureOperator.Equals:
                 bool eq = string.Equals(lab.Value.Trim(), f.Value?.Trim(), StringComparison.OrdinalIgnoreCase);
                 return (eq, true, $"'{lab.Value}'");

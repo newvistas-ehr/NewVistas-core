@@ -1,4 +1,4 @@
-// Copyright 2026 Merrimack Valley Software Works, LLC. All rights reserved.
+﻿// Copyright 2026 Merrimack Valley Software Works, LLC. All rights reserved.
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
@@ -246,38 +246,8 @@ public class EdisController : ControllerBase
     {
         try
         {
-            var demoVisits = new[]
-            {
-                ("PATIENT-ED-001", "JONES,MICHAEL R", "Chest pain, radiating to left arm", "AMBULANCE", 2, "TRAUMA-1", "DR. MARTINEZ"),
-                ("PATIENT-ED-002", "SMITH,SARAH L", "Laceration right forearm", "WALK_IN", 4, "FAST-TRACK-1", null as string),
-                ("PATIENT-ED-003", "WILLIAMS,JAMES T", "Shortness of breath, fever", "WALK_IN", 3, "ED-BAY-3", "DR. CHEN"),
-                ("PATIENT-ED-004", "BROWN,PATRICIA A", "Fall with hip pain", "AMBULANCE", 3, "ED-BAY-5", "DR. MARTINEZ"),
-                ("PATIENT-ED-005", "DAVIS,ROBERT K", "Abdominal pain, nausea", "WALK_IN", 3, null as string, null as string),
-                ("PATIENT-ED-006", "MILLER,JENNIFER M", "Headache, worst of life", "AMBULANCE", 2, "RESUS-1", "DR. PATEL"),
-            };
-
-            var board = GetBoardGrain();
-            foreach (var (patId, name, complaint, mode, acuity, bed, doc) in demoVisits)
-            {
-                string visitId = $"EDVIS-DEMO-{Guid.NewGuid():N}";
-                var grain = _grainFactory.GetGrain<IEdVisitGrain>($"ED-VISIT:{visitId}");
-                var arrival = DateTime.UtcNow.AddMinutes(-Random.Shared.Next(10, 180));
-                await grain.RegisterArrivalAsync(patId, name, complaint, mode, arrival);
-                await grain.TriageAsync(acuity, "NURSE-ED-001", "TRIAGE NURSE");
-                if (bed != null) await grain.AssignBedAsync(bed);
-                if (doc != null) await grain.AssignPhysicianAsync("PROV-ED", doc);
-
-                string status = bed != null ? "IN_TREATMENT" : "WAITING";
-                await board.AddOrUpdateVisitAsync(new EdBoardEntry
-                {
-                    VisitId = visitId, PatientName = name, ChiefComplaint = complaint,
-                    AcuityLevel = acuity, AssignedBed = bed, AttendingPhysicianName = doc,
-                    Status = status, ArrivalDateTime = arrival, ArrivalMode = mode,
-                    WaitMinutes = (int)(DateTime.UtcNow - arrival).TotalMinutes
-                });
-            }
-
-            return Ok(new { Message = $"Loaded {demoVisits.Length} demo ED visits." });
+            await GetBoardGrain().SeedDemoDataAsync();
+            return Ok(new { Message = "Loaded demo ED visits." });
         }
         catch (Exception ex)
         {

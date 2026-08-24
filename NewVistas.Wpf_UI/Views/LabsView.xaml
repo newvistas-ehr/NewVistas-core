@@ -28,9 +28,12 @@ file, You can obtain one at https://mozilla.org/MPL/2.0/.
                 <StackPanel>
                     <TextBlock Style="{StaticResource SectionHeader}" Text="Order Lab Test"/>
                     <TextBlock Style="{StaticResource FieldLabel}" Text="Test Name"/>
-                    <TextBox Text="{Binding NewTestName, UpdateSourceTrigger=PropertyChanged}" Width="300" HorizontalAlignment="Left"/>
-                    <TextBlock Style="{StaticResource FieldLabel}" Text="Priority"/>
-                    <ComboBox ItemsSource="{Binding PriorityOptions}" SelectedItem="{Binding NewPriority}"
+                    <TextBox Text="{Binding TestName, UpdateSourceTrigger=PropertyChanged}" Width="300" HorizontalAlignment="Left"/>
+                    <TextBlock Style="{StaticResource FieldLabel}" Text="Specimen"/>
+                    <ComboBox ItemsSource="{Binding SpecimenTypes}" SelectedItem="{Binding SpecimenType}"
+                              Width="160" HorizontalAlignment="Left"/>
+                    <TextBlock Style="{StaticResource FieldLabel}" Text="Category"/>
+                    <ComboBox ItemsSource="{Binding Categories}" SelectedItem="{Binding Category}"
                               Width="160" HorizontalAlignment="Left"/>
                     <StackPanel Orientation="Horizontal" Margin="0,12,0,0">
                         <Button Content="Order" Style="{StaticResource PrimaryButton}"
@@ -46,9 +49,8 @@ file, You can obtain one at https://mozilla.org/MPL/2.0/.
                     <DataGridTextColumn Header="Test" Binding="{Binding TestName}" Width="*"/>
                     <DataGridTextColumn Header="Result" Binding="{Binding ResultValue}" Width="120"/>
                     <DataGridTextColumn Header="Units" Binding="{Binding Units}" Width="80"/>
-                    <DataGridTextColumn Header="Ref Range" Binding="{Binding ReferenceRange}" Width="120"/>
-                    <DataGridTextColumn Header="Flag" Binding="{Binding AbnormalFlag}" Width="60"/>
-                    <DataGridTextColumn Header="Date" Binding="{Binding SpecimenDate, StringFormat=d}" Width="100"/>
+                    <DataGridTextColumn Header="Flag" Binding="{Binding Flag}" Width="60"/>
+                    <DataGridTextColumn Header="Date" Binding="{Binding CollectionDate, StringFormat=d}" Width="100"/>
                     <DataGridTextColumn Header="Status" Binding="{Binding Status}" Width="90"/>
                 </DataGrid.Columns>
             </DataGrid>

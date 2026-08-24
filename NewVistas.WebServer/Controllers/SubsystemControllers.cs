@@ -1,4 +1,4 @@
-// Copyright 2026 Merrimack Valley Software Works, LLC. All rights reserved.
+﻿// Copyright 2026 Merrimack Valley Software Works, LLC. All rights reserved.
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
@@ -261,9 +261,10 @@ public class RadiologyController : ControllerBase
 
     [HttpPost] public async Task<IActionResult> Order(string patientId, [FromBody] OrderRadiologyReq r)
     {
-        var id = await W(patientId).OrderRadiologyStudyAsync(r.ProcedureName, r.ProcedureId, r.CptCode, r.ImagingType,
+        // CPOE: creates the linked ORDER #100 so the study shows on the Orders tab.
+        var id = await W(patientId).PlaceRadiologyOrderAsync(r.ProcedureName, r.ProcedureId, r.CptCode, r.ImagingType,
             r.RequestingProviderId, r.RequestingProviderName, r.Urgency, r.ClinicalHistory, r.ReasonForStudy,
-            r.OrderId, r.LocationId, r.LocationName);
+            r.LocationId, r.LocationName);
         return Created($"api/patient/{patientId}/radiology/{id}", new { RadiologyId = id });
     }
 

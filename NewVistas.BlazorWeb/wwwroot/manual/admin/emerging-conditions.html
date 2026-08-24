@@ -58,6 +58,55 @@
           problem-list recoding (with a citation back to the cluster).</li>
       </ol>
 
+      <h2>Drafts proposed by clinicians</h2>
+      <p>
+        A treating clinician who screens a patient and finds that nothing matches can propose a
+        <strong>draft</strong> cluster from that patient's record — the symptoms marked present, any
+        etiologic tests that came back negative, and any abnormal results. Those arrive in your cluster
+        list badged <span class="k">Draft</span>, with the proposing patient already suggested as the
+        index case.
+      </p>
+      <p>
+        A draft is inert: no chart shows it, no precaution banner fires, and no sweep runs against it
+        until <strong>you</strong> activate it. Treat the features as a starting point rather than a case
+        definition — a draft derived from a single patient fits that patient exactly and generalises to
+        nothing, and it says so in its own description. Broaden the features and weights, set a sensible
+        threshold, then activate.
+      </p>
+
+      <h2>Promotion is a one-way door</h2>
+      <p>
+        Promoting asks you to confirm, because it cannot be undone. The definition freezes permanently,
+        every remaining candidate is expired, and there is no un-promote — a promoted cluster cannot even
+        be retired. Set <strong>Effective from</strong> if you know when the condition began; it becomes
+        the onset date on every recoded problem.
+      </p>
+      <p>
+        Each confirmed member then appears on a worklist with <strong>Recode</strong> and
+        <strong>Skip</strong>. Nothing is written to a patient's chart until you click Recode — and a
+        member you skip by mistake can be put back with <strong>Reopen</strong>.
+      </p>
+      <div class="note">
+        <strong>What a Recode does to the chart.</strong> It adds the coded diagnosis with a structured
+        citation back to the cluster, and — when the patient was carrying exactly one working diagnosis
+        recorded as suspected, provisional or differential — marks that one superseded and links the two,
+        so the chart reads as one condition with a history rather than two overlapping diagnoses. If the
+        patient had no such working diagnosis, or more than one, the system <em>does not guess</em>: the
+        coded problem is added on its own and the worklist records why. Retiring the wrong active
+        diagnosis would be worse than leaving you two rows to reconcile.
+      </div>
+      <div class="note">
+        A recode is <strong>not</strong> counted as a misdiagnosis. The code set moved; nobody was wrong.
+        It stays out of the revision-rate numerator and out of its denominator, so promoting a cluster
+        with hundreds of members cannot shift any figure the
+        <a href="../doctor/diagnostic-stewardship.html">diagnostic stewardship</a> advisory reports.
+      </div>
+      <div class="note">
+        Between promotion and recode, a member's precaution banner <strong>stays up</strong>. They have no
+        coded diagnosis yet, so removing the banner at that moment would leave an infection-control
+        patient with neither. It stands down once their problem list carries the code.
+      </div>
+
       <h2>Reading the analytics honestly</h2>
       <p>
         Rates divide by the patients you <em>actually asked</em> (the assessed denominator), never by the

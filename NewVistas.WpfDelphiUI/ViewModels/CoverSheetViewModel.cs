@@ -1,4 +1,4 @@
-// Copyright 2026 Merrimack Valley Software Works, LLC. All rights reserved.
+﻿// Copyright 2026 Merrimack Valley Software Works, LLC. All rights reserved.
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
@@ -111,20 +111,20 @@ public sealed partial class CoverSheetViewModel : ChartTabViewModelBase
     public string AcrExamText => ExamLine("ACR (nephropathy)",
         DiabetesSnapshot?.LastAcrDate, DiabetesSnapshot?.AcrStatus);
 
-    public CoverSheetViewModel(ApiClient api, PatientContext context)
-        : base(api, context) { }
+    public CoverSheetViewModel(ChartDataService data, PatientContext context)
+        : base(data, context) { }
 
     public void Refresh() => _ = ReloadAsync();
 
     protected override async Task LoadAsync()
     {
-        var problems   = Api.GetProblemsAsync(PatientId);
-        var allergies  = Api.GetAllergiesAsync(PatientId);
-        var orders     = Api.GetOrdersAsync(PatientId);
-        var appts      = Api.GetAppointmentsAsync(PatientId);
-        var vitals     = Api.GetVitalsAsync(PatientId);
-        var labs       = Api.GetAbnormalLabsAsync(PatientId);
-        var reminders  = Api.GetRemindersAsync(PatientId);
+        var problems   = Data.GetProblemsAsync(PatientId);
+        var allergies  = Data.GetAllergiesAsync(PatientId);
+        var orders     = Data.GetOrdersAsync(PatientId);
+        var appts      = Data.GetAppointmentsAsync(PatientId);
+        var vitals     = Data.GetVitalsAsync(PatientId);
+        var labs       = Data.GetAbnormalLabsAsync(PatientId);
+        var reminders  = Data.GetRemindersAsync(PatientId);
         var dmSnapshot = SafeGetDiabetesSnapshotAsync();
         var dmPlan     = SafeGetDiabetesPreVisitPlanAsync();
 
@@ -153,13 +153,13 @@ public sealed partial class CoverSheetViewModel : ChartTabViewModelBase
     /// </summary>
     private async Task<DiabetesRegistrySnapshotDto?> SafeGetDiabetesSnapshotAsync()
     {
-        try { return await Api.GetDiabetesSnapshotAsync(PatientId); }
+        try { return await Data.GetDiabetesSnapshotAsync(PatientId); }
         catch { return null; }
     }
 
     private async Task<DiabetesPreVisitPlanDto?> SafeGetDiabetesPreVisitPlanAsync()
     {
-        try { return await Api.GetDiabetesPreVisitPlanAsync(PatientId); }
+        try { return await Data.GetDiabetesPreVisitPlanAsync(PatientId); }
         catch { return null; }
     }
 

@@ -23,6 +23,27 @@ public interface IProtoConditionGrain : IGrainWithStringKey
     [RequiresSecurityKey(SecurityKeys.EPI_MANAGER)]
     Task CreateAsync(string name, string description, string createdBy);
 
+    /// <summary>
+    /// Draft a cluster from one patient's feature snapshot — the "this matches nothing I know"
+    /// gesture. Seeds features from the patient's present symptoms, negative etiologic results
+    /// and abnormal labs.
+    ///
+    /// Deliberately open to a treating clinician (not just <c>EPI MANAGER</c>), because the
+    /// person who notices that nothing fits is at the bedside, not in the epidemiology office.
+    /// Nobody noticed for weeks in late 2019, and the noticing is the step that failed.
+    ///
+    /// <b>Always creates at <see cref="GrainStates.ProtoConditionStatus.Draft"/> and offers no
+    /// way to create anything else.</b> Draft is already excluded by
+    /// <c>ProtoConditionIndexGrain.GetActiveAsync</c>, so the cluster is invisible to every
+    /// chart, banner and sweep until an epidemiologist activates it — assemble automatically,
+    /// publish never. That matters because naming a cluster creates its population: once a named
+    /// entity is visible, ambiguous cases get attributed to it, which grows the cohort, which
+    /// appears to confirm it.
+    /// </summary>
+    [RequiresSecurityKey(SecurityKeys.PROVIDER, SecurityKeys.ORELSE, SecurityKeys.EPI_MANAGER)]
+    Task<ProtoConditionState> ProposeFromPatientAsync(
+        PatientFeatureSnapshot snapshot, string workingName, string proposedBy);
+
     /// <summary>Adds or replaces a feature (matched by <c>FeatureId</c>). Bumps the definition version.</summary>
     [RequiresSecurityKey(SecurityKeys.EPI_MANAGER)]
     Task AddOrUpdateFeatureAsync(ProtoFeature feature, string byUser);
@@ -84,6 +105,7 @@ public interface IProtoConditionGrain : IGrainWithStringKey
     /// coded encounters flow into the official reporting pipeline.
     /// </summary>
     [RequiresSecurityKey(SecurityKeys.EPI_MANAGER)]
+    [AuditAction("SURVEILLANCE", "PROMOTE", EntityType = "PROTO")]
     Task PromoteAsync(string officialName, List<string> icd10Codes, string? snomedCode,
         DateTime? effectiveFrom, List<string> jurisdictions, string notes, string byUser);
 

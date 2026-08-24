@@ -1,4 +1,4 @@
-// Copyright 2026 Merrimack Valley Software Works, LLC. All rights reserved.
+﻿// Copyright 2026 Merrimack Valley Software Works, LLC. All rights reserved.
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
@@ -128,23 +128,10 @@ public class DrgController : ControllerBase
     {
         try
         {
-            var demoAdmissions = new[]
-            {
-                ("ADM-DRG-001", "PATIENT-001", "JONES,MICHAEL R", "I50.9", "Heart failure, unspecified", new List<string> { "E11.9", "I10", "N18.3" }, new List<string>(), 72, "M", "HOME", 5),
-                ("ADM-DRG-002", "PATIENT-002", "SMITH,SARAH L", "J18.9", "Pneumonia, unspecified", new List<string> { "J44.1" }, new List<string>(), 68, "F", "HOME", 4),
-                ("ADM-DRG-003", "PATIENT-003", "WILLIAMS,JAMES T", "M17.11", "Primary osteoarthritis, right knee", new List<string>(), new List<string> { "0SRC0JZ" }, 65, "M", "HOME", 2),
-                ("ADM-DRG-004", "PATIENT-004", "BROWN,PATRICIA A", "A41.9", "Sepsis, unspecified", new List<string> { "R65.20", "N17.9", "J96.01" }, new List<string>(), 78, "F", "SNF", 8),
-            };
-
-            foreach (var (admId, patId, name, dx, dxDesc, secDx, procs, age, sex, dcStatus, los) in demoAdmissions)
-            {
-                var grain = _grainFactory.GetGrain<IDrgAssignmentGrain>($"DRG:{admId}");
-                await grain.AssignDrgAsync(patId, name, dx, dxDesc, secDx, procs, age, sex, dcStatus, los);
-                DrgAssignmentState state = await grain.GetAssignmentAsync();
-                await SyncIndexAsync(facilityId, state);
-            }
-
-            return Ok(new { Message = $"Loaded {demoAdmissions.Length} demo DRG assignments." });
+            // Delegates to the index grain, which owns the seed. Internal UIs call that grain
+            // directly; this endpoint exists for external callers and scripted setup.
+            await _grainFactory.GetGrain<IDrgIndexGrain>($"DRG-INDEX:{facilityId}").SeedDemoDataAsync();
+            return Ok(new { Message = "Loaded demo DRG assignments." });
         }
         catch (Exception ex)
         {

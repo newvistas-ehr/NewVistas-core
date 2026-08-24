@@ -306,6 +306,7 @@ using (var scope = app.Services.CreateScope())
     await MaternalNewbornSeed.SeedAsync(grainFactory, seedLogger);   // P9002 mother + newborn (maternity + neonatal demo)
     await PretermNicuSeed.SeedAsync(grainFactory, seedLogger);       // P9003 mother + preterm NICU newborn (Phase 2 NICU depth)
     await PharmacogenomicsSeed.SeedAsync(grainFactory, seedLogger);  // P9001 PGx profile (drug-gene DUR demo)
+    await BoneHealthSeed.SeedAsync(grainFactory, seedLogger);        // P9001 structured DXA + serial CTX/P1NP (osteoporosis trajectory)
     await HereditaryGeneticsSeed.SeedAsync(grainFactory, seedLogger);// P9004 hereditary cancer (germline + family history)
     await SpecialtyCoverSheetSeed.SeedAsync(grainFactory, seedLogger); // P9001 rotator-cuff surgery + shoulder MRI (specialty cover-sheet prototype)
     await PersonIdentitySeed.SeedAsync(grainFactory, seedLogger);      // P9005 nurse-patient + P9006/P9007 mother-patient-relative (Person identity ADR-002)
@@ -313,6 +314,8 @@ using (var scope = app.Services.CreateScope())
     await EmergingConditionSeed.SeedAsync(grainFactory, seedLogger);  // P9201-P9214 novel respiratory cluster + controls (ProtoCondition ADR-004)
     await SocialCareSeed.SeedAsync(grainFactory, seedLogger);         // P9301 household + closed-loop SDOH screen (Whole-Person Social Care ADR-005)
     await ProcedurePriorAuthSeed.SeedAsync(grainFactory, seedLogger); // P9001 TKA→BCBS-FL denied-then-approved (procedure PA + requirements intelligence)
+
+
     await SeedDemoCareTeamsAsync(app.Services, seedLogger);   // assigns P9001 now; P1..P30 skipped until imported
 
     // Auto-import demo patients if none exist
@@ -624,6 +627,11 @@ static async Task<Dictionary<int, string>> SeedDemoUsersAsync(IServiceProvider s
                 providerType: u.ProviderType, specialty: u.Specialty,
                 institutionId: "INST-500", institutionName: "VA MEDICAL CENTER",
                 divisionId: "DIV-500", divisionName: "MAIN DIVISION");
+            // Demo electronic signature code — the value the human test scripts already
+            // document. Without it VerifyElectronicSignatureAsync returns false for every
+            // demo user, so nobody can sign a note.
+            await existingPerson.SetElectronicSignatureHashAsync(
+                NewVistas.Abstractions.Security.ElectronicSignature.Hash(demoPassword));
             continue;
         }
 
@@ -662,6 +670,8 @@ static async Task<Dictionary<int, string>> SeedDemoUsersAsync(IServiceProvider s
             institutionName: "VA MEDICAL CENTER",
             divisionId: "DIV-500",
             divisionName: "MAIN DIVISION");
+        await personGrain.SetElectronicSignatureHashAsync(
+            NewVistas.Abstractions.Security.ElectronicSignature.Hash(demoPassword));
 
         logger.LogInformation("Seeded demo user: {User} ({Name}) — roles: {Roles}",
             u.UserName, u.DisplayName, string.Join(", ", u.Roles));

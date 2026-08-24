@@ -103,36 +103,40 @@ file, You can obtain one at https://mozilla.org/MPL/2.0/.
                     <TextBlock Style="{StaticResource SectionHeader}" Text="Record Vitals"/>
                     <UniformGrid Columns="3">
                         <StackPanel Margin="0,0,16,0">
-                            <TextBlock Style="{StaticResource FieldLabel}" Text="Blood Pressure (e.g. 120/80)"/>
-                            <TextBox Text="{Binding NewBloodPressure, UpdateSourceTrigger=PropertyChanged}"/>
+                            <TextBlock Style="{StaticResource FieldLabel}" Text="Blood Pressure (Systolic / Diastolic)"/>
+                            <StackPanel Orientation="Horizontal">
+                                <TextBox Text="{Binding BloodPressureSystolic, UpdateSourceTrigger=PropertyChanged}" Width="56"/>
+                                <TextBlock Text="/" VerticalAlignment="Center" Margin="4,0"/>
+                                <TextBox Text="{Binding BloodPressureDiastolic, UpdateSourceTrigger=PropertyChanged}" Width="56"/>
+                            </StackPanel>
                         </StackPanel>
                         <StackPanel Margin="0,0,16,0">
                             <TextBlock Style="{StaticResource FieldLabel}" Text="Pulse (bpm)"/>
-                            <TextBox Text="{Binding NewPulse, UpdateSourceTrigger=PropertyChanged}"/>
+                            <TextBox Text="{Binding Pulse, UpdateSourceTrigger=PropertyChanged}"/>
                         </StackPanel>
                         <StackPanel>
                             <TextBlock Style="{StaticResource FieldLabel}" Text="Temperature (°F)"/>
-                            <TextBox Text="{Binding NewTemperature, UpdateSourceTrigger=PropertyChanged}"/>
+                            <TextBox Text="{Binding Temperature, UpdateSourceTrigger=PropertyChanged}"/>
                         </StackPanel>
                         <StackPanel Margin="0,8,16,0">
                             <TextBlock Style="{StaticResource FieldLabel}" Text="Resp Rate"/>
-                            <TextBox Text="{Binding NewRespiratoryRate, UpdateSourceTrigger=PropertyChanged}"/>
+                            <TextBox Text="{Binding Respiration, UpdateSourceTrigger=PropertyChanged}"/>
                         </StackPanel>
                         <StackPanel Margin="0,8,16,0">
                             <TextBlock Style="{StaticResource FieldLabel}" Text="O2 Sat (%)"/>
-                            <TextBox Text="{Binding NewOxygenSaturation, UpdateSourceTrigger=PropertyChanged}"/>
+                            <TextBox Text="{Binding OxygenSaturation, UpdateSourceTrigger=PropertyChanged}"/>
                         </StackPanel>
                         <StackPanel Margin="0,8,0,0">
                             <TextBlock Style="{StaticResource FieldLabel}" Text="Weight (lbs)"/>
-                            <TextBox Text="{Binding NewWeight, UpdateSourceTrigger=PropertyChanged}"/>
+                            <TextBox Text="{Binding Weight, UpdateSourceTrigger=PropertyChanged}"/>
                         </StackPanel>
                         <StackPanel Margin="0,8,16,0">
                             <TextBlock Style="{StaticResource FieldLabel}" Text="Height (in)"/>
-                            <TextBox Text="{Binding NewHeight, UpdateSourceTrigger=PropertyChanged}"/>
+                            <TextBox Text="{Binding Height, UpdateSourceTrigger=PropertyChanged}"/>
                         </StackPanel>
                         <StackPanel Margin="0,8,0,0">
                             <TextBlock Style="{StaticResource FieldLabel}" Text="Pain Score (0-10)"/>
-                            <TextBox Text="{Binding NewPainScore, UpdateSourceTrigger=PropertyChanged}"/>
+                            <TextBox Text="{Binding Pain, UpdateSourceTrigger=PropertyChanged}"/>
                         </StackPanel>
                     </UniformGrid>
                     <StackPanel Orientation="Horizontal" Margin="0,12,0,0">

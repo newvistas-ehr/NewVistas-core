@@ -165,12 +165,12 @@ public class MentalHealthGrain : Grain, IMentalHealthGrain
     {
         decimal totalScore = _state.State.ItemResponses.Sum(r => r.ResponseValue);
         _state.State.TotalScore = totalScore;
-        _state.State.ScoringMethodUsed = "AUTO";
 
         string instrumentName = _state.State.InstrumentName.ToUpperInvariant();
         string? interpretation = null;
         bool? isPositive = null;
         string? recommendation = null;
+        bool hasScoringDefinition = false;
 
         // Try to look up from the instrument library grain
         IMentalHealthInstrumentLibraryGrain library = GrainFactory.GetGrain<IMentalHealthInstrumentLibraryGrain>("MH-INSTRUMENTS");
@@ -178,6 +178,7 @@ public class MentalHealthGrain : Grain, IMentalHealthGrain
 
         if (definition != null && definition.ScoreRanges.Count > 0)
         {
+            hasScoringDefinition = true;
             foreach (GrainStates.MhScoreRange range in definition.ScoreRanges)
             {
                 if (totalScore >= range.MinScore && totalScore <= range.MaxScore)
@@ -195,6 +196,7 @@ public class MentalHealthGrain : Grain, IMentalHealthGrain
             switch (instrumentName)
             {
                 case "PHQ-9":
+                    hasScoringDefinition = true;
                     isPositive = totalScore >= 10;
                     interpretation = totalScore switch
                     {
@@ -215,6 +217,7 @@ public class MentalHealthGrain : Grain, IMentalHealthGrain
                     break;
 
                 case "GAD-7":
+                    hasScoringDefinition = true;
                     isPositive = totalScore >= 10;
                     interpretation = totalScore switch
                     {
@@ -233,6 +236,7 @@ public class MentalHealthGrain : Grain, IMentalHealthGrain
                     break;
 
                 case "AUDIT-C":
+                    hasScoringDefinition = true;
                     isPositive = totalScore >= 4;
                     interpretation = totalScore < 4 ? "NEGATIVE" : "POSITIVE";
                     recommendation = totalScore < 4
@@ -241,6 +245,7 @@ public class MentalHealthGrain : Grain, IMentalHealthGrain
                     break;
 
                 case "PCL-5":
+                    hasScoringDefinition = true;
                     isPositive = totalScore >= 31;
                     interpretation = totalScore < 31 ? "SUBTHRESHOLD" : "PROBABLE PTSD";
                     recommendation = totalScore < 31
@@ -251,6 +256,7 @@ public class MentalHealthGrain : Grain, IMentalHealthGrain
                 case "COLUMBIA SUICIDE SEVERITY":
                 case "COLUMBIA":
                 case "C-SSRS":
+                    hasScoringDefinition = true;
                     isPositive = _state.State.ItemResponses.Any(r => r.ItemNumber >= 1 && r.ItemNumber <= 5 && r.ResponseValue > 0);
                     interpretation = isPositive == true ? "POSITIVE" : "NEGATIVE";
                     recommendation = isPositive == true
@@ -259,6 +265,15 @@ public class MentalHealthGrain : Grain, IMentalHealthGrain
                     break;
             }
         }
+
+        // Only claim AUTO scoring when a real scoring definition (library or
+        // built-in fallback) produced the result. An unrecognized instrument
+        // still gets its raw item-response sum, but the method is labeled
+        // explicitly so the record is not mistaken for a validated screen.
+        string scoringMethod = hasScoringDefinition
+            ? "AUTO"
+            : "RAW-SUM (no scoring definition for this instrument)";
+        _state.State.ScoringMethodUsed = scoringMethod;
 
         _state.State.ScoreInterpretation = interpretation;
         _state.State.IsPositiveScreen = isPositive;
@@ -278,7 +293,7 @@ public class MentalHealthGrain : Grain, IMentalHealthGrain
                 TotalScore = totalScore,
                 ScoreInterpretation = interpretation,
                 IsPositiveScreen = isPositive,
-                ScoringMethod = "AUTO"
+                ScoringMethod = scoringMethod
             };
             _state.State.PendingEvents.Add(EventEnvelope.Wrap(evt));
         }

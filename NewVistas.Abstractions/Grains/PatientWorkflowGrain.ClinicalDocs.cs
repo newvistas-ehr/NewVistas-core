@@ -1,4 +1,4 @@
-// Copyright 2026 Merrimack Valley Software Works, LLC. All rights reserved.
+﻿// Copyright 2026 Merrimack Valley Software Works, LLC. All rights reserved.
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
@@ -43,20 +43,54 @@ public partial class PatientWorkflowGrain
             HasAddenda = entry.HasAddenda
         };
 
-    private async Task SyncNoteToIndexAndCacheAsync(string documentId, TiuDocumentState state, bool isAddendum = false)
+    /// <summary>
+    /// Publishes a note change to everyone holding a copy: the per-patient note index and the
+    /// patient grain's recent-notes cache.
+    ///
+    /// This runs on create AND on every subsequent change (sign, cosign, amend, addendum), so
+    /// it has to distinguish the two. Two bugs came from not doing that:
+    ///
+    /// <list type="bullet">
+    /// <item>It always called <c>AddRecentNoteAsync</c>, which inserts at the front — so signing
+    /// a note put a second copy of it in the cover sheet, and amending added a third.</item>
+    /// <item>It skipped the cache entirely for a RETRACTED note, which left the retracted note
+    /// sitting in the cache: withdrawn from the record but still on display.</item>
+    /// </list>
+    ///
+    /// <paramref name="isNew"/> tells the two apart. Addenda are excluded from the cache by
+    /// design — they surface through their parent's HasAddenda flag.
+    /// </summary>
+    private async Task SyncNoteToIndexAndCacheAsync(
+        string documentId, TiuDocumentState state, bool isAddendum = false, bool isNew = false)
     {
         var indexEntry = BuildNoteIndexEntry(documentId, state, isAddendum);
 
         // Update the per-patient index
         await GetNoteIndexGrain().AddOrUpdateNoteAsync(indexEntry);
 
-        // Update the hot cache on the patient grain (top-level, non-retracted notes only)
-        if (!isAddendum && state.Status != "RETRACTED")
+        if (isAddendum) return;
+
+        IPatientGrain patient = GetPatientGrain();
+
+        // A retracted note must leave the display, not merely change status there.
+        if (state.Status == "RETRACTED")
+        {
+            await patient.RemoveRecentNoteAsync(documentId);
+            return;
+        }
+
+        TiuNoteSummary summary = IndexEntryToSummary(indexEntry);
+
+        if (isNew)
         {
             var siteGrain = GrainFactory.GetGrain<ISiteParametersGrain>("SITE:DEFAULT");
             int displayCount = await siteGrain.GetNotesDisplayCountAsync();
-            var summary = IndexEntryToSummary(indexEntry);
-            await GetPatientGrain().AddRecentNoteAsync(summary, displayCount);
+            await patient.AddRecentNoteAsync(summary, displayCount);
+        }
+        else
+        {
+            // Replace in place — no duplicate, and a no-op if it has aged out of the window.
+            await patient.UpdateRecentNoteAsync(summary);
         }
     }
 
@@ -86,7 +120,7 @@ public partial class PatientWorkflowGrain
 
         // Populate index + hot cache
         var state = await tiuGrain.GetDocumentAsync();
-        await SyncNoteToIndexAndCacheAsync(documentId, state);
+        await SyncNoteToIndexAndCacheAsync(documentId, state, isNew: true);
 
         // The note author is now responsible for this patient — add to their panel.
         await EnsureProviderPanelAsync(authorId, "Note Author");
@@ -95,10 +129,17 @@ public partial class PatientWorkflowGrain
     }
 
     /// <summary>
-    /// Signs a TIU document. Mirrors TIUSRVA.m SIGN.
-    /// If cosigner is required, transitions to UNCOSIGNED; otherwise COMPLETED.
+    /// Signs a TIU document after verifying the caller's electronic-signature code — the
+    /// verification is here on the grain so no client can sign without it. Mirrors
+    /// TIUSRVA.m SIGN. If cosigner is required, transitions to UNCOSIGNED; otherwise COMPLETED.
     /// </summary>
-    public async Task SignNoteAsync(string documentId)
+    public async Task SignNoteAsync(string documentId, string signatureCode)
+    {
+        await VerifyElectronicSignatureCodeAsync(signatureCode);
+        await SignNoteCoreAsync(documentId);
+    }
+
+    private async Task SignNoteCoreAsync(string documentId)
     {
         var tiuGrain = GrainFactory.GetGrain<ITiuDocumentGrain>(documentId);
         await tiuGrain.SignDocumentAsync(DateTime.UtcNow);
@@ -110,10 +151,16 @@ public partial class PatientWorkflowGrain
     }
 
     /// <summary>
-    /// Cosigns a TIU document. Mirrors TIUSRVA.m COSIGN.
-    /// Transitions from UNCOSIGNED → COMPLETED.
+    /// Cosigns a TIU document after verifying the caller's electronic-signature code.
+    /// Mirrors TIUSRVA.m COSIGN. Transitions from UNCOSIGNED → COMPLETED.
     /// </summary>
-    public async Task CosignNoteAsync(string documentId)
+    public async Task CosignNoteAsync(string documentId, string signatureCode)
+    {
+        await VerifyElectronicSignatureCodeAsync(signatureCode);
+        await CosignNoteCoreAsync(documentId);
+    }
+
+    private async Task CosignNoteCoreAsync(string documentId)
     {
         var tiuGrain = GrainFactory.GetGrain<ITiuDocumentGrain>(documentId);
         await tiuGrain.CosignDocumentAsync(DateTime.UtcNow);
@@ -283,6 +330,15 @@ public partial class PatientWorkflowGrain
     public async Task CompleteConsultAsync(string consultId, string? resultNoteText,
         string? authorId, string? authorName)
     {
+        var consultGrain = GrainFactory.GetGrain<IConsultGrain>(consultId);
+
+        // Check the consult's status BEFORE filing any result note: the grain's
+        // CompleteAsync is a no-op on an already-COMPLETE consult, so a note created
+        // first would be orphaned — indexed but never linked to the consult.
+        ConsultState current = await consultGrain.GetConsultAsync();
+        if (current.Status == "COMPLETE")
+            return; // repeat completion is a no-op; original CompletedDateTime/ResultDocumentId stand
+
         string? resultDocumentId = null;
 
         // If result note text is provided, create a CONSULT NOTE TIU document
@@ -297,7 +353,6 @@ public partial class PatientWorkflowGrain
                 null, DateTime.UtcNow);
         }
 
-        var consultGrain = GrainFactory.GetGrain<IConsultGrain>(consultId);
         await consultGrain.CompleteAsync(DateTime.UtcNow, resultDocumentId);
     }
 
@@ -464,6 +519,36 @@ public partial class PatientWorkflowGrain
         return radiologyId;
     }
 
+    public async Task<string> PlaceRadiologyOrderAsync(
+        string procedureName, string? procedureId, string? cptCode, string? imagingType,
+        string? requestingProviderId, string? requestingProviderName,
+        string? urgency, string? clinicalHistory, string? reasonForStudy,
+        string? locationId, string? locationName)
+    {
+        // A radiology study IS a CPOE order (ORDER file #100) whose result is the report,
+        // exactly as a lab order is. Create the unified order first, pointing it at the study
+        // it fulfils (OrderableItemId), then record the study linked back to the order
+        // (OrderId) so filing the report can close it out.
+        string radiologyId = $"RAD-{Guid.NewGuid()}";
+        string providerId = string.IsNullOrWhiteSpace(requestingProviderId) ? "PROV-001" : requestingProviderId;
+        string providerName = requestingProviderName ?? string.Empty;
+
+        string radOrderId = await PlaceOrderAsync(
+            "Radiology", procedureName, radiologyId,
+            providerId, providerName, locationId, locationName,
+            string.IsNullOrWhiteSpace(urgency) ? "Routine" : urgency,
+            clinicalHistory, reasonForStudy);
+
+        var grain = GrainFactory.GetGrain<IRadiologyGrain>(radiologyId);
+        await grain.OrderStudyAsync(PatientId, procedureName, procedureId, cptCode, imagingType,
+            requestingProviderId, requestingProviderName, urgency, clinicalHistory, reasonForStudy,
+            radOrderId, locationId, locationName);
+
+        await AppendCappedIdAsync(PatientHistoryDomains.Radiology, radiologyId, DateTime.UtcNow);
+
+        return radiologyId;
+    }
+
     public async Task CompleteRadiologyAsync(string radiologyId, string? reportText, string? impression,
         string? interpretingPhysicianId, string? interpretingPhysicianName)
     {
@@ -473,6 +558,17 @@ public partial class PatientWorkflowGrain
             await grain.RecordReportAsync(reportText, impression, null,
                 interpretingPhysicianId, interpretingPhysicianName, DateTime.UtcNow);
         await grain.CompleteAsync();
+
+        // A filed report completes the CPOE order that requested it, so the study moves out of
+        // the active order view into completed/history — the same contract VerifyLabResultAsync
+        // honours for labs. Studies recorded in isolation (bulk imports, seeded historical
+        // studies) carry no OrderId and are left untouched.
+        RadiologyState study = await grain.GetRadiologyAsync();
+        if (!string.IsNullOrEmpty(study.OrderId))
+        {
+            await GrainFactory.GetGrain<IOrderGrain>(study.OrderId).CompleteOrderAsync(DateTime.UtcNow);
+            await PublishOrderChangedAsync(study.OrderId);
+        }
     }
 
     public async Task<RadiologyState> GetRadiologyStudyAsync(string radiologyId)

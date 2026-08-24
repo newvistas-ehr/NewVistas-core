@@ -14,6 +14,16 @@ public record SnapshotLab
     /// <summary>Raw result value as charted (may be non-numeric, e.g. "Negative").</summary>
     [Id(1)] public string Value { get; set; } = string.Empty;
     [Id(2)] public DateTime? ResultedDate { get; set; }
+
+    /// <summary>
+    /// The lab's own abnormal flag, carried through from <see cref="LabTestSummaryEntry"/>.
+    ///
+    /// Previously dropped when building the snapshot, which meant a cluster definition could
+    /// not say "abnormal, whatever the number" — it had to name a threshold per analyte. That
+    /// is why the seeded cluster describes itself as "flu-negative" in free prose: the model
+    /// could not express it.
+    /// </summary>
+    [Id(3)] public LabAbnormalFlag AbnormalFlag { get; set; }
 }
 
 /// <summary>A latest vital in a feature snapshot; BP is pre-split into SYS/DIA rows.</summary>

@@ -23,10 +23,10 @@ file, You can obtain one at https://mozilla.org/MPL/2.0/.
             <DataGrid ItemsSource="{Binding Patients}" AutoGenerateColumns="False">
                 <DataGrid.Columns>
                     <DataGridTextColumn Header="Patient Name" Binding="{Binding PatientName}" Width="*"/>
-                    <DataGridTextColumn Header="Risk Level" Binding="{Binding RiskLevel}" Width="120"/>
-                    <DataGridTextColumn Header="High Risk Flag" Binding="{Binding IsHighRisk}" Width="110"/>
-                    <DataGridTextColumn Header="Risk Set Date" Binding="{Binding RiskSetDate, StringFormat=d}" Width="130"/>
-                    <DataGridTextColumn Header="Next Follow-Up" Binding="{Binding NextFollowUpDate, StringFormat=d}" Width="130"/>
+                    <DataGridTextColumn Header="Risk Level" Binding="{Binding CurrentRiskLevel}" Width="120"/>
+                    <DataGridCheckBoxColumn Header="High Risk Flag" Binding="{Binding IsHighRiskFlagged}" Width="110"/>
+                    <DataGridTextColumn Header="Last Contact" Binding="{Binding LastContactDate, StringFormat=d}" Width="130"/>
+                    <DataGridTextColumn Header="Active Plans" Binding="{Binding ActivePlanCount}" Width="130"/>
                 </DataGrid.Columns>
             </DataGrid>
         </StackPanel>

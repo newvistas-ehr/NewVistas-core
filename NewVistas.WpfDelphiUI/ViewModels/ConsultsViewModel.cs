@@ -1,4 +1,4 @@
-// Copyright 2026 Merrimack Valley Software Works, LLC. All rights reserved.
+﻿// Copyright 2026 Merrimack Valley Software Works, LLC. All rights reserved.
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
@@ -84,15 +84,15 @@ public sealed partial class ConsultsViewModel : ChartTabViewModelBase
 
     public string[] PriorityClasses { get; } = ["I", "II", "III", "IV", "V"];
 
-    public ConsultsViewModel(ApiClient api, PatientContext context, AuthService auth)
-        : base(api, context)
+    public ConsultsViewModel(ChartDataService data, PatientContext context, AuthService auth)
+        : base(data, context)
     {
         _auth = auth;
     }
 
     protected override async Task LoadAsync()
     {
-        var consults = Api.GetConsultsAsync(PatientId);
+        var consults = Data.GetConsultsAsync(PatientId);
         var referrals = SafeGetReferralsAsync();
 
         await Task.WhenAll(consults, referrals);
@@ -110,7 +110,7 @@ public sealed partial class ConsultsViewModel : ChartTabViewModelBase
     /// </summary>
     private async Task<List<ExternalReferralDto>> SafeGetReferralsAsync()
     {
-        try { return await Api.GetExternalReferralsAsync(PatientId); }
+        try { return await Data.GetExternalReferralsAsync(PatientId); }
         catch { return []; }
     }
 
@@ -133,12 +133,7 @@ public sealed partial class ConsultsViewModel : ChartTabViewModelBase
         ErrorText = string.Empty;
         try
         {
-            await Api.RequestConsultAsync(PatientId, new
-            {
-                Service = NewService,
-                Reason = NewReason,
-                Urgency = NewUrgency
-            });
+            await Data.RequestConsultAsync(PatientId, NewService, NewReason, NewUrgency);
             NewService = string.Empty;
             NewReason = string.Empty;
             ShowRequestForm = false;
@@ -173,16 +168,10 @@ public sealed partial class ConsultsViewModel : ChartTabViewModelBase
         ErrorText = string.Empty;
         try
         {
-            var resp = await Api.RequestChsAuthorizationAsync(PatientId, SelectedReferral.ReferralId, new
-            {
-                EstimatedCost = cost,
-                MedicalPriorityClass = ChsPriorityClass,
-                AlternateResourcesChecked = ChsAlternateResourcesChecked,
-                AlternateResourcesNote = string.IsNullOrWhiteSpace(ChsAlternateResourcesNote) ? null : ChsAlternateResourcesNote,
-                RequestedById = _auth.UserId ?? string.Empty,
-                RequestedByName = _auth.DisplayName ?? _auth.UserName ?? string.Empty,
-            });
-            if (!resp.IsSuccessStatusCode) { ErrorText = $"Request failed: {resp.StatusCode}"; return; }
+            await Data.RequestChsAuthorizationAsync(
+                PatientId, SelectedReferral.ReferralId, cost, ChsPriorityClass,
+                ChsAlternateResourcesChecked,
+                string.IsNullOrWhiteSpace(ChsAlternateResourcesNote) ? null : ChsAlternateResourcesNote);
             ShowChsForm = false;
             await ReloadAsync();
         }
@@ -201,14 +190,9 @@ public sealed partial class ConsultsViewModel : ChartTabViewModelBase
         ErrorText = string.Empty;
         try
         {
-            var resp = await Api.ApproveChsAuthorizationAsync(PatientId, SelectedReferral.ReferralId, new
-            {
-                AuthorizedAmount = amount,
-                AuthorizationNumber = string.IsNullOrWhiteSpace(ChsAuthorizationNumber) ? null : ChsAuthorizationNumber,
-                ApprovedById = _auth.UserId ?? string.Empty,
-                ApprovedByName = _auth.DisplayName ?? _auth.UserName ?? string.Empty,
-            });
-            if (!resp.IsSuccessStatusCode) { ErrorText = $"Approve failed: {resp.StatusCode}"; return; }
+            await Data.ApproveChsAuthorizationAsync(
+                PatientId, SelectedReferral.ReferralId, amount,
+                string.IsNullOrWhiteSpace(ChsAuthorizationNumber) ? null : ChsAuthorizationNumber);
             ShowChsForm = false;
             await ReloadAsync();
         }
@@ -227,13 +211,7 @@ public sealed partial class ConsultsViewModel : ChartTabViewModelBase
         ErrorText = string.Empty;
         try
         {
-            var resp = await Api.DenyChsAuthorizationAsync(PatientId, SelectedReferral.ReferralId, new
-            {
-                DenialReason = ChsDenialReason,
-                DeniedById = _auth.UserId ?? string.Empty,
-                DeniedByName = _auth.DisplayName ?? _auth.UserName ?? string.Empty,
-            });
-            if (!resp.IsSuccessStatusCode) { ErrorText = $"Deny failed: {resp.StatusCode}"; return; }
+            await Data.DenyChsAuthorizationAsync(PatientId, SelectedReferral.ReferralId, ChsDenialReason);
             ShowChsForm = false;
             await ReloadAsync();
         }

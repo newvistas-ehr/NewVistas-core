@@ -4,6 +4,7 @@
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 using Orleans;
 using Orleans.Runtime;
+using NewVistas.Abstractions.Clinical;
 using NewVistas.Abstractions.GrainInterfaces;
 using NewVistas.Abstractions.GrainStates;
 
@@ -53,6 +54,130 @@ public class ProtoConditionGrain : Grain, IProtoConditionGrain
         }
         Log(createdBy, "CREATE", $"Created proto-condition '{name}'");
         await SaveAsync();
+    }
+
+    public async Task<ProtoConditionState> ProposeFromPatientAsync(
+        PatientFeatureSnapshot snapshot, string workingName, string proposedBy)
+    {
+        if (snapshot is null) throw new ArgumentNullException(nameof(snapshot));
+        if (!string.IsNullOrEmpty(_state.State.CreatedBy))
+            throw new InvalidOperationException("This proto-condition already exists.");
+
+        // ALWAYS Draft, and there is no parameter that could make it anything else. Draft is
+        // already excluded by ProtoConditionIndexGrain.GetActiveAsync, so a proposed cluster is
+        // invisible to every chart, banner and sweep until an epidemiologist activates it.
+        // That is the whole "auto-assemble, never auto-publish" line, enforced by the existing
+        // status filter rather than by a new state machine.
+        _state.State.Status = ProtoConditionStatus.Draft;
+        _state.State.Name = string.IsNullOrWhiteSpace(workingName)
+            ? $"Undiagnosed cluster (drafted {DateTime.UtcNow:yyyy-MM-dd})"
+            : workingName.Trim();
+        _state.State.CreatedBy = proposedBy;
+        _state.State.CreatedDate = DateTime.UtcNow;
+        _state.State.Origin = ProtoConditionOrigin.DraftedFromPatient;
+        _state.State.DraftedFromPatientId = snapshot.PatientId;
+        _state.State.DraftedFromSnapshotAt = snapshot.AssembledAt;
+
+        (List<ProtoFeature> features, int presentCount, int negativeCount, int abnormalCount) =
+            DeriveFeatures(snapshot);
+        _state.State.Features.AddRange(features);
+
+        // The description says out loud what the reviewer most needs to know. A definition
+        // derived from one chart matches that chart perfectly and generalises to nothing; it is
+        // a starting point for a human, not a case definition.
+        _state.State.Description =
+            $"DRAFT derived from a single patient ({snapshot.PatientId}) on " +
+            $"{snapshot.AssembledAt:yyyy-MM-dd}. {presentCount} symptom(s) present, " +
+            $"{negativeCount} etiologic test(s) recorded negative, {abnormalCount} abnormal " +
+            "result(s). Derived from ONE chart, so it is over-fitted by construction — " +
+            "generalise the features and weights before activating.";
+
+        Log(proposedBy, "PROPOSE",
+            $"Drafted from patient {snapshot.PatientId}: {features.Count} feature(s) seeded");
+        await SaveAsync();
+        return _state.State;
+    }
+
+    /// <summary>
+    /// Turn one patient's snapshot into candidate features. Deliberately simple and legible —
+    /// a reviewer has to be able to see exactly where every feature came from.
+    /// </summary>
+    private static (List<ProtoFeature>, int, int, int) DeriveFeatures(PatientFeatureSnapshot s)
+    {
+        var features = new List<ProtoFeature>();
+        int present = 0, negative = 0, abnormal = 0;
+
+        foreach ((string code, SymptomPresence presence) in s.Symptoms)
+        {
+            if (presence != SymptomPresence.Present) continue;
+            present++;
+            features.Add(new ProtoFeature
+            {
+                FeatureId = $"sym-{code}",
+                Kind = ProtoFeatureKind.Symptom,
+                Display = SymptomCatalog.DisplayFor(code),
+                Code = code,
+                Operator = ProtoFeatureOperator.Present,
+                Rule = ProtoFeatureRule.Weighted,
+                Weight = 1.0
+            });
+        }
+
+        foreach (SnapshotLab lab in s.Labs)
+        {
+            if (string.IsNullOrWhiteSpace(lab.Loinc)) continue;
+
+            // A negative etiologic result is the signature of an undiagnosed illness — the
+            // workup was done and found nothing. It is seeded as an explicit Equals on the
+            // charted value rather than inferred, so the reviewer sees the actual result text.
+            if (IsNegativeResult(lab.Value))
+            {
+                negative++;
+                features.Add(new ProtoFeature
+                {
+                    FeatureId = $"lab-neg-{lab.Loinc}",
+                    Kind = ProtoFeatureKind.LabResult,
+                    Display = $"{lab.Loinc} negative",
+                    Code = lab.Loinc,
+                    Operator = ProtoFeatureOperator.Equals,
+                    Value = lab.Value.Trim(),
+                    Rule = ProtoFeatureRule.Weighted,
+                    Weight = 1.0
+                });
+            }
+            else if (lab.AbnormalFlag != LabAbnormalFlag.Normal)
+            {
+                abnormal++;
+                features.Add(new ProtoFeature
+                {
+                    FeatureId = $"lab-abn-{lab.Loinc}",
+                    Kind = ProtoFeatureKind.LabResult,
+                    Display = $"{lab.Loinc} abnormal",
+                    Code = lab.Loinc,
+                    Operator = ProtoFeatureOperator.Abnormal,
+                    Rule = ProtoFeatureRule.Weighted,
+                    Weight = 1.0
+                });
+            }
+        }
+
+        return (features, present, negative, abnormal);
+    }
+
+    /// <summary>
+    /// Whether a charted lab value reads as a negative / not-detected result. Laboratories word
+    /// this several ways, so the check is a small explicit vocabulary rather than a guess.
+    /// </summary>
+    private static bool IsNegativeResult(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value)) return false;
+        string v = value.Trim();
+        return v.Equals("NEGATIVE", StringComparison.OrdinalIgnoreCase)
+            || v.Equals("NOT DETECTED", StringComparison.OrdinalIgnoreCase)
+            || v.Equals("NONE DETECTED", StringComparison.OrdinalIgnoreCase)
+            || v.Equals("NON-REACTIVE", StringComparison.OrdinalIgnoreCase)
+            || v.Equals("NONREACTIVE", StringComparison.OrdinalIgnoreCase)
+            || v.Equals("NO GROWTH", StringComparison.OrdinalIgnoreCase);
     }
 
     public async Task AddOrUpdateFeatureAsync(ProtoFeature feature, string byUser)
@@ -367,8 +492,10 @@ public class ProtoConditionGrain : Grain, IProtoConditionGrain
         entry.Reason = reason;
         entry.Date = DateTime.UtcNow;
         entry.By = byUser;
-        _state.State.LastModifiedDate = DateTime.UtcNow;
-        await _state.WriteStateAsync();
+        // SaveAsync, not a bare WriteStateAsync: the index summary carries the migration
+        // progress an epidemiologist watches, and writing state directly left it stale after
+        // every recode.
+        await SaveAsync();
     }
 
     // ─── Reads (open) ───────────────────────────────────────────────────

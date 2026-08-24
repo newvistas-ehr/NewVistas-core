@@ -193,7 +193,18 @@ public class NotesMenu : IMenu
             return;
         }
 
-        await ctx.GetWorkflow().SignNoteAsync(selected.DocumentId);
+        // The workflow grain verifies the code against the caller's stored hash — this
+        // prompt used to accept any keystroke as a legal signature.
+        try
+        {
+            await ctx.GetWorkflow().SignNoteAsync(selected.DocumentId, sig);
+        }
+        catch (UnauthorizedAccessException)
+        {
+            TerminalIO.WriteError("Signature code not accepted. Note NOT signed.");
+            TerminalIO.Pause();
+            return;
+        }
         TerminalIO.WriteSuccess("Note signed.");
         await ctx.TouchSessionAsync();
         TerminalIO.Pause();
@@ -233,7 +244,16 @@ public class NotesMenu : IMenu
         string sig = ReadMaskedInput();
         if (string.IsNullOrWhiteSpace(sig)) return;
 
-        await ctx.GetWorkflow().CosignNoteAsync(selected.DocumentId);
+        try
+        {
+            await ctx.GetWorkflow().CosignNoteAsync(selected.DocumentId, sig);
+        }
+        catch (UnauthorizedAccessException)
+        {
+            TerminalIO.WriteError("Signature code not accepted. Note NOT cosigned.");
+            TerminalIO.Pause();
+            return;
+        }
         TerminalIO.WriteSuccess("Note cosigned.");
         await ctx.TouchSessionAsync();
         TerminalIO.Pause();
@@ -317,6 +337,16 @@ public class NotesMenu : IMenu
         string sig = ReadMaskedInput();
         if (string.IsNullOrWhiteSpace(sig)) return;
 
+        // Amending a signed legal document is itself an attestation — verify fail-closed
+        // against the caller's stored hash rather than accepting any keystroke.
+        bool amendSigValid = await VerifySignatureAsync(ctx, sig);
+        if (!amendSigValid)
+        {
+            TerminalIO.WriteError("Signature code not accepted. Note NOT amended.");
+            TerminalIO.Pause();
+            return;
+        }
+
         await ctx.GetWorkflow().AmendNoteAsync(selected.DocumentId, amendText);
         TerminalIO.WriteSuccess("Note amended.");
         await ctx.TouchSessionAsync();
@@ -342,5 +372,24 @@ public class NotesMenu : IMenu
         }
         Console.WriteLine();
         return new string(chars.ToArray());
+    }
+
+    /// <summary>
+    /// Verifies the signature code against the caller's stored hash, failing closed on any
+    /// error — used for amendment, where the workflow method carries no code parameter.
+    /// Sign/cosign verify inside the workflow grain itself.
+    /// </summary>
+    private static async Task<bool> VerifySignatureAsync(MenuContext ctx, string sig)
+    {
+        try
+        {
+            var person = ctx.GetGrain<NewVistas.Abstractions.GrainInterfaces.INewPersonGrain>($"USER:{ctx.Session.UserId}");
+            return await person.VerifyElectronicSignatureAsync(ElectronicSignature.Hash(sig));
+        }
+        catch (Exception ex)
+        {
+            TerminalIO.WriteError($"Could not verify signature: {ex.Message}");
+            return false;
+        }
     }
 }

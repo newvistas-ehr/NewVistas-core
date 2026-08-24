@@ -21,8 +21,8 @@ file, You can obtain one at https://mozilla.org/MPL/2.0/.
             <DataGrid ItemsSource="{Binding WorkOrders}" SelectedItem="{Binding SelectedWorkOrder}" AutoGenerateColumns="False">
                 <DataGrid.Columns>
                     <DataGridTextColumn Header="WO Number" Binding="{Binding WorkOrderNumber}" Width="110"/>
-                    <DataGridTextColumn Header="Category" Binding="{Binding Category}" Width="130"/>
-                    <DataGridTextColumn Header="Description" Binding="{Binding ShortDescription}" Width="*"/>
+                    <DataGridTextColumn Header="Type" Binding="{Binding WorkOrderType}" Width="130"/>
+                    <DataGridTextColumn Header="Location" Binding="{Binding LocationDescription}" Width="*"/>
                     <DataGridTextColumn Header="Priority" Binding="{Binding Priority}" Width="90"/>
                     <DataGridTextColumn Header="Status" Binding="{Binding Status}" Width="110"/>
                     <DataGridTextColumn Header="Assigned To" Binding="{Binding AssignedToName}" Width="*"/>

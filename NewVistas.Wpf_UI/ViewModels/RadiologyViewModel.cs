@@ -1,4 +1,4 @@
-// Copyright 2026 Merrimack Valley Software Works, LLC. All rights reserved.
+﻿// Copyright 2026 Merrimack Valley Software Works, LLC. All rights reserved.
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
@@ -16,6 +16,14 @@ public partial class RadiologyViewModel : BasePatientViewModel
     [ObservableProperty] private ObservableCollection<RadiologySummary> _studies = new();
     [ObservableProperty] private RadiologyState? _selectedStudy;
 
+    /// <summary>Grid selection; loads the full study into <see cref="SelectedStudy"/>.</summary>
+    [ObservableProperty] private RadiologySummary? _selectedSummary;
+
+    partial void OnSelectedSummaryChanged(RadiologySummary? value)
+    {
+        if (value is not null) _ = SelectStudy(value);
+    }
+
     // Order form
     [ObservableProperty] private bool _showOrderForm;
     [ObservableProperty] private string _procedureName = string.Empty;
@@ -30,8 +38,8 @@ public partial class RadiologyViewModel : BasePatientViewModel
     ];
     public string[] UrgencyOptions { get; } = ["ROUTINE", "URGENT", "STAT", "TODAY"];
 
-    public RadiologyViewModel(OrleansGrainService grains, ApiClient api, PatientContext patientContext)
-        : base(grains, api, patientContext) { }
+    public RadiologyViewModel(OrleansGrainService grains, PatientContext patientContext)
+        : base(grains, patientContext) { }
 
     protected override async Task LoadDataAsync()
     {
@@ -63,7 +71,8 @@ public partial class RadiologyViewModel : BasePatientViewModel
         try
         {
             var workflow = Grains.GetGrain<IPatientWorkflowGrain>(PatientId);
-            await workflow.OrderRadiologyStudyAsync(
+            // CPOE: creates the linked ORDER #100 so the study shows on the Orders tab.
+            await workflow.PlaceRadiologyOrderAsync(
                 ProcedureName,
                 null, null, // procedureId, cptCode
                 ImagingType,
@@ -71,7 +80,7 @@ public partial class RadiologyViewModel : BasePatientViewModel
                 Urgency,
                 ClinicalHistory.Length > 0 ? ClinicalHistory : null,
                 null, // reasonForStudy
-                null, null, null); // orderId, location
+                null, null); // location
             ShowOrderForm = false;
             ProcedureName = string.Empty;
             await LoadDataAsync();

@@ -1,4 +1,4 @@
-// Copyright 2026 Merrimack Valley Software Works, LLC. All rights reserved.
+﻿// Copyright 2026 Merrimack Valley Software Works, LLC. All rights reserved.
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
@@ -51,7 +51,7 @@ public abstract class ViewModelTestBase
         // we cannot mock it — create a real instance instead.
         // Token is null by default so SetRequestContext() returns early.
         _ = Dispatcher.CurrentDispatcher;
-        var authService = new AuthService(ApiClient);
+        var authService = new AuthService(ApiClient, MockGrainFactory);
         AuthService = authService;
         GrainService = new OrleansGrainService(MockGrainFactory, authService);
 

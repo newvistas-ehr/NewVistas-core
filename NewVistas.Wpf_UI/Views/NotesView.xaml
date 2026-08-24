@@ -28,13 +28,13 @@ file, You can obtain one at https://mozilla.org/MPL/2.0/.
             </StackPanel>
             <ProgressBar IsIndeterminate="True" Height="16"
                          Visibility="{Binding IsLoading, Converter={StaticResource BoolToVisibility}}" Margin="0,0,0,4"/>
-            <ListBox ItemsSource="{Binding Notes}" SelectedItem="{Binding SelectedNote}" Height="500">
+            <ListBox ItemsSource="{Binding Notes}" SelectedItem="{Binding SelectedNoteSummary}" Height="500">
                 <ListBox.ItemTemplate>
                     <DataTemplate>
                         <StackPanel Margin="4">
-                            <TextBlock FontWeight="SemiBold" Text="{Binding Title}" TextWrapping="Wrap" FontSize="12"/>
+                            <TextBlock FontWeight="SemiBold" Text="{Binding Subject}" TextWrapping="Wrap" FontSize="12"/>
                             <TextBlock Foreground="#666" FontSize="11" Text="{Binding AuthorName}"/>
-                            <TextBlock Foreground="#888" FontSize="11" Text="{Binding EntryDate, StringFormat=d}"/>
+                            <TextBlock Foreground="#888" FontSize="11" Text="{Binding ReferenceDate, StringFormat=d}"/>
                         </StackPanel>
                     </DataTemplate>
                 </ListBox.ItemTemplate>
@@ -50,9 +50,9 @@ file, You can obtain one at https://mozilla.org/MPL/2.0/.
                     <StackPanel>
                         <TextBlock Style="{StaticResource SectionHeader}" Text="New Note"/>
                         <TextBlock Style="{StaticResource FieldLabel}" Text="Title"/>
-                        <TextBox Text="{Binding NewTitle, UpdateSourceTrigger=PropertyChanged}" Width="400" HorizontalAlignment="Left"/>
+                        <TextBox Text="{Binding Subject, UpdateSourceTrigger=PropertyChanged}" Width="400" HorizontalAlignment="Left"/>
                         <TextBlock Style="{StaticResource FieldLabel}" Text="Note Text"/>
-                        <TextBox Text="{Binding NewBody, UpdateSourceTrigger=PropertyChanged}"
+                        <TextBox Text="{Binding ReportText, UpdateSourceTrigger=PropertyChanged}"
                                  AcceptsReturn="True" Height="200" VerticalScrollBarVisibility="Auto" TextWrapping="Wrap"/>
                         <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
                             <Button Content="Save Draft" Style="{StaticResource PrimaryButton}"
@@ -95,14 +95,18 @@ file, You can obtain one at https://mozilla.org/MPL/2.0/.
                 </Border>
 
                 <!-- Selected note detail -->
-                <StackPanel Visibility="{Binding SelectedNoteDetail, Converter={StaticResource NullToVisibility}}">
-                    <TextBlock Style="{StaticResource SectionHeader}" Text="{Binding SelectedNoteDetail.Title}"/>
-                    <TextBlock FontSize="12" Foreground="#666" Text="{Binding SelectedNoteDetail.AuthorName}"/>
-                    <TextBlock FontSize="12" Foreground="#888" Text="{Binding SelectedNoteDetail.EntryDate, StringFormat=d}" Margin="0,0,0,8"/>
-                    <TextBlock Text="{Binding SelectedNoteDetail.NoteText}" TextWrapping="Wrap" FontSize="13"/>
-                    <Button Content="Sign Note" Style="{StaticResource PrimaryButton}"
-                            Command="{Binding SignNoteCommand}" Margin="0,12,0,0"
-                            HorizontalAlignment="Left"/>
+                <StackPanel Visibility="{Binding SelectedNote, Converter={StaticResource NullToVisibility}}">
+                    <TextBlock Style="{StaticResource SectionHeader}" Text="{Binding SelectedNote.Subject}"/>
+                    <TextBlock FontSize="12" Foreground="#666" Text="{Binding SelectedNote.AuthorName}"/>
+                    <TextBlock FontSize="12" Foreground="#888" Text="{Binding SelectedNote.EntryDate, StringFormat=d}" Margin="0,0,0,8"/>
+                    <TextBlock Text="{Binding SelectedNote.ReportText}" TextWrapping="Wrap" FontSize="13"/>
+                    <StackPanel Orientation="Horizontal" Margin="0,12,0,0">
+                        <TextBlock Text="Signature Code:" VerticalAlignment="Center" Margin="0,0,6,0" FontSize="12"/>
+                        <PasswordBox x:Name="EsigCodeBox" Width="160" VerticalAlignment="Center" Margin="0,0,8,0"
+                                     PasswordChanged="EsigCodeBox_PasswordChanged"/>
+                        <Button Content="Sign Note" Style="{StaticResource PrimaryButton}"
+                                Command="{Binding SignNoteCommand}"/>
+                    </StackPanel>
                 </StackPanel>
             </StackPanel>
         </ScrollViewer>

@@ -179,6 +179,14 @@ public class ProblemSummary
 
     [Id(6)]
     public bool IsServiceConnected { get; set; }
+
+    /// <summary>
+    /// Certainty of the assertion (ADR-006). Carried on the summary because a suspected
+    /// diagnosis and a confirmed one otherwise render identically on a cover sheet, which is
+    /// exactly the reading error this feature exists to stop. <c>Unspecified</c> on legacy rows.
+    /// </summary>
+    [Id(7)]
+    public ProblemVerificationStatus VerificationStatus { get; set; }
 }
 
 [GenerateSerializer]

@@ -34,7 +34,7 @@ file, You can obtain one at https://mozilla.org/MPL/2.0/.
                              Visibility="{Binding IsLoading, Converter={StaticResource BoolToVisibility}}"/>
             </StackPanel>
 
-            <DataGrid ItemsSource="{Binding Results}" SelectedItem="{Binding SelectedProduct}" Height="500">
+            <DataGrid ItemsSource="{Binding Results}" SelectedItem="{Binding SelectedEntry}" Height="500">
                 <DataGrid.Columns>
                     <DataGridTextColumn Header="VA Product Name" Binding="{Binding Name}" Width="*"/>
                     <DataGridTextColumn Header="Generic" Binding="{Binding VaGenericName}" Width="160"/>

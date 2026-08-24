@@ -1,0 +1,174 @@
+@* Copyright 2026 Merrimack Valley Software Works, LLC. All rights reserved. *@
+@* This Source Code Form is subject to the terms of the Mozilla Public *@
+@* License, v. 2.0. If a copy of the MPL was not distributed with this *@
+@* file, You can obtain one at https://mozilla.org/MPL/2.0/.            *@
+@page "/bulk-recode"
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+@rendermode InteractiveServer
+@using NewVistas.BlazorWeb.Services
+@using NewVistas.Abstractions.GrainInterfaces
+@using NewVistas.Abstractions.GrainStates
+@inject OrleansGrainService Grains
+
+<PageTitle>Code-Set Migration</PageTitle>
+
+<h1>Code-Set Migration</h1>
+<p class="subtitle">
+    Bulk recode: when a code is retired or a new one is issued (B34.2 &rarr; U07.1 when COVID-19
+    got its own code), every chart carrying the old code is re-asserted under the new one with
+    full provenance. Nobody was wrong — a recode is excluded from every revision statistic.
+</p>
+
+@if (error != null) { <div class="alert alert-error">@error</div> }
+@if (lastRun != null)
+{
+    <div class="alert alert-success">
+        Migration @lastRun.FromCode &rarr; @lastRun.ToCode complete:
+        @lastRun.RecodedCount recoded, @lastRun.AlreadyCodedCount already coded,
+        @lastRun.NoMatchCount without the code, @lastRun.EpisodesClosed episodes closed
+        @(lastRun.FailureCount > 0 ? $", {lastRun.FailureCount} FAILURES — re-run to cover them" : "")
+        (@lastRun.PatientsScreened screened).
+    </div>
+}
+
+<div class="form-section">
+    <FormField Label="Retired code" Required>
+        <input type="text" @bind="fromCode" class="form-input" placeholder="e.g. B34.2" />
+    </FormField>
+    <FormField Label="Replacement code" Required>
+        <input type="text" @bind="toCode" class="form-input" placeholder="e.g. U07.1" />
+    </FormField>
+    <FormField Label="Replacement display" Required>
+        <input type="text" @bind="toDisplay" class="form-input" placeholder="Official description, e.g. COVID-19" />
+    </FormField>
+    <FormField Label="Why" Required>
+        <input type="text" @bind="narrative" class="form-input"
+               placeholder="Cited on every touched chart, e.g. 'U07.1 issued by WHO; remapped per coding directive'" />
+    </FormField>
+    <FormField Label="Patient cap">
+        <input type="number" @bind="maxPatients" class="form-input" placeholder="Blank = whole population" />
+    </FormField>
+
+    <div class="form-actions">
+        @if (!confirming)
+        {
+            <button class="btn btn-primary" disabled="@running" @onclick="() => confirming = true">Run migration...</button>
+        }
+        else
+        {
+            <div class="confirm-box">
+                This will rewrite every active @fromCode problem in the
+                @(maxPatients is null ? "entire patient population" : $"first {maxPatients} patients")
+                as @toCode. The old assertions stay in each chart, superseded and cited. Proceed?
+            </div>
+            <button class="btn btn-primary" disabled="@running" @onclick="RunMigration">
+                @(running ? "Running..." : "Yes, migrate")
+            </button>
+            <button class="btn btn-secondary" disabled="@running" @onclick="() => confirming = false">Cancel</button>
+        }
+    </div>
+</div>
+
+<h2 class="runs-head">Previous migrations</h2>
+@if (runs is null)
+{
+    <p><em>Loading...</em></p>
+}
+else if (runs.Count == 0)
+{
+    <div class="empty-state">No migrations have been run on this site.</div>
+}
+else
+{
+    <table class="data-table">
+        <thead>
+            <tr>
+                <th>When</th><th>From</th><th>To</th><th>By</th><th>Screened</th>
+                <th>Recoded</th><th>Already coded</th><th>No match</th><th>Episodes closed</th><th>Failures</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var r in runs)
+            {
+                <tr>
+                    <td class="date">@r.StartedAt.ToString("MM/dd/yyyy HH:mm")</td>
+                    <td class="code">@r.FromCode</td>
+                    <td class="code">@r.ToCode</td>
+                    <td>@r.RunBy</td>
+                    <td>@r.PatientsScreened</td>
+                    <td>@r.RecodedCount</td>
+                    <td>@r.AlreadyCodedCount</td>
+                    <td>@r.NoMatchCount</td>
+                    <td>@r.EpisodesClosed</td>
+                    <td class="@(r.FailureCount > 0 ? "fail" : "")">@r.FailureCount</td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+
+@code {
+    private string fromCode = "", toCode = "", toDisplay = "", narrative = "";
+    private int? maxPatients;
+    private bool confirming, running;
+    private string? error;
+    private BulkRecodeRun? lastRun;
+    private List<BulkRecodeRun>? runs;
+
+    private IDxStewardshipSweepGrain Sweep => Grains.GetGrain<IDxStewardshipSweepGrain>("DX-STEWARDSHIP-SWEEP");
+
+    protected override async Task OnInitializedAsync()
+    {
+        try { runs = await Sweep.GetRecentRunsAsync(); }
+        catch (Exception ex) { error = ex.Message; runs = new(); }
+    }
+
+    private async Task RunMigration()
+    {
+        running = true; error = null; lastRun = null;
+        try
+        {
+            lastRun = await Sweep.BulkRecodeAsync(new BulkRecodeCommand
+            {
+                FromCode = fromCode.Trim(),
+                ToCode = toCode.Trim(),
+                ToDisplay = toDisplay.Trim(),
+                Narrative = narrative.Trim(),
+                RunBy = Grains.CurrentUserName ?? Grains.CurrentUserId ?? "ADMIN",
+                MaxPatients = maxPatients,
+            });
+            confirming = false;
+            runs = await Sweep.GetRecentRunsAsync();
+        }
+        catch (UnauthorizedAccessException ex) { error = SecurityKeyError.Describe(ex); confirming = false; }
+        catch (Exception ex) { error = ex.Message; confirming = false; }
+        finally { running = false; }
+    }
+}
+
+<style>
+    .subtitle { color: #6b7280; font-size: .9rem; max-width: 720px; }
+    .alert { padding: 0.75rem 1rem; border-radius: 4px; margin-bottom: 1rem; }
+    .alert-error { background: #fde8e8; color: #b91c1c; border: 1px solid #f5c6c6; }
+    .alert-success { background: #dcfce7; color: #166534; border: 1px solid #bbf7d0; }
+    .form-section { max-width: 620px; }
+    .form-row { display: flex; align-items: center; gap: 1rem; margin-bottom: 0.75rem; }
+    .form-row label:first-child { width: 160px; font-size: .85rem; font-weight: 500; color: #333; flex-shrink: 0; }
+    .required { color: #b91c1c; }
+    .form-input { flex: 1; padding: .4rem .6rem; border: 1px solid #ccc; border-radius: 4px; font-size: .85rem; }
+    .form-actions { margin-top: 1.25rem; display: flex; gap: .6rem; align-items: center; flex-wrap: wrap; }
+    .btn { padding: .5rem 1.25rem; border: none; border-radius: 4px; cursor: pointer; font-size: .85rem; }
+    .btn-primary { background: #003f72; color: white; }
+    .btn-primary:disabled { background: #999; cursor: not-allowed; }
+    .btn-secondary { background: #e8eef5; color: #003f72; border: 1px solid #b9c8da; }
+    .confirm-box { flex-basis: 100%; background: #fffbeb; border-left: 3px solid #d97706; padding: .5rem .75rem; font-size: .85rem; }
+    .runs-head { margin-top: 2rem; font-size: 1.05rem; color: #003f72; }
+    .data-table { width: 100%; border-collapse: collapse; font-size: .85rem; border: 1px solid #d4d9e0; }
+    .data-table thead { background: #f4f6f9; }
+    .data-table th { text-align: left; padding: .5rem; font-weight: 600; color: #003f72; border-bottom: 2px solid #d4d9e0; font-size: .75rem; text-transform: uppercase; }
+    .data-table td { padding: .4rem .5rem; border-bottom: 1px solid #f0f0f0; }
+    .code { font-family: monospace; color: #003f72; }
+    .date { color: #888; font-size: .8rem; }
+    .fail { color: #b91c1c; font-weight: 600; }
+    .empty-state { color: #999; font-style: italic; padding: 1rem 0; }
+</style>

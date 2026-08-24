@@ -42,6 +42,7 @@ ClinicalNarrativeOptions narrativeOptions = builder.Configuration
 builder.Services.AddClinicalNarrativeAi(narrativeOptions);
 builder.Services.TryAddSingleton<IClinicalNarrativeService, TemplateClinicalNarrativeService>();
 builder.Services.TryAddSingleton<IRadiologyFindingExtractor, HeuristicRadiologyFindingExtractor>();
+builder.Services.TryAddSingleton<IClinicalCodingAssistant, LexiconCodingAssistant>();
 
 // Legacy flag still consulted directly by the database-init step below.
 // SiteProfileResolver consults the same flag independently for silo configuration.
@@ -254,6 +255,7 @@ static partial class Program
         "gpraSubmissionStore",
         "ndwExportRunStore",
         "diabetesRegistryStore", "diabetesRegistryIndexStore",
+        "boneHealthStore", "boneHealthIndexStore",
         "labEdiOrderStore", "labEdiResultStore", "labEdiConfigStore",
         "labEdiQueueStore", "labEdiIndexStore",
         "consultServiceStore",
@@ -351,6 +353,8 @@ static partial class Program
         "householdStore", "personHouseholdIndexStore",
         "sdohScreeningStore", "sdohScreeningIndexStore", "sdohCohortStore",
         "caseManagementStore", "caseManagementIndexStore",
-        "resourceDirectoryStore"
+        "resourceDirectoryStore",
+        // Diagnosis provenance & revision statistics (ADR-006)
+        "dxEpisodeStore", "dxOutcomeStore", "dxStewardshipSweepStore"
     ];
 }

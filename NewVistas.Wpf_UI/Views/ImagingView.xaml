@@ -27,11 +27,11 @@ file, You can obtain one at https://mozilla.org/MPL/2.0/.
                 <StackPanel>
                     <TextBlock Style="{StaticResource SectionHeader}" Text="Capture Image"/>
                     <TextBlock Style="{StaticResource FieldLabel}" Text="Image Type"/>
-                    <ComboBox ItemsSource="{Binding ImageTypeOptions}" SelectedItem="{Binding ImageType}" Width="200" HorizontalAlignment="Left"/>
+                    <ComboBox ItemsSource="{Binding ObjectTypes}" SelectedItem="{Binding ObjectType}" Width="200" HorizontalAlignment="Left"/>
                     <TextBlock Style="{StaticResource FieldLabel}" Text="Description"/>
-                    <TextBox Text="{Binding Description, UpdateSourceTrigger=PropertyChanged}" Width="400" HorizontalAlignment="Left"/>
-                    <TextBlock Style="{StaticResource FieldLabel}" Text="Body Part"/>
-                    <TextBox Text="{Binding BodyPart, UpdateSourceTrigger=PropertyChanged}" Width="200" HorizontalAlignment="Left"/>
+                    <TextBox Text="{Binding ProcedureDescription, UpdateSourceTrigger=PropertyChanged}" Width="400" HorizontalAlignment="Left"/>
+                    <TextBlock Style="{StaticResource FieldLabel}" Text="Specialty"/>
+                    <TextBox Text="{Binding SpecialtyIndex, UpdateSourceTrigger=PropertyChanged}" Width="200" HorizontalAlignment="Left"/>
                     <StackPanel Orientation="Horizontal" Margin="0,12,0,0">
                         <Button Content="Capture" Style="{StaticResource PrimaryButton}"
                                 Command="{Binding CaptureImageCommand}" Margin="0,0,8,0"/>
@@ -43,11 +43,11 @@ file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
             <DataGrid ItemsSource="{Binding Images}">
                 <DataGrid.Columns>
-                    <DataGridTextColumn Header="Type" Binding="{Binding ImageType}" Width="120"/>
-                    <DataGridTextColumn Header="Description" Binding="{Binding Description}" Width="*"/>
-                    <DataGridTextColumn Header="Body Part" Binding="{Binding BodyPart}" Width="120"/>
+                    <DataGridTextColumn Header="Type" Binding="{Binding ObjectType}" Width="120"/>
+                    <DataGridTextColumn Header="Description" Binding="{Binding ProcedureDescription}" Width="*"/>
+                    <DataGridTextColumn Header="Status" Binding="{Binding Status}" Width="120"/>
                     <DataGridTextColumn Header="Date" Binding="{Binding CaptureDate, StringFormat=d}" Width="110"/>
-                    <DataGridTextColumn Header="Captured By" Binding="{Binding CapturedByName}" Width="160"/>
+                    <DataGridTextColumn Header="Images" Binding="{Binding ImageCount}" Width="80"/>
                 </DataGrid.Columns>
             </DataGrid>
         </StackPanel>

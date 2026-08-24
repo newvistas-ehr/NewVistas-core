@@ -24,6 +24,7 @@
       <a href="institutions.html">Institutions</a>
       <a href="registration.html">Registration</a>
       <a href="patient-merge.html">Patient Merge</a>
+      <a href="code-set-migration.html">Code-Set Migration</a>
       <a href="means-test.html">Means Test</a>
       <a href="sc-conditions.html">SC Conditions</a>
       <a href="prosthetics.html">Prosthetics</a>
@@ -92,8 +93,36 @@
         <span class="ct">Tip</span>
         Custom parameters also drive per-site feature opt-ins. For example,
         enabling the <code>PATIENT_MERGE</code> feature here is what unlocks the
-        <a href="patient-merge.html">Patient Merge</a> workflow for the site.
+        <a href="patient-merge.html">Patient Merge</a>
+      <a href="code-set-migration.html">Code-Set Migration</a> workflow for the site.
       </div>
+
+      <h2>One feature cannot be switched back on</h2>
+      <p>
+        Nearly every feature flag is a normal toggle: turn it off, turn it on again later, nothing
+        is lost. <strong><code>DIAGNOSTIC_STEWARDSHIP</code> is the single exception.</strong> It is
+        on by default, it can be turned off, and <strong>it can never be turned on again</strong>.
+      </p>
+      <p>
+        The reason is statistical rather than technical. Everything that feature reports is a ratio
+        whose denominator is "diagnoses we watched". While it is off, nothing is watched — so every
+        diagnosis made during that period is permanently missing from the denominator. Switching it
+        back on would divide new revisions by an under-counted base and report a revision rate that
+        is confidently, invisibly too high. That is the one failure this feature must never have,
+        because its entire output is telling a clinician how often they turn out to be wrong.
+      </p>
+      <div class="callout safety">
+        <span class="ct">Before you disable it</span>
+        Disabling records who did it, when, and why, and that record is kept permanently. Attempting
+        to re-enable afterwards returns an error rather than silently failing — so nobody is left
+        believing the statistics resumed when they did not. Recovering would require discarding and
+        recomputing every stored counter, which the product does not support today. Treat this as a
+        one-way door and decide accordingly.
+      </div>
+      <p>
+        A newly created database starts with the feature <strong>on</strong>, so a fresh install or a
+        demo environment always has it available.
+      </p>
 
       <footer>NewVistas User Manual · Administrator · Site Parameters</footer>
     </main>

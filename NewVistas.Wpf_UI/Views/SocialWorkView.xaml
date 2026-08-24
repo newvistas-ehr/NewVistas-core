@@ -33,7 +33,7 @@ file, You can obtain one at https://mozilla.org/MPL/2.0/.
                     <DataGridTextColumn Header="Service Type" Binding="{Binding ServiceType}" Width="160"/>
                     <DataGridTextColumn Header="Status" Binding="{Binding Status}" Width="110"/>
                     <DataGridTextColumn Header="Referred" Binding="{Binding ReferralDate, StringFormat=d}" Width="110"/>
-                    <DataGridTextColumn Header="Agency" Binding="{Binding ReferredToAgency}" Width="*"/>
+                    <DataGridTextColumn Header="Agency" Binding="{Binding AgencyName}" Width="*"/>
                 </DataGrid.Columns>
             </DataGrid>
         </StackPanel>

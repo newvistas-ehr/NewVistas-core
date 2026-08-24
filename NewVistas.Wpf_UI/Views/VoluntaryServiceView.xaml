@@ -22,11 +22,12 @@ file, You can obtain one at https://mozilla.org/MPL/2.0/.
             </StackPanel>
             <DataGrid ItemsSource="{Binding Volunteers}" SelectedItem="{Binding SelectedVolunteer}" AutoGenerateColumns="False">
                 <DataGrid.Columns>
-                    <DataGridTextColumn Header="Name" Binding="{Binding VolunteerName}" Width="*"/>
+                    <DataGridTextColumn Header="Last Name" Binding="{Binding LastName}" Width="*"/>
+                    <DataGridTextColumn Header="First Name" Binding="{Binding FirstName}" Width="140"/>
                     <DataGridTextColumn Header="Status" Binding="{Binding Status}" Width="110"/>
                     <DataGridTextColumn Header="Primary Service" Binding="{Binding PrimaryServiceType}" Width="160"/>
                     <DataGridTextColumn Header="Total Hours" Binding="{Binding TotalHours}" Width="100"/>
-                    <DataGridTextColumn Header="Since" Binding="{Binding StartDate, StringFormat=d}" Width="110"/>
+                    <DataGridTextColumn Header="Since" Binding="{Binding EnrollmentDate, StringFormat=d}" Width="110"/>
                 </DataGrid.Columns>
             </DataGrid>
         </StackPanel>

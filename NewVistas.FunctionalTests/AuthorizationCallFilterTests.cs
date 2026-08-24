@@ -1,4 +1,4 @@
-﻿// Copyright 2026 Merrimack Valley Software Works, LLC. All rights reserved.
+// Copyright 2026 Merrimack Valley Software Works, LLC. All rights reserved.
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
@@ -26,6 +26,10 @@ public class AuthorizationCallFilterTests
         {
             // Stores needed by grains under test
             siloBuilder.AddMemoryGrainStorage("patientStore");
+            // Diagnosis provenance & revision statistics (ADR-006) — AddProblemAsync opens
+            // a diagnostic episode, so any silo exercising the problem list needs these.
+            siloBuilder.AddMemoryGrainStorage("dxEpisodeStore");
+            siloBuilder.AddMemoryGrainStorage("dxOutcomeStore");
             siloBuilder.AddMemoryGrainStorage("patientHistoryIndexStore");
             siloBuilder.AddMemoryGrainStorage("accessControlStore");
             siloBuilder.AddMemoryGrainStorage("patientAccessStore"); // ADR-002 Phase 4b: PlaceOrder now establishes a PAC treatment relationship

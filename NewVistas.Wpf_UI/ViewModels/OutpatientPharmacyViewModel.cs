@@ -1,4 +1,4 @@
-// Copyright 2026 Merrimack Valley Software Works, LLC. All rights reserved.
+﻿// Copyright 2026 Merrimack Valley Software Works, LLC. All rights reserved.
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
@@ -17,13 +17,23 @@ public partial class OutpatientPharmacyViewModel : BasePatientViewModel
     [ObservableProperty] private PharmacyState? _selectedPrescription;
     [ObservableProperty] private List<RefillRecord> _refillHistory = new();
 
+    /// <summary>Grid selection; loads the full prescription into <see cref="SelectedPrescription"/>.</summary>
+    [ObservableProperty] private PrescriptionIndexEntry? _selectedEntry;
+
+    partial void OnSelectedEntryChanged(PrescriptionIndexEntry? value)
+    {
+        // Actions gate on the detail object; clear it before the async fetch so they can never target the previously selected record.
+        SelectedPrescription = null;
+        if (value is not null) _ = SelectPrescription(value);
+    }
+
     // Action state
     [ObservableProperty] private bool _showDiscontinueForm;
     [ObservableProperty] private string _discontinueReason = string.Empty;
     [ObservableProperty] private string? _actionMessage;
 
-    public OutpatientPharmacyViewModel(OrleansGrainService grains, ApiClient api, PatientContext patientContext)
-        : base(grains, api, patientContext) { }
+    public OutpatientPharmacyViewModel(OrleansGrainService grains, PatientContext patientContext)
+        : base(grains, patientContext) { }
 
     protected override async Task LoadDataAsync()
     {

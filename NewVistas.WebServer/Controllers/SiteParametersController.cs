@@ -2,6 +2,7 @@
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
+using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using NewVistas.Abstractions.GrainInterfaces;
@@ -187,6 +188,12 @@ public class SiteParametersController : ControllerBase
             await GetSiteParams().EnableFeatureAsync(featureName);
             return Ok(new { Message = $"Feature '{featureName}' enabled." });
         }
+        catch (InvalidOperationException ex)
+        {
+            // The one-way latch. The explanation is the whole point — a generic 500 would
+            // leave an administrator believing this is a transient failure worth retrying.
+            return Conflict(new { Error = ex.Message });
+        }
         catch (Exception ex) { _logger.LogError(ex, "Error enabling feature {Feature}", featureName); return StatusCode(500, new { Error = "An error occurred." }); }
     }
 
@@ -195,8 +202,19 @@ public class SiteParametersController : ControllerBase
     {
         try
         {
-            await GetSiteParams().DisableFeatureAsync(featureName);
+            // The attributed overload: for a one-way feature the disable is permanent, so
+            // who did it must be recorded permanently with it. The XUMGR key requirement is
+            // enforced by the grain call filter against the caller in RequestContext.
+            await GetSiteParams().DisableFeatureAsync(
+                featureName,
+                User.FindFirstValue(ClaimTypes.NameIdentifier),
+                User.FindFirstValue("display_name") ?? User.FindFirstValue(ClaimTypes.Name),
+                "Disabled via site-parameters API");
             return Ok(new { Message = $"Feature '{featureName}' disabled." });
+        }
+        catch (UnauthorizedAccessException)
+        {
+            return StatusCode(403, new { Error = "Disabling a feature requires the XUMGR (system manager) security key." });
         }
         catch (Exception ex) { _logger.LogError(ex, "Error disabling feature {Feature}", featureName); return StatusCode(500, new { Error = "An error occurred." }); }
     }

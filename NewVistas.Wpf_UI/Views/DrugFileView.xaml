@@ -35,7 +35,7 @@ file, You can obtain one at https://mozilla.org/MPL/2.0/.
                                 <ColumnDefinition Width="320"/>
                             </Grid.ColumnDefinitions>
 
-                            <DataGrid ItemsSource="{Binding Results}" SelectedItem="{Binding SelectedDrug}" Height="400">
+                            <DataGrid ItemsSource="{Binding Results}" SelectedItem="{Binding SelectedEntry}" Height="400">
                                 <DataGrid.Columns>
                                     <DataGridTextColumn Header="Local Name" Binding="{Binding LocalName}" Width="*"/>
                                     <DataGridTextColumn Header="VA Generic" Binding="{Binding VaGenericName}" Width="160"/>

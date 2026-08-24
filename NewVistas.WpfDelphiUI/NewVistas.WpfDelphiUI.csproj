@@ -13,6 +13,10 @@
     <PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.2" />
     <PackageReference Include="Microsoft.Extensions.Hosting" Version="10.0.9" />
     <PackageReference Include="Microsoft.Extensions.Http" Version="10.0.9" />
+    <!-- Internal UI: data access is direct grain calls, not REST. HTTP remains only for
+         authentication (see Services/ApiClient.cs). -->
+    <PackageReference Include="Microsoft.Orleans.Client" Version="10.2.1" />
+    <PackageReference Include="System.IdentityModel.Tokens.Jwt" Version="8.19.1" />
   </ItemGroup>
 
   <ItemGroup>

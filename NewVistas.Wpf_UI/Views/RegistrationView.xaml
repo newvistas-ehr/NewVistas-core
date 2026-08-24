@@ -206,7 +206,7 @@ file, You can obtain one at https://mozilla.org/MPL/2.0/.
                                 <DataGridTextColumn Header="Name" Binding="{Binding Name}" Width="160"/>
                                 <DataGridTextColumn Header="Phone" Binding="{Binding Phone}" Width="120"/>
                                 <DataGridTextColumn Header="Emergency Contact" Binding="{Binding IsEmergencyContact}" Width="130"/>
-                                <DataGridTextColumn Header="Primary" Binding="{Binding IsPrimary}" Width="70"/>
+                                <DataGridTextColumn Header="Primary NOK" Binding="{Binding IsPrimaryNextOfKin}" Width="90"/>
                             </DataGrid.Columns>
                         </DataGrid>
                     </StackPanel>

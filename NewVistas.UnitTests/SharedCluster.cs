@@ -95,6 +95,7 @@ public static class SharedCluster
             siloBuilder.Services.AddSingleton<IProcedurePriorAuthTransmitter, NullProcedurePriorAuthTransmitter>();
             siloBuilder.Services.AddSingleton<IClinicalNarrativeService, TemplateClinicalNarrativeService>();
             siloBuilder.Services.AddSingleton<IRadiologyFindingExtractor, HeuristicRadiologyFindingExtractor>();
+            siloBuilder.Services.AddSingleton<IClinicalCodingAssistant, LexiconCodingAssistant>();
 
             // Silo-local caches for the StatelessWorker reader grains
             // (drug-interaction checker, patient search).
@@ -344,6 +345,8 @@ public static class SharedCluster
             siloBuilder.AddMemoryGrainStorage("gpraSubmissionStore");
             siloBuilder.AddMemoryGrainStorage("ndwExportRunStore");
             siloBuilder.AddMemoryGrainStorage("diabetesRegistryStore");
+            siloBuilder.AddMemoryGrainStorage("boneHealthStore");
+            siloBuilder.AddMemoryGrainStorage("boneHealthIndexStore");
             siloBuilder.AddMemoryGrainStorage("diabetesRegistryIndexStore");
             siloBuilder.AddMemoryGrainStorage("mstHistoryStore");
             siloBuilder.AddMemoryGrainStorage("ndfClassIndexStore");
@@ -552,6 +555,7 @@ public static class SharedCluster
             siloBuilder.AddMemoryGrainStorage("protoConditionIndexStore");
             siloBuilder.AddMemoryGrainStorage("protoCohortStore");
             siloBuilder.AddMemoryGrainStorage("protoSweepStore");
+            siloBuilder.AddMemoryGrainStorage("dxStewardshipSweepStore");
             siloBuilder.AddMemoryGrainStorage("householdStore");
             siloBuilder.AddMemoryGrainStorage("personHouseholdIndexStore");
             siloBuilder.AddMemoryGrainStorage("sdohScreeningStore");
@@ -559,6 +563,9 @@ public static class SharedCluster
             siloBuilder.AddMemoryGrainStorage("sdohCohortStore");
             siloBuilder.AddMemoryGrainStorage("caseManagementStore");
             siloBuilder.AddMemoryGrainStorage("caseManagementIndexStore");
+            // Diagnosis provenance & revision statistics (ADR-006)
+            siloBuilder.AddMemoryGrainStorage("dxEpisodeStore");
+            siloBuilder.AddMemoryGrainStorage("dxOutcomeStore");
             siloBuilder.AddMemoryGrainStorage("resourceDirectoryStore");
         }
     }

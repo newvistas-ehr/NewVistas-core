@@ -1,4 +1,4 @@
-// Copyright 2026 Merrimack Valley Software Works, LLC. All rights reserved.
+﻿// Copyright 2026 Merrimack Valley Software Works, LLC. All rights reserved.
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
@@ -23,7 +23,7 @@ public class ProblemsViewModelTests : ViewModelTestBase
         };
         MockWorkflowGrain.GetActiveProblemsAsync().Returns(testData);
         SelectPatient("PATIENT-001");
-        var vm = new ProblemsViewModel(GrainService, ApiClient, PatientContext);
+        var vm = new ProblemsViewModel(GrainService, PatientContext);
 
         await vm.LoadAsync();
 
@@ -42,7 +42,7 @@ public class ProblemsViewModelTests : ViewModelTestBase
         };
         MockWorkflowGrain.GetAllProblemsAsync().Returns(testData);
         SelectPatient("PATIENT-001");
-        var vm = new ProblemsViewModel(GrainService, ApiClient, PatientContext) { ShowActiveOnly = false };
+        var vm = new ProblemsViewModel(GrainService, PatientContext) { ShowActiveOnly = false };
 
         await vm.LoadAsync();
 
@@ -55,7 +55,7 @@ public class ProblemsViewModelTests : ViewModelTestBase
     {
         MockWorkflowGrain.GetActiveProblemsAsync().Throws(new Exception("Grain error"));
         SelectPatient("PATIENT-001");
-        var vm = new ProblemsViewModel(GrainService, ApiClient, PatientContext);
+        var vm = new ProblemsViewModel(GrainService, PatientContext);
 
         await vm.LoadAsync();
 
@@ -66,7 +66,7 @@ public class ProblemsViewModelTests : ViewModelTestBase
     [Test]
     public void LoadAsync_RequiresPatient()
     {
-        var vm = new ProblemsViewModel(GrainService, ApiClient, PatientContext);
+        var vm = new ProblemsViewModel(GrainService, PatientContext);
         Assert.That(vm.LoadCommand.CanExecute(null), Is.False);
     }
 }

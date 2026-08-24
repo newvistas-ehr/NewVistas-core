@@ -1,4 +1,4 @@
-// Copyright 2026 Merrimack Valley Software Works, LLC. All rights reserved.
+﻿// Copyright 2026 Merrimack Valley Software Works, LLC. All rights reserved.
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
@@ -33,8 +33,8 @@ public partial class DieteticsViewModel : BasePatientViewModel
     public string[] TextureOptions { get; } = ["REGULAR", "SOFT", "MINCED", "PUREED", "LIQUID"];
     public string[] FluidOptions { get; } = ["THIN", "NECTAR THICK", "HONEY THICK", "SPOON THICK"];
 
-    public DieteticsViewModel(OrleansGrainService grains, ApiClient api, PatientContext patientContext)
-        : base(grains, api, patientContext) { }
+    public DieteticsViewModel(OrleansGrainService grains, PatientContext patientContext)
+        : base(grains, patientContext) { }
 
     protected override async Task LoadDataAsync()
     {

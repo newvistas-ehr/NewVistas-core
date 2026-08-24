@@ -55,6 +55,44 @@ public class ProcedurePriorAuthWorkflowTests
     }
 
     [Test]
+    public async Task PendCancelExpire_MoveStatusAndIndex_AndPendRecordsWhatWasAsked()
+    {
+        string patient = $"PPA-{Guid.NewGuid()}";
+        IPatientWorkflowGrain wf = Wf(patient);
+        string payer = $"PAYER-{Guid.NewGuid():N}";
+
+        // Pend: the payer asked for more information — the ask must be recorded verbatim,
+        // because "pended" with no note is indistinguishable from "lost".
+        string pended = await SubmitTka(wf, payer);
+        await wf.PendProcedureAuthAsync(pended, "Operative report and 6-week PT notes");
+        ProcedureAuthorizationState s = await wf.GetProcedureAuthAsync(pended);
+        Assert.That(s.Status, Is.EqualTo(ProcedureAuthorizationStatus.Pended));
+        Assert.That(s.PendedInfoRequested, Is.EqualTo("Operative report and 6-week PT notes"));
+
+        // A pended request can still be approved once the information lands.
+        await wf.ApproveProcedureAuthAsync(pended, "UM-1", "UM Nurse", "AUTH-77", null,
+            new List<PriorAuthRequirementCategory>());
+        s = await wf.GetProcedureAuthAsync(pended);
+        Assert.That(s.Status, Is.EqualTo(ProcedureAuthorizationStatus.Approved));
+
+        string cancelled = await SubmitTka(wf, payer);
+        await wf.CancelProcedureAuthAsync(cancelled);
+        Assert.That((await wf.GetProcedureAuthAsync(cancelled)).Status,
+            Is.EqualTo(ProcedureAuthorizationStatus.Cancelled));
+
+        string expired = await SubmitTka(wf, payer);
+        await wf.ExpireProcedureAuthAsync(expired);
+        Assert.That((await wf.GetProcedureAuthAsync(expired)).Status,
+            Is.EqualTo(ProcedureAuthorizationStatus.Expired));
+
+        // The per-patient index tracks every terminal state.
+        List<ProcedureAuthIndexEntry> index = await wf.GetProcedureAuthsAsync();
+        Assert.That(index.Single(e => e.ProcAuthId == pended).Status, Is.EqualTo(ProcedureAuthorizationStatus.Approved));
+        Assert.That(index.Single(e => e.ProcAuthId == cancelled).Status, Is.EqualTo(ProcedureAuthorizationStatus.Cancelled));
+        Assert.That(index.Single(e => e.ProcAuthId == expired).Status, Is.EqualTo(ProcedureAuthorizationStatus.Expired));
+    }
+
+    [Test]
     public async Task ElectronicChannel_RecordsTransmitterStandIn()
     {
         string patient = $"PPA-{Guid.NewGuid()}";

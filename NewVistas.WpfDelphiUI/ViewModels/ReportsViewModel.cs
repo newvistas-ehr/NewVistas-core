@@ -1,4 +1,4 @@
-// Copyright 2026 Merrimack Valley Software Works, LLC. All rights reserved.
+﻿// Copyright 2026 Merrimack Valley Software Works, LLC. All rights reserved.
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
@@ -32,11 +32,11 @@ public sealed partial class ReportsViewModel : ChartTabViewModelBase
                  $"AUP={r.ActiveUserPopulation:N0})",
     };
 
-    public ReportsViewModel(ApiClient api, PatientContext context) : base(api, context) { }
+    public ReportsViewModel(ChartDataService data, PatientContext context) : base(data, context) { }
 
     protected override async Task LoadAsync()
     {
-        var radiology = Api.GetRadiologyReportsAsync(PatientId);
+        var radiology = Data.GetRadiologyReportsAsync(PatientId);
         var gpra      = SafeGetGpraReportsAsync();
 
         await Task.WhenAll(radiology, gpra);
@@ -50,7 +50,7 @@ public sealed partial class ReportsViewModel : ChartTabViewModelBase
 
     private async Task<List<GpraReportIndexEntryDto>> SafeGetGpraReportsAsync()
     {
-        try { return await Api.GetGpraReportsAsync(); }
+        try { return await Data.GetGpraReportsAsync(); }
         catch { return []; }
     }
 
@@ -73,7 +73,7 @@ public sealed partial class ReportsViewModel : ChartTabViewModelBase
         ErrorText = string.Empty;
         try
         {
-            GpraReportDto? full = await Api.GetGpraReportAsync(SelectedGpraReport.ReportId);
+            GpraReportDto? full = await Data.GetGpraReportAsync(SelectedGpraReport.ReportId);
             GpraIndicators.Clear();
             if (full is not null)
                 foreach (var ind in full.Indicators) GpraIndicators.Add(ind);

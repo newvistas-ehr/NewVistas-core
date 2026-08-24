@@ -1,4 +1,4 @@
-// Copyright 2026 Merrimack Valley Software Works, LLC. All rights reserved.
+﻿// Copyright 2026 Merrimack Valley Software Works, LLC. All rights reserved.
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
@@ -174,8 +174,13 @@ app.MapGet("/api/site/features", async (Orleans.IGrainFactory grains) =>
         "ONCOLOGY", "PRECISION_ONCOLOGY",
         "HOME_BASED_CARE", "HOME_HEALTH_MEDICARE", "HOSPITAL_AT_HOME", "PROCEDURE_PRIOR_AUTH",
         "NEONATAL_CARE", "PHARMACOGENOMICS", "HEREDITARY_GENETICS", "SPECIALTY_COVERSHEET", "PERSON_IDENTITY",
-        "BED_MANAGEMENT", "EMERGING_CONDITIONS", "SOCIAL_CARE",
+        "BED_MANAGEMENT", "EMERGING_CONDITIONS", "SOCIAL_CARE", "BONE_HEALTH",
+        "DIAGNOSTIC_STEWARDSHIP",
     };
+    // NOTE: this is a PROBE list — a flag missing from it can never be reported as enabled, so
+    // the manual will claim "not enabled on this site" while the grain says otherwise. Adding a
+    // new feature flag therefore means touching THREE places: SiteParametersState.Features (the
+    // default), this array, and the TIER map in wwwroot/manual/assets/js/editions.js.
     var enabled = new List<string>();
     foreach (string f in all)
     {

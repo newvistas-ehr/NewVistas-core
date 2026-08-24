@@ -35,12 +35,10 @@ file, You can obtain one at https://mozilla.org/MPL/2.0/.
                             <DataGrid.Columns>
                                 <DataGridTextColumn Header="Control Point" Binding="{Binding ControlPointId}" Width="130"/>
                                 <DataGridTextColumn Header="Name" Binding="{Binding Name}" Width="180"/>
-                                <DataGridTextColumn Header="Fund" Binding="{Binding FundCode}" Width="80"/>
-                                <DataGridTextColumn Header="Cost Center" Binding="{Binding CostCenterCode}" Width="100"/>
+                                <DataGridTextColumn Header="Facility" Binding="{Binding FacilityId}" Width="100"/>
                                 <DataGridTextColumn Header="FY" Binding="{Binding FiscalYear}" Width="60"/>
-                                <DataGridTextColumn Header="Budget" Binding="{Binding BudgetAmount, StringFormat=C}" Width="110"/>
-                                <DataGridTextColumn Header="Committed" Binding="{Binding CommittedAmount, StringFormat=C}" Width="110"/>
-                                <DataGridTextColumn Header="Obligated" Binding="{Binding ObligatedAmount, StringFormat=C}" Width="110"/>
+                                <DataGridTextColumn Header="Remaining" Binding="{Binding RemainingBalance, StringFormat=C}" Width="110"/>
+                                <DataGridTextColumn Header="Status" Binding="{Binding Status}" Width="110"/>
                             </DataGrid.Columns>
                         </DataGrid>
                     </StackPanel>
@@ -56,8 +54,8 @@ file, You can obtain one at https://mozilla.org/MPL/2.0/.
                                 <DataGridTextColumn Header="Vendor" Binding="{Binding VendorName}" Width="160"/>
                                 <DataGridTextColumn Header="Status" Binding="{Binding Status}" Width="110"/>
                                 <DataGridTextColumn Header="Amount" Binding="{Binding TotalAmount, StringFormat=C}" Width="100"/>
-                                <DataGridTextColumn Header="Order Date" Binding="{Binding OrderDate, StringFormat=d}" Width="100"/>
-                                <DataGridTextColumn Header="Delivery" Binding="{Binding DeliveryDate, StringFormat=d}" Width="100"/>
+                                <DataGridTextColumn Header="Issued" Binding="{Binding IssuedDate, StringFormat=d}" Width="100"/>
+                                <DataGridTextColumn Header="Received" Binding="{Binding AmountReceived, StringFormat=C}" Width="100"/>
                             </DataGrid.Columns>
                         </DataGrid>
                     </StackPanel>

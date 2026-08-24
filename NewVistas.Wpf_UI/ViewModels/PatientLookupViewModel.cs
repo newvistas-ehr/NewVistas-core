@@ -1,4 +1,4 @@
-// Copyright 2026 Merrimack Valley Software Works, LLC. All rights reserved.
+﻿// Copyright 2026 Merrimack Valley Software Works, LLC. All rights reserved.
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
@@ -18,7 +18,6 @@ namespace NewVistas.Wpf_UI.ViewModels;
 public partial class PatientLookupViewModel : ObservableObject
 {
     protected readonly OrleansGrainService Grains;
-    protected readonly ApiClient Api;
     protected readonly PatientContext PatientContext;
     protected readonly AuthService Auth;
 
@@ -52,10 +51,9 @@ public partial class PatientLookupViewModel : ObservableObject
         : string.Join(", ", new[] { Patient.StreetAddress1, Patient.City, Patient.State, Patient.ZipCode }
             .Where(s => !string.IsNullOrWhiteSpace(s)));
 
-    public PatientLookupViewModel(OrleansGrainService grains, ApiClient api, PatientContext patientContext, AuthService authService)
+    public PatientLookupViewModel(OrleansGrainService grains, PatientContext patientContext, AuthService authService)
     {
         Grains = grains;
-        Api = api;
         PatientContext = patientContext;
         Auth = authService;
 

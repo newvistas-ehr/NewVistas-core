@@ -27,29 +27,29 @@ file, You can obtain one at https://mozilla.org/MPL/2.0/.
                 <StackPanel>
                     <TextBlock Style="{StaticResource SectionHeader}" Text="New Inpatient Order"/>
                     <TextBlock Style="{StaticResource FieldLabel}" Text="Drug Name"/>
-                    <TextBox Text="{Binding NewDrugName, UpdateSourceTrigger=PropertyChanged}" Width="300" HorizontalAlignment="Left"/>
+                    <TextBox Text="{Binding DrugName, UpdateSourceTrigger=PropertyChanged}" Width="300" HorizontalAlignment="Left"/>
                     <TextBlock Style="{StaticResource FieldLabel}" Text="Dose"/>
-                    <TextBox Text="{Binding NewDose, UpdateSourceTrigger=PropertyChanged}" Width="200" HorizontalAlignment="Left"/>
+                    <TextBox Text="{Binding Dosage, UpdateSourceTrigger=PropertyChanged}" Width="200" HorizontalAlignment="Left"/>
                     <TextBlock Style="{StaticResource FieldLabel}" Text="Route"/>
-                    <ComboBox ItemsSource="{Binding RouteOptions}" SelectedItem="{Binding NewRoute}" Width="160" HorizontalAlignment="Left"/>
+                    <ComboBox ItemsSource="{Binding RouteOptions}" SelectedItem="{Binding Route}" Width="160" HorizontalAlignment="Left"/>
                     <TextBlock Style="{StaticResource FieldLabel}" Text="Schedule"/>
-                    <TextBox Text="{Binding NewSchedule, UpdateSourceTrigger=PropertyChanged}" Width="160" HorizontalAlignment="Left"/>
+                    <TextBox Text="{Binding Schedule, UpdateSourceTrigger=PropertyChanged}" Width="160" HorizontalAlignment="Left"/>
                     <StackPanel Orientation="Horizontal" Margin="0,12,0,0">
                         <Button Content="Place Order" Style="{StaticResource PrimaryButton}"
-                                Command="{Binding PlaceOrderCommand}" Margin="0,0,8,0"/>
+                                Command="{Binding PlaceInpatientOrderCommand}" Margin="0,0,8,0"/>
                         <Button Content="Cancel" Style="{StaticResource SecondaryButton}"
                                 Command="{Binding ToggleOrderFormCommand}"/>
                     </StackPanel>
                 </StackPanel>
             </Border>
 
-            <DataGrid ItemsSource="{Binding Orders}" SelectedItem="{Binding SelectedOrder}">
+            <DataGrid ItemsSource="{Binding MarEntries}" SelectedItem="{Binding SelectedEntry}">
                 <DataGrid.Columns>
                     <DataGridTextColumn Header="Drug" Binding="{Binding DrugName}" Width="*"/>
-                    <DataGridTextColumn Header="Dose" Binding="{Binding Dose}" Width="100"/>
+                    <DataGridTextColumn Header="Dose" Binding="{Binding Dosage}" Width="100"/>
                     <DataGridTextColumn Header="Route" Binding="{Binding Route}" Width="80"/>
                     <DataGridTextColumn Header="Schedule" Binding="{Binding Schedule}" Width="100"/>
-                    <DataGridTextColumn Header="Status" Binding="{Binding Status}" Width="100"/>
+                    <DataGridCheckBoxColumn Header="Active" Binding="{Binding IsActive}" Width="100"/>
                     <DataGridTextColumn Header="Start" Binding="{Binding StartDate, StringFormat=d}" Width="100"/>
                 </DataGrid.Columns>
             </DataGrid>

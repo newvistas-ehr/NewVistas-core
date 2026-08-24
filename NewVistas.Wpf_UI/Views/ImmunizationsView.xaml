@@ -27,7 +27,7 @@ file, You can obtain one at https://mozilla.org/MPL/2.0/.
                 <StackPanel>
                     <TextBlock Style="{StaticResource SectionHeader}" Text="Record Immunization"/>
                     <TextBlock Style="{StaticResource FieldLabel}" Text="Vaccine Name"/>
-                    <TextBox Text="{Binding VaccineName, UpdateSourceTrigger=PropertyChanged}" Width="300" HorizontalAlignment="Left"/>
+                    <TextBox Text="{Binding ImmunizationName, UpdateSourceTrigger=PropertyChanged}" Width="300" HorizontalAlignment="Left"/>
                     <TextBlock Style="{StaticResource FieldLabel}" Text="CVX Code (optional)"/>
                     <TextBox Text="{Binding CvxCode, UpdateSourceTrigger=PropertyChanged}" Width="120" HorizontalAlignment="Left"/>
                     <TextBlock Style="{StaticResource FieldLabel}" Text="Lot Number"/>
@@ -45,11 +45,10 @@ file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
             <DataGrid ItemsSource="{Binding Immunizations}">
                 <DataGrid.Columns>
-                    <DataGridTextColumn Header="Vaccine" Binding="{Binding VaccineName}" Width="*"/>
+                    <DataGridTextColumn Header="Vaccine" Binding="{Binding ImmunizationName}" Width="*"/>
                     <DataGridTextColumn Header="CVX" Binding="{Binding CvxCode}" Width="70"/>
-                    <DataGridTextColumn Header="Date Given" Binding="{Binding AdministeredDate, StringFormat=d}" Width="110"/>
-                    <DataGridTextColumn Header="Site" Binding="{Binding AdministrationSite}" Width="100"/>
-                    <DataGridTextColumn Header="Lot" Binding="{Binding LotNumber}" Width="120"/>
+                    <DataGridTextColumn Header="Date Given" Binding="{Binding EventDateTime, StringFormat=d}" Width="110"/>
+                    <DataGridTextColumn Header="Series" Binding="{Binding Series}" Width="100"/>
                     <DataGridTextColumn Header="Administered By" Binding="{Binding AdministeredByName}" Width="160"/>
                 </DataGrid.Columns>
             </DataGrid>

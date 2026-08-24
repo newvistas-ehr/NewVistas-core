@@ -1,4 +1,4 @@
-// Copyright 2026 Merrimack Valley Software Works, LLC. All rights reserved.
+﻿// Copyright 2026 Merrimack Valley Software Works, LLC. All rights reserved.
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
@@ -16,6 +16,14 @@ public partial class SurgeryViewModel : BasePatientViewModel
     [ObservableProperty] private ObservableCollection<SurgerySummary> _surgeries = new();
     [ObservableProperty] private SurgeryState? _selectedSurgery;
 
+    /// <summary>Grid selection; loads the full surgery into <see cref="SelectedSurgery"/>.</summary>
+    [ObservableProperty] private SurgerySummary? _selectedEntry;
+
+    partial void OnSelectedEntryChanged(SurgerySummary? value)
+    {
+        if (value is not null) _ = SelectSurgery(value);
+    }
+
     // Schedule form
     [ObservableProperty] private bool _showScheduleForm;
     [ObservableProperty] private string _principalProcedure = string.Empty;
@@ -27,8 +35,8 @@ public partial class SurgeryViewModel : BasePatientViewModel
 
     public string[] AnesthesiaOptions { get; } = ["GENERAL", "REGIONAL", "LOCAL", "MAC", "SPINAL", "EPIDURAL"];
 
-    public SurgeryViewModel(OrleansGrainService grains, ApiClient api, PatientContext patientContext)
-        : base(grains, api, patientContext) { }
+    public SurgeryViewModel(OrleansGrainService grains, PatientContext patientContext)
+        : base(grains, patientContext) { }
 
     protected override async Task LoadDataAsync()
     {

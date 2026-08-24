@@ -2,8 +2,6 @@
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
-using System.Security.Cryptography;
-using System.Text;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Authorization;
 using NewVistas.Abstractions.GrainInterfaces;
@@ -158,27 +156,27 @@ public class NotesController : ControllerBase
     }
 
     /// <summary>
-    /// Sign a note. Requires electronic signature code verification.
+    /// Sign a note. The electronic-signature code is REQUIRED and is verified by the
+    /// workflow grain against the authenticated caller's stored hash — never against a
+    /// client-chosen signer id. (The old shape verified only "if provided", which made an
+    /// empty body a valid signature.)
     /// </summary>
     [HttpPost("{documentId}/sign")]
     [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     public async Task<IActionResult> SignNote(string patientId, string documentId, [FromBody] SignNoteRequest? request = null)
     {
+        if (string.IsNullOrWhiteSpace(request?.ElectronicSignatureCode))
+            return BadRequest(new { Message = "The electronic signature code is required to sign." });
         try
         {
-            // Verify electronic signature if provided
-            if (request != null && !string.IsNullOrEmpty(request.ElectronicSignatureCode) && !string.IsNullOrEmpty(request.SignerId))
-            {
-                var personGrain = _grainFactory.GetGrain<INewPersonGrain>($"USER:{request.SignerId}");
-                string sigHash = HashSignatureCode(request.ElectronicSignatureCode);
-                bool valid = await personGrain.VerifyElectronicSignatureAsync(sigHash);
-                if (!valid)
-                    return Unauthorized(new { Message = "Electronic signature verification failed" });
-            }
-
-            await GetWorkflow(patientId).SignNoteAsync(documentId);
+            await GetWorkflow(patientId).SignNoteAsync(documentId, request.ElectronicSignatureCode);
             return Ok(new { DocumentId = documentId, Message = "Note signed successfully" });
+        }
+        catch (UnauthorizedAccessException)
+        {
+            return Unauthorized(new { Message = "Electronic signature verification failed" });
         }
         catch (Exception ex)
         {
@@ -188,39 +186,31 @@ public class NotesController : ControllerBase
     }
 
     /// <summary>
-    /// Cosign a note. Requires electronic signature code verification.
+    /// Cosign a note. The electronic-signature code is REQUIRED and is verified by the
+    /// workflow grain against the authenticated caller's stored hash.
     /// </summary>
     [HttpPost("{documentId}/cosign")]
     [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     public async Task<IActionResult> CosignNote(string patientId, string documentId, [FromBody] CosignNoteRequest? request = null)
     {
+        if (string.IsNullOrWhiteSpace(request?.ElectronicSignatureCode))
+            return BadRequest(new { Message = "The electronic signature code is required to cosign." });
         try
         {
-            // Verify electronic signature if provided
-            if (request != null && !string.IsNullOrEmpty(request.ElectronicSignatureCode) && !string.IsNullOrEmpty(request.CosignerId))
-            {
-                var personGrain = _grainFactory.GetGrain<INewPersonGrain>($"USER:{request.CosignerId}");
-                string sigHash = HashSignatureCode(request.ElectronicSignatureCode);
-                bool valid = await personGrain.VerifyElectronicSignatureAsync(sigHash);
-                if (!valid)
-                    return Unauthorized(new { Message = "Electronic signature verification failed" });
-            }
-
-            await GetWorkflow(patientId).CosignNoteAsync(documentId);
+            await GetWorkflow(patientId).CosignNoteAsync(documentId, request.ElectronicSignatureCode);
             return Ok(new { DocumentId = documentId, Message = "Note cosigned successfully" });
+        }
+        catch (UnauthorizedAccessException)
+        {
+            return Unauthorized(new { Message = "Electronic signature verification failed" });
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error cosigning note {DocumentId}", documentId);
             return StatusCode(500, "An error occurred while cosigning the note");
         }
-    }
-
-    private static string HashSignatureCode(string signatureCode)
-    {
-        byte[] hashBytes = SHA256.HashData(Encoding.UTF8.GetBytes(signatureCode));
-        return Convert.ToBase64String(hashBytes);
     }
 
     /// <summary>

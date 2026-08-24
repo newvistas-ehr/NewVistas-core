@@ -48,3 +48,21 @@ public sealed class MisconfiguredRadiologyFindingExtractor : IRadiologyFindingEx
         return result;
     }
 }
+
+/// <summary>Offline coding-assistant fallback that carries the "configure your key" notice.</summary>
+public sealed class MisconfiguredClinicalCodingAssistant : IClinicalCodingAssistant
+{
+    private readonly LexiconCodingAssistant _offline = new();
+
+    public bool IsLiveModel => false;
+    public string ProviderName => "offline-lexicon (live AI key not configured)";
+
+    public async Task<CodingClaimsResult> SuggestClaimsAsync(
+        string noteText, CancellationToken cancellationToken = default)
+    {
+        CodingClaimsResult result = await _offline.SuggestClaimsAsync(noteText, cancellationToken);
+        result.ProviderName = ProviderName;
+        result.ConfigurationNotice = ClinicalNarrativeOptions.ApiKeyHelpText;
+        return result;
+    }
+}

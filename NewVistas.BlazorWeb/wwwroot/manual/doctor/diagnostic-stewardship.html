@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Diagnostic Stewardship — Physician Manual — NewVistas</title>
+  <link rel="stylesheet" href="../assets/css/manual.css" />
+</head>
+<body>
+  <div class="topbar">
+    <div class="brand"><a href="../index.html">NewVistas</a> <span>· User Manual</span></div>
+    <div class="role-pill">🩺 Physician</div>
+  </div>
+
+  <div class="layout">
+    <nav class="sidebar">
+      <div class="section">Physician Manual</div>
+      <a href="index.html">Overview</a>
+      <a href="getting-started.html">Getting Started</a>
+      <div class="section">Chart &amp; Workflows</div>
+      <a href="cover-sheet.html">Cover Sheet</a>
+      <a href="problem-list.html">Problem List</a>
+      <a href="diagnostic-stewardship.html" class="active" data-flag="DIAGNOSTIC_STEWARDSHIP">Diagnostic Stewardship</a>
+      <a href="prescribing.html">Prescribing &amp; Safety Gate</a>
+      <a href="orders.html">Order Entry</a>
+      <a href="notes.html">Progress Notes</a>
+      <a href="consults.html">Consults</a>
+      <a href="labs.html">Labs</a>
+      <a href="radiology.html">Radiology &amp; AI Findings</a>
+      <a href="allergies.html">Allergies</a>
+      <a href="immunizations.html">Immunizations</a>
+      <div class="section" data-flag="ONCOLOGY">Oncology</div>
+      <a href="oncology.html" data-flag="ONCOLOGY">Oncology / Tumor Registry</a>
+      <a href="radiation-therapy.html" data-flag="ONCOLOGY">Radiation Therapy</a>
+      <a href="cancer-registry.html" data-flag="ONCOLOGY">Cancer Registry</a>
+      <div class="section" data-flag="HOME_BASED_CARE">Home Care</div>
+      <a href="home-care.html" data-flag="HOME_BASED_CARE">Home-Based Care</a>
+      <div class="section">&nbsp;</div>
+      <a href="../index.html">← All roles</a>
+    </nav>
+
+    <main class="content" data-flag="DIAGNOSTIC_STEWARDSHIP">
+      <div class="crumb"><a href="../index.html">Manual</a> › <a href="index.html">Physician</a> › Diagnostic Stewardship</div>
+      <h1>Diagnostic Stewardship — for the physician</h1>
+      <p class="lead">
+        Some working diagnoses turn out to be something else more often than others. This feature
+        keeps count — from your own colleagues' recorded outcomes, at this site — and shows you a
+        quiet line when the diagnosis you're entering has a track record worth knowing about.
+        It is descriptive, not predictive: it reports what happened here, and never tells you what
+        this patient has.
+      </p>
+
+      <h2>Where you'll see it</h2>
+      <p>
+        On the <strong>Problem List → Add Problem</strong> screen, immediately under the ICD-10 code
+        field. It appears <em>as you enter the diagnosis</em>, which is the only moment the
+        information can still change what you do. It is a single collapsed line you choose to open —
+        never a pop-up, never a block on saving, and it does not take focus.
+      </p>
+
+      <div class="note">
+        Most diagnoses show nothing at all. The line only appears when a diagnosis clears the
+        statistical floors, or when there is a published, time-critical alternative worth naming.
+        Silence is the normal state.
+      </div>
+
+      <h2>Reading it</h2>
+      <p>
+        Everything is given as <strong>counts of patients</strong> — "revised in 9 of 41 adjudicated
+        episodes at this site" — with any percentage in brackets afterwards. That is deliberate.
+        Numbers presented as bare percentages are read wrongly by clinicians far more often than
+        numbers presented as counts of people, and the fix is the way the number is written, not
+        more training.
+      </p>
+      <p>Two kinds of entry can appear:</p>
+      <ul>
+        <li><strong>What it turns out to be</strong> — alternative diagnoses this one has been revised
+          to here, with how many times. Some entries are marked <em>time-critical</em> and come from
+          published literature rather than local counts; those appear even when this site has no data
+          at all, because a rare and lethal alternative is exactly the case where silence would do
+          the most harm.</li>
+        <li><strong>Worth considering</strong> — results that arrived before a revision more often
+          than they arrived in episodes that were <em>not</em> revised. Both figures are shown so you
+          can judge the comparison yourself.</li>
+      </ul>
+
+      <div class="note">
+        <strong>An important limit.</strong> A test listed here arrived before a revision — that does
+        not establish it would have changed the diagnosis. The clinician who ordered the troponin
+        already suspected a cardiac cause. This cannot be corrected statistically, so the wording is
+        deliberately cautious and you should read it that way.
+      </div>
+
+      <h2>Recording how it turned out</h2>
+      <p>
+        On the problem list, any problem still awaiting an outcome offers
+        <strong>"How did it turn out?"</strong>. You can answer:
+      </p>
+      <ul>
+        <li><strong>It was right</strong></li>
+        <li><strong>Same condition, more specific</strong> — the workup succeeded and you coded it
+          more precisely (diabetes → type 2 diabetes; unidentified influenza → influenza with the
+          virus typed). <em>This is not counted as an error.</em></li>
+        <li><strong>Same condition, less specific</strong></li>
+        <li><strong>It was something else</strong> — the working diagnosis was wrong. This is the
+          only answer that counts toward the revision rate.</li>
+        <li><strong>Resolved, never established</strong></li>
+        <li><strong>Don't know / lost to follow-up</strong> — counted as unadjudicated, and excluded
+          from the rate entirely.</li>
+      </ul>
+      <p>
+        When you enter the code it actually was, the system pre-selects an answer for you. That is a
+        suggestion only — change it if it is wrong. What gets counted is <strong>your</strong>
+        judgement, never the system's guess about you.
+      </p>
+
+      <div class="note">
+        <strong>Answering is optional and always skippable.</strong> It is deliberately not a required
+        field: a mandatory box produces default-clicked answers, which are worse than no answer at all
+        because nobody can tell them apart from real ones afterwards. The statistics are honest
+        precisely because the answers are voluntary.
+      </div>
+
+      <h2>What this is not</h2>
+      <ul>
+        <li><strong>Not a performance measure.</strong> The system records how many different
+          clinicians contributed to a number, and nothing more. There is no per-clinician breakdown
+          anywhere in the product, and that omission is deliberate and permanent.</li>
+        <li><strong>Not a prediction about your patient.</strong> It is a frequency count over past
+          episodes at this site. It carries no sensitivity, specificity, or validated accuracy,
+          and the disclaimer on the panel says so.</li>
+        <li><strong>Not conditioned on how your patient presents.</strong> The count is per
+          diagnosis, not per presentation — "UTI is revised to sepsis N times here", not "in patients
+          who look like this one". Weigh it accordingly.</li>
+      </ul>
+
+      <h2>When a code arrives for something that had none</h2>
+      <p>
+        If a patient was tracked in an <a href="emerging-conditions.html">emerging cluster</a> and a real
+        code is later issued for it, the coded diagnosis is added to their problem list citing the
+        cluster it came from. Where they were carrying a single working diagnosis for the same illness,
+        that one is marked superseded and linked to the new code — one condition with a history, not two
+        overlapping diagnoses.
+      </p>
+      <p>
+        <strong>None of this counts as a misdiagnosis.</strong> The code set changed; nobody was wrong.
+        A recode stays out of the revision-rate numerator and out of its denominator, so it cannot move
+        the figures on this page in either direction.
+      </p>
+      <p>
+        The same applies site-wide: when a code-set change affects the whole population (as when
+        U07.1 arrived for COVID-19), administrators run a bulk migration that recodes every
+        affected chart with the same provenance — and, by the same rule, moves none of the
+        statistics on this page.
+      </p>
+
+      <h2>Machine-suggested codes</h2>
+      <p>
+        Codes accepted from the <a href="notes.html">note suggester</a> arrive on the problem list
+        at <em>Unconfirmed</em> certainty with a permanent machine-cited marker and the quoted
+        note sentence as evidence. They open a diagnostic episode like any other assertion, so
+        "how did it turn out?" applies to them too — which is exactly how a bad suggestion
+        pattern would eventually show up in the revision statistics.
+      </p>
+
+      <h2>The evidence panel</h2>
+      <p>
+        Every problem row has an <strong>Evidence</strong> link. It opens what the diagnosis
+        rests on: each piece of structured evidence with its polarity — <em>supports</em>,
+        <em>argues against</em>, <em>equivocal</em>, or <em>not assessed</em> — plus its source
+        (a lab result, a note, a recorded symptom, an exam finding), the observed value and
+        date, and a machine-cited marker where a suggestion engine rather than a clinician
+        made the citation.
+      </p>
+      <p>
+        <strong>"Not assessed" is the row worth pausing on.</strong> A chart is usually silent
+        about what was never checked, and silence reads — wrongly — as negative. Recording
+        "influenza PCR: not assessed" is a positive statement that the question is still open,
+        and it is different in kind from a negative result, which argues against the diagnosis.
+        The panel lets you record both, and displays them differently.
+      </p>
+      <p>
+        From the same panel you can add evidence: pick the polarity, pick a source record
+        (recent labs, notes, and coded symptoms are offered from the chart) or describe an exam
+        finding in free text, and optionally move the diagnosis's certainty in the same step.
+        Adding evidence never counts as a revision — it is the workup proceeding, not a change
+        of mind — so it can never move the revision statistics on this page.
+      </p>
+
+      <h2>Certainty on the problem list</h2>
+      <p>
+        Problems now carry a certainty — <em>suspected</em>, <em>provisional</em>,
+        <em>differential</em>, or confirmed — shown next to the diagnosis. A suspected diagnosis no
+        longer looks identical to a settled one on the list, which was a real source of misreading.
+        A diagnosis later <em>disproved</em> stays in the record but drops off the active list.
+      </p>
+
+      <h2>Also in the WPF client</h2>
+      <p>
+        The same advisory and the same "How did it turn out?" prompt appear on the Problem List in the
+        Windows desktop client, in the same places and with the same wording.
+      </p>
+    </main>
+  </div>
+  <script src="../assets/js/editions.js"></script>
+</body>
+</html>

@@ -35,7 +35,7 @@ file, You can obtain one at https://mozilla.org/MPL/2.0/.
                                 <DataGridTextColumn Header="Type" Binding="{Binding ClaimType}" Width="120"/>
                                 <DataGridTextColumn Header="Status" Binding="{Binding Status}" Width="130"/>
                                 <DataGridTextColumn Header="Payer" Binding="{Binding PayerName}" Width="140"/>
-                                <DataGridTextColumn Header="Amount" Binding="{Binding TotalChargeAmount, StringFormat=C}" Width="90"/>
+                                <DataGridTextColumn Header="Amount" Binding="{Binding TotalBilledAmount, StringFormat=C}" Width="90"/>
                                 <DataGridTextColumn Header="Service Date" Binding="{Binding ServiceFromDate, StringFormat=d}" Width="100"/>
                             </DataGrid.Columns>
                         </DataGrid>
@@ -57,8 +57,8 @@ file, You can obtain one at https://mozilla.org/MPL/2.0/.
                             <DataGrid.Columns>
                                 <DataGridTextColumn Header="Batch ID" Binding="{Binding TransmissionId}" Width="160"/>
                                 <DataGridTextColumn Header="Status" Binding="{Binding Status}" Width="120"/>
-                                <DataGridTextColumn Header="Claim Count" Binding="{Binding ClaimCount}" Width="90"/>
-                                <DataGridTextColumn Header="Created" Binding="{Binding CreatedDate, StringFormat=d}" Width="100"/>
+                                <DataGridTextColumn Header="Claim Count" Binding="{Binding TotalClaims}" Width="90"/>
+                                <DataGridTextColumn Header="Billed" Binding="{Binding TotalBilledAmount, StringFormat=C}" Width="100"/>
                             </DataGrid.Columns>
                         </DataGrid>
 
@@ -67,9 +67,9 @@ file, You can obtain one at https://mozilla.org/MPL/2.0/.
                             <DataGrid.Columns>
                                 <DataGridTextColumn Header="Batch ID" Binding="{Binding TransmissionId}" Width="160"/>
                                 <DataGridTextColumn Header="Status" Binding="{Binding Status}" Width="120"/>
-                                <DataGridTextColumn Header="Claims" Binding="{Binding ClaimCount}" Width="70"/>
-                                <DataGridTextColumn Header="Accepted" Binding="{Binding AcceptedCount}" Width="70"/>
-                                <DataGridTextColumn Header="Rejected" Binding="{Binding RejectedCount}" Width="70"/>
+                                <DataGridTextColumn Header="Claims" Binding="{Binding TotalClaims}" Width="70"/>
+                                <DataGridTextColumn Header="Payer" Binding="{Binding PayerName}" Width="140"/>
+                                <DataGridTextColumn Header="Billed" Binding="{Binding TotalBilledAmount, StringFormat=C}" Width="90"/>
                                 <DataGridTextColumn Header="Sent" Binding="{Binding SentDate, StringFormat=d}" Width="100"/>
                             </DataGrid.Columns>
                         </DataGrid>
@@ -86,8 +86,8 @@ file, You can obtain one at https://mozilla.org/MPL/2.0/.
                                 <DataGridTextColumn Header="Payer" Binding="{Binding PayerName}" Width="150"/>
                                 <DataGridTextColumn Header="Status" Binding="{Binding Status}" Width="100"/>
                                 <DataGridTextColumn Header="Claims" Binding="{Binding ClaimCount}" Width="70"/>
-                                <DataGridTextColumn Header="Total Paid" Binding="{Binding TotalPaidAmount, StringFormat=C}" Width="100"/>
-                                <DataGridTextColumn Header="Received" Binding="{Binding ReceivedDate, StringFormat=d}" Width="100"/>
+                                <DataGridTextColumn Header="Total Paid" Binding="{Binding TotalPaymentAmount, StringFormat=C}" Width="100"/>
+                                <DataGridTextColumn Header="Payment Date" Binding="{Binding PaymentDate, StringFormat=d}" Width="100"/>
                             </DataGrid.Columns>
                         </DataGrid>
                     </StackPanel>

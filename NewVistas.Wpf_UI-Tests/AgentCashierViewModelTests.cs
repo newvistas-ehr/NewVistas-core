@@ -1,4 +1,4 @@
-// Copyright 2026 Merrimack Valley Software Works, LLC. All rights reserved.
+﻿// Copyright 2026 Merrimack Valley Software Works, LLC. All rights reserved.
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
@@ -40,7 +40,7 @@ public class AgentCashierViewModelTests : ViewModelTestBase
             new() { ReceiptId = "R1", ReceiptNumber = "001" }
         });
 
-        var vm = new AgentCashierViewModel(ApiClient, GrainService) { PatientId = "P1" };
+        var vm = new AgentCashierViewModel(GrainService) { PatientId = "P1" };
         await vm.LoadPatientReceiptsCommand.ExecuteAsync(null);
 
         Assert.That(vm.PatientReceipts, Has.Count.EqualTo(1));
@@ -52,7 +52,7 @@ public class AgentCashierViewModelTests : ViewModelTestBase
     {
         _mockReceiptIndex.GetAllAsync().Returns(new List<CashierReceiptIndexEntry>());
 
-        var vm = new AgentCashierViewModel(ApiClient, GrainService)
+        var vm = new AgentCashierViewModel(GrainService)
         {
             ReceiptNumber = "R001",
             ReceiptPatientId = "P1",
@@ -76,7 +76,7 @@ public class AgentCashierViewModelTests : ViewModelTestBase
         _mockSessionIndex.GetOpenSessionsAsync().Returns(new List<CashierSessionIndexEntry>());
         _mockSessionIndex.GetAllAsync().Returns(new List<CashierSessionIndexEntry>());
 
-        var vm = new AgentCashierViewModel(ApiClient, GrainService)
+        var vm = new AgentCashierViewModel(GrainService)
         {
             StationId = "STA1",
             StationName = "Station 1",

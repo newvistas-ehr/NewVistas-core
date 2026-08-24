@@ -53,10 +53,44 @@
           epidemiologist to review — a human suggestion persists even if a later evaluation stops matching.</li>
       </ol>
 
+      <h2>When nothing matches</h2>
+      <p>
+        If the screen comes back with no match, you get a second option:
+        <strong>"Start a cluster from this patient"</strong>. This is the gesture for
+        <em>this doesn't look like anything I know</em> — the case that previously had nowhere to go,
+        because suggesting a patient into a cluster required a cluster to already exist.
+      </p>
+      <p>It drafts a cluster from what you have recorded:</p>
+      <ul>
+        <li>the symptoms you marked <strong>Present</strong>;</li>
+        <li>any etiologic test that came back <strong>negative</strong> — the workup that found nothing
+          is as much a part of the picture as the positives;</li>
+        <li>any result the laboratory flagged <strong>abnormal</strong>.</li>
+      </ul>
+      <p>
+        The patient is added as the index case, and the draft goes to the epidemiology team.
+      </p>
+
+      <div class="note">
+        <strong>A draft reaches no chart.</strong> It does not appear on this patient's cover sheet or
+        anyone else's, produces no precaution banner, and is not screened against other patients, until
+        an epidemiologist reviews and activates it. That boundary is deliberate: naming a cluster tends
+        to create its population — once a named condition is visible, ambiguous cases get attributed to
+        it, which grows the group, which makes it look confirmed. Assembling the draft is automated;
+        publishing it is not.
+      </div>
+
+      <div class="note">
+        A definition built from one patient fits that patient perfectly and generalises to nothing. The
+        draft says so on its face, and the epidemiologist is expected to broaden the features and weights
+        before activating it. You are giving them a starting point, not a case definition.
+      </div>
+
       <div class="note">
         Recording symptoms needs a front-door key (<code>PROVIDER</code>, <code>ORES</code>, <code>ORELSE</code>,
-        or <code>EPI MANAGER</code>) — nurses can do it. Once an epidemiologist confirms the patient into a
-        cluster, an isolation precaution banner appears on the patient's cover sheet.
+        or <code>EPI MANAGER</code>) — nurses can do it. Proposing a draft cluster needs the same key, so you
+        do not need <code>EPI MANAGER</code> to raise the flag. Once an epidemiologist confirms the patient
+        into a cluster, an isolation precaution banner appears on the patient's cover sheet.
       </div>
     </main>
   </div>

@@ -23,6 +23,9 @@ namespace NewVistas.Abstractions.Grains;
 ///     (like ^ICD9 "B" cross-reference)
 ///   - Text search: case-insensitive substring match on descriptions
 ///     (like the LEX search in DGICD.m)
+///   - Ranked text search: same substring match, but ordered for
+///     term→code resolution before the result window is applied
+///     (see SearchRankedAsync — used by the coding suggester)
 /// </summary>
 public class Icd10IndexGrain : Grain, IIcd10IndexGrain
 {
@@ -48,6 +51,21 @@ public class Icd10IndexGrain : Grain, IIcd10IndexGrain
         _state.State.LastLoadedDate = DateTime.UtcNow;
         _state.State.TotalCodes = entries.Count;
         _state.State.BillableCodes = entries.Count(e => e.IsBillable);
+
+        await _state.WriteStateAsync();
+    }
+
+    public async Task AddCodesAsync(List<Icd10IndexEntry> entries)
+    {
+        foreach (var entry in entries)
+        {
+            _state.State.Codes[entry.Code] = entry;
+        }
+
+        _state.State.IsLoaded = _state.State.Codes.Count > 0;
+        _state.State.LastLoadedDate = DateTime.UtcNow;
+        _state.State.TotalCodes = _state.State.Codes.Count;
+        _state.State.BillableCodes = _state.State.Codes.Values.Count(e => e.IsBillable);
 
         await _state.WriteStateAsync();
     }
@@ -92,6 +110,37 @@ public class Icd10IndexGrain : Grain, IIcd10IndexGrain
 
         return Task.FromResult(results
             .OrderBy(e => e.OrderNumber)
+            .Take(maxResults)
+            .ToList());
+    }
+
+    public Task<List<Icd10IndexEntry>> SearchRankedAsync(
+        string searchText, bool billableOnly, int maxResults)
+    {
+        if (string.IsNullOrWhiteSpace(searchText))
+            return Task.FromResult(new List<Icd10IndexEntry>());
+
+        var query = searchText.Trim();
+
+        // Descriptions only — this search serves term→code resolution, where the input is
+        // clinical vocabulary, never a code fragment. Code lookups use SearchAsync/GetByPrefix.
+        IEnumerable<Icd10IndexEntry> results = _state.State.Codes.Values
+            .Where(e => e.ShortDescription.Contains(query, StringComparison.OrdinalIgnoreCase) ||
+                        e.LongDescription.Contains(query, StringComparison.OrdinalIgnoreCase));
+
+        if (billableOnly)
+            results = results.Where(e => e.IsBillable);
+
+        // Rank BEFORE the window (see the interface doc): starts-with is the strongest
+        // relevance signal, and a shorter code is a less-specific code — the resolver's
+        // first two ranking tiers, applied over ALL matches so Take(maxResults) can never
+        // starve the honest generic code the way a code-ordered page did.
+        return Task.FromResult(results
+            .OrderByDescending(e =>
+                (e.ShortDescription.StartsWith(query, StringComparison.OrdinalIgnoreCase) ||
+                 e.LongDescription.StartsWith(query, StringComparison.OrdinalIgnoreCase)) ? 1 : 0)
+            .ThenBy(e => e.Code.Length)
+            .ThenBy(e => e.OrderNumber)
             .Take(maxResults)
             .ToList());
     }

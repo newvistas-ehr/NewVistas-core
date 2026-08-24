@@ -31,8 +31,9 @@ file, You can obtain one at https://mozilla.org/MPL/2.0/.
             <DataGrid ItemsSource="{Binding Readings}" AutoGenerateColumns="False" MaxHeight="220">
                 <DataGrid.Columns>
                     <DataGridTextColumn Header="Date/Time" Binding="{Binding ReadingDateTime, StringFormat=g}" Width="140"/>
-                    <DataGridTextColumn Header="Type" Binding="{Binding ReadingType}" Width="120"/>
-                    <DataGridTextColumn Header="Value" Binding="{Binding Value}" Width="100"/>
+                    <DataGridTextColumn Header="Type" Binding="{Binding MeasurementType}" Width="120"/>
+                    <DataGridTextColumn Header="Value" Binding="{Binding Value1}" Width="100"/>
+                    <DataGridTextColumn Header="Unit" Binding="{Binding Unit}" Width="80"/>
                     <DataGridTextColumn Header="Alert" Binding="{Binding AlertGenerated}" Width="80"/>
                 </DataGrid.Columns>
             </DataGrid>
@@ -40,7 +41,8 @@ file, You can obtain one at https://mozilla.org/MPL/2.0/.
             <DataGrid ItemsSource="{Binding Alerts}" AutoGenerateColumns="False" MaxHeight="180">
                 <DataGrid.Columns>
                     <DataGridTextColumn Header="Date" Binding="{Binding AlertDateTime, StringFormat=g}" Width="140"/>
-                    <DataGridTextColumn Header="Type" Binding="{Binding AlertType}" Width="140"/>
+                    <DataGridTextColumn Header="Type" Binding="{Binding MeasurementType}" Width="140"/>
+                    <DataGridTextColumn Header="Severity" Binding="{Binding Severity}" Width="100"/>
                     <DataGridTextColumn Header="Status" Binding="{Binding Status}" Width="110"/>
                 </DataGrid.Columns>
             </DataGrid>

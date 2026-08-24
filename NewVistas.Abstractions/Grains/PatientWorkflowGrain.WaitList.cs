@@ -96,6 +96,34 @@ public partial class PatientWorkflowGrain
             throw new InvalidOperationException("Appointment wait list is not enabled for this site.");
 
         IAppointmentWaitListGrain grain = GrainFactory.GetGrain<IAppointmentWaitListGrain>(entryId);
+        AppointmentWaitListState entry = await grain.GetEntryAsync();
+
+        if (entry.Status != "OFFERED" || string.IsNullOrEmpty(entry.OfferedAppointmentId))
+            throw new InvalidOperationException("No pending offer to accept.");
+
+        // The staff offer flow pre-books the offered appointment for THIS patient, so
+        // at accept time it must still exist, still be "Scheduled", and still belong
+        // to this patient. If two entries were somehow offered the same appointment,
+        // only the patient the appointment is actually booked for can accept it; if
+        // the appointment was cancelled or rebooked in the meantime, nobody can.
+        // On a stale offer the entry is returned to WAITING (offer voided) so staff
+        // can re-offer a fresh slot, and the accept is rejected.
+        IAppointmentGrain apptGrain =
+            GrainFactory.GetGrain<IAppointmentGrain>(entry.OfferedAppointmentId);
+        AppointmentState appt = await apptGrain.GetAppointmentAsync();
+        bool apptExists = !string.IsNullOrEmpty(appt.PatientId);
+
+        if (!apptExists || appt.Status != "Scheduled" || appt.PatientId != PatientId)
+        {
+            await grain.VoidOfferAsync(
+                $"Offered appointment {entry.OfferedAppointmentId} was no longer available at accept time",
+                acceptedByName);
+            throw new InvalidOperationException(
+                $"Offered appointment {entry.OfferedAppointmentId} is no longer available " +
+                "(cancelled, rebooked, or assigned to another patient); the wait-list entry " +
+                "has been returned to WAITING so a new slot can be offered.");
+        }
+
         await grain.AcceptOfferAsync(acceptedByName);
     }
 
@@ -106,6 +134,33 @@ public partial class PatientWorkflowGrain
             throw new InvalidOperationException("Appointment wait list is not enabled for this site.");
 
         IAppointmentWaitListGrain grain = GrainFactory.GetGrain<IAppointmentWaitListGrain>(entryId);
+        AppointmentWaitListState entry = await grain.GetEntryAsync();
+
+        if (entry.Status != "OFFERED")
+            throw new InvalidOperationException("No pending offer to decline.");
+
+        // The offer pre-booked a real appointment for this patient — free that slot,
+        // or the declined booking is orphaned ("Scheduled" forever for a patient who
+        // said no). Cancel BEFORE the entry returns to WAITING so the auto-offer
+        // triggered by the cancellation cannot hand the just-declined slot straight
+        // back to this same entry. Skipped when the offered appointment id doesn't
+        // exist (pre-fix offers carried synthetic ids), already left "Scheduled",
+        // or belongs to a different patient — never cancel someone else's booking.
+        if (!string.IsNullOrEmpty(entry.OfferedAppointmentId))
+        {
+            IAppointmentGrain apptGrain =
+                GrainFactory.GetGrain<IAppointmentGrain>(entry.OfferedAppointmentId);
+            AppointmentState appt = await apptGrain.GetAppointmentAsync();
+
+            if (!string.IsNullOrEmpty(appt.PatientId)
+                && appt.PatientId == PatientId
+                && appt.Status == "Scheduled")
+            {
+                await CancelAppointmentWithReasonAsync(
+                    entry.OfferedAppointmentId, "Wait-list offer declined", declinedByName);
+            }
+        }
+
         await grain.DeclineOfferAsync(reason, declinedByName);
     }
 

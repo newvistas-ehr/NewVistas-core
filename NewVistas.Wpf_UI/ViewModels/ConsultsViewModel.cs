@@ -1,4 +1,4 @@
-// Copyright 2026 Merrimack Valley Software Works, LLC. All rights reserved.
+﻿// Copyright 2026 Merrimack Valley Software Works, LLC. All rights reserved.
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
@@ -16,6 +16,16 @@ public partial class ConsultsViewModel : BasePatientViewModel
     [ObservableProperty] private ObservableCollection<ConsultSummary> _consults = new();
     [ObservableProperty] private ConsultState? _selectedConsult;
 
+    /// <summary>Grid selection; loads the full consult into <see cref="SelectedConsult"/>.</summary>
+    [ObservableProperty] private ConsultSummary? _selectedEntry;
+
+    partial void OnSelectedEntryChanged(ConsultSummary? value)
+    {
+        // Actions gate on the detail object; clear it before the async fetch so they can never target the previously selected record.
+        SelectedConsult = null;
+        if (value is not null) _ = SelectConsult(value);
+    }
+
     // Request form
     [ObservableProperty] private bool _showRequestForm;
     [ObservableProperty] private string _toService = string.Empty;
@@ -25,8 +35,8 @@ public partial class ConsultsViewModel : BasePatientViewModel
 
     public string[] UrgencyOptions { get; } = ["ROUTINE", "URGENT", "STAT"];
 
-    public ConsultsViewModel(OrleansGrainService grains, ApiClient api, PatientContext patientContext)
-        : base(grains, api, patientContext) { }
+    public ConsultsViewModel(OrleansGrainService grains, PatientContext patientContext)
+        : base(grains, patientContext) { }
 
     protected override async Task LoadDataAsync()
     {

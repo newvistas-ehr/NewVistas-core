@@ -116,14 +116,16 @@ file, You can obtain one at https://mozilla.org/MPL/2.0/.
                     <DataGridTextColumn Header="Type" Binding="{Binding OrderType}" Width="120"/>
                     <DataGridTextColumn Header="Text" Binding="{Binding OrderText}" Width="*"/>
                     <DataGridTextColumn Header="Status" Binding="{Binding Status}" Width="100"/>
-                    <DataGridTextColumn Header="Priority" Binding="{Binding Priority}" Width="80"/>
                     <DataGridTextColumn Header="Start" Binding="{Binding StartDate, StringFormat=d}" Width="100"/>
-                    <DataGridTextColumn Header="Ordered By" Binding="{Binding OrderingProviderName}" Width="160"/>
+                    <DataGridTextColumn Header="Ordered By" Binding="{Binding ProviderName}" Width="160"/>
                 </DataGrid.Columns>
             </DataGrid>
 
             <StackPanel Orientation="Horizontal" Margin="0,8,0,0"
                         Visibility="{Binding SelectedOrder, Converter={StaticResource NullToVisibility}}">
+                <TextBlock Text="Signature Code:" VerticalAlignment="Center" Margin="0,0,6,0" FontSize="12"/>
+                <PasswordBox x:Name="EsigCodeBox" Width="160" VerticalAlignment="Center" Margin="0,0,8,0"
+                             PasswordChanged="EsigCodeBox_PasswordChanged"/>
                 <Button Content="Sign" Style="{StaticResource PrimaryButton}"
                         Command="{Binding SignOrderCommand}" Margin="0,0,8,0"/>
                 <Button Content="Discontinue" Style="{StaticResource DangerButton}"

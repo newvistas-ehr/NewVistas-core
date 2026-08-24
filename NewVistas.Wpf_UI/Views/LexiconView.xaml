@@ -29,9 +29,9 @@ file, You can obtain one at https://mozilla.org/MPL/2.0/.
             <DataGrid ItemsSource="{Binding SearchResults}" AutoGenerateColumns="False" MaxHeight="250">
                 <DataGrid.Columns>
                     <DataGridTextColumn Header="Code" Binding="{Binding Code}" Width="120"/>
-                    <DataGridTextColumn Header="System" Binding="{Binding System}" Width="80"/>
+                    <DataGridTextColumn Header="System" Binding="{Binding CodingSystem}" Width="80"/>
                     <DataGridTextColumn Header="Designation" Binding="{Binding Designation}" Width="*"/>
-                    <DataGridTextColumn Header="FSN" Binding="{Binding Fsn}" Width="200"/>
+                    <DataGridTextColumn Header="FSN" Binding="{Binding FullySpecifiedName}" Width="200"/>
                     <DataGridCheckBoxColumn Header="Active" Binding="{Binding IsActive}" Width="60"/>
                     <DataGridTextColumn Header="Semantic Type" Binding="{Binding SemanticType}" Width="120"/>
                 </DataGrid.Columns>
@@ -53,7 +53,7 @@ file, You can obtain one at https://mozilla.org/MPL/2.0/.
                         <TextBlock Style="{StaticResource FieldLabel}" Text="Code: " Margin="0,0,4,0"/>
                         <TextBlock Text="{Binding LookupResult.Code}" FontWeight="SemiBold" Margin="0,0,16,0"/>
                         <TextBlock Style="{StaticResource FieldLabel}" Text="System: " Margin="0,0,4,0"/>
-                        <TextBlock Text="{Binding LookupResult.System}" FontWeight="SemiBold"/>
+                        <TextBlock Text="{Binding LookupResult.CodingSystem}" FontWeight="SemiBold"/>
                     </StackPanel>
                     <StackPanel Orientation="Horizontal" Margin="0,4,0,4">
                         <TextBlock Style="{StaticResource FieldLabel}" Text="Designation: " Margin="0,0,4,0"/>

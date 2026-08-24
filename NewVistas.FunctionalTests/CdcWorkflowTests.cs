@@ -102,7 +102,7 @@ public class CdcWorkflowTests
             "Lab", "BMP", null,
             "PROV-001", "Dr. Adams",
             null, null, "ROUTINE", null, null);
-        await workflow.SignOrderAsync(orderId, "ESIG-ADAMS");
+        await workflow.SignOrderAsSystemAsync(orderId, "ESIG-ADAMS");
 
         IOrderGrain orderGrain = _cluster.GrainFactory.GetGrain<IOrderGrain>(orderId);
         OrderState state = await orderGrain.GetOrderAsync();

@@ -21,17 +21,17 @@ file, You can obtain one at https://mozilla.org/MPL/2.0/.
             <TextBlock Style="{StaticResource SectionHeader}" Text="HAI Cases"/>
             <DataGrid ItemsSource="{Binding Cases}" AutoGenerateColumns="False" MaxHeight="240">
                 <DataGrid.Columns>
-                    <DataGridTextColumn Header="HAI Type" Binding="{Binding HaiType}" Width="140"/>
+                    <DataGridTextColumn Header="HAI Type" Binding="{Binding HAIType}" Width="140"/>
                     <DataGridTextColumn Header="Status" Binding="{Binding Status}" Width="110"/>
-                    <DataGridTextColumn Header="Onset Date" Binding="{Binding OnsetDate, StringFormat=d}" Width="110"/>
-                    <DataGridTextColumn Header="Location" Binding="{Binding Location}" Width="*"/>
+                    <DataGridTextColumn Header="Onset Date" Binding="{Binding InfectionDate, StringFormat=d}" Width="110"/>
+                    <DataGridTextColumn Header="Location" Binding="{Binding LocationName}" Width="*"/>
                     <DataGridTextColumn Header="Pathogen" Binding="{Binding Pathogen}" Width="*"/>
                 </DataGrid.Columns>
             </DataGrid>
             <TextBlock Style="{StaticResource SectionHeader}" Text="Outbreaks" Margin="0,12,0,0"/>
             <DataGrid ItemsSource="{Binding Outbreaks}" AutoGenerateColumns="False" MaxHeight="200">
                 <DataGrid.Columns>
-                    <DataGridTextColumn Header="Outbreak Name" Binding="{Binding OutbreakName}" Width="*"/>
+                    <DataGridTextColumn Header="Outbreak Name" Binding="{Binding Name}" Width="*"/>
                     <DataGridTextColumn Header="Status" Binding="{Binding Status}" Width="110"/>
                     <DataGridTextColumn Header="Start Date" Binding="{Binding StartDate, StringFormat=d}" Width="110"/>
                     <DataGridTextColumn Header="Cases" Binding="{Binding CaseCount}" Width="70"/>

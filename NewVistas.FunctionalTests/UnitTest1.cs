@@ -1336,7 +1336,7 @@ public class PatientWorkflowFunctionalTests
         Assert.That(pending[0].OrderText, Is.EqualTo("Metoprolol 25mg"));
 
         // ORWDXA ES: sign order → auto-releases to Active
-        await workflow.SignOrderAsync(orderId, "DR_SMITH_ESIG");
+        await workflow.SignOrderAsSystemAsync(orderId, "DR_SMITH_ESIG");
 
         // Verify active (ORDER STATUS #6 = ACTIVE)
         var active = await workflow.GetOrdersByFilterAsync(2); // 2 = Current
@@ -1372,7 +1372,7 @@ public class PatientWorkflowFunctionalTests
             "Pharmacy", "Lisinopril 10mg", "DRUG-001",
             "PROV-1", "Dr. Smith", null, null, "ROUTINE", null, null);
 
-        await workflow.SignOrderAsync(orderId, "ESIG");
+        await workflow.SignOrderAsSystemAsync(orderId, "ESIG");
 
         // ORWDXA HOLD
         await workflow.HoldOrderAsync(orderId);
@@ -1612,7 +1612,7 @@ public class PatientWorkflowFunctionalTests
             "Lab", "Basic Metabolic Panel", "LAB-BMP",
             "PROV-1", "Dr. Smith", "CL-PC", "Primary Care",
             "ROUTINE", null, "Evaluate renal function");
-        await workflow.SignOrderAsync(labOrderId, "SMITH_ESIG");
+        await workflow.SignOrderAsSystemAsync(labOrderId, "SMITH_ESIG");
 
         // Step 6: Allergy
         await workflow.RecordAllergyAsync(

@@ -36,11 +36,9 @@ file, You can obtain one at https://mozilla.org/MPL/2.0/.
                 <DataGrid ItemsSource="{Binding Submissions}" AutoGenerateColumns="False" IsReadOnly="True">
                     <DataGrid.Columns>
                         <DataGridTextColumn Header="Submission ID" Binding="{Binding SubmissionId}" Width="140"/>
-                        <DataGridTextColumn Header="Type" Binding="{Binding SubmissionType}" Width="140"/>
+                        <DataGridTextColumn Header="Sections" Binding="{Binding SectionCount}" Width="80"/>
                         <DataGridTextColumn Header="Status" Binding="{Binding Status}" Width="110"/>
                         <DataGridTextColumn Header="Submitted" Binding="{Binding SubmittedDate, StringFormat=g}" Width="160"/>
-                        <DataGridTextColumn Header="Reviewed By" Binding="{Binding ReviewedBy}" Width="140"/>
-                        <DataGridTextColumn Header="Reviewed" Binding="{Binding ReviewedDate, StringFormat=g}" Width="160"/>
                     </DataGrid.Columns>
                 </DataGrid>
             </StackPanel>
@@ -70,7 +68,7 @@ file, You can obtain one at https://mozilla.org/MPL/2.0/.
                     <DataGrid.Columns>
                         <DataGridTextColumn Header="Submission ID" Binding="{Binding SubmissionId}" Width="140"/>
                         <DataGridTextColumn Header="Patient" Binding="{Binding PatientId}" Width="140"/>
-                        <DataGridTextColumn Header="Type" Binding="{Binding SubmissionType}" Width="140"/>
+                        <DataGridTextColumn Header="Sections" Binding="{Binding SectionCount}" Width="80"/>
                         <DataGridTextColumn Header="Status" Binding="{Binding Status}" Width="110"/>
                         <DataGridTextColumn Header="Submitted" Binding="{Binding SubmittedDate, StringFormat=g}" Width="160"/>
                     </DataGrid.Columns>

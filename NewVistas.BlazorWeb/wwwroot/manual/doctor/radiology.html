@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Radiology &amp; AI Findings — Physician Manual — NewVistas</title>
+  <link rel="stylesheet" href="../assets/css/manual.css" />
+</head>
+<body>
+  <div class="topbar">
+    <div class="brand"><a href="../index.html">NewVistas</a> <span>· User Manual</span></div>
+    <div class="role-pill">🩺 Physician</div>
+  </div>
+
+  <div class="layout">
+    <nav class="sidebar">
+      <div class="section">Physician Manual</div>
+      <a href="index.html">Overview</a>
+      <a href="getting-started.html">Getting Started</a>
+      <div class="section">Chart &amp; Workflows</div>
+      <a href="cover-sheet.html">Cover Sheet</a>
+      <a href="problem-list.html">Problem List</a>
+      <a href="diagnostic-stewardship.html" data-flag="DIAGNOSTIC_STEWARDSHIP">Diagnostic Stewardship</a>
+      <a href="prescribing.html">Prescribing &amp; Safety Gate</a>
+      <a href="orders.html">Order Entry</a>
+      <a href="notes.html">Progress Notes</a>
+      <a href="consults.html">Consults</a>
+      <a href="labs.html">Labs</a>
+      <a href="radiology.html" class="active">Radiology &amp; AI Findings</a>
+      <a href="allergies.html">Allergies</a>
+      <a href="immunizations.html">Immunizations</a>
+      <div class="section" data-flag="ONCOLOGY">Oncology</div>
+      <a href="oncology.html" data-flag="ONCOLOGY">Oncology / Tumor Registry</a>
+      <a href="radiation-therapy.html" data-flag="ONCOLOGY">Radiation Therapy</a>
+      <a href="cancer-registry.html" data-flag="ONCOLOGY">Cancer Registry</a>
+      <div class="section" data-flag="HOME_BASED_CARE">Home Care</div>
+      <a href="home-care.html" data-flag="HOME_BASED_CARE">Home-Based Care</a>
+      <div class="section">&nbsp;</div>
+      <a href="../index.html">← All roles</a>
+    </nav>
+
+    <main class="content">
+      <div class="crumb"><a href="../index.html">Manual</a> › <a href="index.html">Physician</a> › Radiology &amp; AI Findings</div>
+      <h1>Radiology &amp; AI Findings</h1>
+      <p class="lead">
+        The Radiology screen (VistA File #75.1) shows a patient's studies, their filed reports,
+        contrast and dose records, and critical-result handling. Once a report is filed, the
+        study also offers <strong>AI finding extraction</strong> — a structured reading of what
+        the radiologist wrote, with an acknowledgment gate on the findings that matter.
+      </p>
+
+      <h2>Why this exists</h2>
+      <p>
+        The dangerous radiology miss is rarely the headline finding — it is the second finding,
+        two sentences later, in a busy report. A mild central stenosis at C5-C6 can mask a
+        moderate-to-severe foraminal stenosis at the same level in the very next sentence. The
+        extraction turns each such sentence into a discrete row a surgeon cannot skim past.
+      </p>
+
+      <h2>Extract findings</h2>
+      <ol class="steps">
+        <li>Open a study whose report has been filed and click <kbd>Extract findings from report</kbd> in the <strong>AI Findings</strong> section. Nothing runs until you ask.</li>
+        <li>Each extracted finding shows a severity chip, its type and level, laterality, and — always — the <em>verbatim report sentence</em> it came from.</li>
+      </ol>
+
+      <div class="callout note">
+        <span class="ct">Grounded, or flagged</span>
+        Every finding's quoted sentence is verified against the report text. A finding whose
+        quote is not actually in the report is marked <strong>unverified quote</strong> rather
+        than shown as an equal — the extraction can only surface what the radiologist wrote,
+        never invent a finding.
+      </div>
+
+      <h2>The acknowledgment gate</h2>
+      <p>
+        Findings of <strong>moderate severity or worse</strong> are flagged as material and ask
+        for a decision: <kbd>Acknowledge</kbd> (it is noted) or <kbd>Reject…</kbd> with a
+        required reason. Milder findings carry no gate — scoping the forcing function to
+        material findings is what keeps it from becoming alert fatigue.
+      </p>
+      <div class="callout safety">
+        <span class="ct">A rejection is recorded — and patient-visible</span>
+        Rejecting a material finding requires a reason, and both the rejection and its reason
+        are recorded in the chart and visible to the patient. Dismissing a finding is allowed;
+        dismissing one carelessly is neither free nor invisible.
+      </div>
+
+      <h2>What this is not</h2>
+      <ul>
+        <li><strong>Not an interpretation of the images.</strong> It reads the radiologist's own report text — nothing else.</li>
+        <li><strong>Not a substitute for reading the report.</strong> The full report stays above the findings, and the disclaimer under the panel says so.</li>
+        <li><strong>Not connected to the critical-results workflow.</strong> Critical-result notification (who was called, who acknowledged) remains the separate, human-driven section above.</li>
+      </ul>
+
+      <h2>Also on this screen</h2>
+      <ul>
+        <li><strong>Contrast</strong> — agent, route, volume, and reaction recording.</li>
+        <li><strong>Radiation dose</strong> — effective dose, CTDI, DLP.</li>
+        <li><strong>Critical results</strong> — flag, notify, acknowledge.</li>
+        <li><strong>Report actions</strong> — sign and amend.</li>
+      </ul>
+    </main>
+  </div>
+  <script src="../assets/js/editions.js"></script>
+</body>
+</html>

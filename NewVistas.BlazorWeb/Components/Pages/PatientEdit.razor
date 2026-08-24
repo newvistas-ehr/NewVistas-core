@@ -272,6 +272,10 @@
 
 @code {
     private string patientId = "";
+    // The id of the patient actually loaded into the form. Save handlers must use this,
+    // never the live lookup-box value: the lookup box binds on `oninput`, so typing a new
+    // id (without clicking Load) would otherwise write this form's data to the WRONG chart.
+    private string? loadedPatientId;
     private PatientState? patient;
     private bool loading;
     private bool saving;
@@ -341,10 +345,12 @@
         error = null;
         successMessage = null;
         patient = null;
+        loadedPatientId = null;
 
         try
         {
-            var workflow = Grains.GetGrain<IPatientWorkflowGrain>(patientId.Trim());
+            string lookupId = patientId.Trim();
+            var workflow = Grains.GetGrain<IPatientWorkflowGrain>(lookupId);
             patient = await workflow.GetPatientAsync();
             if (string.IsNullOrEmpty(patient.Name))
             {
@@ -353,6 +359,8 @@
             }
             else
             {
+                // Pin the saves to the chart we actually loaded.
+                loadedPatientId = string.IsNullOrWhiteSpace(patient.PatientId) ? lookupId : patient.PatientId;
                 PopulateFields();
             }
         }
@@ -405,10 +413,11 @@
 
     private async Task SaveDemographics()
     {
+        if (loadedPatientId is null) { error = "Load a patient before saving."; return; }
         saving = true; error = null; successMessage = null;
         try
         {
-            var workflow = Grains.GetGrain<IPatientWorkflowGrain>(patientId.Trim());
+            var workflow = Grains.GetGrain<IPatientWorkflowGrain>(loadedPatientId);
             await workflow.UpdateDemographicsAsync(editName, editSex, editDob, editSsn);
             await workflow.UpdateMaritalStatusAsync(editMaritalStatus);
             successMessage = "Saved successfully.";
@@ -420,10 +429,11 @@
 
     private async Task SaveAddress()
     {
+        if (loadedPatientId is null) { error = "Load a patient before saving."; return; }
         saving = true; error = null; successMessage = null;
         try
         {
-            var workflow = Grains.GetGrain<IPatientWorkflowGrain>(patientId.Trim());
+            var workflow = Grains.GetGrain<IPatientWorkflowGrain>(loadedPatientId);
             await workflow.UpdateAddressAsync(editAddress1, editAddress2, editAddress3, editCity, editState, editZip);
             successMessage = "Saved successfully.";
             await ReloadPatient();
@@ -434,10 +444,11 @@
 
     private async Task SaveContact()
     {
+        if (loadedPatientId is null) { error = "Load a patient before saving."; return; }
         saving = true; error = null; successMessage = null;
         try
         {
-            var workflow = Grains.GetGrain<IPatientWorkflowGrain>(patientId.Trim());
+            var workflow = Grains.GetGrain<IPatientWorkflowGrain>(loadedPatientId);
             await workflow.UpdateContactInfoAsync(editPhoneRes, editPhoneWork, editEmail);
             successMessage = "Saved successfully.";
             await ReloadPatient();
@@ -448,10 +459,11 @@
 
     private async Task SaveEmergencyContact()
     {
+        if (loadedPatientId is null) { error = "Load a patient before saving."; return; }
         saving = true; error = null; successMessage = null;
         try
         {
-            var workflow = Grains.GetGrain<IPatientWorkflowGrain>(patientId.Trim());
+            var workflow = Grains.GetGrain<IPatientWorkflowGrain>(loadedPatientId);
             await workflow.UpdateEmergencyContactAsync(editEmergencyName, editEmergencyRelationship, editEmergencyPhone);
             successMessage = "Saved successfully.";
             await ReloadPatient();
@@ -462,10 +474,11 @@
 
     private async Task SaveVeteranInfo()
     {
+        if (loadedPatientId is null) { error = "Load a patient before saving."; return; }
         saving = true; error = null; successMessage = null;
         try
         {
-            var workflow = Grains.GetGrain<IPatientWorkflowGrain>(patientId.Trim());
+            var workflow = Grains.GetGrain<IPatientWorkflowGrain>(loadedPatientId);
             await workflow.UpdateVeteranInfoAsync(editVeteran, editScPercent, editEligibility, editPrimaryEligibility);
             successMessage = "Saved successfully.";
             await ReloadPatient();
@@ -476,10 +489,11 @@
 
     private async Task SaveMilitaryService()
     {
+        if (loadedPatientId is null) { error = "Load a patient before saving."; return; }
         saving = true; error = null; successMessage = null;
         try
         {
-            var workflow = Grains.GetGrain<IPatientWorkflowGrain>(patientId.Trim());
+            var workflow = Grains.GetGrain<IPatientWorkflowGrain>(loadedPatientId);
             await workflow.UpdateMilitaryServiceAsync(editServiceEntry, editServiceSeparation, editBranch, editDischargeType, editPow);
             successMessage = "Saved successfully.";
             await ReloadPatient();
@@ -490,9 +504,11 @@
 
     private async Task ReloadPatient()
     {
+        if (loadedPatientId is null) return;
         try
         {
-            var workflow = Grains.GetGrain<IPatientWorkflowGrain>(patientId.Trim());
+            // Re-read the chart that was saved, not whatever is in the lookup box now.
+            var workflow = Grains.GetGrain<IPatientWorkflowGrain>(loadedPatientId);
             patient = await workflow.GetPatientAsync();
             PopulateFields();
         }
@@ -533,7 +549,7 @@
     .tab-content { padding-top: .5rem; }
 
     .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: .5rem 1rem; }
-    .form-row { display: flex; flex-direction: column; gap: .25rem; }
+    .form-row { display: flex; flex-direction: column; align-items: stretch; gap: .25rem; }
     .form-row.full { grid-column: span 2; }
     .form-row label { font-size: .85rem; font-weight: 600; }
     .form-row input, .form-row select, .form-row textarea { padding: .35rem .5rem; border: 1px solid #ccc; border-radius: 4px; font-size: .9rem; }

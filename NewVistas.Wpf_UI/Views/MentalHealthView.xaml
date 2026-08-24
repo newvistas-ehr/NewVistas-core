@@ -27,12 +27,12 @@ file, You can obtain one at https://mozilla.org/MPL/2.0/.
                 <StackPanel>
                     <TextBlock Style="{StaticResource SectionHeader}" Text="Record Mental Health Screen"/>
                     <TextBlock Style="{StaticResource FieldLabel}" Text="Instrument"/>
-                    <ComboBox ItemsSource="{Binding InstrumentOptions}" SelectedItem="{Binding Instrument}"
+                    <ComboBox ItemsSource="{Binding InstrumentOptions}" SelectedItem="{Binding InstrumentName}"
                               Width="300" HorizontalAlignment="Left"/>
                     <TextBlock Style="{StaticResource FieldLabel}" Text="Raw Score"/>
-                    <TextBox Text="{Binding RawScore, UpdateSourceTrigger=PropertyChanged}" Width="100" HorizontalAlignment="Left"/>
+                    <TextBox Text="{Binding TotalScore, UpdateSourceTrigger=PropertyChanged}" Width="100" HorizontalAlignment="Left"/>
                     <TextBlock Style="{StaticResource FieldLabel}" Text="Result / Interpretation"/>
-                    <TextBox Text="{Binding Result, UpdateSourceTrigger=PropertyChanged}" Width="400" HorizontalAlignment="Left"/>
+                    <TextBox Text="{Binding ScoreInterpretation, UpdateSourceTrigger=PropertyChanged}" Width="400" HorizontalAlignment="Left"/>
                     <StackPanel Orientation="Horizontal" Margin="0,12,0,0">
                         <Button Content="Save" Style="{StaticResource PrimaryButton}"
                                 Command="{Binding RecordScreenCommand}" Margin="0,0,8,0"/>
@@ -44,11 +44,11 @@ file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
             <DataGrid ItemsSource="{Binding Screens}">
                 <DataGrid.Columns>
-                    <DataGridTextColumn Header="Instrument" Binding="{Binding Instrument}" Width="180"/>
-                    <DataGridTextColumn Header="Score" Binding="{Binding RawScore}" Width="80"/>
-                    <DataGridTextColumn Header="Result" Binding="{Binding Result}" Width="*"/>
-                    <DataGridTextColumn Header="Date" Binding="{Binding AdministeredDate, StringFormat=d}" Width="110"/>
-                    <DataGridTextColumn Header="Administered By" Binding="{Binding AdministeredByName}" Width="160"/>
+                    <DataGridTextColumn Header="Instrument" Binding="{Binding InstrumentName}" Width="180"/>
+                    <DataGridTextColumn Header="Score" Binding="{Binding TotalScore}" Width="80"/>
+                    <DataGridTextColumn Header="Result" Binding="{Binding ScoreInterpretation}" Width="*"/>
+                    <DataGridTextColumn Header="Date" Binding="{Binding AdministrationDateTime, StringFormat=d}" Width="110"/>
+                    <DataGridTextColumn Header="Status" Binding="{Binding Status}" Width="160"/>
                 </DataGrid.Columns>
             </DataGrid>
         </StackPanel>

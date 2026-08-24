@@ -88,6 +88,9 @@ file, You can obtain one at https://mozilla.org/MPL/2.0/.
         <Border DockPanel.Dock="Bottom" Background="#F0F0F0" Padding="4"
                 Visibility="{Binding SelectedOrder, Converter={StaticResource NullToVis}}">
             <StackPanel Orientation="Horizontal">
+                <TextBlock Text="Sig Code:" VerticalAlignment="Center" Margin="0,0,4,0"/>
+                <PasswordBox x:Name="EsigCodeBox" Width="120" VerticalAlignment="Center" Margin="0,0,4,0"
+                             PasswordChanged="EsigCodeBox_PasswordChanged"/>
                 <Button Content="Sign Order" Padding="12,2" Margin="0,0,4,0"
                         Command="{Binding SignOrderCommand}"/>
                 <Button Content="Discontinue" Padding="12,2" Foreground="#800000"

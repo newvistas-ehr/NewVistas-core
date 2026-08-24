@@ -41,7 +41,7 @@ file, You can obtain one at https://mozilla.org/MPL/2.0/.
                     <DataGridTextColumn Header="To" Binding="{Binding ToAddress}" Width="*"/>
                     <DataGridTextColumn Header="Subject" Binding="{Binding Subject}" Width="200"/>
                     <DataGridTextColumn Header="Status" Binding="{Binding Status}" Width="80"/>
-                    <DataGridTextColumn Header="Sent" Binding="{Binding SentDate, StringFormat=g}" Width="140"/>
+                    <DataGridTextColumn Header="Created" Binding="{Binding CreatedDate, StringFormat=g}" Width="140"/>
                 </DataGrid.Columns>
             </DataGrid>
         </StackPanel>

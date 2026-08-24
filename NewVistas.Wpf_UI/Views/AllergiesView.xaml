@@ -30,7 +30,7 @@ file, You can obtain one at https://mozilla.org/MPL/2.0/.
                     <TextBlock Style="{StaticResource FieldLabel}" Text="Allergen"/>
                     <TextBox Text="{Binding Allergen, UpdateSourceTrigger=PropertyChanged}" Width="300" HorizontalAlignment="Left"/>
                     <TextBlock Style="{StaticResource FieldLabel}" Text="Reaction Type"/>
-                    <ComboBox ItemsSource="{Binding ReactionTypeOptions}" SelectedItem="{Binding ReactionType}"
+                    <ComboBox ItemsSource="{Binding AllergenTypes}" SelectedItem="{Binding AllergenType}"
                               Width="200" HorizontalAlignment="Left"/>
                     <TextBlock Style="{StaticResource FieldLabel}" Text="Severity"/>
                     <ComboBox ItemsSource="{Binding SeverityOptions}" SelectedItem="{Binding Severity}"
@@ -49,11 +49,27 @@ file, You can obtain one at https://mozilla.org/MPL/2.0/.
             <DataGrid ItemsSource="{Binding Allergies}">
                 <DataGrid.Columns>
                     <DataGridTextColumn Header="Allergen" Binding="{Binding Allergen}" Width="*"/>
-                    <DataGridTextColumn Header="Type" Binding="{Binding ReactionType}" Width="120"/>
+                    <DataGridTextColumn Header="Type" Binding="{Binding AllergenType}" Width="120"/>
                     <DataGridTextColumn Header="Severity" Binding="{Binding Severity}" Width="100"/>
-                    <DataGridTextColumn Header="Reactions" Binding="{Binding ReactionsDisplay}" Width="200"/>
-                    <DataGridTextColumn Header="Status" Binding="{Binding Status}" Width="90"/>
-                    <DataGridTextColumn Header="Date" Binding="{Binding ObservedDate, StringFormat=d}" Width="100"/>
+                    <DataGridTemplateColumn Header="Reactions" Width="200">
+                        <DataGridTemplateColumn.CellTemplate>
+                            <DataTemplate>
+                                <ItemsControl ItemsSource="{Binding Reactions}">
+                                    <ItemsControl.ItemsPanel>
+                                        <ItemsPanelTemplate>
+                                            <WrapPanel/>
+                                        </ItemsPanelTemplate>
+                                    </ItemsControl.ItemsPanel>
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate>
+                                            <TextBlock Text="{Binding}" Margin="0,0,6,0"/>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </DataTemplate>
+                        </DataGridTemplateColumn.CellTemplate>
+                    </DataGridTemplateColumn>
+                    <DataGridTextColumn Header="Observed/Historical" Binding="{Binding ObservedHistorical}" Width="130"/>
                 </DataGrid.Columns>
             </DataGrid>
         </StackPanel>

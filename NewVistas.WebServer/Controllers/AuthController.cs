@@ -589,11 +589,11 @@ public class AuthController : ControllerBase
     /// Hash the electronic signature code using SHA-256.
     /// Mirrors VistA's hashing of the ELECTRONIC SIGNATURE CODE field.
     /// </summary>
+    // Delegates to the shared definition so the API and the UI cannot drift apart on how a
+    // signature code is hashed — two copies that disagree produce a signature that silently
+    // never matches.
     private static string HashSignatureCode(string signatureCode)
-    {
-        byte[] hash = SHA256.HashData(Encoding.UTF8.GetBytes(signatureCode));
-        return Convert.ToBase64String(hash);
-    }
+        => NewVistas.Abstractions.Security.ElectronicSignature.Hash(signatureCode);
 
     /// <summary>
     /// Generate a short-lived JWT for the MFA challenge step (5 minutes).

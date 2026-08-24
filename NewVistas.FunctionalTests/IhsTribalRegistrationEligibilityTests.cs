@@ -245,6 +245,10 @@ public class IhsTribalRegistrationEligibilityTests
             siloBuilder.AddMemoryGrainStorage("mpiCorrelationStore");
             siloBuilder.AddMemoryGrainStorage("mpiSearchStore");
             siloBuilder.AddMemoryGrainStorage("patientStore");
+            // Diagnosis provenance & revision statistics (ADR-006) — AddProblemAsync opens
+            // a diagnostic episode, so any silo exercising the problem list needs these.
+            siloBuilder.AddMemoryGrainStorage("dxEpisodeStore");
+            siloBuilder.AddMemoryGrainStorage("dxOutcomeStore");
             siloBuilder.AddMemoryGrainStorage("patientHistoryIndexStore");
             siloBuilder.AddMemoryGrainStorage("patientIndexStore");
             siloBuilder.AddMemoryGrainStorage("patientClinicalStreamStore");

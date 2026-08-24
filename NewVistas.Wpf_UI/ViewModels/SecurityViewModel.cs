@@ -3,14 +3,23 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 using System.Collections.ObjectModel;
-using System.Net.Http;
-using System.Net.Http.Json;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using NewVistas.Abstractions.GrainInterfaces;
+using NewVistas.Abstractions.GrainStates;
 using NewVistas.Wpf_UI.Services;
 
 namespace NewVistas.Wpf_UI.ViewModels;
 
+/// <summary>
+/// Patient sensitivity, break-the-glass access and the authorized-provider list.
+///
+/// This is the authorization side of the split: the Web tier establishes who you are,
+/// and the grain layer decides what you may see. Every read and write here therefore
+/// goes straight to <see cref="IPatientAccessControlGrain"/> — pushing these decisions
+/// through HTTP would move authorization to the wrong tier and lose the grain call
+/// context the silo's audit filter records.
+/// </summary>
 public partial class SecurityViewModel : BasePatientViewModel
 {
     // Sensitivity
@@ -33,25 +42,34 @@ public partial class SecurityViewModel : BasePatientViewModel
 
     public string[] SensitivityLevels { get; } = ["STANDARD", "SENSITIVE", "HIGHLY_SENSITIVE"];
 
-    public SecurityViewModel(OrleansGrainService grains, ApiClient api, PatientContext patientContext)
-        : base(grains, api, patientContext) { }
+    public SecurityViewModel(OrleansGrainService grains, PatientContext patientContext)
+        : base(grains, patientContext) { }
 
-    private static string Esc(string id) => Uri.EscapeDataString(id.Trim());
+    private IPatientAccessControlGrain Access() =>
+        Grains.GetGrain<IPatientAccessControlGrain>($"PAC:{PatientId}");
 
     protected override async Task LoadDataAsync()
     {
-        var access = await Api.Http.GetFromJsonAsync<PatientAccessInfo>(
-            $"api/security/{Esc(PatientId)}/access", ApiClient.Json);
-        if (access != null)
-        {
-            IsSensitive = access.IsSensitive;
-            SensitivityLevel = access.SensitivityLevel ?? "STANDARD";
-        }
+        PatientAccessControlState state = await Access().GetAccessControlAsync();
 
-        var log = await Api.Http.GetFromJsonAsync<List<AccessLogEntry>>(
-            $"api/security/{Esc(PatientId)}/access/log", ApiClient.Json) ?? [];
+        IsSensitive = state.IsSensitive;
+        SensitivityLevel = string.IsNullOrWhiteSpace(state.SensitivityLevel) ? "STANDARD" : state.SensitivityLevel;
+        SensitivityCategories = string.Join(", ", state.SensitivityCategories);
+
+        AuthorizedProviders.Clear();
+        foreach (string p in state.AuthorizedProviderIds) AuthorizedProviders.Add(p);
+
+        List<PatientAccessLog> log = await Access().GetAccessLogAsync();
         AccessLog.Clear();
-        foreach (var e in log) AccessLog.Add(e);
+        foreach (PatientAccessLog e in log.OrderByDescending(e => e.AccessDateTime))
+        {
+            AccessLog.Add(new AccessLogEntry(
+                e.AccessDateTime.ToString("yyyy-MM-dd HH:mm"),
+                string.IsNullOrWhiteSpace(e.UserName) ? e.UserId : e.UserName,
+                e.AccessReason,
+                e.WasBreakTheGlass,
+                e.JustificationText));
+        }
     }
 
     [RelayCommand]
@@ -59,12 +77,11 @@ public partial class SecurityViewModel : BasePatientViewModel
     {
         try
         {
-            await Api.Http.PostAsJsonAsync($"api/security/{Esc(PatientId)}/sensitivity", new
-            {
-                IsSensitive,
-                SensitivityLevel,
-                Categories = SensitivityCategories
-            });
+            List<string> categories = (SensitivityCategories ?? string.Empty)
+                .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                .ToList();
+
+            await Access().SetSensitivityAsync(IsSensitive, SensitivityLevel, categories);
             await LoadAsync();
         }
         catch (Exception ex) { Error = ex.Message; }
@@ -75,12 +92,14 @@ public partial class SecurityViewModel : BasePatientViewModel
     {
         try
         {
-            await Api.Http.PostAsJsonAsync($"api/security/{Esc(PatientId)}/access/btg", new
-            {
-                UserId = BtgUserId,
-                UserName = BtgUserName,
-                Justification = BtgJustification
-            });
+            // Break-the-glass is recorded, never refused — deterrence by visibility.
+            await Access().RecordAccessAsync(
+                BtgUserId,
+                BtgUserName,
+                "Break-the-glass access",
+                wasBreakTheGlass: true,
+                justificationText: BtgJustification);
+
             BtgJustification = string.Empty;
             await LoadAsync();
         }
@@ -93,8 +112,7 @@ public partial class SecurityViewModel : BasePatientViewModel
         if (string.IsNullOrWhiteSpace(NewProviderId)) return;
         try
         {
-            await Api.Http.PostAsJsonAsync(
-                $"api/security/{Esc(PatientId)}/providers/{Esc(NewProviderId)}", new { });
+            await Access().AddAuthorizedProviderAsync(NewProviderId.Trim());
             NewProviderId = string.Empty;
             await LoadAsync();
         }
@@ -107,13 +125,11 @@ public partial class SecurityViewModel : BasePatientViewModel
         if (SelectedProvider == null) return;
         try
         {
-            await Api.Http.DeleteAsync(
-                $"api/security/{Esc(PatientId)}/providers/{Esc(SelectedProvider)}");
+            await Access().RemoveAuthorizedProviderAsync(SelectedProvider);
             await LoadAsync();
         }
         catch (Exception ex) { Error = ex.Message; }
     }
 }
 
-public record PatientAccessInfo(bool IsSensitive, string? SensitivityLevel);
 public record AccessLogEntry(string DateTime, string User, string Reason, bool IsBtg, string? Justification);

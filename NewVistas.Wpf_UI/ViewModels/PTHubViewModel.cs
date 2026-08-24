@@ -1,4 +1,4 @@
-// Copyright 2026 Merrimack Valley Software Works, LLC. All rights reserved.
+﻿// Copyright 2026 Merrimack Valley Software Works, LLC. All rights reserved.
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
@@ -36,9 +36,9 @@ public partial class PTHubViewModel : BasePatientViewModel
     /// <summary>Fired when user wants to launch the measurement wizard.</summary>
     public event Action? WizardRequested;
 
-    public PTHubViewModel(OrleansGrainService grains, ApiClient api, PatientContext patientContext,
+    public PTHubViewModel(OrleansGrainService grains, PatientContext patientContext,
         IServiceProvider services)
-        : base(grains, api, patientContext)
+        : base(grains, patientContext)
     {
         _services = services;
     }

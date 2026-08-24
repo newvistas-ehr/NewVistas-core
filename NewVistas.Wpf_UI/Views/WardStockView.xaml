@@ -27,12 +27,12 @@ file, You can obtain one at https://mozilla.org/MPL/2.0/.
             <TextBlock Style="{StaticResource SectionHeader}" Text="Inventory"/>
             <DataGrid ItemsSource="{Binding StockItems}" AutoGenerateColumns="False" MaxHeight="250">
                 <DataGrid.Columns>
-                    <DataGridTextColumn Header="Drug" Binding="{Binding Drug}" Width="*"/>
-                    <DataGridTextColumn Header="On Hand" Binding="{Binding OnHand}" Width="80"/>
-                    <DataGridTextColumn Header="Par" Binding="{Binding Par}" Width="60"/>
+                    <DataGridTextColumn Header="Drug" Binding="{Binding DrugName}" Width="*"/>
+                    <DataGridTextColumn Header="On Hand" Binding="{Binding QuantityOnHand}" Width="80"/>
+                    <DataGridTextColumn Header="Par" Binding="{Binding ParLevel}" Width="60"/>
                     <DataGridTextColumn Header="Reorder Pt" Binding="{Binding ReorderPoint}" Width="80"/>
-                    <DataGridTextColumn Header="UOM" Binding="{Binding Uom}" Width="60"/>
-                    <DataGridTextColumn Header="Status" Binding="{Binding Status}" Width="100"/>
+                    <DataGridTextColumn Header="UOM" Binding="{Binding UnitOfMeasure}" Width="60"/>
+                    <DataGridCheckBoxColumn Header="Low" Binding="{Binding NeedsReplenishment}" Width="100"/>
                     <DataGridCheckBoxColumn Header="CS" Binding="{Binding IsControlledSubstance}" Width="40"/>
                 </DataGrid.Columns>
             </DataGrid>
@@ -40,20 +40,20 @@ file, You can obtain one at https://mozilla.org/MPL/2.0/.
             <TextBlock Style="{StaticResource SectionHeader}" Text="Low Stock Alerts" Margin="0,16,0,0"/>
             <DataGrid ItemsSource="{Binding LowStockItems}" AutoGenerateColumns="False" MaxHeight="150">
                 <DataGrid.Columns>
-                    <DataGridTextColumn Header="Drug" Binding="{Binding Drug}" Width="*"/>
-                    <DataGridTextColumn Header="On Hand" Binding="{Binding OnHand}" Width="80"/>
+                    <DataGridTextColumn Header="Drug" Binding="{Binding DrugName}" Width="*"/>
+                    <DataGridTextColumn Header="On Hand" Binding="{Binding QuantityOnHand}" Width="80"/>
                     <DataGridTextColumn Header="Reorder Pt" Binding="{Binding ReorderPoint}" Width="80"/>
-                    <DataGridTextColumn Header="Status" Binding="{Binding Status}" Width="100"/>
+                    <DataGridCheckBoxColumn Header="Replenish Pending" Binding="{Binding ReplenishmentPending}" Width="130"/>
                 </DataGrid.Columns>
             </DataGrid>
 
             <TextBlock Style="{StaticResource SectionHeader}" Text="Replenishment Log" Margin="0,16,0,0"/>
             <DataGrid ItemsSource="{Binding ReplenishmentLog}" AutoGenerateColumns="False" MaxHeight="150">
                 <DataGrid.Columns>
-                    <DataGridTextColumn Header="Drug" Binding="{Binding Drug}" Width="*"/>
-                    <DataGridTextColumn Header="Quantity" Binding="{Binding Quantity}" Width="80"/>
-                    <DataGridTextColumn Header="Date" Binding="{Binding Date}" Width="130"/>
-                    <DataGridTextColumn Header="Action" Binding="{Binding Action}" Width="120"/>
+                    <DataGridTextColumn Header="Drug" Binding="{Binding DrugName}" Width="*"/>
+                    <DataGridTextColumn Header="Quantity" Binding="{Binding QuantityRequested}" Width="80"/>
+                    <DataGridTextColumn Header="Date" Binding="{Binding RequestDate, StringFormat=g}" Width="130"/>
+                    <DataGridTextColumn Header="Status" Binding="{Binding Status}" Width="120"/>
                 </DataGrid.Columns>
             </DataGrid>
         </StackPanel>

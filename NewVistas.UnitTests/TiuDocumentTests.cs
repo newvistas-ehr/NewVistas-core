@@ -189,7 +189,7 @@ public class TiuDocumentGrainTests
             "PROV-001", "Dr. Smith",
             null, null, null, null, null, DateTime.UtcNow);
 
-        await workflow.SignNoteAsync(docId);
+        await workflow.SignNoteAsSystemAsync(docId);
         var note = await workflow.GetNoteAsync(docId);
 
         Assert.That(note.Status, Is.EqualTo("COMPLETED"));
@@ -207,7 +207,7 @@ public class TiuDocumentGrainTests
             "Original note.", "Visit",
             "PROV-001", "Dr. Smith",
             null, null, null, null, null, DateTime.UtcNow);
-        await workflow.SignNoteAsync(docId);
+        await workflow.SignNoteAsSystemAsync(docId);
 
         var addendumId = await workflow.AddAddendumAsync(
             docId, "Lab results reviewed — all normal.",

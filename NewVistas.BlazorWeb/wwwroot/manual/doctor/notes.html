@@ -20,11 +20,13 @@
       <div class="section">Chart &amp; Workflows</div>
       <a href="cover-sheet.html">Cover Sheet</a>
       <a href="problem-list.html">Problem List</a>
+      <a href="diagnostic-stewardship.html" data-flag="DIAGNOSTIC_STEWARDSHIP">Diagnostic Stewardship</a>
       <a href="prescribing.html">Prescribing &amp; Safety Gate</a>
       <a href="orders.html">Order Entry</a>
       <a href="notes.html" class="active">Progress Notes</a>
       <a href="consults.html">Consults</a>
       <a href="labs.html">Labs</a>
+      <a href="radiology.html">Radiology &amp; AI Findings</a>
       <a href="allergies.html">Allergies</a>
       <a href="immunizations.html">Immunizations</a>
       <div class="section" data-flag="ONCOLOGY">Oncology</div>
@@ -82,6 +84,36 @@
         Note text is required before you can save. The subject, author, and
         location help others find and route the note later — fill them in even
         though they're optional.
+      </div>
+
+      <h2>Suggest ICD-10 codes from a note</h2>
+      <p>
+        On any note's detail view, <strong>Suggest ICD-10 codes</strong> reads the note and offers
+        candidate codes. Every suggestion shows the <em>verbatim sentence</em> it came from — a
+        candidate whose sentence is not actually in the note is never offered — and the code
+        itself always comes from the site's own ICD-10 index, never from a model, so a made-up
+        code cannot appear.
+      </p>
+      <ul>
+        <li>A statement about a <strong>relative</strong> ("my mother had osteoporosis") is offered
+          as the family-history code (Z82.62), never as the patient's own diagnosis.</li>
+        <li>A <strong>past</strong> condition ("history of melanoma") is offered as the
+          personal-history code (Z85.820), never as active cancer.</li>
+        <li>A <strong>denied</strong> symptom ("no chest pain") is shown as an informative
+          negative, badged <em>denied in note</em> — it can never be added as a problem.</li>
+      </ul>
+      <p>
+        <strong>Add as problem (Unconfirmed)</strong> files the code on the problem list at
+        <em>Unconfirmed</em> certainty, citing the note and the quoted sentence, and permanently
+        marked machine-suggested — so it can never masquerade as a clinician's own confirmed
+        assertion. It opens a diagnostic episode you can adjudicate later like any other.
+      </p>
+      <div class="callout note">
+        <span class="ct">What it will not do</span>
+        It does not code encounters or bills, does not compute E/M levels, never applies anything
+        without your click, and shows no confidence scores. Without an AI key configured it runs a
+        deliberately modest offline pattern lexicon; with one, a model extracts the claims — but
+        in both cases the codes come from the same index and every quote is verified.
       </div>
 
       <footer>NewVistas User Manual · Physician · Progress Notes</footer>

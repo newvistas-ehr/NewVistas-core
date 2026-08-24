@@ -26,7 +26,7 @@ file, You can obtain one at https://mozilla.org/MPL/2.0/.
                 <DataGrid.Columns>
                     <DataGridTextColumn Header="Intervention ID" Binding="{Binding InterventionId}" Width="160"/>
                     <DataGridTextColumn Header="Title" Binding="{Binding Title}" Width="*"/>
-                    <DataGridTextColumn Header="Category" Binding="{Binding Category}" Width="120"/>
+                    <DataGridTextColumn Header="Type" Binding="{Binding InterventionType}" Width="120"/>
                     <DataGridCheckBoxColumn Header="Active" Binding="{Binding IsActive}" Width="60"/>
                 </DataGrid.Columns>
             </DataGrid>
@@ -37,11 +37,11 @@ file, You can obtain one at https://mozilla.org/MPL/2.0/.
                 <Button Content="Evaluate" Style="{StaticResource PrimaryButton}"
                         Command="{Binding EvaluatePatientCommand}"/>
             </StackPanel>
-            <DataGrid ItemsSource="{Binding EvaluationResults}" AutoGenerateColumns="False" IsReadOnly="True" Height="200">
+            <DataGrid ItemsSource="{Binding Events}" AutoGenerateColumns="False" IsReadOnly="True" Height="200">
                 <DataGrid.Columns>
                     <DataGridTextColumn Header="Intervention" Binding="{Binding InterventionTitle}" Width="*"/>
-                    <DataGridTextColumn Header="Triggered" Binding="{Binding IsTriggered}" Width="80"/>
-                    <DataGridTextColumn Header="Message" Binding="{Binding Message}" Width="300"/>
+                    <DataGridTextColumn Header="Severity" Binding="{Binding Severity}" Width="80"/>
+                    <DataGridTextColumn Header="Response" Binding="{Binding UserResponse}" Width="300"/>
                 </DataGrid.Columns>
             </DataGrid>
         </StackPanel>

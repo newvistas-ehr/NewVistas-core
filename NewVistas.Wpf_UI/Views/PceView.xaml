@@ -30,11 +30,11 @@ file, You can obtain one at https://mozilla.org/MPL/2.0/.
                     <ComboBox ItemsSource="{Binding VisitTypeOptions}" SelectedItem="{Binding VisitType}"
                               Width="200" HorizontalAlignment="Left"/>
                     <TextBlock Style="{StaticResource FieldLabel}" Text="Clinic Name"/>
-                    <TextBox Text="{Binding ClinicName, UpdateSourceTrigger=PropertyChanged}" Width="300" HorizontalAlignment="Left"/>
+                    <TextBox Text="{Binding LocationName, UpdateSourceTrigger=PropertyChanged}" Width="300" HorizontalAlignment="Left"/>
                     <TextBlock Style="{StaticResource FieldLabel}" Text="Provider Name"/>
-                    <TextBox Text="{Binding ProviderName, UpdateSourceTrigger=PropertyChanged}" Width="300" HorizontalAlignment="Left"/>
-                    <TextBlock Style="{StaticResource FieldLabel}" Text="Primary Diagnosis ICD-10"/>
-                    <TextBox Text="{Binding PrimaryDiagnosis, UpdateSourceTrigger=PropertyChanged}" Width="200" HorizontalAlignment="Left"/>
+                    <TextBox Text="{Binding PrimaryProviderName, UpdateSourceTrigger=PropertyChanged}" Width="300" HorizontalAlignment="Left"/>
+                    <TextBlock Style="{StaticResource FieldLabel}" Text="Stop Code"/>
+                    <TextBox Text="{Binding StopCode, UpdateSourceTrigger=PropertyChanged}" Width="200" HorizontalAlignment="Left"/>
                     <StackPanel Orientation="Horizontal" Margin="0,12,0,0">
                         <Button Content="Create" Style="{StaticResource PrimaryButton}"
                                 Command="{Binding CreateEncounterCommand}" Margin="0,0,8,0"/>
@@ -44,19 +44,19 @@ file, You can obtain one at https://mozilla.org/MPL/2.0/.
                 </StackPanel>
             </Border>
 
-            <DataGrid ItemsSource="{Binding Encounters}" SelectedItem="{Binding SelectedEncounter}">
+            <DataGrid ItemsSource="{Binding Encounters}" SelectedItem="{Binding SelectedVisit}">
                 <DataGrid.Columns>
-                    <DataGridTextColumn Header="Visit Type" Binding="{Binding VisitType}" Width="130"/>
-                    <DataGridTextColumn Header="Clinic" Binding="{Binding ClinicName}" Width="160"/>
-                    <DataGridTextColumn Header="Provider" Binding="{Binding ProviderName}" Width="160"/>
-                    <DataGridTextColumn Header="Dx" Binding="{Binding PrimaryDiagnosis}" Width="90"/>
+                    <DataGridTextColumn Header="Category" Binding="{Binding ServiceCategory}" Width="130"/>
+                    <DataGridTextColumn Header="Clinic" Binding="{Binding LocationName}" Width="160"/>
+                    <DataGridTextColumn Header="Provider" Binding="{Binding PrimaryProviderName}" Width="160"/>
+                    <DataGridTextColumn Header="Dx" Binding="{Binding DiagnosisCount}" Width="90"/>
                     <DataGridTextColumn Header="Status" Binding="{Binding Status}" Width="100"/>
-                    <DataGridTextColumn Header="Visit Date" Binding="{Binding VisitDate, StringFormat=d}" Width="110"/>
+                    <DataGridTextColumn Header="Visit Date" Binding="{Binding VisitDateTime, StringFormat=d}" Width="110"/>
                 </DataGrid.Columns>
             </DataGrid>
 
             <Button Content="Check Out" Style="{StaticResource PrimaryButton}"
-                    Command="{Binding CheckOutCommand}" Margin="0,8,0,0"
+                    Command="{Binding CheckOutEncounterCommand}" Margin="0,8,0,0"
                     HorizontalAlignment="Left"
                     Visibility="{Binding SelectedEncounter, Converter={StaticResource NullToVisibility}}"/>
         </StackPanel>

@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Code-Set Migration — Administrator Manual — NewVistas</title>
+  <link rel="stylesheet" href="../assets/css/manual.css" />
+</head>
+<body>
+  <div class="topbar">
+    <div class="brand"><a href="../index.html">NewVistas</a> <span>· User Manual</span></div>
+    <div class="role-pill">🛠️ Administrator</div>
+  </div>
+
+  <div class="layout">
+    <nav class="sidebar">
+      <div class="section">Administrator Manual</div>
+      <a href="index.html">Overview</a>
+      <a href="getting-started.html">Getting Started</a>
+      <div class="section">Administration</div>
+      <a href="adt.html">ADT</a>
+      <a href="bed-board.html">Bed Board</a>
+      <a href="transfer-center.html">Transfer Center</a>
+      <a href="institutions.html">Institutions</a>
+      <a href="registration.html">Registration</a>
+      <a href="patient-merge.html">Patient Merge</a>
+      <a href="code-set-migration.html" class="active">Code-Set Migration</a>
+      <a href="means-test.html">Means Test</a>
+      <a href="sc-conditions.html">SC Conditions</a>
+      <a href="prosthetics.html">Prosthetics</a>
+      <a href="security-keys.html">Security Keys</a>
+      <a href="site-parameters.html">Site Parameters</a>
+      <div class="section">&nbsp;</div>
+      <a href="../index.html">← All roles</a>
+    </nav>
+
+    <main class="content">
+      <div class="crumb"><a href="../index.html">Manual</a> › <a href="index.html">Administrator</a> › Code-Set Migration</div>
+      <h1>Code-Set Migration (Bulk Recode)</h1>
+      <p class="lead">
+        When a code is retired or a new one is issued — the canonical example is U07.1 arriving
+        for COVID-19 while every existing patient carried B34.2 — this screen
+        (<code>/bulk-recode</code>) re-asserts every active problem under the new code, across
+        the whole population, with full provenance and <strong>zero effect on any diagnosis
+        statistic</strong>.
+      </p>
+
+      <h2>What one migration does, per patient</h2>
+      <ul>
+        <li>Patients already carrying the replacement code are <strong>left untouched</strong> — re-running a directive is a no-op, never a duplicate row.</li>
+        <li>Otherwise, one new problem is asserted under the replacement code, carrying the old problem's certainty and onset date, and citing the old assertion as machine-cited evidence.</li>
+        <li>Each old problem is superseded (it stays in the chart, linked, off the active list) with revision reason <strong>Recode</strong>.</li>
+        <li>Any open diagnostic episode closes as <strong>Recoded</strong>.</li>
+      </ul>
+
+      <div class="callout safety">
+        <span class="ct">Nobody was wrong — and the numbers must say so</span>
+        A recode is a statement that the <em>code set</em> changed, not that any clinician was.
+        Recoded episodes are excluded from the revision-rate numerator, its denominator, and the
+        adjudication-coverage ratio. Without this, remapping B34.2 → U07.1 would have taught the
+        statistics that B34.2 was "wrong" 100% of the time — a permanently poisoned figure. This
+        is why the migration path is a dedicated tool and not a loop over the ordinary
+        revision screen.
+      </div>
+
+      <h2>Running one</h2>
+      <ol class="steps">
+        <li>Open <kbd>Code-Set Migration</kbd> in the admin sidebar.</li>
+        <li>Enter the retired code, the replacement code, its official description, and the <strong>why</strong> — that sentence is quoted onto every chart the migration touches.</li>
+        <li>Optionally cap the number of patients screened (useful for a trial run).</li>
+        <li>Confirm. The run report shows recoded / already-coded / no-match / failure counts, and the run history is kept on this screen.</li>
+      </ol>
+
+      <div class="callout note">
+        <span class="ct">Guard rails</span>
+        The replacement code must exist in the site's loaded ICD-10 index (a typo applied at
+        population scale is not recoverable); the narrative is required; and the operation needs
+        the <code>XUMGR</code> security key. A patient whose read or write fails does not abort
+        the run — failures are counted and reported, and a re-run covers them (idempotency makes
+        re-runs safe).
+      </div>
+
+      <h2>Pre-feature charts</h2>
+      <p>
+        Problems recorded before diagnostic stewardship existed have no open episode. Their
+        problems still recode normally — they simply have no episode to close, which the run
+        report shows as episodes-closed being lower than the recoded count. That is expected,
+        not an error.
+      </p>
+    </main>
+  </div>
+  <script src="../assets/js/editions.js"></script>
+</body>
+</html>

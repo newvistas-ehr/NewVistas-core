@@ -18,8 +18,6 @@ file, You can obtain one at https://mozilla.org/MPL/2.0/.
                         Command="{Binding LoadCommand}" Margin="0,0,8,0"/>
                 <Button Content="+ File Claim" Style="{StaticResource SecondaryButton}"
                         Command="{Binding ToggleFileFormCommand}" Margin="0,0,8,0"/>
-                <Button Content="Load Demo" Style="{StaticResource SecondaryButton}"
-                        Command="{Binding LoadDemoCommand}" Margin="0,0,8,0"/>
                 <ProgressBar IsIndeterminate="True" Width="120" Height="20"
                              Visibility="{Binding IsLoading, Converter={StaticResource BoolToVisibility}}"/>
             </StackPanel>
@@ -54,9 +52,9 @@ file, You can obtain one at https://mozilla.org/MPL/2.0/.
                 <DataGrid.Columns>
                     <DataGridTextColumn Header="Travel Date" Binding="{Binding TravelDate}" Width="110"/>
                     <DataGridTextColumn Header="Type" Binding="{Binding ClaimType}" Width="100"/>
-                    <DataGridTextColumn Header="Destination" Binding="{Binding Destination}" Width="*"/>
-                    <DataGridTextColumn Header="Miles" Binding="{Binding Miles}" Width="80"/>
-                    <DataGridTextColumn Header="Amount" Binding="{Binding Amount, StringFormat=C}" Width="100"/>
+                    <DataGridTextColumn Header="Destination" Binding="{Binding DestinationFacility}" Width="*"/>
+                    <DataGridTextColumn Header="Miles" Binding="{Binding TotalMileage}" Width="80"/>
+                    <DataGridTextColumn Header="Amount" Binding="{Binding NetAmount, StringFormat=C}" Width="100"/>
                     <DataGridTextColumn Header="Status" Binding="{Binding Status}" Width="100"/>
                 </DataGrid.Columns>
             </DataGrid>

@@ -20,12 +20,13 @@ file, You can obtain one at https://mozilla.org/MPL/2.0/.
             </StackPanel>
             <DataGrid ItemsSource="{Binding Incidents}" SelectedItem="{Binding SelectedIncident}" AutoGenerateColumns="False">
                 <DataGrid.Columns>
-                    <DataGridTextColumn Header="Incident #" Binding="{Binding IncidentNumber}" Width="110"/>
+                    <DataGridTextColumn Header="Incident #" Binding="{Binding IncidentId}" Width="110"/>
                     <DataGridTextColumn Header="Category" Binding="{Binding Category}" Width="140"/>
                     <DataGridTextColumn Header="Severity" Binding="{Binding Severity}" Width="110"/>
                     <DataGridTextColumn Header="Status" Binding="{Binding Status}" Width="110"/>
-                    <DataGridTextColumn Header="Incident Date" Binding="{Binding IncidentDate, StringFormat=d}" Width="120"/>
-                    <DataGridTextColumn Header="Description" Binding="{Binding ShortDescription}" Width="*"/>
+                    <DataGridTextColumn Header="Incident Date" Binding="{Binding OccurrenceDate, StringFormat=d}" Width="120"/>
+                    <DataGridTextColumn Header="Patient" Binding="{Binding PatientName}" Width="160"/>
+                    <DataGridTextColumn Header="Location" Binding="{Binding Location}" Width="*"/>
                 </DataGrid.Columns>
             </DataGrid>
         </StackPanel>

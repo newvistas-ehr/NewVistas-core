@@ -126,6 +126,24 @@ public class RadiologyGrain : Grain, IRadiologyGrain
 
     public async Task SignReportAsync(string signedById, string signedByName, DateTime signedDateTime)
     {
+        // The report is a legal document: the first signature is immutable.
+        // A signed (FINAL or AMENDED) report can never be re-signed.
+        if (_state.State.ReportStatus is "FINAL" or "AMENDED")
+        {
+            throw new InvalidOperationException(
+                $"Report is {_state.State.ReportStatus} — already signed by " +
+                $"{_state.State.SignedByName ?? _state.State.SignedById} on {_state.State.SignedDateTime:yyyy-MM-dd HH:mm} UTC; " +
+                "the original signature is immutable and the report cannot be re-signed.");
+        }
+
+        // There must be something to sign: a study with no report text cannot go FINAL.
+        if (string.IsNullOrWhiteSpace(_state.State.ReportText))
+        {
+            throw new InvalidOperationException(
+                $"Cannot sign: no report text has been filed for this study " +
+                $"(report status: {_state.State.ReportStatus ?? "none"}).");
+        }
+
         _state.State.SignedById = signedById;
         _state.State.SignedByName = signedByName;
         _state.State.SignedDateTime = signedDateTime;
@@ -184,6 +202,16 @@ public class RadiologyGrain : Grain, IRadiologyGrain
 
     public async Task AmendReportAsync(string amendmentText)
     {
+        // Amendment is a post-signature act: it records new text ALONGSIDE the
+        // signed report. Before signing, the report is still a draft and its text
+        // is simply edited (RecordReportAsync) — an unsigned draft is edited, not amended.
+        if (_state.State.ReportStatus is not ("FINAL" or "AMENDED"))
+        {
+            throw new InvalidOperationException(
+                $"Cannot amend: the report has not been signed " +
+                $"(report status: {_state.State.ReportStatus ?? "none"}) — an unsigned draft is edited, not amended.");
+        }
+
         _state.State.AmendmentText = amendmentText;
         _state.State.AmendmentDateTime = DateTime.UtcNow;
         _state.State.ReportStatus = "AMENDED";

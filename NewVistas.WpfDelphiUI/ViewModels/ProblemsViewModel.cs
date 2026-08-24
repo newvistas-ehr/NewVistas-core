@@ -1,4 +1,4 @@
-// Copyright 2026 Merrimack Valley Software Works, LLC. All rights reserved.
+﻿// Copyright 2026 Merrimack Valley Software Works, LLC. All rights reserved.
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
@@ -19,11 +19,11 @@ public sealed partial class ProblemsViewModel : ChartTabViewModelBase
     [ObservableProperty] private string _newOnsetDate = string.Empty;
     [ObservableProperty] private string _newStatus = "ACTIVE";
 
-    public ProblemsViewModel(ApiClient api, PatientContext context) : base(api, context) { }
+    public ProblemsViewModel(ChartDataService data, PatientContext context) : base(data, context) { }
 
     protected override async Task LoadAsync()
     {
-        var items = await Api.GetProblemsAsync(PatientId);
+        var items = await Data.GetProblemsAsync(PatientId);
         Problems.Clear();
         foreach (var p in items) Problems.Add(p);
     }
@@ -40,13 +40,7 @@ public sealed partial class ProblemsViewModel : ChartTabViewModelBase
         ErrorText = string.Empty;
         try
         {
-            await Api.AddProblemAsync(PatientId, new
-            {
-                IcdCode = NewIcdCode,
-                Description = NewDescription,
-                OnsetDate = NewOnsetDate,
-                Status = NewStatus
-            });
+            await Data.AddProblemAsync(PatientId, NewDescription, NewIcdCode, ParseDate(NewOnsetDate));
             NewIcdCode = string.Empty;
             NewDescription = string.Empty;
             NewOnsetDate = string.Empty;
@@ -55,4 +49,8 @@ public sealed partial class ProblemsViewModel : ChartTabViewModelBase
         }
         catch (Exception ex) { ErrorText = ex.Message; }
     }
+
+    /// <summary>Onset is a free-text box; treat anything unparseable as "not stated".</summary>
+    private static DateTime? ParseDate(string? text) =>
+        DateTime.TryParse(text, out DateTime d) ? d : null;
 }

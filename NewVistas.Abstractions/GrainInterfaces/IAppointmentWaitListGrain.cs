@@ -41,6 +41,15 @@ public interface IAppointmentWaitListGrain : IGrainWithStringKey
     Task OfferSlotAsync(string appointmentId, DateTime offeredDateTime, string offeredByName);
     Task AcceptOfferAsync(string acceptedByName);
     Task DeclineOfferAsync(string reason, string declinedByName);
+
+    /// <summary>
+    /// Voids a pending offer without recording a patient decline — used when the
+    /// offered appointment turned out to be unavailable at accept time (cancelled,
+    /// rebooked, or assigned to another patient). Clears the offer fields and
+    /// returns the entry to WAITING so staff can re-offer a fresh slot.
+    /// Idempotent: a no-op when no offer is pending.
+    /// </summary>
+    Task VoidOfferAsync(string reason, string performedByName);
     Task BookFromWaitListAsync(string appointmentId, DateTime bookedDateTime, string bookedByName);
     Task CancelEntryAsync(string reason, string cancelledByName);
     Task ExpireEntryAsync();

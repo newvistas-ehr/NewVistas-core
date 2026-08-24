@@ -1,4 +1,4 @@
-// Copyright 2026 Merrimack Valley Software Works, LLC. All rights reserved.
+﻿// Copyright 2026 Merrimack Valley Software Works, LLC. All rights reserved.
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
@@ -34,13 +34,35 @@ public partial class PatientWorkflowGrain
     };
 
     /// <summary>
-    /// Syncs an order's current state to the index grain.
-    /// Called after any status change (sign, hold, DC, renew, verify, etc.).
+    /// Publishes an order change to <b>everyone holding a copy of it</b>. Call this after any
+    /// status change (sign, hold, DC, renew, verify, complete).
+    ///
+    /// The order grain owns the truth, but two other places cache a projection of it: the
+    /// per-patient order index (full history) and the patient grain's recent-orders window
+    /// (the hot path the cover sheet and Orders tab read). Updating only the index left the
+    /// patient's copy stale — an order could be completed and still read "Pending" through
+    /// <c>GetRecentOrdersAsync</c>. Both are refreshed here so a caller cannot forget one.
+    ///
+    /// The patient-side update is a targeted replace of the single cached entry, not a rewrite
+    /// of the patient record, and is a no-op if the order has already aged out of the window.
     /// </summary>
-    private async Task SyncOrderToIndexAsync(string orderId)
+    private async Task PublishOrderChangedAsync(string orderId)
     {
         OrderState state = await GrainFactory.GetGrain<IOrderGrain>(orderId).GetOrderAsync();
+
+        // Full-history index.
         await GetOrderIndex().AddOrUpdateOrderAsync(MakeOrderIndexEntry(state));
+
+        // The patient's own cached copy.
+        await GetPatientGrain().UpdateRecentOrderAsync(new OrderSummary
+        {
+            OrderId = state.OrderId,
+            OrderText = state.OrderableItem ?? string.Empty,
+            OrderType = state.OrderType ?? string.Empty,
+            Status = state.Status ?? string.Empty,
+            StartDate = state.OrderDateTime,
+            ProviderName = state.ProviderName,
+        });
     }
 
     public async Task<string> PlaceOrderAsync(
@@ -95,17 +117,26 @@ public partial class PatientWorkflowGrain
         return orderId;
     }
 
-    public async Task SignOrderAsync(string orderId, string electronicSignature)
+    public async Task SignOrderAsync(string orderId, string signatureCode)
+    {
+        // The code is verified against the caller's stored hash and NEVER persisted — what
+        // lands in OrderState.ElectronicSignature is an attestation of who signed and when.
+        // Storing the code itself would leak the signing secret into every signed order.
+        string userId = await VerifyElectronicSignatureCodeAsync(signatureCode);
+        await SignOrderCoreAsync(orderId, $"ES/{userId}/{DateTime.UtcNow:yyyy-MM-ddTHH:mm:ssZ}");
+    }
+
+    private async Task SignOrderCoreAsync(string orderId, string attestation)
     {
         // ORWDXA with ACTION="ES"
         var orderGrain = GrainFactory.GetGrain<IOrderGrain>(orderId);
         var now = DateTime.UtcNow;
 
-        await orderGrain.SignOrderAsync(electronicSignature, now);
+        await orderGrain.SignOrderAsync(attestation, now);
         await orderGrain.ReleaseOrderAsync(now);
 
         // Sync index with new status (Active + signed)
-        await SyncOrderToIndexAsync(orderId);
+        await PublishOrderChangedAsync(orderId);
     }
 
     public async Task DiscontinueOrderAsync(string orderId, string reason)
@@ -115,7 +146,7 @@ public partial class PatientWorkflowGrain
         await orderGrain.DiscontinueOrderAsync(DateTime.UtcNow, reason, null);
 
         // Sync index with new status (Discontinued)
-        await SyncOrderToIndexAsync(orderId);
+        await PublishOrderChangedAsync(orderId);
     }
 
     public async Task HoldOrderAsync(string orderId)
@@ -126,7 +157,7 @@ public partial class PatientWorkflowGrain
         await orderGrain.HoldOrderAsync();
 
         // Sync index with new status (Hold)
-        await SyncOrderToIndexAsync(orderId);
+        await PublishOrderChangedAsync(orderId);
     }
 
     public async Task ReleaseOrderAsync(string orderId)
@@ -136,7 +167,7 @@ public partial class PatientWorkflowGrain
         await orderGrain.ReleaseOrderAsync(DateTime.UtcNow);
 
         // Sync index with new status (Active)
-        await SyncOrderToIndexAsync(orderId);
+        await PublishOrderChangedAsync(orderId);
     }
 
     public async Task<List<OrderSummary>> GetOrdersByFilterAsync(int filter)
@@ -201,7 +232,7 @@ public partial class PatientWorkflowGrain
         await orderGrain.RenewOrderAsync(renewedByProviderId, newStopDateTime);
 
         // Sync index with renewed status
-        await SyncOrderToIndexAsync(orderId);
+        await PublishOrderChangedAsync(orderId);
     }
 
     public async Task VerifyOrderAsync(string orderId, string nurseId)
@@ -210,7 +241,7 @@ public partial class PatientWorkflowGrain
         await orderGrain.VerifyOrderAsync(nurseId, DateTime.UtcNow);
 
         // Sync index (nurse verification may change signature status)
-        await SyncOrderToIndexAsync(orderId);
+        await PublishOrderChangedAsync(orderId);
     }
 
     public Task<List<OrderCheckResult>> CheckOrderAsync(
@@ -283,6 +314,11 @@ public partial class PatientWorkflowGrain
 
         await GetPatientGrain().AddProblemAsync(entry);
 
+        // Open the diagnostic episode that makes this assertion countable (ADR-006). No-op when
+        // DIAGNOSTIC_STEWARDSHIP is off — and note that assertions made while it is off are
+        // permanently missing from the denominator, which is why that disable is one-way.
+        await OpenDiagnosticEpisodeAsync(problemId, diagnosisCode ?? string.Empty, diagnosis);
+
         return problemId;
     }
 
@@ -291,7 +327,12 @@ public partial class PatientWorkflowGrain
         List<ProblemEntry> entries = await GetPatientGrain().GetProblemsAsync();
 
         return entries
-            .Where(e => e.Status == "ACTIVE")
+            // Refuted and entered-in-error rows are excluded here as well as by the coarse
+            // Status filter (ADR-006): a disproved or voided diagnosis must never render as a
+            // current problem, and Status alone cannot express the distinction.
+            .Where(e => e.Status == "ACTIVE"
+                        && e.VerificationStatus != ProblemVerificationStatus.Refuted
+                        && e.VerificationStatus != ProblemVerificationStatus.EnteredInError)
             .Select(e => new ProblemSummary
             {
                 ProblemId = e.ProblemId,
@@ -300,7 +341,8 @@ public partial class PatientWorkflowGrain
                 Status = e.Status,
                 DateOfOnset = e.DateOfOnset,
                 Condition = e.Condition,
-                IsServiceConnected = e.IsServiceConnected
+                IsServiceConnected = e.IsServiceConnected,
+                VerificationStatus = e.VerificationStatus
             })
             .ToList();
     }
@@ -318,7 +360,8 @@ public partial class PatientWorkflowGrain
                 Status = e.Status,
                 DateOfOnset = e.DateOfOnset,
                 Condition = e.Condition,
-                IsServiceConnected = e.IsServiceConnected
+                IsServiceConnected = e.IsServiceConnected,
+                VerificationStatus = e.VerificationStatus
             })
             .ToList();
     }
@@ -542,7 +585,23 @@ public partial class PatientWorkflowGrain
     {
         // SDAMEVT CHANGE event — update appointment date/time
         var apptGrain = GrainFactory.GetGrain<IAppointmentGrain>(appointmentId);
-        await apptGrain.UpdateAppointmentAsync(newDateTime, null, null, null, reason, null, modifiedBy);
+
+        AppointmentState current = await apptGrain.GetAppointmentAsync();
+        if (current.Status == "Cancelled")
+            throw new InvalidOperationException(
+                $"Appointment '{appointmentId}' is cancelled and cannot be rescheduled. Schedule a new appointment instead.");
+
+        // Purpose is clinical and must survive a reschedule — pass null so
+        // UpdateAppointmentAsync keeps the existing value. The reschedule reason is
+        // audit trail, not purpose: append it to the free-text Notes field.
+        string? notes = null;
+        if (!string.IsNullOrWhiteSpace(reason))
+        {
+            string note = $"Rescheduled from {current.AppointmentDateTime:yyyy-MM-dd HH:mm} to {newDateTime:yyyy-MM-dd HH:mm}: {reason}";
+            notes = string.IsNullOrWhiteSpace(current.Notes) ? note : $"{current.Notes}\n{note}";
+        }
+
+        await apptGrain.UpdateAppointmentAsync(newDateTime, null, null, null, null, notes, modifiedBy);
 
         // Sync schedule index
         AppointmentState state = await apptGrain.GetAppointmentAsync();
@@ -706,7 +765,7 @@ public partial class PatientWorkflowGrain
             await GetProviderScheduleIndex(state.ProviderId).UpdateStatusAsync(appointmentId, state.Status);
 
         // Trigger waitlist auto-offer for the opened slot
-        await TryAutoOfferWaitListSlotAsync(state.ClinicId, state.AppointmentDateTime);
+        await TryAutoOfferWaitListSlotAsync(state);
     }
 
     public async Task ReassignAppointmentProviderAsync(
@@ -715,10 +774,22 @@ public partial class PatientWorkflowGrain
         var apptGrain = GrainFactory.GetGrain<IAppointmentGrain>(appointmentId);
         AppointmentState state = await apptGrain.GetAppointmentAsync();
 
+        if (state.Status == "Cancelled")
+            throw new InvalidOperationException(
+                $"Appointment '{appointmentId}' is cancelled and cannot be reassigned. Schedule a new appointment instead.");
+
         string? oldProviderId = state.ProviderId;
 
-        // Update the appointment with new provider
-        await apptGrain.UpdateAppointmentAsync(null, null, newProviderId, newProviderName, reason, null, "SYSTEM");
+        // Update the appointment with new provider. Purpose is clinical and must survive a
+        // reassignment — pass null so UpdateAppointmentAsync keeps the existing value; the
+        // reassignment reason is audit trail and goes to the free-text Notes field.
+        string? notes = null;
+        if (!string.IsNullOrWhiteSpace(reason))
+        {
+            string note = $"Provider reassigned to {newProviderName}: {reason}";
+            notes = string.IsNullOrWhiteSpace(state.Notes) ? note : $"{state.Notes}\n{note}";
+        }
+        await apptGrain.UpdateAppointmentAsync(null, null, newProviderId, newProviderName, null, notes, "SYSTEM");
 
         // Re-read state
         state = await apptGrain.GetAppointmentAsync();
@@ -763,7 +834,7 @@ public partial class PatientWorkflowGrain
     /// Only fires when the APPOINTMENT_WAITLIST feature is enabled (RPMS-pattern auto-rebooking).
     /// VistA's EWL (File #409.3) does not auto-offer — this is an RPMS-inspired enhancement.
     /// </summary>
-    private async Task TryAutoOfferWaitListSlotAsync(string clinicId, DateTime slotDateTime)
+    private async Task TryAutoOfferWaitListSlotAsync(AppointmentState freedSlot)
     {
         try
         {
@@ -773,13 +844,22 @@ public partial class PatientWorkflowGrain
                 return;
 
             IAppointmentWaitListIndexGrain waitListIndex = GrainFactory.GetGrain<IAppointmentWaitListIndexGrain>("SD-WL-IDX");
-            AppointmentWaitListIndexEntry? match = await waitListIndex.FindBestMatchForSlotAsync(clinicId, slotDateTime);
+            AppointmentWaitListIndexEntry? match = await waitListIndex.FindBestMatchForSlotAsync(
+                freedSlot.ClinicId, freedSlot.AppointmentDateTime);
 
             if (match != null)
             {
+                // Mirror the staff flow (AppointmentWaitListController pre-books a real
+                // appointment, then offers its id): book the matched patient into the freed
+                // slot for real via the standard ScheduleAppointmentAsync path, then offer
+                // that appointment. Previously this offered "AUTO-{guid}" — an appointment
+                // id with no appointment behind it, so an accepted offer pointed at nothing.
                 IPatientWorkflowGrain patientWorkflow = GrainFactory.GetGrain<IPatientWorkflowGrain>(match.PatientId);
+                string offeredAppointmentId = await patientWorkflow.ScheduleAppointmentAsync(
+                    freedSlot.ClinicId, freedSlot.ClinicName, freedSlot.AppointmentDateTime,
+                    freedSlot.DurationMinutes, null, null, null, match.DesiredAppointmentType);
                 await patientWorkflow.OfferWaitListSlotAsync(
-                    match.EntryId, $"AUTO-{Guid.NewGuid()}", slotDateTime, "SYSTEM-AUTO");
+                    match.EntryId, offeredAppointmentId, freedSlot.AppointmentDateTime, "SYSTEM-AUTO");
             }
         }
         catch
@@ -1008,7 +1088,18 @@ public partial class PatientWorkflowGrain
             AppointmentType = state.AppointmentType,
             CreatedDate = state.CreatedDate
         });
-        await GetClinicScheduleIndex(state.ClinicId).UpdateStatusAsync(state.AppointmentId, state.Status);
+        // Full-entry upsert (not just a status update) so a reschedule moves the clinic
+        // index entry's date/time: the vacated slot is freed and the new time is protected
+        // by the capacity/overlap checks.
+        await GetClinicScheduleIndex(state.ClinicId).AddOrUpdateAsync(new ClinicScheduleEntry
+        {
+            AppointmentId = state.AppointmentId,
+            PatientId = state.PatientId,
+            AppointmentDateTime = state.AppointmentDateTime,
+            DurationMinutes = state.DurationMinutes,
+            Status = state.Status,
+            IsDoubleBook = state.IsDoubleBook
+        });
     }
 
     /// <summary>

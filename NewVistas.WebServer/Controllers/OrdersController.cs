@@ -89,15 +89,25 @@ public class OrdersController : ControllerBase
 
     // ─── Order Actions ──────────────────────────────────────────────────────
 
-    /// <summary>POST api/orders/{patientId}/{orderId}/sign — sign an order.</summary>
+    /// <summary>
+    /// POST api/orders/{patientId}/{orderId}/sign — sign an order. The request's
+    /// ElectronicSignature is the caller's e-signature CODE, verified by the workflow grain
+    /// against the authenticated caller's stored hash; it is required and never persisted.
+    /// </summary>
     [HttpPost("{patientId}/{orderId}/sign")]
     public async Task<ActionResult> SignOrder(string patientId, string orderId,
         [FromBody] OrdSignRequest request)
     {
+        if (string.IsNullOrWhiteSpace(request.ElectronicSignature))
+            return BadRequest(new { Message = "The electronic signature code is required to sign." });
         try
         {
             await GetWorkflow(patientId).SignOrderAsync(orderId, request.ElectronicSignature);
             return Ok(new { Message = "Order signed." });
+        }
+        catch (UnauthorizedAccessException)
+        {
+            return Unauthorized(new { Message = "Electronic signature verification failed" });
         }
         catch (Exception ex)
         {

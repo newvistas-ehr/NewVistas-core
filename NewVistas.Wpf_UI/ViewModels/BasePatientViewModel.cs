@@ -1,4 +1,4 @@
-// Copyright 2026 Merrimack Valley Software Works, LLC. All rights reserved.
+﻿// Copyright 2026 Merrimack Valley Software Works, LLC. All rights reserved.
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
@@ -13,13 +13,13 @@ namespace NewVistas.Wpf_UI.ViewModels;
 /// Provides shared patient ID (from PatientContext), loading state,
 /// error display, and a Load command that derived classes implement.
 ///
-/// Uses OrleansGrainService for direct grain access (data operations)
-/// and ApiClient for authentication-only operations.
+/// All data access goes through <see cref="OrleansGrainService"/> — straight to the
+/// grains. The WebServer is for outsiders and for authentication; a ViewModel has no
+/// business holding an HTTP client.
 /// </summary>
 public abstract partial class BasePatientViewModel : ObservableObject
 {
     protected readonly OrleansGrainService Grains;
-    protected readonly ApiClient Api;
     protected readonly PatientContext PatientContext;
 
     [ObservableProperty]
@@ -28,10 +28,9 @@ public abstract partial class BasePatientViewModel : ObservableObject
     [ObservableProperty]
     private string? _error;
 
-    protected BasePatientViewModel(OrleansGrainService grains, ApiClient api, PatientContext patientContext)
+    protected BasePatientViewModel(OrleansGrainService grains, PatientContext patientContext)
     {
         Grains = grains;
-        Api = api;
         PatientContext = patientContext;
     }
 

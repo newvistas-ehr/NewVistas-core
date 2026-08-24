@@ -1,4 +1,4 @@
-// Copyright 2026 Merrimack Valley Software Works, LLC. All rights reserved.
+﻿// Copyright 2026 Merrimack Valley Software Works, LLC. All rights reserved.
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
@@ -60,8 +60,8 @@ public partial class PatientEditViewModel : BasePatientViewModel
     public string[] BranchOptions { get; } = ["", "ARMY", "NAVY", "AIR FORCE", "MARINES", "COAST GUARD", "SPACE FORCE"];
     public string[] DischargeOptions { get; } = ["", "HONORABLE", "GENERAL", "OTHER THAN HONORABLE", "BAD CONDUCT", "DISHONORABLE"];
 
-    public PatientEditViewModel(OrleansGrainService grains, ApiClient api, PatientContext patientContext)
-        : base(grains, api, patientContext) { }
+    public PatientEditViewModel(OrleansGrainService grains, PatientContext patientContext)
+        : base(grains, patientContext) { }
 
     protected override async Task LoadDataAsync()
     {

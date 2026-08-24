@@ -1,4 +1,4 @@
-// Copyright 2026 Merrimack Valley Software Works, LLC. All rights reserved.
+﻿// Copyright 2026 Merrimack Valley Software Works, LLC. All rights reserved.
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
@@ -111,7 +111,8 @@ public class RadiologyMenu : IMenu
 
         if (!TerminalIO.PromptYesNo("Order this radiology study?")) return;
 
-        string id = await ctx.GetWorkflow().OrderRadiologyStudyAsync(
+        // CPOE: creates the linked ORDER #100 so the study shows on the Orders tab.
+        string id = await ctx.GetWorkflow().PlaceRadiologyOrderAsync(
             procedure, null,
             string.IsNullOrWhiteSpace(cpt) ? null : cpt,
             imagingType,
@@ -119,7 +120,7 @@ public class RadiologyMenu : IMenu
             urgency,
             string.IsNullOrWhiteSpace(history) ? null : history,
             string.IsNullOrWhiteSpace(reason) ? null : reason,
-            null, null, null);
+            null, null);
 
         TerminalIO.WriteBlank();
         TerminalIO.WriteLine($"  Radiology study ordered: {id}");

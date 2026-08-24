@@ -88,9 +88,19 @@ public interface IPatientWorkflowGrain : IGrainWithStringKey
         string providerId, string providerName,
         string? locationId, string? locationName,
         string urgency, string? instructions, string? indication);
+    /// <summary>
+    /// Signs an order. The signature code is verified on the grain against the caller's
+    /// stored hash and is never persisted — the order records an attestation of who signed
+    /// and when. Throws <see cref="UnauthorizedAccessException"/> on a missing or wrong code.
+    /// </summary>
     [RequiresSecurityKey(SecurityKeys.ORES)]
     [AuditAction("ORDERS", "SIGN", EntityType = "ORDER", IsClinicalWrite = true)]
-    Task SignOrderAsync(string orderId, string electronicSignature);
+    Task SignOrderAsync(string orderId, string signatureCode);
+
+    /// <summary>System order signing for seeds; XUPROG-gated like the note variant.</summary>
+    [RequiresSecurityKey(SecurityKeys.XUPROG)]
+    [AuditAction("ORDERS", "SIGN_SYSTEM", EntityType = "ORDER", IsClinicalWrite = true)]
+    Task SignOrderAsSystemAsync(string orderId, string attestation);
     [RequiresSecurityKey(SecurityKeys.ORES, SecurityKeys.ORELSE)]
     [AuditAction("ORDERS", "DISCONTINUE", EntityType = "ORDER", IsClinicalWrite = true)]
     Task DiscontinueOrderAsync(string orderId, string reason);
@@ -477,12 +487,29 @@ public interface IPatientWorkflowGrain : IGrainWithStringKey
         string? cosignerId, string? cosignerName,
         string? locationId, string? locationName,
         string? visitId, DateTime referenceDate);
+    /// <summary>
+    /// Signs a note. The caller's electronic-signature code is verified ON THE GRAIN against
+    /// the hash stored for the RequestContext user — never against a client-chosen signer —
+    /// so every client (web, terminal, desktop, API) inherits the same fail-closed gate.
+    /// Throws <see cref="UnauthorizedAccessException"/> on a missing or wrong code.
+    /// </summary>
     [RequiresSecurityKey(SecurityKeys.TIU_SIGN)]
     [AuditAction("NOTES", "SIGN", EntityType = "NOTE", IsClinicalWrite = true)]
-    Task SignNoteAsync(string documentId);
+    Task SignNoteAsync(string documentId, string signatureCode);
     [RequiresSecurityKey(SecurityKeys.TIU_COSIGN)]
     [AuditAction("NOTES", "COSIGN", EntityType = "NOTE", IsClinicalWrite = true)]
-    Task CosignNoteAsync(string documentId);
+    Task CosignNoteAsync(string documentId, string signatureCode);
+
+    /// <summary>
+    /// System signing for seeds and programmatic migration — no per-user code, which is
+    /// exactly why it requires the programmer key. Humans sign with a code.
+    /// </summary>
+    [RequiresSecurityKey(SecurityKeys.XUPROG)]
+    [AuditAction("NOTES", "SIGN_SYSTEM", EntityType = "NOTE", IsClinicalWrite = true)]
+    Task SignNoteAsSystemAsync(string documentId);
+    [RequiresSecurityKey(SecurityKeys.XUPROG)]
+    [AuditAction("NOTES", "COSIGN_SYSTEM", EntityType = "NOTE", IsClinicalWrite = true)]
+    Task CosignNoteAsSystemAsync(string documentId);
     Task AmendNoteAsync(string documentId, string amendedText);
     Task<string> AddAddendumAsync(
         string parentDocumentId, string reportText,
@@ -546,11 +573,36 @@ public interface IPatientWorkflowGrain : IGrainWithStringKey
 
     // ─── Radiology (File #75.1) ──────────────────────────────────────────
 
+    /// <summary>
+    /// Records a radiology study in isolation — no CPOE order is created. This is the
+    /// <b>bulk/historical import</b> path, kept so importers and seeds do not flood the
+    /// order list. For a study a clinician is actually ordering, use
+    /// <see cref="PlaceRadiologyOrderAsync"/>, or the study will never appear on the
+    /// Orders tab.
+    /// </summary>
     Task<string> OrderRadiologyStudyAsync(
         string procedureName, string? procedureId, string? cptCode, string? imagingType,
         string? requestingProviderId, string? requestingProviderName,
         string? urgency, string? clinicalHistory, string? reasonForStudy,
         string? orderId, string? locationId, string? locationName);
+
+    /// <summary>
+    /// Place a radiology study interactively (provider CPOE). Unlike
+    /// <see cref="OrderRadiologyStudyAsync"/> — which records a study in isolation for bulk
+    /// historical imports — this creates a unified CPOE order (ORDER file #100) linked to the
+    /// study, so the study appears in the patient's order list and order history like any
+    /// other order, and is marked complete when the report is filed. Returns the radiology id.
+    ///
+    /// Mirrors <see cref="PlaceLabOrderAsync"/>; radiology had the same gap labs did, where an
+    /// ordered study was invisible to the Orders tab because nothing wrote to the order index.
+    /// </summary>
+    [RequiresSecurityKey(SecurityKeys.ORES, SecurityKeys.ORELSE)]
+    [AuditAction("RADIOLOGY", "CREATE", EntityType = "RAD_ORDER", IsClinicalWrite = true)]
+    Task<string> PlaceRadiologyOrderAsync(
+        string procedureName, string? procedureId, string? cptCode, string? imagingType,
+        string? requestingProviderId, string? requestingProviderName,
+        string? urgency, string? clinicalHistory, string? reasonForStudy,
+        string? locationId, string? locationName);
     Task CompleteRadiologyAsync(string radiologyId, string? reportText, string? impression,
         string? interpretingPhysicianId, string? interpretingPhysicianName);
     Task<GrainStates.RadiologyState> GetRadiologyStudyAsync(string radiologyId);
@@ -4687,6 +4739,19 @@ public interface IPatientWorkflowGrain : IGrainWithStringKey
     [AuditAction("SURVEILLANCE", "SUGGEST", EntityType = "PROTO")]
     Task SuggestForProtoConditionAsync(string protoConditionId, string byUser);
 
+    /// <summary>
+    /// "This matches nothing I know" — drafts a new cluster from this patient's feature snapshot
+    /// and suggests them into it as the index case. Returns the new proto-condition id.
+    ///
+    /// Always creates a <b>Draft</b>, which is excluded from the active index and therefore
+    /// invisible to every chart, banner and sweep until an epidemiologist activates it.
+    /// Open to a treating clinician because the person who notices nothing fits is at the
+    /// bedside — the noticing is the step that historically failed.
+    /// </summary>
+    [RequiresSecurityKey(SecurityKeys.PROVIDER, SecurityKeys.ORELSE, SecurityKeys.EPI_MANAGER)]
+    [AuditAction("SURVEILLANCE", "PROPOSE", EntityType = "PROTO")]
+    Task<string> ProposeProtoConditionFromPatientAsync(string workingName, string byUser);
+
     /// <summary>Epidemiologist confirms this patient into a proto-condition cluster (may fire the count alert).</summary>
     [RequiresSecurityKey(SecurityKeys.EPI_MANAGER)]
     [AuditAction("SURVEILLANCE", "CONFIRM", EntityType = "PROTO")]
@@ -4756,4 +4821,200 @@ public interface IPatientWorkflowGrain : IGrainWithStringKey
     /// <summary>Refers this patient to a community-resource-directory entry (opens a Social Work referral to that agency). Returns the referral id.</summary>
     [AuditAction("SOCIAL_CARE", "RESOURCE_REFERRAL", EntityType = "REFERRAL")]
     Task<string> ReferToResourceAsync(string resourceId, string reason, string byUser);
+
+    // ─── Bone health / osteoporosis (BONE_HEALTH) ────────────────────────
+    // Osteoporosis is managed over decades, so the record is longitudinal: serial DXA,
+    // serial bone turnover markers, fractures, and the sequence of therapy courses. The
+    // workflow grain computes the snapshot because the diagnostic rule depends on the
+    // patient's sex and age, which live on the patient record, not the bone record.
+    //
+    // Writes are PROVIDER-keyed, and deliberately NOT marked IsClinicalWrite: that flag
+    // makes the audit filter skip logging on the assumption the per-patient clinical event
+    // stream records the write — but this module is not event-sourced, so without the
+    // filter's log a DXA or therapy change would leave no trace of who made it anywhere.
+
+    /// <summary>
+    /// Computed bone-health view: densities classified by the rule that actually applies to
+    /// this patient's sex and age, serial change with scanner-comparability caveats, turnover
+    /// markers with interpretability and trend, and active therapy. Open read; empty when
+    /// BONE_HEALTH is off.
+    /// </summary>
+    Task<GrainStates.BoneHealthSnapshot> GetBoneHealthSnapshotAsync();
+
+    /// <summary>The raw bone-health record. Open read; empty when BONE_HEALTH is off.</summary>
+    Task<GrainStates.BoneHealthState> GetBoneHealthRecordAsync();
+
+    /// <summary>Opens a bone-health record for this patient.</summary>
+    [RequiresSecurityKey(SecurityKeys.PROVIDER)]
+    [AuditAction("BONE_HEALTH", "ENROLL", EntityType = "BONE_HEALTH")]
+    Task EnrollInBoneHealthAsync(string? primaryDiagnosis, DateTime enrollmentDate);
+
+    /// <summary>Records a DXA study (all measured sites). Returns the scan id.</summary>
+    [RequiresSecurityKey(SecurityKeys.PROVIDER)]
+    [AuditAction("BONE_HEALTH", "DXA", EntityType = "BONE_HEALTH")]
+    Task<string> RecordDxaScanAsync(GrainStates.DxaScan scan);
+
+    /// <summary>Records a bone turnover marker result (CTX, P1NP, …). Returns the result id.</summary>
+    [RequiresSecurityKey(SecurityKeys.PROVIDER)]
+    [AuditAction("BONE_HEALTH", "TURNOVER_MARKER", EntityType = "BONE_HEALTH")]
+    Task<string> RecordBoneTurnoverMarkerAsync(GrainStates.BoneTurnoverMarkerResult result);
+
+    /// <summary>Records a fracture relevant to bone health. Returns the fracture id.</summary>
+    [RequiresSecurityKey(SecurityKeys.PROVIDER)]
+    [AuditAction("BONE_HEALTH", "FRACTURE", EntityType = "BONE_HEALTH")]
+    Task<string> RecordBoneFractureAsync(GrainStates.BoneFracture fracture);
+
+    /// <summary>Starts an osteoporosis therapy course. Returns the course id.</summary>
+    [RequiresSecurityKey(SecurityKeys.PROVIDER)]
+    [AuditAction("BONE_HEALTH", "THERAPY_START", EntityType = "BONE_HEALTH")]
+    Task<string> StartOsteoporosisTherapyAsync(GrainStates.OsteoporosisTherapyCourse course);
+
+    /// <summary>
+    /// Stops an osteoporosis therapy course, recording the follow-on agent. The transition
+    /// matters clinically: stopping a RANK-ligand inhibitor without moving to an antiresorptive
+    /// causes rebound bone loss and multiple vertebral fractures.
+    /// </summary>
+    [RequiresSecurityKey(SecurityKeys.PROVIDER)]
+    [AuditAction("BONE_HEALTH", "THERAPY_STOP", EntityType = "BONE_HEALTH")]
+    Task StopOsteoporosisTherapyAsync(string courseId, DateTime stopDate, string? stopReason, string? transitionedToAgent);
+
+    /// <summary>Records a FRAX fracture-risk assessment. Returns the assessment id.</summary>
+    [RequiresSecurityKey(SecurityKeys.PROVIDER)]
+    [AuditAction("BONE_HEALTH", "FRAX", EntityType = "BONE_HEALTH")]
+    Task<string> RecordFraxAssessmentAsync(GrainStates.FraxAssessment assessment);
+
+    /// <summary>Records a secondary-cause workup. Returns the workup id.</summary>
+    [RequiresSecurityKey(SecurityKeys.PROVIDER)]
+    [AuditAction("BONE_HEALTH", "SECONDARY_WORKUP", EntityType = "BONE_HEALTH")]
+    Task<string> RecordBoneSecondaryWorkupAsync(GrainStates.SecondaryCauseWorkup workup);
+
+    // ─── Diagnostic Stewardship (ADR-006) ────────────────────────────────
+    //
+    // Gated by DIAGNOSTIC_STEWARDSHIP — on by default, and uniquely ONE-WAY: once a site
+    // disables it, it can never be re-enabled, because the counters would resume against a
+    // denominator that silently missed the dark period. Writes are no-ops when off; reads
+    // return an empty advisory rather than throwing, since this is decoration on a clinical
+    // page and a disabled optional feature must not break one.
+
+    /// <summary>
+    /// Opens a diagnostic episode for a newly asserted working diagnosis and counts it into the
+    /// assertion-year shards. Returns the episode id, or null when the feature is off or the
+    /// code is unusable. Keyed and audited: this write moves the Asserted DENOMINATOR, and a
+    /// feature whose whole value is denominator integrity cannot leave it open to arbitrary
+    /// callers. The problem-add path calls it grain-internally (filters bypassed by design).
+    /// </summary>
+    [RequiresSecurityKey(SecurityKeys.GMPL_PROBLEM)]
+    [AuditAction("PROBLEMS", "OPEN_EPISODE", EntityType = "DX_EPISODE", IsClinicalWrite = true)]
+    Task<string?> OpenDiagnosticEpisodeAsync(
+        string problemId, string workingCode, string workingDisplay,
+        List<GrainStates.EvidenceRef>? evidenceAtAssertion = null);
+
+    /// <summary>
+    /// Adjudicates an open episode — the single counting write. The outcome recorded is the
+    /// clinician's own choice, not the system's proposal.
+    /// </summary>
+    [RequiresSecurityKey(SecurityKeys.GMPL_PROBLEM)]
+    [AuditAction("PROBLEMS", "ADJUDICATE", EntityType = "DX_EPISODE", IsClinicalWrite = true)]
+    Task<bool> AdjudicateDiagnosticEpisodeAsync(
+        string problemId, GrainStates.DiagnosticEpisodeOutcome outcome,
+        string? outcomeCode, string? outcomeDisplay,
+        GrainStates.RevisionReason? reason, string? outcomeNote);
+
+    /// <summary>
+    /// The clinician-facing revision advisory for a working diagnosis. Pull-only, and silent
+    /// (Insufficient, null rate) unless every floor is cleared. See the display contract on
+    /// <see cref="Clinical.DiagnosisRevisionAdvisory"/> — counts are primary, the percentage is
+    /// derived and must never appear alone.
+    /// </summary>
+    Task<Clinical.DiagnosisRevisionAdvisory> GetDiagnosisRevisionAdvisoryAsync(
+        string workingCode, string workingDisplay, string? problemId = null);
+
+    /// <summary>This patient's diagnostic episodes, for the provenance view.</summary>
+    Task<List<GrainStates.DiagnosticEpisode>> GetDiagnosticEpisodesAsync();
+
+    // ─── ICD-10 suggestion from note text (coding assist) ────────────────
+    //
+    // The assistant seam emits CLAIMS, never codes; codes are resolved deterministically from
+    // the site's own ICD-10 index, and every claim's quote is verified verbatim against the
+    // note. Suggestion is read-only; applying one is a clinical write.
+
+    /// <summary>
+    /// Suggest ICD-10 candidates from a note's text. Pull-only decoration — writes nothing.
+    /// Each suggestion carries the verbatim quoted sentence it resolved from and the claim's
+    /// polarity/subject/temporality, so a negated or family-history statement can never be
+    /// silently presented as the patient's own current diagnosis.
+    /// </summary>
+    [AuditAction("PROBLEMS", "SUGGEST_CODES", EntityType = "NOTE")]
+    Task<Services.NoteCodingSuggestions> SuggestCodesForNoteAsync(string documentId);
+
+    /// <summary>
+    /// Accept one suggestion: creates the problem at Unconfirmed with a machine-cited ADR-006
+    /// evidence ref (note id + quoted sentence). Only Supports claims are accepted — negated
+    /// and not-assessed claims are evidence, not diagnoses. Returns the new problem id.
+    /// </summary>
+    [RequiresSecurityKey(SecurityKeys.GMPL_PROBLEM)]
+    [AuditAction("PROBLEMS", "APPLY_SUGGESTED_CODE", EntityType = "PROBLEM", IsClinicalWrite = true)]
+    Task<string> ApplySuggestedCodeAsync(
+        string documentId, string code, string display, string sourceQuote,
+        GrainStates.EvidencePolarity polarity);
+
+    // ─── Problem evidence (ADR-006 assertion head) ───────────────────────
+
+    /// <summary>
+    /// The full problem head including its evidence list, certainty, revision number and
+    /// supersession links. Open read; the list summaries deliberately omit this payload.
+    /// </summary>
+    Task<GrainStates.ProblemEntry?> GetProblemWithEvidenceAsync(string problemId);
+
+    /// <summary>
+    /// Record an assessment against a problem: append structured evidence — including
+    /// <c>NotAssessed</c> rows, the positive record that something was NOT checked — and set
+    /// the certainty. Never moves the revision number; an assessment is the workup
+    /// proceeding, not a clinician changing their mind.
+    /// </summary>
+    [RequiresSecurityKey(SecurityKeys.GMPL_PROBLEM)]
+    [AuditAction("PROBLEMS", "ASSESS", EntityType = "PROBLEM", IsClinicalWrite = true)]
+    Task<string?> AssessProblemAsync(GrainStates.ProblemAssessmentCommand command);
+
+    // ─── Code-set migration (ADR-006 bulk recode) ────────────────────────
+
+    /// <summary>
+    /// This patient's share of a code-set migration: every active problem carrying the
+    /// retired code is superseded by one new assertion under the replacement code
+    /// (certainty and onset carried over, the old assertion cited as evidence), and any open
+    /// episode closes as <c>Recoded</c> — pinned semantics, statistically inert. Idempotent:
+    /// a patient already carrying the replacement code is untouched.
+    /// </summary>
+    [RequiresSecurityKey(SecurityKeys.XUMGR)]
+    [AuditAction("PROBLEMS", "RECODE", EntityType = "PROBLEM", IsClinicalWrite = true)]
+    Task<GrainStates.ProblemRecodeResult> RecodeProblemCodeAsync(GrainStates.BulkRecodeCommand command);
+
+    // ─── AI radiology findings (grounded extraction + acknowledgment gate) ──
+
+    /// <summary>
+    /// Extract discrete findings from a study's filed report. Pull-only, like the note code
+    /// suggester: nothing runs until a clinician asks. Every finding cites a verbatim report
+    /// sentence and is verified against the text; material findings (≥ Moderate) are flagged
+    /// as requiring an acknowledge/reject decision.
+    /// </summary>
+    [AuditAction("RADIOLOGY", "EXTRACT_FINDINGS", EntityType = "RADIOLOGY")]
+    Task<GrainStates.RadiologyExtractionState> ExtractRadiologyFindingsAsync(
+        string radiologyId, string extractedBy);
+
+    /// <summary>The stored extraction for a study, or null when none has been run.</summary>
+    Task<GrainStates.RadiologyExtractionState?> GetRadiologyFindingsAsync(string radiologyId);
+
+    /// <summary>Clinician confirms a finding is noted.</summary>
+    [RequiresSecurityKey(SecurityKeys.PROVIDER)]
+    [AuditAction("RADIOLOGY", "ACKNOWLEDGE_FINDING", EntityType = "RADIOLOGY", IsClinicalWrite = true)]
+    Task AcknowledgeRadiologyFindingAsync(string radiologyId, string findingId, string clinicianId);
+
+    /// <summary>
+    /// Clinician rejects a finding, with a required reason. The rejection is recorded and
+    /// patient-visible — dismissing a material finding is neither free nor invisible.
+    /// </summary>
+    [RequiresSecurityKey(SecurityKeys.PROVIDER)]
+    [AuditAction("RADIOLOGY", "REJECT_FINDING", EntityType = "RADIOLOGY", IsClinicalWrite = true)]
+    Task RejectRadiologyFindingAsync(
+        string radiologyId, string findingId, string clinicianId, string reason);
 }

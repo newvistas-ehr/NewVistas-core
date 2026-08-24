@@ -42,6 +42,43 @@ public class OrleansGrainService
     }
 
     /// <summary>
+    /// The signed-in user's id, read from the JWT the WebServer issued. Null when not signed in.
+    /// ViewModels use this to attribute writes (who granted a key, who signed a note) without
+    /// needing their own token handling.
+    /// </summary>
+    public string? CurrentUserId => ClaimValue(
+        ClaimTypes.NameIdentifier,
+        "http://schemas.xmlsoap.org/ws/2005/05/identity/claims/nameidentifier");
+
+    /// <summary>The signed-in user's display name, or null when not signed in.</summary>
+    public string? CurrentUserName => ClaimValue(
+        "display_name",
+        ClaimTypes.Name,
+        "http://schemas.xmlsoap.org/ws/2005/05/identity/claims/name");
+
+    private string? ClaimValue(params string[] claimTypes)
+    {
+        string? token = _authService?.Token;
+        if (string.IsNullOrEmpty(token)) return null;
+
+        try
+        {
+            JwtSecurityToken jwt = new JwtSecurityTokenHandler().ReadJwtToken(token);
+            foreach (string type in claimTypes)
+            {
+                string? v = jwt.Claims.FirstOrDefault(c => c.Type == type)?.Value;
+                if (!string.IsNullOrEmpty(v)) return v;
+            }
+        }
+        catch
+        {
+            // Unreadable token — treat as not signed in.
+        }
+
+        return null;
+    }
+
+    /// <summary>
     /// Set Orleans RequestContext from the JWT token stored in AuthService.
     /// Called automatically by GetGrain.
     /// </summary>

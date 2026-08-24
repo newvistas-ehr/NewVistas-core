@@ -95,8 +95,8 @@ file, You can obtain one at https://mozilla.org/MPL/2.0/.
                             <TextBlock Text="Billing Actions" Style="{StaticResource SectionHeader}"/>
                             <DataGrid ItemsSource="{Binding BillingActions}" MaxHeight="350" AutoGenerateColumns="False">
                                 <DataGrid.Columns>
-                                    <DataGridTextColumn Header="Action ID" Binding="{Binding ActionId}" Width="140"/>
-                                    <DataGridTextColumn Header="Category" Binding="{Binding Category}" Width="110"/>
+                                    <DataGridTextColumn Header="Action ID" Binding="{Binding BillingActionId}" Width="140"/>
+                                    <DataGridTextColumn Header="Action Type" Binding="{Binding ActionTypeDescription}" Width="110"/>
                                     <DataGridTextColumn Header="Status" Binding="{Binding Status}" Width="130"/>
                                     <DataGridTextColumn Header="Amount" Binding="{Binding ChargeAmount, StringFormat=C}" Width="90"/>
                                     <DataGridTextColumn Header="Service Date" Binding="{Binding ServiceDate, StringFormat=d}" Width="100"/>

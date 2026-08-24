@@ -64,14 +64,14 @@ file, You can obtain one at https://mozilla.org/MPL/2.0/.
             <!-- Tracking Board -->
             <DataGrid ItemsSource="{Binding Board}" SelectedItem="{Binding SelectedVisit}" AutoGenerateColumns="False">
                 <DataGrid.Columns>
-                    <DataGridTextColumn Header="ESI" Binding="{Binding EsiLevel}" Width="50"/>
+                    <DataGridTextColumn Header="ESI" Binding="{Binding AcuityLevel}" Width="50"/>
                     <DataGridTextColumn Header="Patient" Binding="{Binding PatientName}" Width="160"/>
                     <DataGridTextColumn Header="Chief Complaint" Binding="{Binding ChiefComplaint}" Width="*"/>
-                    <DataGridTextColumn Header="Bed" Binding="{Binding Bed}" Width="80"/>
-                    <DataGridTextColumn Header="Physician" Binding="{Binding Physician}" Width="140"/>
+                    <DataGridTextColumn Header="Bed" Binding="{Binding AssignedBed}" Width="80"/>
+                    <DataGridTextColumn Header="Physician" Binding="{Binding AttendingPhysicianName}" Width="140"/>
                     <DataGridTextColumn Header="Status" Binding="{Binding Status}" Width="100"/>
                     <DataGridTextColumn Header="Wait (min)" Binding="{Binding WaitMinutes}" Width="80"/>
-                    <DataGridTextColumn Header="Arrival" Binding="{Binding Arrival}" Width="120"/>
+                    <DataGridTextColumn Header="Arrival" Binding="{Binding ArrivalDateTime, StringFormat=g}" Width="120"/>
                 </DataGrid.Columns>
             </DataGrid>
 

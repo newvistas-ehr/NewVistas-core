@@ -20,11 +20,13 @@
       <div class="section">Chart &amp; Workflows</div>
       <a href="cover-sheet.html">Cover Sheet</a>
       <a href="problem-list.html" class="active">Problem List</a>
+      <a href="diagnostic-stewardship.html" data-flag="DIAGNOSTIC_STEWARDSHIP">Diagnostic Stewardship</a>
       <a href="prescribing.html">Prescribing &amp; Safety Gate</a>
       <a href="orders.html">Order Entry</a>
       <a href="notes.html">Progress Notes</a>
       <a href="consults.html">Consults</a>
       <a href="labs.html">Labs</a>
+      <a href="radiology.html">Radiology &amp; AI Findings</a>
       <a href="allergies.html">Allergies</a>
       <a href="immunizations.html">Immunizations</a>
       <div class="section" data-flag="ONCOLOGY">Oncology</div>
@@ -65,6 +67,38 @@
         <li>Set the <strong>onset date</strong> and status (Active / Inactive).</li>
         <li>Click <kbd>Save</kbd>. A green confirmation appears and the new problem shows in the list.</li>
       </ol>
+
+      <div class="callout note" data-flag="DIAGNOSTIC_STEWARDSHIP">
+        <span class="ct">A quiet line under the code field</span>
+        As you enter the ICD-10 code, a single collapsed line may appear beneath it if this
+        diagnosis is one that gets revised more often than most here, or has a published
+        time-critical alternative. It never blocks saving and most diagnoses show nothing at all.
+        See <a href="diagnostic-stewardship.html">Diagnostic Stewardship</a>.
+      </div>
+
+      <h2 data-flag="DIAGNOSTIC_STEWARDSHIP">Certainty, and how it turned out</h2>
+      <div data-flag="DIAGNOSTIC_STEWARDSHIP">
+        <p>
+          Each problem can carry a <strong>certainty</strong> — suspected, provisional, differential,
+          or confirmed — shown beside the diagnosis, so a working hypothesis no longer looks identical
+          to a settled diagnosis. A diagnosis later disproved stays in the record for audit but leaves
+          the active list.
+        </p>
+        <p>
+          Problems still awaiting an outcome show a <strong>"How did it turn out?"</strong> link.
+          Answering is optional and always skippable. Recording that a diagnosis was
+          <em>refined</em> (same condition, coded more precisely) is explicitly <strong>not</strong>
+          counted as an error — only "it was something else" is. Full detail in
+          <a href="diagnostic-stewardship.html">Diagnostic Stewardship</a>.
+        </p>
+        <p>
+          Each row also has an <strong>Evidence</strong> link showing what the diagnosis rests
+          on — supporting findings, informative negatives, and things explicitly recorded as
+          <em>not assessed</em> — and a form to add evidence from the chart's own labs, notes,
+          and symptoms, or from an exam finding. Adding evidence can update the certainty in
+          the same step and never counts as a revision.
+        </p>
+      </div>
 
       <div class="callout tip">
         <span class="ct">Consistent forms</span>

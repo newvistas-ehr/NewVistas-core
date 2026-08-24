@@ -1,4 +1,4 @@
-// Copyright 2026 Merrimack Valley Software Works, LLC. All rights reserved.
+﻿// Copyright 2026 Merrimack Valley Software Works, LLC. All rights reserved.
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
@@ -16,7 +16,7 @@ namespace NewVistas.WpfDelphiUI.ViewModels;
 /// </summary>
 public partial class PatientSelectionViewModel : ObservableObject
 {
-    private readonly ApiClient      _api;
+    private readonly ChartDataService _data;
     private readonly PatientContext _context;
 
     // ── Patient list type (radio buttons in fraPtSelOptns) ────────────────
@@ -89,9 +89,9 @@ public partial class PatientSelectionViewModel : ObservableObject
 
     public bool Confirmed { get; private set; }
 
-    public PatientSelectionViewModel(ApiClient api, PatientContext context)
+    public PatientSelectionViewModel(ChartDataService data, PatientContext context)
     {
-        _api     = api;
+        _data     = data;
         _context = context;
     }
 
@@ -113,7 +113,7 @@ public partial class PatientSelectionViewModel : ObservableObject
 
         try
         {
-            var results = await _api.SearchPatientsAsync(q);
+            var results = await _data.SearchPatientsAsync(q);
             foreach (var r in results)
                 SearchResults.Add(r);
 

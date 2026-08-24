@@ -245,6 +245,95 @@
             }
         </div>
 
+        @* ── AI Findings (grounded extraction + acknowledgment gate) ──
+           Pull-only: nothing runs until a clinician asks. Every finding cites a verbatim
+           report sentence; material findings (≥ Moderate) must be acknowledged or
+           rejected-with-reason, and a rejection is recorded patient-visibly — the forcing
+           function against skimming past the second finding in a busy report. *@
+        @if (!string.IsNullOrEmpty(detail.ReportText))
+        {
+            <div class="section">
+                <h4>AI Findings</h4>
+                @if (findings is null)
+                {
+                    <div class="form-actions">
+                        <button @onclick="ExtractFindings" disabled="@extracting" class="btn btn-secondary">
+                            @(extracting ? "Reading report..." : "Extract findings from report")
+                        </button>
+                    </div>
+                }
+                else
+                {
+                    <div class="rf-provenance">
+                        Extracted @findings.ExtractedDate.ToString("MM/dd/yyyy HH:mm") by @findings.ExtractedBy
+                        · engine: @findings.ModelProvider
+                        <button @onclick="ExtractFindings" disabled="@extracting" class="btn-link">
+                            @(extracting ? "re-reading..." : "re-run")
+                        </button>
+                    </div>
+                    @if (findings.Findings.Count == 0)
+                    {
+                        <div class="empty-state">No discrete findings were extracted from this report.</div>
+                    }
+                    @foreach (var f in findings.Findings)
+                    {
+                        <div class="rf-row @(f.RequiresAcknowledgment && f.Acknowledgment == FindingAcknowledgment.Pending ? "rf-material" : "")">
+                            <div>
+                                <span class="rf-chip @SeverityCss(f.Severity)">@f.Severity.ToString().ToLowerInvariant()</span>
+                                <strong>@f.FindingType</strong>
+                                @if (!string.IsNullOrEmpty(f.Level)) { <span>at @f.Level</span> }
+                                @if (f.Laterality != FindingLaterality.Unspecified) { <span>(@f.Laterality.ToString().ToLowerInvariant())</span> }
+                                @if (!f.QuoteVerified)
+                                {
+                                    <span class="rf-chip rf-unverified" title="@f.VerificationNote">unverified quote</span>
+                                }
+                            </div>
+                            @if (!string.IsNullOrEmpty(f.SourceQuote))
+                            {
+                                <div class="rf-quote">"@f.SourceQuote"</div>
+                            }
+                            @if (f.RequiresAcknowledgment)
+                            {
+                                @if (f.Acknowledgment == FindingAcknowledgment.Pending)
+                                {
+                                    <div class="rf-gate">
+                                        <span class="rf-chip rf-pending">material — needs a decision</span>
+                                        <button @onclick="() => AcknowledgeFinding(f.FindingId)" disabled="@saving" class="btn btn-primary btn-sm">Acknowledge</button>
+                                        <button @onclick="() => rejectingFindingId = f.FindingId" disabled="@saving" class="btn btn-secondary btn-sm">Reject...</button>
+                                    </div>
+                                    @if (rejectingFindingId == f.FindingId)
+                                    {
+                                        <div class="rf-gate">
+                                            <input type="text" @bind="rejectReason" class="rf-reason"
+                                                   placeholder="Reason (required) — recorded and visible to the patient" />
+                                            <button @onclick="() => RejectFinding(f.FindingId)"
+                                                    disabled="@(saving || string.IsNullOrWhiteSpace(rejectReason))"
+                                                    class="btn btn-primary btn-sm">Reject finding</button>
+                                        </div>
+                                    }
+                                }
+                                else if (f.Acknowledgment == FindingAcknowledgment.Acknowledged)
+                                {
+                                    <div class="rf-disposition">Acknowledged by @f.DispositionedBy on @f.DispositionedDate?.ToString("MM/dd/yyyy HH:mm")</div>
+                                }
+                                else
+                                {
+                                    <div class="rf-disposition rf-rejected">
+                                        Rejected by @f.DispositionedBy on @f.DispositionedDate?.ToString("MM/dd/yyyy HH:mm"):
+                                        @f.RejectionReason <em>(recorded; visible to the patient)</em>
+                                    </div>
+                                }
+                            }
+                        </div>
+                    }
+                    <div class="rf-disclaimer">
+                        Assistive extraction from the radiologist's own report text — not an
+                        interpretation of the images, and not a substitute for reading the report.
+                    </div>
+                }
+            </div>
+        }
+
         @* ── Report Actions ── *@
         <div class="section">
             <h4>Report Actions</h4>
@@ -308,6 +397,12 @@
     // Amend report
     private string am_text = "";
 
+    // AI findings
+    private RadiologyExtractionState? findings;
+    private bool extracting;
+    private string? rejectingFindingId;
+    private string rejectReason = "";
+
     protected override async Task OnParametersSetAsync()
     {
         if (string.IsNullOrWhiteSpace(patientId) && !string.IsNullOrWhiteSpace(PatientContext.PatientId))
@@ -317,12 +412,15 @@
     private async Task HandleKeyDown(KeyboardEventArgs e) { if (e.Key == "Enter") await Load(); }
     private void SetTab(string tab) { activeTab = tab; success = null; }
     private void ShowForm() { showNew = true; success = null; f_procedure = ""; f_cpt = ""; f_type = ""; f_provider = ""; f_urgency = "ROUTINE"; f_location = ""; f_history = ""; f_reason = ""; }
-    private void CloseDetail() { detail = null; activeTab = "list"; }
+    private void CloseDetail() { detail = null; findings = null; rejectingFindingId = null; rejectReason = ""; activeTab = "list"; }
 
     private async Task Load()
     {
         if (string.IsNullOrWhiteSpace(patientId)) return;
         loading = true; error = null;
+        // Clear per-patient panel state so a stale detail from the previous patient
+        // never survives a patient switch.
+        detail = null; findings = null; rejectingFindingId = null; rejectReason = ""; activeTab = "list"; showNew = false;
         try
         {
             var grain = Grains.GetGrain<IPatientWorkflowGrain>(patientId.Trim());
@@ -339,10 +437,65 @@
         {
             var grain = Grains.GetGrain<IPatientWorkflowGrain>(patientId!.Trim());
             detail = await grain.GetRadiologyStudyAsync(id);
+            findings = await grain.GetRadiologyFindingsAsync(id);
             activeTab = "detail";
             ResetForms();
         }
         catch (Exception ex) { error = ex.Message; }
+    }
+
+    private string CurrentClinician => Grains.CurrentUserName ?? Grains.CurrentUserId ?? "UNKNOWN";
+
+    private static string SeverityCss(FindingSeverity s) => s switch
+    {
+        FindingSeverity.Severe => "rf-severe",
+        FindingSeverity.Moderate => "rf-moderate",
+        FindingSeverity.Mild or FindingSeverity.Minimal => "rf-mild",
+        _ => "rf-unspec",
+    };
+
+    private async Task ExtractFindings()
+    {
+        if (detail is null) return;
+        extracting = true; error = null;
+        try
+        {
+            findings = await Grains.GetGrain<IPatientWorkflowGrain>(patientId!.Trim())
+                .ExtractRadiologyFindingsAsync(detail.RadiologyId, CurrentClinician);
+        }
+        catch (Exception ex) { error = ex.Message; }
+        finally { extracting = false; }
+    }
+
+    private async Task AcknowledgeFinding(string findingId)
+    {
+        if (detail is null) return;
+        saving = true; error = null;
+        try
+        {
+            var grain = Grains.GetGrain<IPatientWorkflowGrain>(patientId!.Trim());
+            await grain.AcknowledgeRadiologyFindingAsync(detail.RadiologyId, findingId, CurrentClinician);
+            findings = await grain.GetRadiologyFindingsAsync(detail.RadiologyId);
+        }
+        catch (UnauthorizedAccessException ex) { error = SecurityKeyError.Describe(ex); }
+        catch (Exception ex) { error = ex.Message; }
+        finally { saving = false; }
+    }
+
+    private async Task RejectFinding(string findingId)
+    {
+        if (detail is null || string.IsNullOrWhiteSpace(rejectReason)) return;
+        saving = true; error = null;
+        try
+        {
+            var grain = Grains.GetGrain<IPatientWorkflowGrain>(patientId!.Trim());
+            await grain.RejectRadiologyFindingAsync(detail.RadiologyId, findingId, CurrentClinician, rejectReason.Trim());
+            findings = await grain.GetRadiologyFindingsAsync(detail.RadiologyId);
+            rejectingFindingId = null; rejectReason = "";
+        }
+        catch (UnauthorizedAccessException ex) { error = SecurityKeyError.Describe(ex); }
+        catch (Exception ex) { error = ex.Message; }
+        finally { saving = false; }
     }
 
     private void ResetForms()
@@ -359,11 +512,12 @@
         try
         {
             var grain = Grains.GetGrain<IPatientWorkflowGrain>(patientId!.Trim());
-            await grain.OrderRadiologyStudyAsync(
+            // CPOE: creates the linked ORDER #100 so the study shows on the Orders tab.
+            await grain.PlaceRadiologyOrderAsync(
                 f_procedure, null, NullIfEmpty(f_cpt), NullIfEmpty(f_type),
                 null, NullIfEmpty(f_provider), f_urgency,
                 NullIfEmpty(f_history), NullIfEmpty(f_reason),
-                null, null, NullIfEmpty(f_location));
+                null, NullIfEmpty(f_location));
             showNew = false; success = "Study ordered."; await Load();
         }
         catch (Exception ex) { error = ex.Message; } finally { saving = false; }
@@ -496,7 +650,7 @@
     .entry-form.compact { margin-top: .75rem; padding: 1rem; }
     .entry-form h3 { margin-bottom: 1rem; color: #003f72; }
     .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: .75rem; }
-    .form-row { display: flex; flex-direction: column; gap: .25rem; }
+    .form-row { display: flex; flex-direction: column; align-items: stretch; gap: .25rem; }
     .form-row.full { grid-column: 1 / -1; }
     .form-row label { font-size: .8rem; font-weight: 600; color: #555; }
     .form-row input, .form-row select, .form-row textarea { padding: .4rem .6rem; border: 1px solid #ccc; border-radius: 4px; font-size: .85rem; }
@@ -514,4 +668,25 @@
     .section { border-top: 1px solid #e5e7eb; padding-top: 1rem; margin-top: 1rem; }
     .section h4 { color: #003f72; margin-bottom: .75rem; font-size: .95rem; }
     .pre-wrap { white-space: pre-wrap; word-wrap: break-word; font-family: -apple-system, sans-serif; font-size: .85rem; margin: .25rem 0 0 0; }
+
+    /* AI findings */
+    .rf-provenance { font-size: .78rem; color: #6b7280; margin-bottom: .6rem; display: flex; gap: .5rem; align-items: baseline; }
+    .rf-row { padding: .5rem 0; border-bottom: 1px solid #f0f0f0; font-size: .85rem; }
+    .rf-row.rf-material { background: #fffbeb; border-left: 3px solid #d97706; padding-left: .6rem; }
+    .rf-chip { border-radius: 3px; padding: 0 .35rem; font-size: .7rem; font-weight: 600; margin-right: .35rem; white-space: nowrap; }
+    .rf-severe { background: #fde8e8; color: #b91c1c; border: 1px solid #f5c6c6; }
+    .rf-moderate { background: #fef3c7; color: #92400e; border: 1px solid #fde68a; }
+    .rf-mild { background: #eef4fb; color: #003f72; border: 1px solid #b9c8da; }
+    .rf-unspec { background: #f3f4f6; color: #6b7280; border: 1px solid #d1d5db; }
+    .rf-pending { background: #fef3c7; color: #92400e; border: 1px solid #fde68a; }
+    .rf-unverified { background: #fde8e8; color: #b91c1c; border: 1px solid #f5c6c6; }
+    .rf-quote { font-style: italic; color: #4b5563; font-size: .8rem; margin: .25rem 0; }
+    .rf-gate { display: flex; gap: .5rem; align-items: center; margin-top: .4rem; flex-wrap: wrap; }
+    .rf-reason { flex: 1; min-width: 260px; padding: .35rem .55rem; border: 1px solid #ccc; border-radius: 4px; font-size: .82rem; }
+    .rf-disposition { font-size: .78rem; color: #166534; margin-top: .3rem; }
+    .rf-disposition.rf-rejected { color: #b91c1c; }
+    .rf-disclaimer { font-size: .75rem; color: #9ca3af; font-style: italic; margin-top: .6rem; }
+    .btn-sm { padding: .3rem .8rem; font-size: .78rem; }
+    .btn-link { background: none; border: none; color: #003f72; cursor: pointer; font-size: .75rem; text-decoration: underline; padding: 0; }
+    .empty-state { color: #999; font-style: italic; font-size: .85rem; }
 </style>

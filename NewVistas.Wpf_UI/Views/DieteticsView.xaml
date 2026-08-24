@@ -30,10 +30,10 @@ file, You can obtain one at https://mozilla.org/MPL/2.0/.
                     <TextBox Text="{Binding DietType, UpdateSourceTrigger=PropertyChanged}" Width="300" HorizontalAlignment="Left"/>
                     <TextBlock Style="{StaticResource FieldLabel}" Text="Texture"/>
                     <ComboBox ItemsSource="{Binding TextureOptions}" SelectedItem="{Binding Texture}" Width="200" HorizontalAlignment="Left"/>
-                    <TextBlock Style="{StaticResource FieldLabel}" Text="Fluid Restriction (ml/day, 0=none)"/>
-                    <TextBox Text="{Binding FluidRestriction, UpdateSourceTrigger=PropertyChanged}" Width="120" HorizontalAlignment="Left"/>
-                    <TextBlock Style="{StaticResource FieldLabel}" Text="Calories Target"/>
-                    <TextBox Text="{Binding CalorieTarget, UpdateSourceTrigger=PropertyChanged}" Width="120" HorizontalAlignment="Left"/>
+                    <TextBlock Style="{StaticResource FieldLabel}" Text="Fluid Consistency"/>
+                    <ComboBox ItemsSource="{Binding FluidOptions}" SelectedItem="{Binding FluidConsistency}" Width="200" HorizontalAlignment="Left"/>
+                    <TextBlock Style="{StaticResource FieldLabel}" Text="Calorie Level"/>
+                    <TextBox Text="{Binding CalorieLevel, UpdateSourceTrigger=PropertyChanged}" Width="120" HorizontalAlignment="Left"/>
                     <StackPanel Orientation="Horizontal" Margin="0,12,0,0">
                         <Button Content="Create" Style="{StaticResource PrimaryButton}"
                                 Command="{Binding CreateDietOrderCommand}" Margin="0,0,8,0"/>
@@ -46,11 +46,10 @@ file, You can obtain one at https://mozilla.org/MPL/2.0/.
             <DataGrid ItemsSource="{Binding DietOrders}" SelectedItem="{Binding SelectedOrder}">
                 <DataGrid.Columns>
                     <DataGridTextColumn Header="Diet Type" Binding="{Binding DietType}" Width="*"/>
-                    <DataGridTextColumn Header="Texture" Binding="{Binding Texture}" Width="120"/>
-                    <DataGridTextColumn Header="Calories" Binding="{Binding CalorieTarget}" Width="90"/>
+                    <DataGridTextColumn Header="Current Diet" Binding="{Binding CurrentDiet}" Width="150"/>
                     <DataGridTextColumn Header="Status" Binding="{Binding Status}" Width="100"/>
-                    <DataGridTextColumn Header="Start" Binding="{Binding StartDate, StringFormat=d}" Width="100"/>
-                    <DataGridTextColumn Header="Ordered By" Binding="{Binding OrderedByName}" Width="160"/>
+                    <DataGridTextColumn Header="Start" Binding="{Binding StartDateTime, StringFormat=d}" Width="100"/>
+                    <DataGridTextColumn Header="Order ID" Binding="{Binding DietOrderId}" Width="160"/>
                 </DataGrid.Columns>
             </DataGrid>
 

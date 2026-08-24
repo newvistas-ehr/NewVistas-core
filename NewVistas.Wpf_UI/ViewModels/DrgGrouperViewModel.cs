@@ -1,4 +1,4 @@
-// Copyright 2026 Merrimack Valley Software Works, LLC. All rights reserved.
+﻿// Copyright 2026 Merrimack Valley Software Works, LLC. All rights reserved.
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
@@ -14,7 +14,6 @@ namespace NewVistas.Wpf_UI.ViewModels;
 
 public partial class DrgGrouperViewModel : ObservableObject
 {
-    private readonly ApiClient _api;
     private readonly OrleansGrainService _grains;
 
     [ObservableProperty] private bool _isLoading;
@@ -22,9 +21,8 @@ public partial class DrgGrouperViewModel : ObservableObject
     [ObservableProperty] private ObservableCollection<DrgAssignmentEntry> _assignments = new();
     [ObservableProperty] private DrgAssignmentEntry? _selectedAssignment;
 
-    public DrgGrouperViewModel(ApiClient api, OrleansGrainService grains)
+    public DrgGrouperViewModel(OrleansGrainService grains)
     {
-        _api = api;
         _grains = grains;
     }
 
@@ -75,7 +73,11 @@ public partial class DrgGrouperViewModel : ObservableObject
     {
         try
         {
-            await _api.Http.PostAsJsonAsync("api/drg/demo/load", new { });
+            // The index grain owns the demo seed, so this is one grain call.
+            // (It also now seeds the SAME facility index this screen reads —
+            // the old endpoint defaulted to "MAIN" while this view reads "DEFAULT",
+            // so the button appeared to do nothing.)
+            await _grains.GetGrain<IDrgIndexGrain>("DRG-INDEX:DEFAULT").SeedDemoDataAsync();
             await LoadAsync();
         }
         catch (Exception ex) { Error = ex.Message; }

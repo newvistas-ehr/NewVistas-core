@@ -26,8 +26,8 @@ file, You can obtain one at https://mozilla.org/MPL/2.0/.
                     <DataGridTextColumn Header="Route" Binding="{Binding Route}" Width="100"/>
                     <DataGridTextColumn Header="Status" Binding="{Binding Status}" Width="110"/>
                     <DataGridTextColumn Header="Priority" Binding="{Binding Priority}" Width="90"/>
-                    <DataGridTextColumn Header="Ordered" Binding="{Binding OrderDate, StringFormat=d}" Width="110"/>
-                    <DataGridTextColumn Header="Provider" Binding="{Binding OrderingProviderName}" Width="*"/>
+                    <DataGridTextColumn Header="Ordered" Binding="{Binding CreatedDate, StringFormat=d}" Width="110"/>
+                    <DataGridTextColumn Header="Provider" Binding="{Binding ProviderName}" Width="*"/>
                 </DataGrid.Columns>
             </DataGrid>
         </StackPanel>

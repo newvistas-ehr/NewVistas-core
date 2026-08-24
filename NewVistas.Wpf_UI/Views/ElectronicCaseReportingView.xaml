@@ -28,7 +28,7 @@ file, You can obtain one at https://mozilla.org/MPL/2.0/.
                     <DataGridTextColumn Header="Patient" Binding="{Binding PatientName}" Width="*"/>
                     <DataGridTextColumn Header="Condition" Binding="{Binding ConditionName}" Width="160"/>
                     <DataGridTextColumn Header="Status" Binding="{Binding Status}" Width="100"/>
-                    <DataGridTextColumn Header="Created" Binding="{Binding CreatedDate, StringFormat=d}" Width="100"/>
+                    <DataGridTextColumn Header="Triggered" Binding="{Binding TriggeredDate, StringFormat=d}" Width="100"/>
                 </DataGrid.Columns>
             </DataGrid>
 

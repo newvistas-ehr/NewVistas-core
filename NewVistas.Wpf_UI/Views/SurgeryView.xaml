@@ -31,7 +31,7 @@ file, You can obtain one at https://mozilla.org/MPL/2.0/.
                     <TextBlock Style="{StaticResource FieldLabel}" Text="Surgeon Name"/>
                     <TextBox Text="{Binding SurgeonName, UpdateSourceTrigger=PropertyChanged}" Width="300" HorizontalAlignment="Left"/>
                     <TextBlock Style="{StaticResource FieldLabel}" Text="Anesthesia Type"/>
-                    <ComboBox ItemsSource="{Binding AnesthesiaOptions}" SelectedItem="{Binding AnesthesiaType}" Width="200" HorizontalAlignment="Left"/>
+                    <ComboBox ItemsSource="{Binding AnesthesiaOptions}" SelectedItem="{Binding AnesthesiaTechnique}" Width="200" HorizontalAlignment="Left"/>
                     <StackPanel Orientation="Horizontal" Margin="0,12,0,0">
                         <Button Content="Schedule" Style="{StaticResource PrimaryButton}"
                                 Command="{Binding ScheduleSurgeryCommand}" Margin="0,0,8,0"/>
@@ -41,13 +41,13 @@ file, You can obtain one at https://mozilla.org/MPL/2.0/.
                 </StackPanel>
             </Border>
 
-            <DataGrid ItemsSource="{Binding Surgeries}" SelectedItem="{Binding SelectedSurgery}">
+            <DataGrid ItemsSource="{Binding Surgeries}" SelectedItem="{Binding SelectedEntry}">
                 <DataGrid.Columns>
-                    <DataGridTextColumn Header="Procedure" Binding="{Binding PrincipalProcedureName}" Width="*"/>
+                    <DataGridTextColumn Header="Procedure" Binding="{Binding PrincipalProcedure}" Width="*"/>
                     <DataGridTextColumn Header="Status" Binding="{Binding Status}" Width="100"/>
-                    <DataGridTextColumn Header="Surgeon" Binding="{Binding PrincipalSurgeonName}" Width="160"/>
-                    <DataGridTextColumn Header="Date" Binding="{Binding ScheduledDate, StringFormat=d}" Width="110"/>
-                    <DataGridTextColumn Header="Anesthesia" Binding="{Binding AnesthesiaType}" Width="120"/>
+                    <DataGridTextColumn Header="Surgeon" Binding="{Binding SurgeonName}" Width="160"/>
+                    <DataGridTextColumn Header="Date" Binding="{Binding DateOfOperation, StringFormat=d}" Width="110"/>
+                    <DataGridTextColumn Header="Specialty" Binding="{Binding SurgicalSpecialty}" Width="120"/>
                 </DataGrid.Columns>
             </DataGrid>
         </StackPanel>

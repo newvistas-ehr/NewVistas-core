@@ -20,13 +20,13 @@ file, You can obtain one at https://mozilla.org/MPL/2.0/.
             </StackPanel>
             <DataGrid ItemsSource="{Binding Requests}" SelectedItem="{Binding SelectedRequest}" AutoGenerateColumns="False">
                 <DataGrid.Columns>
-                    <DataGridTextColumn Header="Request #" Binding="{Binding RequestNumber}" Width="110"/>
+                    <DataGridTextColumn Header="Request #" Binding="{Binding RequestId}" Width="110"/>
                     <DataGridTextColumn Header="Patient ID" Binding="{Binding PatientId}" Width="110"/>
                     <DataGridTextColumn Header="Requester Type" Binding="{Binding RequesterType}" Width="130"/>
                     <DataGridTextColumn Header="Status" Binding="{Binding Status}" Width="120"/>
                     <DataGridTextColumn Header="Received" Binding="{Binding ReceivedDate, StringFormat=d}" Width="110"/>
                     <DataGridTextColumn Header="Due Date" Binding="{Binding DueDate, StringFormat=d}" Width="110"/>
-                    <DataGridTextColumn Header="Assigned To" Binding="{Binding AssignedToName}" Width="*"/>
+                    <DataGridTextColumn Header="Assigned To" Binding="{Binding AssignedStaffName}" Width="*"/>
                 </DataGrid.Columns>
             </DataGrid>
         </StackPanel>

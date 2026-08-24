@@ -1,4 +1,4 @@
-// Copyright 2026 Merrimack Valley Software Works, LLC. All rights reserved.
+﻿// Copyright 2026 Merrimack Valley Software Works, LLC. All rights reserved.
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
@@ -27,11 +27,11 @@ public sealed partial class VitalsViewModel : ChartTabViewModelBase
     [ObservableProperty] private string _pain = string.Empty;
     [ObservableProperty] private string _pulseOximetry = string.Empty;
 
-    public VitalsViewModel(ApiClient api, PatientContext context) : base(api, context) { }
+    public VitalsViewModel(ChartDataService data, PatientContext context) : base(data, context) { }
 
     protected override async Task LoadAsync()
     {
-        var items = await Api.GetVitalsAsync(PatientId);
+        var items = await Data.GetVitalsAsync(PatientId);
         Vitals.Clear();
         foreach (var v in items) Vitals.Add(v);
     }
@@ -54,7 +54,7 @@ public sealed partial class VitalsViewModel : ChartTabViewModelBase
         ErrorText = string.Empty;
         try
         {
-            var items = await Api.GetVitalHistoryAsync(PatientId, HistoryFrom, HistoryTo);
+            var items = await Data.GetVitalHistoryAsync(PatientId, HistoryFrom, HistoryTo);
             HistoryVitals.Clear();
             foreach (var v in items) HistoryVitals.Add(v);
         }
@@ -79,7 +79,7 @@ public sealed partial class VitalsViewModel : ChartTabViewModelBase
 
             if (vitals.Count == 0) return;
 
-            await Api.RecordVitalsAsync(PatientId, new { Vitals = vitals });
+            await Data.RecordVitalsAsync(PatientId, vitals, DateTime.UtcNow);
             Temperature = Pulse = Respiration = BloodPressure = string.Empty;
             Height = Weight = Pain = PulseOximetry = string.Empty;
             ShowRecordForm = false;

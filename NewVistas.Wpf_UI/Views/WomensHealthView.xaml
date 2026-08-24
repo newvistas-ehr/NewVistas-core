@@ -24,7 +24,7 @@ file, You can obtain one at https://mozilla.org/MPL/2.0/.
                 <DataGrid.Columns>
                     <DataGridTextColumn Header="Notification Type" Binding="{Binding NotificationType}" Width="180"/>
                     <DataGridTextColumn Header="Status" Binding="{Binding Status}" Width="110"/>
-                    <DataGridTextColumn Header="Date" Binding="{Binding NotificationDate, StringFormat=d}" Width="110"/>
+                    <DataGridTextColumn Header="Date" Binding="{Binding ProcedureDate, StringFormat=d}" Width="110"/>
                     <DataGridTextColumn Header="Follow-Up" Binding="{Binding FollowUpRequired}" Width="90"/>
                     <DataGridTextColumn Header="Provider" Binding="{Binding ProviderName}" Width="*"/>
                 </DataGrid.Columns>

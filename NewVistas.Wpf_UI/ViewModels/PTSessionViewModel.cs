@@ -1,4 +1,4 @@
-// Copyright 2026 Merrimack Valley Software Works, LLC. All rights reserved.
+﻿// Copyright 2026 Merrimack Valley Software Works, LLC. All rights reserved.
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
@@ -50,8 +50,8 @@ public partial class PTSessionViewModel : BasePatientViewModel
     /// <summary>Fired when user clicks Back to return to the PT Hub.</summary>
     public event Action? BackRequested;
 
-    public PTSessionViewModel(OrleansGrainService grains, ApiClient api, PatientContext patientContext)
-        : base(grains, api, patientContext) { }
+    public PTSessionViewModel(OrleansGrainService grains, PatientContext patientContext)
+        : base(grains, patientContext) { }
 
     /// <summary>
     /// Initialize with a specific body group. Called by the PT Hub when navigating.

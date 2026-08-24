@@ -18,7 +18,7 @@ file, You can obtain one at https://mozilla.org/MPL/2.0/.
                         Command="{Binding LoadCommand}" Margin="0,0,8,0"/>
                 <Button Content="+ Add Problem" Style="{StaticResource SecondaryButton}"
                         Command="{Binding ToggleAddFormCommand}" Margin="0,0,8,0"/>
-                <CheckBox Content="Show Inactive" IsChecked="{Binding ShowInactive}"
+                <CheckBox Content="Active only" IsChecked="{Binding ShowActiveOnly}"
                           VerticalAlignment="Center" Margin="8,0,0,0"/>
                 <ProgressBar IsIndeterminate="True" Width="120" Height="20"
                              Visibility="{Binding IsLoading, Converter={StaticResource BoolToVisibility}}"/>
@@ -29,10 +29,97 @@ file, You can obtain one at https://mozilla.org/MPL/2.0/.
                     Visibility="{Binding ShowAddForm, Converter={StaticResource BoolToVisibility}}">
                 <StackPanel>
                     <TextBlock Style="{StaticResource SectionHeader}" Text="Add Problem"/>
-                    <TextBlock Style="{StaticResource FieldLabel}" Text="ICD-10 Code"/>
-                    <TextBox Text="{Binding NewIcdCode, UpdateSourceTrigger=PropertyChanged}" Width="200" HorizontalAlignment="Left"/>
+
                     <TextBlock Style="{StaticResource FieldLabel}" Text="Problem Description"/>
-                    <TextBox Text="{Binding NewDescription, UpdateSourceTrigger=PropertyChanged}" Width="400" HorizontalAlignment="Left"/>
+                    <TextBox Text="{Binding Diagnosis, UpdateSourceTrigger=PropertyChanged}"
+                             Width="400" HorizontalAlignment="Left"/>
+
+                    <TextBlock Style="{StaticResource FieldLabel}" Text="ICD-10 Code"/>
+                    <TextBox Text="{Binding DiagnosisCode, UpdateSourceTrigger=PropertyChanged}"
+                             Width="200" HorizontalAlignment="Left"/>
+
+                    <!--
+                        Diagnosis revision advisory (ADR-006). Sits at ASSERTION time, right under
+                        the code, because that is the only moment the advice can still change the
+                        decision. Collapsed by default and never blocks saving.
+
+                        DISPLAY CONTRACT: counts are primary, percentage parenthetical; tests are
+                        described as "arrived before the revision in N of M", never "would have
+                        gotten you there" — reverse causation is unfixable from observational data.
+                        The disclaimer is not suppressible.
+                    -->
+                    <Border Margin="0,10,0,4" Padding="0" CornerRadius="3" BorderThickness="1"
+                            BorderBrush="{StaticResource VaBorderBrush}" Background="#FBFCFD"
+                            HorizontalAlignment="Left" MaxWidth="620"
+                            Visibility="{Binding AdvisoryVisible, Converter={StaticResource BoolToVisibility}}">
+                        <StackPanel>
+                            <Button Command="{Binding ToggleAdvisoryCommand}"
+                                    HorizontalContentAlignment="Left" Cursor="Hand"
+                                    Background="Transparent" BorderThickness="0" Padding="8,6">
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock Text="&#x25B8;" Margin="0,0,6,0" Foreground="#6B7280"/>
+                                    <TextBlock Text="{Binding Advisory.WorkingDisplay,
+                                                     StringFormat='Diagnostic considerations for {0}'}"
+                                               TextWrapping="Wrap"/>
+                                </StackPanel>
+                            </Button>
+
+                            <StackPanel Margin="24,0,10,10"
+                                        Visibility="{Binding AdvisoryExpanded, Converter={StaticResource BoolToVisibility}}">
+
+                                <!-- Why there is no rate, when there is none. Never a bare number. -->
+                                <TextBlock TextWrapping="Wrap" Foreground="#4B5563" FontSize="11"
+                                           Margin="0,0,0,6"
+                                           Text="{Binding Advisory.InsufficientReason,
+                                                  StringFormat='No local rate yet — {0}.'}"
+                                           Visibility="{Binding Advisory.InsufficientReason,
+                                                        Converter={StaticResource NullToVisibility}}"/>
+
+                                <ItemsControl ItemsSource="{Binding AdvisoryAlternatives}">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate>
+                                            <StackPanel Margin="0,0,0,5">
+                                                <StackPanel Orientation="Horizontal">
+                                                    <TextBlock Text="{Binding Code}" FontFamily="Consolas"
+                                                               Foreground="{StaticResource VaBlueBrush}" Margin="0,0,6,0"/>
+                                                    <TextBlock Text="{Binding Display}" TextWrapping="Wrap"/>
+                                                </StackPanel>
+                                                <TextBlock FontSize="11" Foreground="#4B5563" TextWrapping="Wrap"
+                                                           Text="{Binding Count, StringFormat='{}{0} of the revised episodes here'}"
+                                                           Visibility="{Binding OutOf, Converter={StaticResource BoolToVisibility}}"/>
+                                                <TextBlock Text="{Binding Citation}" FontSize="10.5"
+                                                           Foreground="#6B7280" TextWrapping="Wrap"/>
+                                            </StackPanel>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+
+                                <TextBlock Text="WORTH CONSIDERING" FontSize="10" FontWeight="Bold"
+                                           Foreground="{StaticResource VaBlueBrush}" Margin="0,6,0,3"/>
+                                <ItemsControl ItemsSource="{Binding AdvisoryTests}">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate>
+                                            <TextBlock Text="{Binding Display}" TextWrapping="Wrap" Margin="0,0,0,3"/>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+
+                                <TextBlock Text="{Binding Advisory.Disclaimer}" FontSize="10"
+                                           Foreground="#6B7280" TextWrapping="Wrap" Margin="0,8,0,0"/>
+                            </StackPanel>
+                        </StackPanel>
+                    </Border>
+
+                    <TextBlock Style="{StaticResource FieldLabel}" Text="Priority"/>
+                    <ComboBox ItemsSource="{Binding PriorityOptions}" SelectedItem="{Binding Priority}"
+                              Width="200" HorizontalAlignment="Left"/>
+
+                    <TextBlock Style="{StaticResource FieldLabel}" Text="Onset Date"/>
+                    <DatePicker SelectedDate="{Binding DateOfOnset}" Width="200" HorizontalAlignment="Left"/>
+
+                    <CheckBox Content="Service Connected" IsChecked="{Binding IsServiceConnected}"
+                              Margin="0,10,0,0"/>
+
                     <StackPanel Orientation="Horizontal" Margin="0,12,0,0">
                         <Button Content="Save" Style="{StaticResource PrimaryButton}"
                                 Command="{Binding AddProblemCommand}" Margin="0,0,8,0"/>
@@ -42,13 +129,63 @@ file, You can obtain one at https://mozilla.org/MPL/2.0/.
                 </StackPanel>
             </Border>
 
-            <DataGrid ItemsSource="{Binding Problems}" SelectedItem="{Binding SelectedProblem}">
+            <StackPanel Orientation="Horizontal" Margin="0,12,0,6">
+                <Button Content="How did it turn out?" Style="{StaticResource SecondaryButton}"
+                        Command="{Binding BeginAdjudicateCommand}"
+                        IsEnabled="{Binding CanAdjudicateSelected}"/>
+                <TextBlock Text="Select a problem to record how it turned out." VerticalAlignment="Center"
+                           Margin="10,0,0,0" FontSize="11" Foreground="#6B7280"/>
+            </StackPanel>
+
+            <!-- Adjudication prompt — optional by design, never a required field -->
+            <Border Style="{StaticResource FormPanel}"
+                    Visibility="{Binding ShowAdjudicate, Converter={StaticResource BoolToVisibility}}">
+                <StackPanel>
+                    <TextBlock Style="{StaticResource SectionHeader}" Text="How did this turn out?"/>
+                    <TextBlock Text="{Binding Adjudicating.Diagnosis}" TextWrapping="Wrap" Margin="0,0,0,4"/>
+                    <TextBlock TextWrapping="Wrap" FontSize="11" Foreground="#6B7280" Margin="0,0,0,10"
+                               Text="Answering is optional and can be skipped. It is never required — a forced field produces default-clicked answers, which are worse than no answer at all because they cannot be told apart from real ones."/>
+
+                    <TextBlock Style="{StaticResource FieldLabel}" Text="Outcome"/>
+                    <ComboBox ItemsSource="{Binding OutcomeOptions}" SelectedItem="{Binding AdjudicateOutcome}"
+                              Width="280" HorizontalAlignment="Left"/>
+
+                    <StackPanel Visibility="{Binding AdjudicateNeedsCode, Converter={StaticResource BoolToVisibility}}">
+                        <TextBlock Style="{StaticResource FieldLabel}" Text="What it actually was (ICD-10)"/>
+                        <TextBox Text="{Binding AdjudicateOutcomeCode, UpdateSourceTrigger=PropertyChanged}"
+                                 Width="200" HorizontalAlignment="Left"/>
+                        <TextBlock Style="{StaticResource FieldLabel}" Text="Description"/>
+                        <TextBox Text="{Binding AdjudicateOutcomeDisplay, UpdateSourceTrigger=PropertyChanged}"
+                                 Width="400" HorizontalAlignment="Left"/>
+                        <TextBlock Text="{Binding AdjudicateProposal}" FontSize="11" Foreground="#4B5563"
+                                   TextWrapping="Wrap" Margin="0,6,0,0"
+                                   Visibility="{Binding AdjudicateProposal, Converter={StaticResource NullToVisibility}}"/>
+                    </StackPanel>
+
+                    <TextBlock Style="{StaticResource FieldLabel}" Text="Note"/>
+                    <TextBox Text="{Binding AdjudicateNote, UpdateSourceTrigger=PropertyChanged}"
+                             Width="400" Height="50" AcceptsReturn="True" TextWrapping="Wrap"
+                             HorizontalAlignment="Left"/>
+
+                    <StackPanel Orientation="Horizontal" Margin="0,12,0,0">
+                        <Button Content="Record outcome" Style="{StaticResource PrimaryButton}"
+                                Command="{Binding SubmitAdjudicationCommand}" Margin="0,0,8,0"/>
+                        <Button Content="Skip" Style="{StaticResource SecondaryButton}"
+                                Command="{Binding CancelAdjudicateCommand}"/>
+                    </StackPanel>
+                </StackPanel>
+            </Border>
+
+            <DataGrid ItemsSource="{Binding Problems}" SelectedItem="{Binding SelectedProblem}"
+                      AutoGenerateColumns="False" IsReadOnly="True" Margin="0,10,0,0">
                 <DataGrid.Columns>
-                    <DataGridTextColumn Header="ICD-10" Binding="{Binding IcdCode}" Width="100"/>
-                    <DataGridTextColumn Header="Description" Binding="{Binding Description}" Width="*"/>
-                    <DataGridTextColumn Header="Status" Binding="{Binding Status}" Width="100"/>
-                    <DataGridTextColumn Header="Onset" Binding="{Binding OnsetDate, StringFormat=d}" Width="120"/>
-                    <DataGridTextColumn Header="Provider" Binding="{Binding EnteredByName}" Width="160"/>
+                    <DataGridTextColumn Header="ICD-10" Binding="{Binding DiagnosisCode}" Width="100"/>
+                    <DataGridTextColumn Header="Diagnosis" Binding="{Binding Diagnosis}" Width="*"/>
+                    <!-- Certainty, so a suspected diagnosis does not read as a confirmed one -->
+                    <DataGridTextColumn Header="Certainty" Binding="{Binding VerificationStatus}" Width="110"/>
+                    <DataGridTextColumn Header="Status" Binding="{Binding Status}" Width="90"/>
+                    <DataGridTextColumn Header="Onset" Binding="{Binding DateOfOnset, StringFormat=d}" Width="110"/>
+                    <DataGridTextColumn Header="Condition" Binding="{Binding Condition}" Width="110"/>
                 </DataGrid.Columns>
             </DataGrid>
         </StackPanel>

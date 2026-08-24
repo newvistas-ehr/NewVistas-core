@@ -302,6 +302,11 @@ public class PharmacyGrain : Grain, IPharmacyGrain
             throw new InvalidOperationException($"Cannot resume prescription from {_state.State.Status} status. Must be HOLD.");
 
         _state.State.Status = "ACTIVE";
+        // The hold is over — stale hold metadata on an ACTIVE rx misleads readers.
+        // (A rejected duplicate hold still never overwrites the original reason:
+        // PlaceOnHoldAsync throws before mutating when status is not ACTIVE.)
+        _state.State.HoldReason = null;
+        _state.State.HoldDate = null;
         _state.State.LastModifiedDate = DateTime.UtcNow;
         await _state.WriteStateAsync();
         await SyncPrescriptionIndexAsync();

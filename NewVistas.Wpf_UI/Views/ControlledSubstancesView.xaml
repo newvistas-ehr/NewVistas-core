@@ -23,9 +23,9 @@ file, You can obtain one at https://mozilla.org/MPL/2.0/.
             <TextBlock Style="{StaticResource SectionHeader}" Text="Inspections"/>
             <DataGrid ItemsSource="{Binding Inspections}" AutoGenerateColumns="False" MaxHeight="220">
                 <DataGrid.Columns>
-                    <DataGridTextColumn Header="Date" Binding="{Binding InspectionDate, StringFormat=d}" Width="110"/>
+                    <DataGridTextColumn Header="Date" Binding="{Binding InspectionDateTime, StringFormat=d}" Width="110"/>
                     <DataGridTextColumn Header="Type" Binding="{Binding InspectionType}" Width="130"/>
-                    <DataGridTextColumn Header="Result" Binding="{Binding Result}" Width="120"/>
+                    <DataGridTextColumn Header="Result" Binding="{Binding OverallResult}" Width="120"/>
                     <DataGridTextColumn Header="Inspector" Binding="{Binding InspectorName}" Width="*"/>
                     <DataGridTextColumn Header="Discrepancies" Binding="{Binding TotalDiscrepancies}" Width="100"/>
                 </DataGrid.Columns>
@@ -33,11 +33,11 @@ file, You can obtain one at https://mozilla.org/MPL/2.0/.
             <TextBlock Style="{StaticResource SectionHeader}" Text="Dispense Records" Margin="0,12,0,0"/>
             <DataGrid ItemsSource="{Binding DispenseRecords}" AutoGenerateColumns="False" MaxHeight="200">
                 <DataGrid.Columns>
-                    <DataGridTextColumn Header="Date" Binding="{Binding DispenseDate, StringFormat=d}" Width="110"/>
+                    <DataGridTextColumn Header="Date" Binding="{Binding DispenseDateTime, StringFormat=d}" Width="110"/>
                     <DataGridTextColumn Header="Drug" Binding="{Binding DrugName}" Width="*"/>
-                    <DataGridTextColumn Header="Schedule" Binding="{Binding ControlledSchedule}" Width="90"/>
-                    <DataGridTextColumn Header="Qty" Binding="{Binding Quantity}" Width="70"/>
-                    <DataGridTextColumn Header="Patient ID" Binding="{Binding PatientId}" Width="110"/>
+                    <DataGridTextColumn Header="Schedule" Binding="{Binding DrugSchedule}" Width="90"/>
+                    <DataGridTextColumn Header="Qty" Binding="{Binding QuantityDispensed}" Width="70"/>
+                    <DataGridTextColumn Header="Patient" Binding="{Binding PatientName}" Width="110"/>
                 </DataGrid.Columns>
             </DataGrid>
         </StackPanel>

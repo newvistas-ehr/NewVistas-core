@@ -1,4 +1,4 @@
-// Copyright 2026 Merrimack Valley Software Works, LLC. All rights reserved.
+﻿// Copyright 2026 Merrimack Valley Software Works, LLC. All rights reserved.
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
@@ -29,8 +29,8 @@ public partial class BeneficiaryTravelViewModel : BasePatientViewModel
 
     public string[] TransportModes { get; } = ["POV", "BUS", "AIRLINE", "TAXI", "SPECIAL_MODE", "COMMON_CARRIER"];
 
-    public BeneficiaryTravelViewModel(OrleansGrainService grains, ApiClient api, PatientContext patientContext)
-        : base(grains, api, patientContext) { }
+    public BeneficiaryTravelViewModel(OrleansGrainService grains, PatientContext patientContext)
+        : base(grains, patientContext) { }
 
     protected override async Task LoadDataAsync()
     {

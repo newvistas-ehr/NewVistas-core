@@ -146,6 +146,47 @@ public class DrgIndexGrain : Grain, IDrgIndexGrain
         _state = state;
     }
 
+    /// <summary>
+    /// Demo DRG assignments. Moved here from DrgController so the WPF and Blazor clients can
+    /// seed through a grain call rather than an HTTP round trip; the controller now delegates
+    /// to this method, so there is one implementation instead of two.
+    /// </summary>
+    public async Task SeedDemoDataAsync()
+    {
+        (string AdmId, string PatId, string Name, string Dx, string DxDesc, List<string> SecDx,
+         List<string> Procs, int Age, string Sex, string DcStatus, int Los)[] demo =
+        {
+            ("ADM-DRG-001", "PATIENT-001", "JONES,MICHAEL R", "I50.9", "Heart failure, unspecified",
+                new List<string> { "E11.9", "I10", "N18.3" }, new List<string>(), 72, "M", "HOME", 5),
+            ("ADM-DRG-002", "PATIENT-002", "SMITH,SARAH L", "J18.9", "Pneumonia, unspecified",
+                new List<string> { "J44.1" }, new List<string>(), 68, "F", "HOME", 4),
+            ("ADM-DRG-003", "PATIENT-003", "WILLIAMS,JAMES T", "M17.11", "Primary osteoarthritis, right knee",
+                new List<string>(), new List<string> { "0SRC0JZ" }, 65, "M", "HOME", 2),
+            ("ADM-DRG-004", "PATIENT-004", "BROWN,PATRICIA A", "A41.9", "Sepsis, unspecified",
+                new List<string> { "R65.20", "N17.9", "J96.01" }, new List<string>(), 78, "F", "SNF", 8),
+        };
+
+        foreach (var d in demo)
+        {
+            var assignment = GrainFactory.GetGrain<IDrgAssignmentGrain>($"DRG:{d.AdmId}");
+            await assignment.AssignDrgAsync(
+                d.PatId, d.Name, d.Dx, d.DxDesc, d.SecDx, d.Procs, d.Age, d.Sex, d.DcStatus, d.Los);
+
+            DrgAssignmentState state = await assignment.GetAssignmentAsync();
+            await AddOrUpdateAsync(new DrgAssignmentEntry
+            {
+                AdmissionId = state.AdmissionId,
+                PatientName = state.PatientName,
+                DrgCode = state.DrgCode,
+                DrgDescription = state.DrgDescription,
+                RelativeWeight = state.RelativeWeight,
+                ActualLOS = state.ActualLOS,
+                Status = state.Status,
+                CcMccLevel = state.CcMccLevel,
+            });
+        }
+    }
+
     public Task<List<DrgAssignmentEntry>> GetAllAssignmentsAsync()
         => Task.FromResult(_state.State.Assignments);
 

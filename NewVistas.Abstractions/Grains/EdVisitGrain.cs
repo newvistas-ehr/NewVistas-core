@@ -1,4 +1,4 @@
-// Copyright 2026 Merrimack Valley Software Works, LLC. All rights reserved.
+﻿// Copyright 2026 Merrimack Valley Software Works, LLC. All rights reserved.
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
@@ -174,6 +174,50 @@ public class EdVisitGrain : Grain, IEdVisitGrain
 /// </summary>
 public class EdBoardGrain : Grain, IEdBoardGrain
 {
+    /// <inheritdoc />
+    /// <remarks>Moved here from EdisController so every client seeds via one grain call.</remarks>
+    public async Task SeedDemoDataAsync()
+    {
+        (string PatId, string Name, string Complaint, string Mode, int Acuity, string? Bed, string? Doc)[] demo =
+        {
+            ("PATIENT-ED-001", "JONES,MICHAEL R", "Chest pain, radiating to left arm", "AMBULANCE", 2, "TRAUMA-1", "DR. MARTINEZ"),
+            ("PATIENT-ED-002", "SMITH,SARAH L", "Laceration right forearm", "WALK_IN", 4, "FAST-TRACK-1", null),
+            ("PATIENT-ED-003", "WILLIAMS,JAMES T", "Shortness of breath, fever", "WALK_IN", 3, "ED-BAY-3", "DR. CHEN"),
+            ("PATIENT-ED-004", "BROWN,PATRICIA A", "Fall with hip pain", "AMBULANCE", 3, "ED-BAY-5", "DR. MARTINEZ"),
+            ("PATIENT-ED-005", "DAVIS,ROBERT K", "Abdominal pain, nausea", "WALK_IN", 3, null, null),
+            ("PATIENT-ED-006", "MILLER,JENNIFER M", "Headache, worst of life", "AMBULANCE", 2, "RESUS-1", "DR. PATEL"),
+        };
+
+        int minutesAgo = 20;
+        foreach (var d in demo)
+        {
+            string visitId = $"EDVIS-DEMO-{Guid.NewGuid():N}";
+            var visit = GrainFactory.GetGrain<IEdVisitGrain>($"ED-VISIT:{visitId}");
+            // Staggered rather than randomised so repeat seeds are reproducible.
+            DateTime arrival = DateTime.UtcNow.AddMinutes(-minutesAgo);
+
+            await visit.RegisterArrivalAsync(d.PatId, d.Name, d.Complaint, d.Mode, arrival);
+            await visit.TriageAsync(d.Acuity, "NURSE-ED-001", "TRIAGE NURSE");
+            if (d.Bed != null) await visit.AssignBedAsync(d.Bed);
+            if (d.Doc != null) await visit.AssignPhysicianAsync("PROV-ED", d.Doc);
+
+            await AddOrUpdateVisitAsync(new EdBoardEntry
+            {
+                VisitId = visitId,
+                PatientName = d.Name,
+                ChiefComplaint = d.Complaint,
+                AcuityLevel = d.Acuity,
+                AssignedBed = d.Bed,
+                AttendingPhysicianName = d.Doc,
+                Status = d.Bed != null ? "IN_TREATMENT" : "WAITING",
+                ArrivalDateTime = arrival,
+                ArrivalMode = d.Mode,
+                WaitMinutes = minutesAgo,
+            });
+            minutesAgo += 25;
+        }
+    }
+
     private readonly IPersistentState<EdBoardState> _state;
     private readonly ILogger<EdBoardGrain> _logger;
 

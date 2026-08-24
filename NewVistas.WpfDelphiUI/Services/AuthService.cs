@@ -1,11 +1,14 @@
-// Copyright 2026 Merrimack Valley Software Works, LLC. All rights reserved.
+﻿// Copyright 2026 Merrimack Valley Software Works, LLC. All rights reserved.
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 using System.Net.Http;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
+using NewVistas.Abstractions.GrainInterfaces;
 using NewVistas.Abstractions.Security;
+using Orleans;
+using Orleans.Runtime;
 
 namespace NewVistas.WpfDelphiUI.Services;
 
@@ -18,12 +21,20 @@ public sealed class AuthService
     private readonly ApiClient _api;
     private string? _token;
 
-    public AuthService(ApiClient api)
+    private readonly IGrainFactory _grainFactory;
+
+    // IGrainFactory rather than OrleansGrainService: that service depends on THIS one for
+    // the token, so taking it here would be circular.
+    public AuthService(ApiClient api, IGrainFactory grainFactory)
     {
         _api = api;
+        _grainFactory = grainFactory;
     }
 
     public bool IsAuthenticated => _token != null;
+
+    /// <summary>The raw JWT, for OrleansGrainService to derive the grain call context from.</summary>
+    public string? CurrentToken => _token;
     public string? UserId { get; private set; }
     public string? UserName { get; private set; }
     public string? DisplayName { get; private set; }
@@ -89,12 +100,15 @@ public sealed class AuthService
     {
         try
         {
-            List<string>? keys = await _api.GetSecurityKeysAsync(userId);
-            if (keys is not null)
-            {
-                _securityKeys = [.. keys];
-                _accessibleAreas = MenuAccessMap.GetAccessibleAreas(_securityKeys);
-            }
+            // Security keys are AUTHORIZATION, so they come from the grain that owns them.
+            // The Web tier only answers authentication.
+            RequestContext.Set(RequestContextKeys.UserId, userId);
+            IReadOnlySet<string> keys = await _grainFactory
+                .GetGrain<IAccessControlGrain>($"ACL:{userId}")
+                .GetKeysAsync();
+
+            _securityKeys = [.. keys];
+            _accessibleAreas = MenuAccessMap.GetAccessibleAreas(_securityKeys);
         }
         catch
         {

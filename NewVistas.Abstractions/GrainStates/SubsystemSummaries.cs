@@ -71,6 +71,8 @@ public class HealthFactorSummary
     [Id(2)] public string? Category { get; set; }
     [Id(3)] public DateTime EventDateTime { get; set; }
     [Id(4)] public string? LevelSeverity { get; set; }
+    /// <summary>Evaluation Status — CURRENT, RESOLVED, INACTIVE; null when never explicitly set.</summary>
+    [Id(5)] public string? EvaluationStatus { get; set; }
 }
 
 [GenerateSerializer]

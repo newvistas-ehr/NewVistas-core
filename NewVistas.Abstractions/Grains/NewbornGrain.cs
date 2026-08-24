@@ -113,6 +113,15 @@ public class NewbornGrain : Grain, INewbornGrain
 
     public async Task TransferAsync(string toLocation, string reason)
     {
+        // Existence guard: OnActivateAsync stamps NewbornId/dates on ANY activation, so the
+        // honest "was this newborn ever admitted" signal is the mother linkage — RegisterAsync
+        // is the only writer of MotherPatientId. Without this guard, transferring an unknown
+        // id would persist a skeleton record (and the workflow would then upsert a phantom
+        // census row into the shared nursery grain).
+        if (string.IsNullOrEmpty(_state.State.MotherPatientId))
+            throw new InvalidOperationException(
+                $"Cannot transfer newborn '{this.GetPrimaryKeyString()}': no newborn record exists (never registered).");
+
         _state.State.Status = NewbornStatus.Transferred;
         _state.State.TransferLocation = toLocation;
         _state.State.NurseryLevelReason = string.IsNullOrEmpty(reason) ? _state.State.NurseryLevelReason : reason;

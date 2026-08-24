@@ -22,10 +22,10 @@ file, You can obtain one at https://mozilla.org/MPL/2.0/.
             <DataGrid ItemsSource="{Binding Waitlist}" AutoGenerateColumns="False" MaxHeight="240">
                 <DataGrid.Columns>
                     <DataGridTextColumn Header="Patient Name" Binding="{Binding PatientName}" Width="*"/>
-                    <DataGridTextColumn Header="Organ" Binding="{Binding Organ}" Width="100"/>
+                    <DataGridTextColumn Header="Organ" Binding="{Binding OrganType}" Width="100"/>
                     <DataGridTextColumn Header="Status" Binding="{Binding Status}" Width="120"/>
                     <DataGridTextColumn Header="Priority" Binding="{Binding Priority}" Width="100"/>
-                    <DataGridTextColumn Header="Listed" Binding="{Binding ListingDate, StringFormat=d}" Width="110"/>
+                    <DataGridTextColumn Header="Listed" Binding="{Binding ListedDate, StringFormat=d}" Width="110"/>
                     <DataGridTextColumn Header="Blood Type" Binding="{Binding BloodType}" Width="90"/>
                 </DataGrid.Columns>
             </DataGrid>
@@ -33,7 +33,7 @@ file, You can obtain one at https://mozilla.org/MPL/2.0/.
             <DataGrid ItemsSource="{Binding Donors}" AutoGenerateColumns="False" MaxHeight="200">
                 <DataGrid.Columns>
                     <DataGridTextColumn Header="Donor ID" Binding="{Binding DonorId}" Width="120"/>
-                    <DataGridTextColumn Header="Organ" Binding="{Binding Organ}" Width="100"/>
+                    <DataGridTextColumn Header="Organ" Binding="{Binding OrganType}" Width="100"/>
                     <DataGridTextColumn Header="Donor Type" Binding="{Binding DonorType}" Width="120"/>
                     <DataGridTextColumn Header="Blood Type" Binding="{Binding BloodType}" Width="90"/>
                     <DataGridTextColumn Header="Status" Binding="{Binding Status}" Width="110"/>

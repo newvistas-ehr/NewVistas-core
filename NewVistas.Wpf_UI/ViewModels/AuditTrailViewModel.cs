@@ -1,4 +1,4 @@
-// Copyright 2026 Merrimack Valley Software Works, LLC. All rights reserved.
+﻿// Copyright 2026 Merrimack Valley Software Works, LLC. All rights reserved.
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
@@ -16,6 +16,14 @@ public partial class AuditTrailViewModel : BasePatientViewModel
     [ObservableProperty] private ObservableCollection<AuditEventSummary> _events = new();
     [ObservableProperty] private AuditEventState? _selectedEvent;
 
+    /// <summary>Grid selection; loads the full event into <see cref="SelectedEvent"/>.</summary>
+    [ObservableProperty] private AuditEventSummary? _selectedEntry;
+
+    partial void OnSelectedEntryChanged(AuditEventSummary? value)
+    {
+        if (value is not null) _ = SelectEvent(value);
+    }
+
     // Filters
     [ObservableProperty] private string _domainFilter = string.Empty;
     [ObservableProperty] private DateTime? _fromDate;
@@ -27,8 +35,8 @@ public partial class AuditTrailViewModel : BasePatientViewModel
         "BCMA", "IMAGING", "DEMOGRAPHICS"
     ];
 
-    public AuditTrailViewModel(OrleansGrainService grains, ApiClient api, PatientContext patientContext)
-        : base(grains, api, patientContext) { }
+    public AuditTrailViewModel(OrleansGrainService grains, PatientContext patientContext)
+        : base(grains, patientContext) { }
 
     protected override async Task LoadDataAsync()
     {

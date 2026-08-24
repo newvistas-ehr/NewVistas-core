@@ -109,6 +109,16 @@ public class AppointmentWaitListGrain : Grain, IAppointmentWaitListGrain
 
     public async Task OfferSlotAsync(string appointmentId, DateTime offeredDateTime, string offeredByName)
     {
+        // Only a WAITING entry can receive an offer. CANCELLED/EXPIRED/BOOKED are
+        // terminal for the offer flow — offering against them would silently
+        // resurrect a closed entry. An entry with an outstanding offer (OFFERED)
+        // must be declined or voided first, otherwise the previously offered
+        // pre-booked appointment would be orphaned. Entries returned to WAITING by
+        // a decline or a voided offer are legitimately re-offerable.
+        if (_state.State.Status != "WAITING")
+            throw new InvalidOperationException(
+                $"Cannot offer a slot to a wait-list entry with status {_state.State.Status}; only WAITING entries can receive an offer.");
+
         _state.State.OfferedAppointmentId = appointmentId;
         _state.State.OfferedDateTime = offeredDateTime;
         _state.State.OfferDate = DateTime.UtcNow;
@@ -178,6 +188,31 @@ public class AppointmentWaitListGrain : Grain, IAppointmentWaitListGrain
         await UpdateIndexAsync();
     }
 
+    public async Task VoidOfferAsync(string reason, string performedByName)
+    {
+        // Idempotent: nothing to void when no offer is pending.
+        if (_state.State.Status != "OFFERED")
+            return;
+
+        _state.State.OfferedAppointmentId = null;
+        _state.State.OfferedDateTime = null;
+        _state.State.OfferDate = null;
+        _state.State.OfferedByName = null;
+        _state.State.Status = "WAITING";
+        _state.State.LastModifiedDate = DateTime.UtcNow;
+
+        _state.State.AuditTrail.Add(new WaitListAuditEntry
+        {
+            Timestamp = DateTime.UtcNow,
+            Action = "OFFER_VOIDED",
+            PerformedByName = performedByName,
+            Details = $"Offer voided: {reason}"
+        });
+
+        await _state.WriteStateAsync();
+        await UpdateIndexAsync();
+    }
+
     public async Task BookFromWaitListAsync(string appointmentId, DateTime bookedDateTime, string bookedByName)
     {
         _state.State.BookedAppointmentId = appointmentId;
@@ -201,6 +236,16 @@ public class AppointmentWaitListGrain : Grain, IAppointmentWaitListGrain
 
     public async Task CancelEntryAsync(string reason, string cancelledByName)
     {
+        // Domain decision: a BOOKED entry is a terminal success state — the wait was
+        // fulfilled and a real appointment exists. Cancelling the wait-list entry at
+        // that point is ambiguous (the caller almost certainly means the appointment),
+        // so it is rejected rather than silently leaving — or worse, touching — the
+        // booked appointment. Cancel the appointment through the scheduling workflow
+        // instead; the wait-list entry remains BOOKED as the historical record.
+        if (_state.State.Status == "BOOKED")
+            throw new InvalidOperationException(
+                $"Cannot cancel a BOOKED wait-list entry; it was fulfilled by appointment {_state.State.BookedAppointmentId}. Cancel the appointment itself instead.");
+
         _state.State.CancellationReason = reason;
         _state.State.Status = "CANCELLED";
         _state.State.LastModifiedDate = DateTime.UtcNow;

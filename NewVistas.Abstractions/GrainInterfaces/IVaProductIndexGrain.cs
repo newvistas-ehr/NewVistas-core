@@ -28,9 +28,22 @@ public interface IVaProductIndexGrain : IGrainWithStringKey
     /// <summary>
     /// Bulk-loads VA Product entries into the index.
     /// Called by the controller after parsing NDF data.
-    /// Replaces any previously loaded entries.
+    /// FULL REPLACE: clears the index first, then loads the given entries.
+    /// Only safe for single-shot loads of a complete product set — batched
+    /// imports must use <see cref="AddProductsAsync"/> instead.
     /// </summary>
     Task LoadProductsAsync(List<VaProductIndexEntry> entries);
+
+    /// <summary>
+    /// Batch-safe additive upsert: merges entries into the index by IEN,
+    /// never clearing existing entries. Stale NDC and generic cross-references
+    /// of a replaced entry are removed, and IsLoaded/TotalProducts/
+    /// FormularyProducts are recomputed from the resulting dictionary so
+    /// repeated imports stay correct. Used by ReferenceDataImportService,
+    /// which clears once at the start of an import and then flushes each
+    /// batch through this method.
+    /// </summary>
+    Task AddProductsAsync(List<VaProductIndexEntry> entries);
 
     /// <summary>
     /// Looks up a single VA Product by its IEN. Returns null if not found.

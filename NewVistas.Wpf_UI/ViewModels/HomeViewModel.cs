@@ -11,7 +11,6 @@ namespace NewVistas.Wpf_UI.ViewModels;
 
 public partial class HomeViewModel : ObservableObject
 {
-    private readonly ApiClient _api;
     private readonly PatientContext _patientContext;
 
     [ObservableProperty] private bool _isLoading;
@@ -21,54 +20,33 @@ public partial class HomeViewModel : ObservableObject
     public string WelcomeMessage => "Welcome to NewVistas Clinical Information System";
     public string Description => "Select a patient ID in the header above, then navigate to any clinical module.";
 
-    public HomeViewModel(ApiClient api, PatientContext patientContext)
+    public HomeViewModel(PatientContext patientContext)
     {
-        _api = api;
         _patientContext = patientContext;
     }
 
     private string PatientId => _patientContext.PatientId?.Trim() ?? string.Empty;
     private bool HasPatient => !string.IsNullOrWhiteSpace(PatientId);
 
+    /// <summary>
+    /// Bulk demo seeding is a server-side setup task, not a UI data path.
+    ///
+    /// This used to POST to eleven <c>demo/load</c> endpoints in turn, which is exactly the
+    /// pattern the architecture forbids: an internal UI reaching for the WebServer. The
+    /// WebServer already seeds demo data at startup (ExtremeLeeSickSeed and the dataset
+    /// import), and the Blazor Home screen has no equivalent button, so the two clients now
+    /// agree. Per-module demo data is still available from each module's own screen, where
+    /// the seed is a single grain call.
+    /// </summary>
     [RelayCommand]
-    private async Task LoadDemoData()
+    private Task LoadDemoData()
     {
-        if (!HasPatient) { Error = "Please select a patient ID first."; return; }
-        IsLoading = true; Error = null;
+        Error = null;
         LoadResults.Clear();
-
-        var endpoints = new (string Label, string Url)[]
-        {
-            ("Scheduling (clinics + appointments)", $"api/scheduling/demo/load?patientId={Esc(PatientId)}"),
-            ("Lab Results", $"api/lab/demo/load?patientId={Esc(PatientId)}"),
-            ("Outpatient Pharmacy", $"api/outpatientpharmacy/demo/load?patientId={Esc(PatientId)}"),
-            ("Inpatient Pharmacy", $"api/inpatientpharmacy/demo/load?patientId={Esc(PatientId)}"),
-            ("ADT Movements", $"api/adt/demo/load?patientId={Esc(PatientId)}"),
-            ("Patient Encounters (PCE)", $"api/pce/demo/load?patientId={Esc(PatientId)}"),
-            ("BCMA / MAR", $"api/bcma/{Esc(PatientId)}/demo/load"),
-            ("Drug Formulary (NDF)", "api/drugformulary/demo/load"),
-            ("Drug File", "api/drugfile/demo/load"),
-            ("Drug Accountability", "api/drugaccountability/demo/load"),
-            ("Pharmacy Benefits", $"api/pharmacybenefits/demo/load?patientId={Esc(PatientId)}"),
-        };
-
-        foreach (var (label, url) in endpoints)
-        {
-            try
-            {
-                var response = await _api.Http.PostAsync(url, null);
-                LoadResults.Add(response.IsSuccessStatusCode
-                    ? $"OK   {label}"
-                    : $"WARN {label} — {response.StatusCode}");
-            }
-            catch (Exception ex)
-            {
-                LoadResults.Add($"FAIL {label} — {ex.Message}");
-            }
-        }
-
-        IsLoading = false;
+        LoadResults.Add("Demo data is seeded by the server at startup.");
+        LoadResults.Add("For per-module demo data, use the “Load Demo Data” button on that module’s screen.");
+        if (!HasPatient)
+            LoadResults.Add("Select a patient ID in the header to browse the seeded records.");
+        return Task.CompletedTask;
     }
-
-    private static string Esc(string id) => Uri.EscapeDataString(id);
 }

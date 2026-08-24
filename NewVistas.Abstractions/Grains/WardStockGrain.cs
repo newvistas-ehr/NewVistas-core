@@ -1,4 +1,4 @@
-// Copyright 2026 Merrimack Valley Software Works, LLC. All rights reserved.
+﻿// Copyright 2026 Merrimack Valley Software Works, LLC. All rights reserved.
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
@@ -135,6 +135,44 @@ public class WardStockItemGrain : Grain, IWardStockItemGrain
 /// </summary>
 public class WardStockIndexGrain : Grain, IWardStockIndexGrain
 {
+    /// <inheritdoc />
+    /// <remarks>Moved here from WardStockController so every client seeds via one grain call.</remarks>
+    public async Task SeedDemoDataAsync()
+    {
+        // The index is keyed "WARD-STOCK-INDEX:{wardId}" - seed that ward.
+        string wardId = this.GetPrimaryKeyString().Replace("WARD-STOCK-INDEX:", string.Empty);
+
+        (string DrugId, string Name, int Par, int Reorder, int Qty, string Uom, bool Controlled)[] demo =
+        {
+            ("DRUG-ACE-001", "ACETAMINOPHEN 500MG TAB", 100, 20, 80, "TAB", false),
+            ("DRUG-IBU-001", "IBUPROFEN 200MG TAB", 60, 15, 45, "TAB", false),
+            ("DRUG-HEP-001", "HEPARIN 5000U/ML INJ", 30, 10, 20, "ML", false),
+            ("DRUG-MOR-001", "MORPHINE 4MG/ML INJ", 20, 5, 15, "ML", true),
+            ("DRUG-INS-001", "INSULIN REG 100U/ML", 25, 8, 17, "ML", false),
+            ("DRUG-NOR-001", "NORMAL SALINE 0.9% 1000ML", 40, 10, 30, "BAG", false),
+        };
+
+        foreach (var d in demo)
+        {
+            var grain = GrainFactory.GetGrain<IWardStockItemGrain>($"WARD-STOCK:{wardId}:{d.DrugId}");
+            await grain.SetupItemAsync(d.DrugId, d.Name, wardId, "Medicine 3A", d.Par, d.Reorder, d.Qty, d.Uom, d.Controlled);
+
+            WardStockItemState state = await grain.GetItemAsync();
+            await AddOrUpdateAsync(new WardStockSummaryEntry
+            {
+                DrugId = state.DrugId,
+                DrugName = state.DrugName,
+                QuantityOnHand = state.QuantityOnHand,
+                ParLevel = state.ParLevel,
+                ReorderPoint = state.ReorderPoint,
+                UnitOfMeasure = state.UnitOfMeasure,
+                NeedsReplenishment = state.QuantityOnHand <= state.ReorderPoint,
+                ReplenishmentPending = state.ReplenishmentPending,
+                IsControlledSubstance = state.IsControlledSubstance,
+            });
+        }
+    }
+
     private readonly IPersistentState<WardStockIndexState> _state;
 
     public WardStockIndexGrain(

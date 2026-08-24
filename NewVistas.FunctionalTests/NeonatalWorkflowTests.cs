@@ -247,6 +247,83 @@ public class NeonatalWorkflowTests
         Assert.That(entry.NurseryLevel, Is.EqualTo(NurseryLevelOfCare.SpecialCareLevelII));
     }
 
+    // ── Transfer ─────────────────────────────────────────────────────────────────
+
+    [Test]
+    public async Task TransferNewborn_SetsTransferred_LeavesActiveCensus_KeepsMotherLinks()
+    {
+        string patientId = $"PATIENT-{Guid.NewGuid()}";
+        IPatientWorkflowGrain wf = Workflow(patientId);
+        DateTime birth = new DateTime(2026, 3, 8, 3, 20, 0);
+
+        string pregnancyId = await CreatePregnancyWithDelivery(wf, birth);
+        string newbornId = await RegisterBabyGirl(wf, pregnancyId, birth);
+
+        await wf.TransferNewbornAsync(newbornId, "Children's Hospital NICU", "cardiac evaluation");
+
+        NewbornState newborn = await wf.GetNewbornAsync(newbornId);
+        Assert.That(newborn.Status, Is.EqualTo(NewbornStatus.Transferred));
+        Assert.That(newborn.TransferLocation, Is.EqualTo("Children's Hospital NICU"));
+        Assert.That(newborn.NurseryLevelReason, Is.EqualTo("cardiac evaluation"));
+
+        // Off the active census, but the full census keeps the entry with its new status.
+        List<NewbornNurseryEntry> active = await Nursery().GetActiveAsync();
+        Assert.That(active.Select(e => e.NewbornId), Does.Not.Contain(newbornId));
+
+        List<NewbornNurseryEntry> all = await Nursery().GetAllAsync();
+        NewbornNurseryEntry entry = all.Single(e => e.NewbornId == newbornId);
+        Assert.That(entry.Status, Is.EqualTo(NewbornStatus.Transferred));
+        Assert.That(entry.MotherPatientId, Is.EqualTo(patientId));
+
+        // The mother/pregnancy links do not move with the baby — the chart stays reachable.
+        List<NewbornState> forMother = await wf.GetNewbornsForMotherAsync();
+        Assert.That(forMother.Select(n => n.NewbornId), Contains.Item(newbornId));
+        List<NewbornState> forPregnancy = await wf.GetNewbornsForPregnancyAsync(pregnancyId);
+        Assert.That(forPregnancy.Select(n => n.NewbornId), Contains.Item(newbornId));
+    }
+
+    [Test]
+    public async Task TransferNewborn_Twice_LastLocationWins_EmptyReasonKeepsPrior()
+    {
+        string patientId = $"PATIENT-{Guid.NewGuid()}";
+        IPatientWorkflowGrain wf = Workflow(patientId);
+        DateTime birth = new DateTime(2026, 3, 9, 22, 5, 0);
+
+        string pregnancyId = await CreatePregnancyWithDelivery(wf, birth);
+        string newbornId = await RegisterBabyGirl(wf, pregnancyId, birth);
+
+        await wf.TransferNewbornAsync(newbornId, "Level III NICU", "respiratory distress");
+        await wf.TransferNewbornAsync(newbornId, "Regional Children's Hospital", "");
+
+        NewbornState newborn = await wf.GetNewbornAsync(newbornId);
+        Assert.That(newborn.Status, Is.EqualTo(NewbornStatus.Transferred));
+        Assert.That(newborn.TransferLocation, Is.EqualTo("Regional Children's Hospital"),
+            "a second transfer updates the destination");
+        Assert.That(newborn.NurseryLevelReason, Is.EqualTo("respiratory distress"),
+            "an empty reason on re-transfer keeps the prior reason");
+
+        List<NewbornNurseryEntry> all = await Nursery().GetAllAsync();
+        Assert.That(all.Single(e => e.NewbornId == newbornId).Status, Is.EqualTo(NewbornStatus.Transferred));
+    }
+
+    [Test]
+    public async Task TransferNewborn_NonExistentId_Throws_AndCreatesNoCensusRow()
+    {
+        // Transferring an id that was never registered must fail loudly — a silent
+        // "transfer" would persist a skeleton newborn record AND upsert a phantom
+        // row into the shared nursery census singleton.
+        string patientId = $"PATIENT-{Guid.NewGuid()}";
+        IPatientWorkflowGrain wf = Workflow(patientId);
+        string phantomId = $"NEONATE:{Guid.NewGuid()}";
+
+        Assert.ThrowsAsync<InvalidOperationException>(
+            () => wf.TransferNewbornAsync(phantomId, "Children's Hospital NICU", "mistyped id"));
+
+        List<NewbornNurseryEntry> all = await Nursery().GetAllAsync();
+        Assert.That(all.Select(e => e.NewbornId), Does.Not.Contain(phantomId),
+            "the failed transfer must not have created a census row for the phantom id");
+    }
+
     // ── Discharge ────────────────────────────────────────────────────────────────
 
     [Test]

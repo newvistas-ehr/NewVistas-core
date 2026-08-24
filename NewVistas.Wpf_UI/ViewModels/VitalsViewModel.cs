@@ -1,4 +1,4 @@
-// Copyright 2026 Merrimack Valley Software Works, LLC. All rights reserved.
+﻿// Copyright 2026 Merrimack Valley Software Works, LLC. All rights reserved.
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
@@ -14,6 +14,9 @@ namespace NewVistas.Wpf_UI.ViewModels;
 public partial class VitalsViewModel : BasePatientViewModel
 {
     [ObservableProperty] private ObservableCollection<VitalSummary> _vitals = new();
+
+    /// <summary>Latest reading per vital type, shaped for the summary panel. Null until loaded.</summary>
+    [ObservableProperty] private LatestVitalsPanel? _latestVitals;
 
     // History
     [ObservableProperty] private ObservableCollection<VitalSummary> _historyVitals = new();
@@ -34,8 +37,8 @@ public partial class VitalsViewModel : BasePatientViewModel
     [ObservableProperty] private string _pain = string.Empty;
     [ObservableProperty] private string _enteredByName = "Nurse, Test";
 
-    public VitalsViewModel(OrleansGrainService grains, ApiClient api, PatientContext patientContext)
-        : base(grains, api, patientContext) { }
+    public VitalsViewModel(OrleansGrainService grains, PatientContext patientContext)
+        : base(grains, patientContext) { }
 
     protected override async Task LoadDataAsync()
     {
@@ -43,7 +46,25 @@ public partial class VitalsViewModel : BasePatientViewModel
         var list = await workflow.GetLatestVitalsAsync();
         Vitals.Clear();
         foreach (var v in list) Vitals.Add(v);
+
+        LatestVitals = Vitals.Count == 0 ? null : new LatestVitalsPanel
+        {
+            BloodPressure = LatestOf("BLOOD PRESSURE"),
+            Pulse = LatestOf("PULSE"),
+            Temperature = LatestOf("TEMPERATURE"),
+            RespiratoryRate = LatestOf("RESPIRATION"),
+            OxygenSaturation = LatestOf("PULSE OXIMETRY"),
+            Weight = LatestOf("WEIGHT"),
+            Height = LatestOf("HEIGHT"),
+            PainScore = LatestOf("PAIN")
+        };
     }
+
+    /// <summary>Value of the most recent loaded reading of the given vital type, or null.</summary>
+    private string? LatestOf(string vitalType)
+        => Vitals.Where(v => string.Equals(v.VitalType, vitalType, StringComparison.OrdinalIgnoreCase))
+                 .OrderByDescending(v => v.DateTimeTaken)
+                 .FirstOrDefault()?.Value;
 
     [RelayCommand]
     private void ToggleRecordForm() => ShowRecordForm = !ShowRecordForm;
@@ -103,4 +124,17 @@ public partial class VitalsViewModel : BasePatientViewModel
         catch (Exception ex) { Error = ex.Message; }
         finally { IsLoading = false; }
     }
+}
+
+/// <summary>Read-only shape behind the "Latest Vitals" summary panel — one value per vital type.</summary>
+public sealed class LatestVitalsPanel
+{
+    public string? BloodPressure { get; init; }
+    public string? Pulse { get; init; }
+    public string? Temperature { get; init; }
+    public string? RespiratoryRate { get; init; }
+    public string? OxygenSaturation { get; init; }
+    public string? Weight { get; init; }
+    public string? Height { get; init; }
+    public string? PainScore { get; init; }
 }

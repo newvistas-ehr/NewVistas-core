@@ -96,6 +96,84 @@ public class HouseholdWorkflowTests
     }
 
     [Test]
+    public async Task AddPatientToHousehold_MembershipVisibleFromBothSides()
+    {
+        string head = await NewPatientAsync("SMITH,JANE");
+        string householdId = await Wf(head).CreateHouseholdForPatientAsync("Smith Household", "Self", "500", Clerk);
+
+        string spouse = await NewPatientAsync("SMITH,ALEX");
+        await Wf(spouse).AddPatientToHouseholdAsync(householdId, "Spouse", HouseholdMemberRole.Spouse, "500", Clerk);
+
+        // Joining mints/links the patient's Person anchor.
+        string? spousePersonId = (await Wf(spouse).GetPatientAsync()).PersonId;
+        Assert.That(spousePersonId, Is.Not.Null.And.Not.Empty);
+
+        // Household side: an active member row under that Person.
+        HouseholdState hh = await Household(householdId).GetAsync();
+        HouseholdMember member = hh.Members.Single(m => m.PersonId == spousePersonId);
+        Assert.That(member.Relationship, Is.EqualTo("Spouse"));
+        Assert.That(member.Role, Is.EqualTo(HouseholdMemberRole.Spouse));
+        Assert.That(member.LeftDate, Is.Null);
+        Assert.That(hh.HeadOfHouseholdPersonId, Is.Not.EqualTo(spousePersonId),
+            "joining as a non-head must not displace the head");
+
+        // Patient side: the spouse resolves to the same household.
+        HouseholdState? resolved = await Wf(spouse).GetPatientHouseholdAsync();
+        Assert.That(resolved?.HouseholdId, Is.EqualTo(householdId));
+    }
+
+    [Test]
+    public async Task AddPatientToHousehold_Twice_UpdatesInPlaceWithoutDuplicating()
+    {
+        string head = await NewPatientAsync("SMITH,JANE");
+        string householdId = await Wf(head).CreateHouseholdForPatientAsync("Smith Household", "Self", "500", Clerk);
+
+        string other = await NewPatientAsync("SMITH,SAM");
+        await Wf(other).AddPatientToHouseholdAsync(householdId, "Sibling", HouseholdMemberRole.Member, "500", Clerk);
+        await Wf(other).AddPatientToHouseholdAsync(householdId, "Spouse", HouseholdMemberRole.Spouse, "500", Clerk);
+
+        string? personId = (await Wf(other).GetPatientAsync()).PersonId;
+        HouseholdState hh = await Household(householdId).GetAsync();
+        List<HouseholdMember> rows = hh.Members.Where(m => m.PersonId == personId).ToList();
+        Assert.That(rows, Has.Count.EqualTo(1), "re-adding an active member must not duplicate the row");
+        Assert.That(rows[0].Relationship, Is.EqualTo("Spouse"), "descriptive fields update in place");
+        Assert.That(rows[0].Role, Is.EqualTo(HouseholdMemberRole.Spouse));
+        Assert.That(rows[0].LeftDate, Is.Null);
+    }
+
+    [Test]
+    public async Task AddPatientToSecondHousehold_BothMembershipsOpen_CurrentIsLatestJoined()
+    {
+        string headA = await NewPatientAsync("ALPHA,HEAD");
+        string headB = await NewPatientAsync("BRAVO,HEAD");
+        string hhA = await Wf(headA).CreateHouseholdForPatientAsync("Alpha Household", "Self", "500", Clerk);
+        string hhB = await Wf(headB).CreateHouseholdForPatientAsync("Bravo Household", "Self", "500", Clerk);
+
+        string patient = await NewPatientAsync("SHARED,KID");
+        await Wf(patient).AddPatientToHouseholdAsync(hhA, "Child", HouseholdMemberRole.Child, "500", Clerk);
+        await Wf(patient).AddPatientToHouseholdAsync(hhB, "Child", HouseholdMemberRole.Child, "500", Clerk);
+
+        string? personId = (await Wf(patient).GetPatientAsync()).PersonId;
+
+        // Membership in a second household is allowed (shared custody is representable):
+        // both households carry an open row for the same Person …
+        Assert.That((await Household(hhA).GetAsync()).Members
+            .Any(m => m.PersonId == personId && m.LeftDate is null), Is.True);
+        Assert.That((await Household(hhB).GetAsync()).Members
+            .Any(m => m.PersonId == personId && m.LeftDate is null), Is.True);
+
+        // … the person's reverse index holds both open links …
+        IPersonHouseholdIndexGrain idx = _cluster.GrainFactory
+            .GetGrain<IPersonHouseholdIndexGrain>($"PERSON-HOUSEHOLD-IDX:{personId}");
+        PersonHouseholdIndexState links = await idx.GetAsync();
+        Assert.That(links.Links.Count(l => l.LeftDate is null), Is.EqualTo(2));
+
+        // … and "the patient's household" resolves to the most recently joined.
+        HouseholdState? current = await Wf(patient).GetPatientHouseholdAsync();
+        Assert.That(current?.HouseholdId, Is.EqualTo(hhB));
+    }
+
+    [Test]
     public async Task FlagOff_HouseholdIsEmpty()
     {
         string patient = await NewPatientAsync("SMITH,JANE");

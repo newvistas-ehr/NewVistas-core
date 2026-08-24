@@ -1,4 +1,4 @@
-// Copyright 2026 Merrimack Valley Software Works, LLC. All rights reserved.
+﻿// Copyright 2026 Merrimack Valley Software Works, LLC. All rights reserved.
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
@@ -13,7 +13,7 @@ namespace NewVistas.WpfDelphiUI.ViewModels;
 /// </summary>
 public abstract partial class ChartTabViewModelBase : ObservableObject
 {
-    protected readonly ApiClient      Api;
+    protected readonly ChartDataService Data;
     protected readonly PatientContext Context;
 
     [ObservableProperty]
@@ -22,9 +22,9 @@ public abstract partial class ChartTabViewModelBase : ObservableObject
     [ObservableProperty]
     private string _errorText = string.Empty;
 
-    protected ChartTabViewModelBase(ApiClient api, PatientContext context)
+    protected ChartTabViewModelBase(ChartDataService data, PatientContext context)
     {
-        Api     = api;
+        Data    = data;
         Context = context;
 
         Context.PropertyChanged += (_, e) =>

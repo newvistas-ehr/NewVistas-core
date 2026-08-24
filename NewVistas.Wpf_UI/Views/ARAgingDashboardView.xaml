@@ -27,9 +27,9 @@ file, You can obtain one at https://mozilla.org/MPL/2.0/.
             <TextBlock Text="Aging Buckets" FontWeight="Bold" Margin="0,0,0,4"/>
             <DataGrid ItemsSource="{Binding Buckets}" AutoGenerateColumns="False" IsReadOnly="True" Height="200">
                 <DataGrid.Columns>
-                    <DataGridTextColumn Header="Bucket" Binding="{Binding Bucket}" Width="120"/>
+                    <DataGridTextColumn Header="Bucket" Binding="{Binding Label}" Width="120"/>
                     <DataGridTextColumn Header="Count" Binding="{Binding AccountCount}" Width="80"/>
-                    <DataGridTextColumn Header="Total" Binding="{Binding TotalAmount, StringFormat=C}" Width="120"/>
+                    <DataGridTextColumn Header="Total" Binding="{Binding TotalBalance, StringFormat=C}" Width="120"/>
                     <DataGridTextColumn Header="% of AR" Binding="{Binding PercentOfTotal, StringFormat=P1}" Width="80"/>
                 </DataGrid.Columns>
             </DataGrid>
@@ -37,19 +37,19 @@ file, You can obtain one at https://mozilla.org/MPL/2.0/.
             <TextBlock Text="Account Details" FontWeight="Bold" Margin="0,12,0,4"/>
             <DataGrid ItemsSource="{Binding AccountDetails}" AutoGenerateColumns="False" IsReadOnly="True" Height="250">
                 <DataGrid.Columns>
-                    <DataGridTextColumn Header="Account" Binding="{Binding AccountId}" Width="140"/>
-                    <DataGridTextColumn Header="Patient" Binding="{Binding PatientName}" Width="*"/>
+                    <DataGridTextColumn Header="Account" Binding="{Binding ARAccountId}" Width="140"/>
+                    <DataGridTextColumn Header="Patient ID" Binding="{Binding PatientId}" Width="*"/>
                     <DataGridTextColumn Header="Bucket" Binding="{Binding Bucket}" Width="100"/>
-                    <DataGridTextColumn Header="Balance" Binding="{Binding Balance, StringFormat=C}" Width="100"/>
-                    <DataGridTextColumn Header="Payer" Binding="{Binding PayerName}" Width="140"/>
-                    <DataGridTextColumn Header="Last Activity" Binding="{Binding LastActivityDate, StringFormat=d}" Width="100"/>
+                    <DataGridTextColumn Header="Balance" Binding="{Binding CurrentBalance, StringFormat=C}" Width="100"/>
+                    <DataGridTextColumn Header="Category" Binding="{Binding Category}" Width="140"/>
+                    <DataGridTextColumn Header="Established" Binding="{Binding DateEstablished, StringFormat=d}" Width="100"/>
                 </DataGrid.Columns>
             </DataGrid>
 
             <StackPanel Visibility="{Binding Metrics, Converter={StaticResource NullToVisibility}}" Margin="0,12,0,0">
                 <TextBlock Text="Revenue Cycle Metrics" FontWeight="Bold" Margin="0,0,0,4"/>
-                <TextBlock Text="{Binding Metrics.TotalAR, StringFormat='Total AR: {0:C}'}"/>
-                <TextBlock Text="{Binding Metrics.DaysInAR, StringFormat='Days in AR: {0:F1}'}"/>
+                <TextBlock Text="{Binding Metrics.TotalARBalance, StringFormat='Total AR: {0:C}'}"/>
+                <TextBlock Text="{Binding Metrics.AverageDaysOutstanding, StringFormat='Avg Days Outstanding: {0:F1}'}"/>
                 <TextBlock Text="{Binding Metrics.CollectionRate, StringFormat='Collection Rate: {0:P1}'}"/>
             </StackPanel>
         </StackPanel>

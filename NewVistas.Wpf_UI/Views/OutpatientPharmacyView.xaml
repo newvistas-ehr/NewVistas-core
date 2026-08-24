@@ -20,16 +20,16 @@ file, You can obtain one at https://mozilla.org/MPL/2.0/.
                              Visibility="{Binding IsLoading, Converter={StaticResource BoolToVisibility}}"/>
             </StackPanel>
 
-            <DataGrid ItemsSource="{Binding Prescriptions}" SelectedItem="{Binding SelectedPrescription}">
+            <DataGrid ItemsSource="{Binding Prescriptions}" SelectedItem="{Binding SelectedEntry}">
                 <DataGrid.Columns>
-                    <DataGridTextColumn Header="Rx #" Binding="{Binding PrescriptionNumber}" Width="100"/>
+                    <DataGridTextColumn Header="Rx #" Binding="{Binding PrescriptionId}" Width="100"/>
                     <DataGridTextColumn Header="Drug" Binding="{Binding DrugName}" Width="*"/>
-                    <DataGridTextColumn Header="Sig" Binding="{Binding Sig}" Width="180"/>
-                    <DataGridTextColumn Header="Qty" Binding="{Binding Quantity}" Width="60"/>
+                    <DataGridTextColumn Header="Dosage" Binding="{Binding Dosage}" Width="180"/>
+                    <DataGridTextColumn Header="Priority" Binding="{Binding Priority}" Width="80"/>
                     <DataGridTextColumn Header="Refills" Binding="{Binding RefillsRemaining}" Width="70"/>
                     <DataGridTextColumn Header="Status" Binding="{Binding Status}" Width="100"/>
-                    <DataGridTextColumn Header="Last Fill" Binding="{Binding LastFillDate, StringFormat=d}" Width="100"/>
-                    <DataGridTextColumn Header="Prescriber" Binding="{Binding PrescriberName}" Width="160"/>
+                    <DataGridTextColumn Header="Issued" Binding="{Binding IssueDate, StringFormat=d}" Width="100"/>
+                    <DataGridTextColumn Header="Prescriber" Binding="{Binding ProviderName}" Width="160"/>
                 </DataGrid.Columns>
             </DataGrid>
 
@@ -38,12 +38,28 @@ file, You can obtain one at https://mozilla.org/MPL/2.0/.
                 <Button Content="Fill Rx" Style="{StaticResource PrimaryButton}"
                         Command="{Binding FillRxCommand}" Margin="0,0,8,0"/>
                 <Button Content="Refill" Style="{StaticResource SecondaryButton}"
-                        Command="{Binding RefillCommand}" Margin="0,0,8,0"/>
+                        Command="{Binding RefillRxCommand}" Margin="0,0,8,0"/>
                 <Button Content="Hold" Style="{StaticResource SecondaryButton}"
-                        Command="{Binding HoldCommand}" Margin="0,0,8,0"/>
+                        Command="{Binding HoldRxCommand}" Margin="0,0,8,0"/>
                 <Button Content="Discontinue" Style="{StaticResource DangerButton}"
-                        Command="{Binding DiscontinueCommand}"/>
+                        Command="{Binding ShowDiscontinueCommand}"/>
             </StackPanel>
+
+            <Border Style="{StaticResource FormPanel}" Margin="0,8,0,0"
+                    Visibility="{Binding ShowDiscontinueForm, Converter={StaticResource BoolToVisibility}}">
+                <StackPanel>
+                    <TextBlock Style="{StaticResource SectionHeader}" Text="Discontinue Prescription"/>
+                    <TextBlock Style="{StaticResource FieldLabel}" Text="Reason"/>
+                    <TextBox Text="{Binding DiscontinueReason, UpdateSourceTrigger=PropertyChanged}"
+                             Width="400" HorizontalAlignment="Left"/>
+                    <Button Content="Confirm Discontinue" Style="{StaticResource DangerButton}"
+                            Command="{Binding ConfirmDiscontinueCommand}" Margin="0,12,0,0"
+                            HorizontalAlignment="Left"/>
+                </StackPanel>
+            </Border>
+
+            <TextBlock Text="{Binding ActionMessage}" Margin="0,8,0,0"
+                       Visibility="{Binding ActionMessage, Converter={StaticResource NullToVisibility}}"/>
         </StackPanel>
     </ScrollViewer>
 </UserControl>

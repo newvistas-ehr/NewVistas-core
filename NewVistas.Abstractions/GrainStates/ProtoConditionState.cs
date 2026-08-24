@@ -59,7 +59,27 @@ public enum ProtoFeatureOperator
     LessThan = 5,
     LessOrEqual = 6,
     /// <summary>Numeric value between <c>Value</c> and <c>Value2</c> inclusive (age band).</summary>
-    InRange = 7
+    InRange = 7,
+    /// <summary>
+    /// Lab result carries any abnormal flag, whatever the value. Lets a definition say
+    /// "abnormal" without restating a reference range per analyte — the laboratory has
+    /// already made that judgement and it is carried on the result.
+    /// </summary>
+    Abnormal = 8
+}
+
+/// <summary>How a proto-condition came into existence.</summary>
+public enum ProtoConditionOrigin
+{
+    /// <summary>Defined by hand by an epidemiologist.</summary>
+    HandDefined = 0,
+
+    /// <summary>
+    /// Drafted from a single patient's snapshot by a clinician who found that nothing matched.
+    /// A definition derived from one chart is over-fitted by construction, so a draft of this
+    /// origin carries that warning and must be edited before it can be activated.
+    /// </summary>
+    DraftedFromPatient = 1
 }
 
 /// <summary>Membership state of a patient within a proto-condition cluster.</summary>
@@ -304,4 +324,19 @@ public class ProtoConditionState
 
     /// <summary>Per-confirmed-member problem-list recode bookkeeping (populated at promotion).</summary>
     [Id(28)] public List<ProtoMigrationEntry> MigrationLog { get; set; } = new();
+
+    // ── Draft provenance (ADR-004 ↔ ADR-006) ────────────────────────────────
+
+    /// <summary>How this cluster came into existence. Default is the historical hand-defined path.</summary>
+    [Id(29)] public ProtoConditionOrigin Origin { get; set; }
+
+    /// <summary>
+    /// The patient whose snapshot seeded this draft, when <see cref="Origin"/> is
+    /// <see cref="ProtoConditionOrigin.DraftedFromPatient"/>. Present so a reviewer can see the
+    /// definition came from one chart and is therefore over-fitted until generalised.
+    /// </summary>
+    [Id(30)] public string? DraftedFromPatientId { get; set; }
+
+    /// <summary>When that snapshot was taken.</summary>
+    [Id(31)] public DateTime? DraftedFromSnapshotAt { get; set; }
 }

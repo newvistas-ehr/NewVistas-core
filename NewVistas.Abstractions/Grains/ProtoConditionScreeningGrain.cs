@@ -61,7 +61,8 @@ public class ProtoConditionScreeningGrain : Grain, IProtoConditionScreeningGrain
             {
                 Loinc = l.LoincCode,
                 Value = l.Value,
-                ResultedDate = l.ResultDate.UtcDateTime
+                ResultedDate = l.ResultDate.UtcDateTime,
+                AbnormalFlag = l.AbnormalFlag
             }).ToList(),
             Symptoms = symptoms
                 .GroupBy(o => o.Code)

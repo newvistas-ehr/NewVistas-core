@@ -59,6 +59,61 @@ public class VaProductIndexGrain : Grain, IVaProductIndexGrain
         await _state.WriteStateAsync();
     }
 
+    public async Task AddProductsAsync(List<VaProductIndexEntry> entries)
+    {
+        foreach (VaProductIndexEntry entry in entries)
+        {
+            // Upsert — drop the stale cross-references of a replaced entry first.
+            if (_state.State.ProductsByIen.TryGetValue(entry.Ien, out VaProductIndexEntry? previous))
+            {
+                foreach (string oldNdc in previous.NdcCodes)
+                {
+                    if (!string.IsNullOrEmpty(oldNdc) &&
+                        _state.State.IenByNdc.TryGetValue(oldNdc, out string? mappedIen) &&
+                        mappedIen == entry.Ien)
+                    {
+                        _state.State.IenByNdc.Remove(oldNdc);
+                    }
+                }
+
+                if (!string.IsNullOrEmpty(previous.VaGenericIen) &&
+                    previous.VaGenericIen != entry.VaGenericIen &&
+                    _state.State.IensByGenericIen.TryGetValue(previous.VaGenericIen, out List<string>? oldIens))
+                {
+                    oldIens.Remove(entry.Ien);
+                    if (oldIens.Count == 0)
+                        _state.State.IensByGenericIen.Remove(previous.VaGenericIen);
+                }
+            }
+
+            _state.State.ProductsByIen[entry.Ien] = entry;
+
+            foreach (string ndc in entry.NdcCodes)
+            {
+                if (!string.IsNullOrEmpty(ndc))
+                    _state.State.IenByNdc[ndc] = entry.Ien;
+            }
+
+            if (!string.IsNullOrEmpty(entry.VaGenericIen))
+            {
+                if (!_state.State.IensByGenericIen.TryGetValue(entry.VaGenericIen, out List<string>? iens))
+                {
+                    iens = new List<string>();
+                    _state.State.IensByGenericIen[entry.VaGenericIen] = iens;
+                }
+                if (!iens.Contains(entry.Ien))
+                    iens.Add(entry.Ien);
+            }
+        }
+
+        _state.State.TotalProducts = _state.State.ProductsByIen.Count;
+        _state.State.FormularyProducts = _state.State.ProductsByIen.Values.Count(e => e.FormularyIndicator);
+        _state.State.IsLoaded = _state.State.ProductsByIen.Count > 0;
+        _state.State.LastLoadedDate = DateTime.UtcNow;
+
+        await _state.WriteStateAsync();
+    }
+
     public Task<VaProductIndexEntry?> GetProductAsync(string ien)
     {
         _state.State.ProductsByIen.TryGetValue(ien, out VaProductIndexEntry? entry);

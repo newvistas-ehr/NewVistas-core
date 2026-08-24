@@ -95,6 +95,10 @@ public class ConsultGrain : Grain, IConsultGrain
 
     public async Task AcceptAsync()
     {
+        if (_state.State.Status is "COMPLETE" or "CANCELLED" or "DISCONTINUED")
+            throw new InvalidOperationException($"Cannot accept consult in {_state.State.Status} status.");
+        if (_state.State.Status == "ACTIVE") return; // idempotent: double-accept is a no-op
+
         _state.State.Status = "ACTIVE";
         _state.State.LastModifiedDate = DateTime.UtcNow;
         await _state.WriteStateAsync();
@@ -136,6 +140,10 @@ public class ConsultGrain : Grain, IConsultGrain
 
     public async Task CancelAsync(string? comments)
     {
+        if (_state.State.Status is "COMPLETE" or "DISCONTINUED")
+            throw new InvalidOperationException($"Cannot cancel consult in {_state.State.Status} status.");
+        if (_state.State.Status == "CANCELLED") return; // idempotent: preserve the original cancellation comments
+
         _state.State.Status = "CANCELLED";
         _state.State.Comments = comments;
         _state.State.LastModifiedDate = DateTime.UtcNow;
@@ -144,6 +152,10 @@ public class ConsultGrain : Grain, IConsultGrain
 
     public async Task DiscontinueAsync(string? comments)
     {
+        if (_state.State.Status is "COMPLETE" or "CANCELLED")
+            throw new InvalidOperationException($"Cannot discontinue consult in {_state.State.Status} status.");
+        if (_state.State.Status == "DISCONTINUED") return; // idempotent: preserve the original discontinuation comments
+
         _state.State.Status = "DISCONTINUED";
         _state.State.Comments = comments;
         _state.State.LastModifiedDate = DateTime.UtcNow;

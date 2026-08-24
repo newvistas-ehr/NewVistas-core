@@ -28,13 +28,13 @@ file, You can obtain one at https://mozilla.org/MPL/2.0/.
                 <StackPanel>
                     <TextBlock Style="{StaticResource SectionHeader}" Text="Request Consult"/>
                     <TextBlock Style="{StaticResource FieldLabel}" Text="Service"/>
-                    <TextBox Text="{Binding NewService, UpdateSourceTrigger=PropertyChanged}" Width="300" HorizontalAlignment="Left"/>
+                    <TextBox Text="{Binding ToService, UpdateSourceTrigger=PropertyChanged}" Width="300" HorizontalAlignment="Left"/>
                     <TextBlock Style="{StaticResource FieldLabel}" Text="Reason"/>
-                    <TextBox Text="{Binding NewReason, UpdateSourceTrigger=PropertyChanged}"
+                    <TextBox Text="{Binding ReasonForRequest, UpdateSourceTrigger=PropertyChanged}"
                              Width="400" HorizontalAlignment="Left" AcceptsReturn="True" Height="80"
                              VerticalScrollBarVisibility="Auto"/>
                     <TextBlock Style="{StaticResource FieldLabel}" Text="Urgency"/>
-                    <ComboBox ItemsSource="{Binding UrgencyOptions}" SelectedItem="{Binding NewUrgency}"
+                    <ComboBox ItemsSource="{Binding UrgencyOptions}" SelectedItem="{Binding Urgency}"
                               Width="160" HorizontalAlignment="Left"/>
                     <StackPanel Orientation="Horizontal" Margin="0,12,0,0">
                         <Button Content="Submit" Style="{StaticResource PrimaryButton}"
@@ -45,13 +45,13 @@ file, You can obtain one at https://mozilla.org/MPL/2.0/.
                 </StackPanel>
             </Border>
 
-            <DataGrid ItemsSource="{Binding Consults}" SelectedItem="{Binding SelectedConsult}">
+            <DataGrid ItemsSource="{Binding Consults}" SelectedItem="{Binding SelectedEntry}">
                 <DataGrid.Columns>
-                    <DataGridTextColumn Header="Service" Binding="{Binding ToServiceName}" Width="160"/>
-                    <DataGridTextColumn Header="Reason" Binding="{Binding Reason}" Width="*"/>
+                    <DataGridTextColumn Header="Service" Binding="{Binding ToService}" Width="160"/>
+                    <DataGridTextColumn Header="Provisional Dx" Binding="{Binding ProvisionalDiagnosis}" Width="*"/>
                     <DataGridTextColumn Header="Status" Binding="{Binding Status}" Width="100"/>
                     <DataGridTextColumn Header="Urgency" Binding="{Binding Urgency}" Width="90"/>
-                    <DataGridTextColumn Header="Date" Binding="{Binding RequestDate, StringFormat=d}" Width="100"/>
+                    <DataGridTextColumn Header="Date" Binding="{Binding RequestDateTime, StringFormat=d}" Width="100"/>
                 </DataGrid.Columns>
             </DataGrid>
 

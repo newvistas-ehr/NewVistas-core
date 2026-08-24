@@ -91,7 +91,13 @@ public class DiabetesRegistryWorkflowTests
         string icn = $"DM-PAT-{Guid.NewGuid():N}";
         await Workflow(icn).EnrollInDiabetesRegistryAsync("TYPE_2", new DateTime(2025, 1, 1));
 
-        DateTime visitDate = new(2026, 6, 1);
+        // Anchored to now, NOT a hardcoded date: this test reads the snapshot, and
+        // GetSnapshotAsync computes due/overdue against DateTime.UtcNow. With a fixed
+        // visit date the exam ages drifted with real time — the 14-month eye exam below
+        // silently crossed the 15-month "overdue" boundary on 2026-07-01 and the test
+        // began failing on its own. (The pre-visit-plan test is unaffected: it passes its
+        // visit date in explicitly.)
+        DateTime visitDate = DateTime.UtcNow;
         await Workflow(icn).RecordDiabetesFootExamAsync(visitDate.AddMonths(-3), "Dr. Begay");
         await Workflow(icn).RecordDiabetesEyeExamAsync(visitDate.AddMonths(-14), "Dr. Yazzie");  // 14mo → Due
         await Workflow(icn).RecordDiabetesAcrAsync(15m, visitDate.AddMonths(-18));               // 18mo → Overdue

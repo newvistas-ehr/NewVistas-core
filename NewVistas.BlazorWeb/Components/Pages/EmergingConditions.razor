@@ -228,6 +228,12 @@ one arrives. @(CanManage ? "" : "(Read-only — you don't hold the EPI MANAGER k
                                                 <button class="btn-sm" @onclick="() => Migrate(e.PatientId)">Recode</button>
                                                 <button class="btn-sm danger" @onclick="() => SkipMigrate(e.PatientId)">Skip</button>
                                             }
+                                            else if (e.Status == ProtoMigrationStatus.Skipped)
+                                            {
+                                                @* A mistaken Skip used to be a dead end — the buttons
+                                                   vanished and the patient could never be recoded. *@
+                                                <button class="btn-sm" @onclick="() => Reopen(e.PatientId)">Reopen</button>
+                                            }
                                         </td>
                                     }
                                 </tr>
@@ -244,8 +250,35 @@ one arrives. @(CanManage ? "" : "(Read-only — you don't hold the EPI MANAGER k
                         <input placeholder="ICD-10 (e.g. U07.1)" @bind="promIcd" />
                         <input placeholder="SNOMED (e.g. 840539006)" @bind="promSnomed" />
                         <input placeholder="Jurisdictions (comma)" @bind="promJuris" />
+                        @* Effective-from was hard-coded null, so UI promotions never set an onset
+                           date on the migrated problems even though the API accepts one. *@
+                        <label class="prom-label">Effective from (onset date for recoded problems)</label>
+                        <input type="date" @bind="promEffectiveFrom" />
                         <input placeholder="Notes" @bind="promNotes" />
-                        <button class="btn-primary" @onclick="Promote" disabled="@(string.IsNullOrWhiteSpace(promName))">Promote</button>
+
+                        @if (!promConfirming)
+                        {
+                            <button class="btn-primary" @onclick="() => promConfirming = true"
+                                    disabled="@(string.IsNullOrWhiteSpace(promName))">Promote…</button>
+                        }
+                        else
+                        {
+                            @* Two-step, because promotion cannot be undone: the definition freezes,
+                               candidates are expired, and there is no un-promote. It was one click. *@
+                            <div class="prom-confirm">
+                                <strong>This cannot be undone.</strong>
+                                Promoting freezes the definition permanently, expires every remaining
+                                candidate, and queues
+                                @(proto.Members.Count(m => m.Status == ProtoMemberStatus.Confirmed))
+                                confirmed member(s) for problem-list recoding. There is no un-promote.
+                                <div class="prom-confirm-actions">
+                                    <button class="btn" @onclick="() => promConfirming = false">Cancel</button>
+                                    <button class="btn-primary" @onclick="Promote">
+                                        Promote to @(string.IsNullOrWhiteSpace(promIcd) ? promName : promIcd)
+                                    </button>
+                                </div>
+                            </div>
+                        }
                     </fieldset>
                 }
                 else { <div class="empty-state">Promotion is available once the cluster is Active.</div> }
@@ -283,6 +316,9 @@ one arrives. @(CanManage ? "" : "(Read-only — you don't hold the EPI MANAGER k
     .chip { font-size: .72rem; padding: .05rem .35rem; border-radius: 8px; border: 1px solid #dde; }
     .chip.yes { background: #e6f6ec; } .chip.no { background: #f6eaea; } .chip.unk { background: #eef1f6; color: #889; }
     .suggestion { display: flex; justify-content: space-between; align-items: center; gap: 1rem; padding: .35rem 0; border-bottom: 1px dotted #e5e5ef; }
+    .prom-label { display: block; font-size: 0.78rem; color: #4b5563; margin: 0.5rem 0 0.2rem; }
+    .prom-confirm { margin-top: 0.8rem; padding: 0.7rem 0.85rem; border: 1px solid #d97706; background: #fffbeb; border-radius: 4px; font-size: 0.85rem; }
+    .prom-confirm-actions { display: flex; gap: 0.5rem; margin-top: 0.7rem; }
     .promote-form { border: 1px solid #dde; border-radius: 6px; padding: .75rem; display: flex; flex-direction: column; gap: .4rem; max-width: 30rem; }
     .mono { font-family: monospace; font-size: .8rem; color: #778; }
     .muted { color: #778; }
@@ -313,6 +349,8 @@ one arrives. @(CanManage ? "" : "(Read-only — you don't hold the EPI MANAGER k
     private string alertRecipients = "QM3";
     // promotion
     private string promName = "", promIcd = "", promSnomed = "", promNotes = "", promJuris = "US";
+    private DateTime? promEffectiveFrom;
+    private bool promConfirming;
 
     private bool CanManage => SecurityContext.HasKey("EPI MANAGER");
     private string Me => Grains.CurrentUserName ?? Grains.CurrentUserId ?? "web";
@@ -406,12 +444,22 @@ one arrives. @(CanManage ? "" : "(Read-only — you don't hold the EPI MANAGER k
         analytics = null;
     }, "Refinement applied — re-run the sweep to re-evaluate members.");
 
-    private Task Promote() => Run(() => P.PromoteAsync(promName,
-        promIcd.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).ToList(),
-        string.IsNullOrWhiteSpace(promSnomed) ? null : promSnomed, null,
-        promJuris.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).ToList(),
-        promNotes, Me), "Promoted — the definition is frozen and an eCR trigger was emitted.");
+    private async Task Promote()
+    {
+        promConfirming = false;
+        await Run(() => P.PromoteAsync(promName,
+            promIcd.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).ToList(),
+            string.IsNullOrWhiteSpace(promSnomed) ? null : promSnomed,
+            promEffectiveFrom,
+            promJuris.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).ToList(),
+            promNotes, Me), "Promoted — the definition is frozen and an eCR trigger was emitted.");
+    }
 
     private Task Migrate(string pid) => Run(() => Grains.GetGrain<IPatientWorkflowGrain>(pid).MigratePromotedProtoProblemAsync(ProtoId!, Me), $"{pid} recoded.");
     private Task SkipMigrate(string pid) => Run(() => Grains.GetGrain<IPatientWorkflowGrain>(pid).SkipMemberMigrationAsync(ProtoId!, "declined", Me), $"{pid} skipped.");
+
+    /// <summary>Puts a skipped member back on the worklist so a mistaken Skip is recoverable.</summary>
+    private Task Reopen(string pid) => Run(
+        () => P.RecordMigrationAsync(pid, ProtoMigrationStatus.Pending, null, "reopened for review", Me),
+        $"{pid} reopened for recoding.");
 }

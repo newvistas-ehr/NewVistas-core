@@ -80,6 +80,19 @@
                 }
             </tbody>
         </table>
+
+        @if (signOrderId is not null)
+        {
+            <div class="esig-panel">
+                <strong>Electronic signature required</strong>
+                <span class="esig-hint">Enter your signature code to sign order @signOrderId.</span>
+                <input type="password" @bind="signCode" placeholder="Signature code" class="esig-input" />
+                <button class="btn-sm btn-sign" disabled="@signSubmitting" @onclick="ConfirmSignOrder">
+                    @(signSubmitting ? "Verifying..." : "Sign order")
+                </button>
+                <button class="btn-sm" disabled="@signSubmitting" @onclick="CancelSignOrder">Cancel</button>
+            </div>
+        }
     }
 }
 
@@ -380,9 +393,32 @@
         catch (Exception ex) { error = ex.Message; }
     }
 
-    private async Task SignOrder(string orderId)
+    // ── Order signing: collect the real e-signature code; the workflow grain verifies it
+    //    against the signed-in caller's stored hash. (This used to send a random placeholder
+    //    string, which the old grain happily stored as the legal attestation.)
+    private string? signOrderId;
+    private string signCode = "";
+    private bool signSubmitting;
+
+    private void SignOrder(string orderId)
     {
-        await OrderAction(async (grain) => await grain.SignOrderAsync(orderId, "ESIG-" + Guid.NewGuid().ToString("N")[..8]), "sign");
+        signOrderId = orderId; signCode = ""; error = null; successMsg = null;
+    }
+
+    private void CancelSignOrder() { signOrderId = null; signCode = ""; }
+
+    private async Task ConfirmSignOrder()
+    {
+        if (signSubmitting || signOrderId is null) return;
+        if (string.IsNullOrWhiteSpace(signCode)) { error = "Electronic signature code is required."; return; }
+        signSubmitting = true;
+        string orderId = signOrderId;
+        try
+        {
+            await OrderAction(async (grain) => await grain.SignOrderAsync(orderId, signCode), "sign");
+            if (error is null) { signOrderId = null; signCode = ""; }
+        }
+        finally { signSubmitting = false; }
     }
     private async Task HoldOrder(string orderId)
     {
@@ -545,4 +581,7 @@
     .set-detail { margin-top: 1rem; }
     .history-filters { display: flex; flex-wrap: wrap; gap: 0.75rem; align-items: flex-end; margin-bottom: 1rem; }
     .history-result-count { font-size: 0.8rem; color: #666; margin-bottom: 0.5rem; font-style: italic; }
+    .esig-panel { margin-top: .75rem; padding: .6rem .9rem; border: 1px solid #b9c8da; border-left: 3px solid #003f72; border-radius: 4px; background: #fbfcfd; display: flex; gap: .6rem; align-items: center; flex-wrap: wrap; font-size: .85rem; }
+    .esig-hint { color: #6b7280; }
+    .esig-input { padding: .35rem .55rem; border: 1px solid #ccc; border-radius: 4px; font-size: .85rem; min-width: 180px; }
 </style>

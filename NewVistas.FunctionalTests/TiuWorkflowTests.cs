@@ -226,7 +226,7 @@ public class TiuWorkflowTests
             "PROV-001", "Dr. Adams",
             null, null, null, null, null, DateTime.UtcNow);
 
-        await w.SignNoteAsync(id);
+        await w.SignNoteAsSystemAsync(id);
 
         TiuDocumentState state = await GetDocument(id).GetDocumentAsync();
         Assert.That(state.Status, Is.EqualTo("COMPLETED"));
@@ -246,7 +246,7 @@ public class TiuWorkflowTests
             "PROV-001", "Dr. Attending",
             null, null, null, DateTime.UtcNow);
 
-        await w.SignNoteAsync(id);
+        await w.SignNoteAsSystemAsync(id);
 
         TiuDocumentState state = await GetDocument(id).GetDocumentAsync();
         Assert.That(state.Status, Is.EqualTo("UNCOSIGNED"));
@@ -266,8 +266,8 @@ public class TiuWorkflowTests
             "PROV-001", "Dr. Attending",
             null, null, null, DateTime.UtcNow);
 
-        await w.SignNoteAsync(id);
-        await w.CosignNoteAsync(id);
+        await w.SignNoteAsSystemAsync(id);
+        await w.CosignNoteAsSystemAsync(id);
 
         TiuDocumentState state = await GetDocument(id).GetDocumentAsync();
         Assert.That(state.Status, Is.EqualTo("COMPLETED"));
@@ -288,7 +288,7 @@ public class TiuWorkflowTests
             "PROV-001", "Dr. Adams",
             null, null, null, null, null, DateTime.UtcNow.AddHours(-3));
 
-        await w.SignNoteAsync(parentId);
+        await w.SignNoteAsSystemAsync(parentId);
 
         string addendumId = await w.AddAddendumAsync(
             parentId,
@@ -317,7 +317,7 @@ public class TiuWorkflowTests
             "PROV-001", "Dr. Adams",
             null, null, null, null, null, DateTime.UtcNow);
 
-        await w.SignNoteAsync(parentId);
+        await w.SignNoteAsSystemAsync(parentId);
 
         string addendumId = await w.AddAddendumAsync(
             parentId,
@@ -403,7 +403,7 @@ public class TiuWorkflowTests
         List<TiuNoteSummary> before = await w.GetRecentNotesAsync();
         Assert.That(before[0].Status, Is.EqualTo("UNSIGNED"));
 
-        await w.SignNoteAsync(id);
+        await w.SignNoteAsSystemAsync(id);
 
         // After signing, cache should reflect updated status
         List<TiuNoteSummary> after = await w.GetRecentNotesAsync();
@@ -531,7 +531,7 @@ public class TiuWorkflowTests
             "PROV-001", "Dr. Adams",
             null, null, null, null, null, DateTime.UtcNow);
 
-        await w.SignNoteAsync(id);
+        await w.SignNoteAsSystemAsync(id);
 
         await w.AmendNoteAsync(id, "AMENDMENT: Lab values reviewed — potassium corrected to 4.2.");
 

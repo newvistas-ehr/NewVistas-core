@@ -1,4 +1,4 @@
-// Copyright 2026 Merrimack Valley Software Works, LLC. All rights reserved.
+﻿// Copyright 2026 Merrimack Valley Software Works, LLC. All rights reserved.
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
@@ -31,7 +31,7 @@ public class FinancialViewModelTests : ViewModelTestBase
         MockGrainFactory.GetGrain<IEdiTransmissionIndexGrain>(Arg.Any<string>(), Arg.Any<string?>()).Returns(mockTxIdx);
         MockGrainFactory.GetGrain<IEraIndexGrain>(Arg.Any<string>(), Arg.Any<string?>()).Returns(mockEraIdx);
 
-        var vm = new EdiBillingViewModel(ApiClient, GrainService) { PatientId = "P1" };
+        var vm = new EdiBillingViewModel(GrainService) { PatientId = "P1" };
         await vm.LoadClaimsCommand.ExecuteAsync(null);
 
         Assert.That(vm.Claims, Has.Count.EqualTo(1));
@@ -47,7 +47,7 @@ public class FinancialViewModelTests : ViewModelTestBase
         MockGrainFactory.GetGrain<IEdiTransmissionIndexGrain>(Arg.Any<string>(), Arg.Any<string?>()).Returns(mockTxIdx);
         MockGrainFactory.GetGrain<IEraIndexGrain>(Arg.Any<string>(), Arg.Any<string?>()).Returns(mockEraIdx);
 
-        var vm = new EdiBillingViewModel(ApiClient, GrainService) { PatientId = "" };
+        var vm = new EdiBillingViewModel(GrainService) { PatientId = "" };
         await vm.LoadClaimsCommand.ExecuteAsync(null);
 
         Assert.That(vm.Claims, Has.Count.EqualTo(0));
@@ -63,7 +63,7 @@ public class FinancialViewModelTests : ViewModelTestBase
         MockGrainFactory.GetGrain<IEdiTransmissionIndexGrain>(Arg.Any<string>(), Arg.Any<string?>()).Returns(mockTxIdx);
         MockGrainFactory.GetGrain<IEraIndexGrain>(Arg.Any<string>(), Arg.Any<string?>()).Returns(mockEraIdx);
 
-        var vm = new EdiBillingViewModel(ApiClient, GrainService);
+        var vm = new EdiBillingViewModel(GrainService);
         await vm.RefreshTransmissionsCommand.ExecuteAsync(null);
 
         Assert.That(vm.Transmissions, Has.Count.EqualTo(1));
@@ -88,7 +88,7 @@ public class FinancialViewModelTests : ViewModelTestBase
         MockGrainFactory.GetGrain<IFeeInvoiceIndexGrain>(Arg.Any<string>(), Arg.Any<string?>()).Returns(mockInvIdx);
         MockGrainFactory.GetGrain<IFeeVendorIndexGrain>(Arg.Any<string>(), Arg.Any<string?>()).Returns(mockVendorIdx);
 
-        var vm = new FeeBasisViewModel(ApiClient, GrainService) { PatientId = "P1" };
+        var vm = new FeeBasisViewModel(GrainService) { PatientId = "P1" };
         await vm.LoadCommand.ExecuteAsync(null);
 
         Assert.That(vm.FeePatient, Is.Not.Null);
@@ -103,7 +103,7 @@ public class FinancialViewModelTests : ViewModelTestBase
         mockVendorIdx.GetAllAsync().Returns(new List<FeeVendorIndexEntry>());
         MockGrainFactory.GetGrain<IFeeVendorIndexGrain>(Arg.Any<string>(), Arg.Any<string?>()).Returns(mockVendorIdx);
 
-        var vm = new FeeBasisViewModel(ApiClient, GrainService) { PatientId = "" };
+        var vm = new FeeBasisViewModel(GrainService) { PatientId = "" };
         await vm.LoadCommand.ExecuteAsync(null);
 
         Assert.That(vm.Loaded, Is.False);
@@ -127,7 +127,7 @@ public class FinancialViewModelTests : ViewModelTestBase
         MockGrainFactory.GetGrain<IPurchaseOrderIndexGrain>(Arg.Any<string>(), Arg.Any<string?>()).Returns(mockPoIdx);
         MockGrainFactory.GetGrain<IIfcapVendorIndexGrain>(Arg.Any<string>(), Arg.Any<string?>()).Returns(mockVendorIdx);
 
-        var vm = new IfcapViewModel(ApiClient, GrainService);
+        var vm = new IfcapViewModel(GrainService);
         await vm.LoadControlPointsCommand.ExecuteAsync(null);
 
         Assert.That(vm.ControlPoints, Has.Count.EqualTo(1));
@@ -151,7 +151,7 @@ public class FinancialViewModelTests : ViewModelTestBase
         MockGrainFactory.GetGrain<IPersonalPolicyIndexGrain>(Arg.Any<string>(), Arg.Any<string?>()).Returns(mockPolicyIdx);
         MockGrainFactory.GetGrain<IMeansTestBillingClockGrain>(Arg.Any<string>(), Arg.Any<string?>()).Returns(mockClock);
 
-        var vm = new IntegratedBillingViewModel(ApiClient, GrainService) { PatientId = "P1" };
+        var vm = new IntegratedBillingViewModel(GrainService) { PatientId = "P1" };
         await vm.LoadCommand.ExecuteAsync(null);
 
         Assert.That(vm.CopayAccount, Is.Not.Null);
@@ -168,7 +168,7 @@ public class FinancialViewModelTests : ViewModelTestBase
         mockIndex.GetAllAssignmentsAsync().Returns(new List<DrgAssignmentEntry> { new() });
         MockGrainFactory.GetGrain<IDrgIndexGrain>(Arg.Any<string>(), Arg.Any<string?>()).Returns(mockIndex);
 
-        var vm = new DrgGrouperViewModel(ApiClient, GrainService);
+        var vm = new DrgGrouperViewModel(GrainService);
         await vm.LoadCommand.ExecuteAsync(null);
 
         Assert.That(vm.Assignments, Has.Count.EqualTo(1));
@@ -183,7 +183,7 @@ public class FinancialViewModelTests : ViewModelTestBase
         MockGrainFactory.GetGrain<IDrgIndexGrain>(Arg.Any<string>(), Arg.Any<string?>()).Returns(mockIndex);
         MockGrainFactory.GetGrain<IDrgAssignmentGrain>(Arg.Any<string>(), Arg.Any<string?>()).Returns(mockGrain);
 
-        var vm = new DrgGrouperViewModel(ApiClient, GrainService);
+        var vm = new DrgGrouperViewModel(GrainService);
         vm.SelectedAssignment = new DrgAssignmentEntry { AdmissionId = "ADM1" };
         await vm.ReviewCommand.ExecuteAsync(null);
 

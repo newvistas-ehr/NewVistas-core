@@ -27,10 +27,10 @@ file, You can obtain one at https://mozilla.org/MPL/2.0/.
                 <StackPanel>
                     <TextBlock Style="{StaticResource SectionHeader}" Text="Schedule Appointment"/>
                     <TextBlock Style="{StaticResource FieldLabel}" Text="Clinic"/>
-                    <ComboBox ItemsSource="{Binding Clinics}" DisplayMemberPath="ClinicName"
+                    <ComboBox ItemsSource="{Binding Clinics}" DisplayMemberPath="Name"
                               SelectedItem="{Binding SelectedClinic}" Width="300" HorizontalAlignment="Left"/>
                     <TextBlock Style="{StaticResource FieldLabel}" Text="Appointment Date/Time"/>
-                    <DatePicker SelectedDate="{Binding AppointmentDate}" Width="200" HorizontalAlignment="Left"/>
+                    <DatePicker SelectedDate="{Binding AppointmentDateTime}" Width="200" HorizontalAlignment="Left"/>
                     <TextBlock Style="{StaticResource FieldLabel}" Text="Appointment Type"/>
                     <ComboBox ItemsSource="{Binding AppointmentTypeOptions}" SelectedItem="{Binding AppointmentType}"
                               Width="200" HorizontalAlignment="Left"/>

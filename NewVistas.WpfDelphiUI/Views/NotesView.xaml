@@ -73,6 +73,9 @@ file, You can obtain one at https://mozilla.org/MPL/2.0/.
                     </TextBlock>
                     <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" HorizontalAlignment="Right"
                                 Visibility="{Binding SelectedNote, Converter={StaticResource NullToVis}}">
+                        <TextBlock Text="Sig Code:" VerticalAlignment="Center" Margin="0,0,4,0"/>
+                        <PasswordBox x:Name="EsigCodeBox" Width="120" VerticalAlignment="Center" Margin="0,0,4,0"
+                                     PasswordChanged="EsigCodeBox_PasswordChanged"/>
                         <Button Content="Sign Note" Margin="4,0" Padding="8,2"
                                 Command="{Binding SignNoteCommand}"/>
                     </StackPanel>

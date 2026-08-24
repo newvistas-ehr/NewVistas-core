@@ -81,7 +81,7 @@ public class OrdersWorkflowTests
     {
         IPatientWorkflowGrain wf = NewWorkflow();
         string orderId = await PlaceStandardOrderAsync(wf);
-        await wf.SignOrderAsync(orderId, "ADAMS.JOHN.M.D.12345");
+        await wf.SignOrderAsSystemAsync(orderId, "ADAMS.JOHN.M.D.12345");
         List<OrderSummary> orders = await wf.GetOrdersByFilterAsync(0);
         OrderSummary entry = orders.Single(o => o.OrderId == orderId);
         Assert.That(entry.Status, Is.Not.EqualTo("Pending"));
@@ -92,7 +92,7 @@ public class OrdersWorkflowTests
     {
         IPatientWorkflowGrain wf = NewWorkflow();
         string orderId = await PlaceStandardOrderAsync(wf);
-        await wf.SignOrderAsync(orderId, "ADAMS.JOHN.M.D.12345");
+        await wf.SignOrderAsSystemAsync(orderId, "ADAMS.JOHN.M.D.12345");
         await wf.DiscontinueOrderAsync(orderId, "No longer clinically indicated");
         List<OrderSummary> orders = await wf.GetOrdersByFilterAsync(0);
         OrderSummary entry = orders.Single(o => o.OrderId == orderId);
@@ -104,7 +104,7 @@ public class OrdersWorkflowTests
     {
         IPatientWorkflowGrain wf = NewWorkflow();
         string orderId = await PlaceStandardOrderAsync(wf);
-        await wf.SignOrderAsync(orderId, "ADAMS.JOHN.M.D.12345");
+        await wf.SignOrderAsSystemAsync(orderId, "ADAMS.JOHN.M.D.12345");
         await wf.HoldOrderAsync(orderId);
         List<OrderSummary> orders = await wf.GetOrdersByFilterAsync(0);
         OrderSummary entry = orders.Single(o => o.OrderId == orderId);
@@ -116,7 +116,7 @@ public class OrdersWorkflowTests
     {
         IPatientWorkflowGrain wf = NewWorkflow();
         string orderId = await PlaceStandardOrderAsync(wf);
-        await wf.SignOrderAsync(orderId, "ADAMS.JOHN.M.D.12345");
+        await wf.SignOrderAsSystemAsync(orderId, "ADAMS.JOHN.M.D.12345");
         await wf.HoldOrderAsync(orderId);
         await wf.ReleaseOrderAsync(orderId);
         List<OrderSummary> orders = await wf.GetOrdersByFilterAsync(0);
@@ -168,7 +168,7 @@ public class OrdersWorkflowTests
     {
         IPatientWorkflowGrain wf = NewWorkflow();
         string orderId = await PlaceStandardOrderAsync(wf);
-        await wf.SignOrderAsync(orderId, "ADAMS.JOHN.M.D.12345");
+        await wf.SignOrderAsSystemAsync(orderId, "ADAMS.JOHN.M.D.12345");
         DateTime newStop = DateTime.UtcNow.AddDays(30);
         await wf.RenewOrderAsync(orderId, "PROV-001", newStop);
         OrderState detail = await wf.GetOrderDetailAsync(orderId);
@@ -182,7 +182,7 @@ public class OrdersWorkflowTests
     {
         IPatientWorkflowGrain wf = NewWorkflow();
         string orderId = await PlaceStandardOrderAsync(wf);
-        await wf.SignOrderAsync(orderId, "ADAMS.JOHN.M.D.12345");
+        await wf.SignOrderAsSystemAsync(orderId, "ADAMS.JOHN.M.D.12345");
         await wf.VerifyOrderAsync(orderId, "NURSE-001");
         OrderState detail = await wf.GetOrderDetailAsync(orderId);
         Assert.That(detail.NurseVerifiedBy, Is.EqualTo("NURSE-001"));
@@ -196,7 +196,7 @@ public class OrdersWorkflowTests
     {
         IPatientWorkflowGrain wf = NewWorkflow();
         await PlaceStandardOrderAsync(wf, orderType: "Lab", orderText: "CBC WITH DIFFERENTIAL");
-        await wf.SignOrderAsync(
+        await wf.SignOrderAsSystemAsync(
             (await wf.GetOrdersByFilterAsync(0)).First().OrderId, "ESIG-001");
 
         List<OrderCheckResult> checks = await wf.CheckOrderAsync("Lab", "CBC WITH DIFFERENTIAL", null);
@@ -286,7 +286,7 @@ public class OrdersWorkflowTests
 
         string orderId = await w.PlaceOrderAsync("Lab", "LIPID PANEL", null, "PROV-1", "Dr. Adams",
             null, null, "ROUTINE", null, null);
-        await w.SignOrderAsync(orderId, "ADAMS.JOHN.M.D.12345");
+        await w.SignOrderAsSystemAsync(orderId, "ADAMS.JOHN.M.D.12345");
 
         List<OrderIndexEntry> entries = await GetOrderIndex(patientId).GetAllEntriesAsync();
         OrderIndexEntry entry = entries.Single(e => e.OrderGrainKey == orderId);
@@ -302,7 +302,7 @@ public class OrdersWorkflowTests
 
         string orderId = await w.PlaceOrderAsync("Pharmacy", "ASPIRIN", null, "PROV-1", "Dr. Adams",
             null, null, "ROUTINE", null, null);
-        await w.SignOrderAsync(orderId, "ESIG");
+        await w.SignOrderAsSystemAsync(orderId, "ESIG");
         await w.DiscontinueOrderAsync(orderId, "No longer needed");
 
         List<OrderIndexEntry> entries = await GetOrderIndex(patientId).GetAllEntriesAsync();
@@ -322,8 +322,8 @@ public class OrdersWorkflowTests
             null, null, "ROUTINE", null, null);
 
         // Sign both, then discontinue one
-        await w.SignOrderAsync(id1, "ESIG");
-        await w.SignOrderAsync(id2, "ESIG");
+        await w.SignOrderAsSystemAsync(id1, "ESIG");
+        await w.SignOrderAsSystemAsync(id2, "ESIG");
         await w.DiscontinueOrderAsync(id1, "Completed");
 
         // Filter 2 = Current (Active/Pending/Hold)

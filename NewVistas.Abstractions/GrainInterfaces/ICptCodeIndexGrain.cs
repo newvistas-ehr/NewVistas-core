@@ -25,9 +25,20 @@ public interface ICptCodeIndexGrain : IGrainWithStringKey
 
     /// <summary>
     /// Bulk-loads CPT code entries into the index.
-    /// Replaces any previously loaded entries.
+    /// FULL REPLACE: clears the index first, then loads the given entries.
+    /// Only safe for single-shot loads of a complete code set — batched
+    /// imports must use <see cref="AddCodesAsync"/> instead.
     /// </summary>
     Task LoadCodesAsync(List<GrainStates.CptCodeIndexEntry> entries);
+
+    /// <summary>
+    /// Batch-safe additive upsert: merges entries into the index by code,
+    /// never clearing existing entries. IsLoaded/TotalCodes/ActiveCodes are
+    /// recomputed from the resulting dictionary so repeated imports stay
+    /// correct. Used by ReferenceDataImportService, which clears once at
+    /// the start of an import and then flushes each batch through this.
+    /// </summary>
+    Task AddCodesAsync(List<GrainStates.CptCodeIndexEntry> entries);
 
     /// <summary>
     /// Looks up a single code. Returns null if not found.

@@ -27,13 +27,13 @@ file, You can obtain one at https://mozilla.org/MPL/2.0/.
                 <StackPanel>
                     <TextBlock Style="{StaticResource SectionHeader}" Text="Record Service-Connected Condition"/>
                     <TextBlock Style="{StaticResource FieldLabel}" Text="Condition Name"/>
-                    <TextBox Text="{Binding ConditionName, UpdateSourceTrigger=PropertyChanged}" Width="400" HorizontalAlignment="Left"/>
+                    <TextBox Text="{Binding Condition, UpdateSourceTrigger=PropertyChanged}" Width="400" HorizontalAlignment="Left"/>
                     <TextBlock Style="{StaticResource FieldLabel}" Text="ICD-10 Code"/>
-                    <TextBox Text="{Binding IcdCode, UpdateSourceTrigger=PropertyChanged}" Width="120" HorizontalAlignment="Left"/>
+                    <TextBox Text="{Binding DiagnosisCode, UpdateSourceTrigger=PropertyChanged}" Width="120" HorizontalAlignment="Left"/>
                     <TextBlock Style="{StaticResource FieldLabel}" Text="Disability Rating (%)"/>
-                    <TextBox Text="{Binding DisabilityRating, UpdateSourceTrigger=PropertyChanged}" Width="100" HorizontalAlignment="Left"/>
-                    <TextBlock Style="{StaticResource FieldLabel}" Text="Decision Date"/>
-                    <DatePicker SelectedDate="{Binding DecisionDate}" Width="200" HorizontalAlignment="Left"/>
+                    <TextBox Text="{Binding DisabilityPercentage, UpdateSourceTrigger=PropertyChanged}" Width="100" HorizontalAlignment="Left"/>
+                    <TextBlock Style="{StaticResource FieldLabel}" Text="Effective Date"/>
+                    <DatePicker SelectedDate="{Binding EffectiveDate}" Width="200" HorizontalAlignment="Left"/>
                     <StackPanel Orientation="Horizontal" Margin="0,12,0,0">
                         <Button Content="Save" Style="{StaticResource PrimaryButton}"
                                 Command="{Binding RecordConditionCommand}" Margin="0,0,8,0"/>
@@ -45,12 +45,11 @@ file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
             <DataGrid ItemsSource="{Binding Conditions}">
                 <DataGrid.Columns>
-                    <DataGridTextColumn Header="Condition" Binding="{Binding ConditionName}" Width="*"/>
-                    <DataGridTextColumn Header="ICD-10" Binding="{Binding IcdCode}" Width="90"/>
-                    <DataGridTextColumn Header="Rating %" Binding="{Binding DisabilityRating}" Width="90"/>
+                    <DataGridTextColumn Header="Condition" Binding="{Binding Condition}" Width="*"/>
+                    <DataGridTextColumn Header="ICD-10" Binding="{Binding DiagnosisCode}" Width="90"/>
+                    <DataGridTextColumn Header="Rating %" Binding="{Binding DisabilityPercentage}" Width="90"/>
                     <DataGridTextColumn Header="Status" Binding="{Binding Status}" Width="100"/>
-                    <DataGridTextColumn Header="Decision Date" Binding="{Binding DecisionDate, StringFormat=d}" Width="120"/>
-                    <DataGridTextColumn Header="Effective Date" Binding="{Binding EffectiveDate, StringFormat=d}" Width="120"/>
+                    <DataGridCheckBoxColumn Header="Svc Connected" Binding="{Binding IsServiceConnected}" Width="120"/>
                 </DataGrid.Columns>
             </DataGrid>
         </StackPanel>

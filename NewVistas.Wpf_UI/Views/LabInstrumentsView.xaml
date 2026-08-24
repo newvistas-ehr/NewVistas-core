@@ -35,56 +35,35 @@ file, You can obtain one at https://mozilla.org/MPL/2.0/.
             <StackPanel Orientation="Horizontal" Margin="0,8,0,0"
                         Visibility="{Binding SelectedInstrument, Converter={StaticResource NullToVisibility}}">
                 <Button Content="View Detail" Style="{StaticResource SecondaryButton}"
-                        Command="{Binding LoadDetailCommand}" Margin="0,0,8,0"/>
-                <Button Content="View Queue" Style="{StaticResource SecondaryButton}"
-                        Command="{Binding LoadQueueCommand}"/>
+                        Command="{Binding LoadDetailCommand}"/>
             </StackPanel>
 
             <!-- Detail Panel -->
             <Border Style="{StaticResource FormPanel}"
-                    Visibility="{Binding Detail, Converter={StaticResource NullToVisibility}}" Margin="0,12,0,0">
+                    Visibility="{Binding SelectedInstrument, Converter={StaticResource NullToVisibility}}" Margin="0,12,0,0">
                 <StackPanel>
                     <TextBlock Style="{StaticResource SectionHeader}" Text="Instrument Detail"/>
                     <StackPanel Orientation="Horizontal" Margin="0,4,0,4">
                         <TextBlock Style="{StaticResource FieldLabel}" Text="Name: " Margin="0,0,4,0"/>
-                        <TextBlock Text="{Binding Detail.Name}" FontWeight="SemiBold" Margin="0,0,16,0"/>
+                        <TextBlock Text="{Binding SelectedInstrument.Name}" FontWeight="SemiBold" Margin="0,0,16,0"/>
                         <TextBlock Style="{StaticResource FieldLabel}" Text="Model: " Margin="0,0,4,0"/>
-                        <TextBlock Text="{Binding Detail.Model}" FontWeight="SemiBold"/>
+                        <TextBlock Text="{Binding SelectedInstrument.Model}" FontWeight="SemiBold"/>
                     </StackPanel>
                     <StackPanel Orientation="Horizontal" Margin="0,4,0,4">
                         <TextBlock Style="{StaticResource FieldLabel}" Text="TCP: " Margin="0,0,4,0"/>
-                        <TextBlock Text="{Binding Detail.TcpHost}" Margin="0,0,4,0"/>
+                        <TextBlock Text="{Binding SelectedInstrument.TcpHost}" Margin="0,0,4,0"/>
                         <TextBlock Text=":" Margin="0,0,4,0"/>
-                        <TextBlock Text="{Binding Detail.TcpPort}" Margin="0,0,16,0"/>
+                        <TextBlock Text="{Binding SelectedInstrument.TcpPort}" Margin="0,0,16,0"/>
                         <TextBlock Style="{StaticResource FieldLabel}" Text="HL7: " Margin="0,0,4,0"/>
-                        <TextBlock Text="{Binding Detail.Hl7Version}"/>
+                        <TextBlock Text="{Binding SelectedInstrument.HL7Version}"/>
                     </StackPanel>
                 </StackPanel>
             </Border>
 
-            <!-- Message Queue -->
-            <TextBlock Style="{StaticResource SectionHeader}" Text="Message Queue" Margin="0,12,0,0"/>
-            <DataGrid ItemsSource="{Binding Messages}" AutoGenerateColumns="False" MaxHeight="200">
-                <DataGrid.Columns>
-                    <DataGridTextColumn Header="Message ID" Binding="{Binding MessageId}" Width="200"/>
-                    <DataGridTextColumn Header="Type" Binding="{Binding MessageType}" Width="120"/>
-                    <DataGridTextColumn Header="Received" Binding="{Binding ReceivedDate}" Width="160"/>
-                    <DataGridTextColumn Header="Status" Binding="{Binding Status}" Width="*"/>
-                </DataGrid.Columns>
-            </DataGrid>
-
-            <!-- Inject HL7 Message -->
-            <Border Style="{StaticResource FormPanel}" Margin="0,12,0,0"
-                    Visibility="{Binding SelectedInstrument, Converter={StaticResource NullToVisibility}}">
-                <StackPanel>
-                    <TextBlock Style="{StaticResource SectionHeader}" Text="Inject HL7 Message"/>
-                    <TextBox Text="{Binding Hl7Message, UpdateSourceTrigger=PropertyChanged}"
-                             AcceptsReturn="True" Height="80" TextWrapping="Wrap"
-                             FontFamily="Courier New" FontSize="11"/>
-                    <Button Content="Inject &amp; Process" Style="{StaticResource PrimaryButton}"
-                            Command="{Binding InjectMessageCommand}" Margin="0,8,0,0" HorizontalAlignment="Left"/>
-                </StackPanel>
-            </Border>
+            <!-- The message-queue and HL7-injection panels were removed: the ViewModel and
+                 IAutoInstrumentGrain model no queue read or injection (only counters), so the
+                 panels were permanently dead controls copied from another project. Restore them
+                 only together with real queue/injection support. -->
         </StackPanel>
     </ScrollViewer>
 </UserControl>

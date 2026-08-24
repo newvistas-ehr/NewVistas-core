@@ -23,16 +23,16 @@ file, You can obtain one at https://mozilla.org/MPL/2.0/.
                 <DataGrid.Columns>
                     <DataGridTextColumn Header="Primary Site" Binding="{Binding PrimarySite}" Width="*"/>
                     <DataGridTextColumn Header="Histology" Binding="{Binding Histology}" Width="*"/>
-                    <DataGridTextColumn Header="Stage" Binding="{Binding Stage}" Width="100"/>
+                    <DataGridTextColumn Header="Stage" Binding="{Binding StageGroup}" Width="100"/>
                     <DataGridTextColumn Header="Status" Binding="{Binding Status}" Width="120"/>
-                    <DataGridTextColumn Header="Diagnosis Date" Binding="{Binding DiagnosisDate, StringFormat=d}" Width="120"/>
+                    <DataGridTextColumn Header="Diagnosis Date" Binding="{Binding DateOfDiagnosis, StringFormat=d}" Width="120"/>
                 </DataGrid.Columns>
             </DataGrid>
             <TextBlock Style="{StaticResource SectionHeader}" Text="Treatments" Margin="0,12,0,0"/>
             <DataGrid ItemsSource="{Binding Treatments}" AutoGenerateColumns="False" MaxHeight="200">
                 <DataGrid.Columns>
                     <DataGridTextColumn Header="Type" Binding="{Binding TreatmentType}" Width="140"/>
-                    <DataGridTextColumn Header="Regimen" Binding="{Binding Regimen}" Width="*"/>
+                    <DataGridTextColumn Header="Agent / Regimen" Binding="{Binding AgentName}" Width="*"/>
                     <DataGridTextColumn Header="Status" Binding="{Binding Status}" Width="110"/>
                     <DataGridTextColumn Header="Start" Binding="{Binding StartDate, StringFormat=d}" Width="110"/>
                 </DataGrid.Columns>

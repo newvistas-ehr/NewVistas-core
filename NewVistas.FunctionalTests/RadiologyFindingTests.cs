@@ -167,4 +167,99 @@ public class RadiologyFindingExtractionGrainTests
         Assert.That(f.RejectionReason, Is.EqualTo("Believed to be a positioning artifact."));
         Assert.That(f.PatientVisible, Is.True);   // recorded and visible to the patient
     }
+
+    [Test]
+    public async Task ReExtract_RejectionSurvives_AndFindingCountDoesNotInflate()
+    {
+        string reportId = $"RAD-{Guid.NewGuid()}";
+        RadiologyExtractionState first = await Report(reportId).ExtractAsync(
+            RadiologyTestData.SyntheticCervicalReport, "PATIENT-1", "RAD-1");
+        RadiologyFinding material = first.Findings.First(f => f.RequiresAcknowledgment);
+
+        await Report(reportId).RejectAsync(material.FindingId, "DOCTOR1", "Positioning artifact.");
+
+        // Re-running extraction over the SAME report must not erase the recorded rejection.
+        RadiologyExtractionState second = await Report(reportId).ExtractAsync(
+            RadiologyTestData.SyntheticCervicalReport, "PATIENT-1", "RAD-2");
+
+        Assert.That(second.Findings, Has.Count.EqualTo(first.Findings.Count),
+            "re-extraction of the same report must not inflate the finding count");
+
+        RadiologyFinding survived = second.Findings.Single(f =>
+            f.FindingType.Equals(material.FindingType, StringComparison.OrdinalIgnoreCase)
+            && f.Level.Equals(material.Level, StringComparison.OrdinalIgnoreCase)
+            && f.Laterality == material.Laterality);
+        Assert.That(survived.Acknowledgment, Is.EqualTo(FindingAcknowledgment.Rejected));
+        Assert.That(survived.RejectionReason, Is.EqualTo("Positioning artifact."));
+        Assert.That(survived.DispositionedBy, Is.EqualTo("DOCTOR1"));
+        Assert.That(survived.PatientVisible, Is.True);
+    }
+
+    [Test]
+    public async Task ReExtract_AcknowledgmentSurvives()
+    {
+        string reportId = $"RAD-{Guid.NewGuid()}";
+        RadiologyExtractionState first = await Report(reportId).ExtractAsync(
+            RadiologyTestData.SyntheticCervicalReport, "PATIENT-1", "RAD-1");
+        RadiologyFinding material = first.Findings.First(f => f.RequiresAcknowledgment);
+
+        await Report(reportId).AcknowledgeAsync(material.FindingId, "DOCTOR1");
+
+        RadiologyExtractionState second = await Report(reportId).ExtractAsync(
+            RadiologyTestData.SyntheticCervicalReport, "PATIENT-1", "RAD-2");
+
+        Assert.That(second.Findings, Has.Count.EqualTo(first.Findings.Count));
+
+        RadiologyFinding survived = second.Findings.Single(f =>
+            f.FindingType.Equals(material.FindingType, StringComparison.OrdinalIgnoreCase)
+            && f.Level.Equals(material.Level, StringComparison.OrdinalIgnoreCase)
+            && f.Laterality == material.Laterality);
+        Assert.That(survived.Acknowledgment, Is.EqualTo(FindingAcknowledgment.Acknowledged));
+        Assert.That(survived.DispositionedBy, Is.EqualTo("DOCTOR1"));
+    }
+}
+
+// ─── The workflow façade: what the Radiology page actually calls ─────────────
+
+[TestFixture]
+public class RadiologyFindingWorkflowTests
+{
+    private TestCluster _cluster = null!;
+
+    [OneTimeSetUp]
+    public void OneTimeSetup() => _cluster = SharedCluster.Instance;
+
+    [Test]
+    public async Task Facade_ExtractsFromTheFiledReport_AndDispositionsThroughTheWorkflow()
+    {
+        string pid = $"RADPAT-{Guid.NewGuid()}";
+        var wf = _cluster.GrainFactory.GetGrain<IPatientWorkflowGrain>(pid);
+
+        string radiologyId = await wf.OrderRadiologyStudyAsync(
+            "MRI CERVICAL SPINE W/O CONTRAST", null, "72141", "MRI",
+            "PROV-1", "Dr. A", "ROUTINE", null, "Radiculopathy", null, null, null);
+
+        // No filed report yet — extraction must refuse, not run on nothing.
+        Assert.That(async () => await wf.ExtractRadiologyFindingsAsync(radiologyId, "DOCTOR1"),
+            Throws.InvalidOperationException);
+        Assert.That(await wf.GetRadiologyFindingsAsync(radiologyId), Is.Null,
+            "no extraction has been run, so the read must say so rather than return an empty shell");
+
+        await wf.CompleteRadiologyAsync(radiologyId,
+            RadiologyTestData.SyntheticCervicalReport, "Multilevel degenerative change.",
+            "RAD-1", "Dr. R");
+
+        RadiologyExtractionState state = await wf.ExtractRadiologyFindingsAsync(radiologyId, "DOCTOR1");
+        Assert.That(state.PatientId, Is.EqualTo(pid));
+        Assert.That(state.Findings, Is.Not.Empty);
+        Assert.That(state.Findings.All(f => f.QuoteVerified), Is.True);
+
+        string materialId = state.Findings.First(f => f.RequiresAcknowledgment).FindingId;
+        await wf.AcknowledgeRadiologyFindingAsync(radiologyId, materialId, "DOCTOR1");
+
+        RadiologyExtractionState? readBack = await wf.GetRadiologyFindingsAsync(radiologyId);
+        Assert.That(readBack, Is.Not.Null);
+        Assert.That(readBack!.Findings.Single(f => f.FindingId == materialId).Acknowledgment,
+            Is.EqualTo(FindingAcknowledgment.Acknowledged));
+    }
 }

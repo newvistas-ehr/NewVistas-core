@@ -1,4 +1,4 @@
-// Copyright 2026 Merrimack Valley Software Works, LLC. All rights reserved.
+﻿// Copyright 2026 Merrimack Valley Software Works, LLC. All rights reserved.
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
@@ -24,11 +24,11 @@ public sealed partial class NotesViewModel : ChartTabViewModelBase
         ["PROGRESS NOTE", "DISCHARGE SUMMARY", "CONSULT NOTE",
          "HISTORY & PHYSICAL", "PROCEDURE NOTE", "ADDENDUM"];
 
-    public NotesViewModel(ApiClient api, PatientContext context) : base(api, context) { }
+    public NotesViewModel(ChartDataService data, PatientContext context) : base(data, context) { }
 
     protected override async Task LoadAsync()
     {
-        var items = await Api.GetNotesAsync(PatientId);
+        var items = await Data.GetNotesAsync(PatientId);
         Notes.Clear();
         foreach (var n in items) Notes.Add(n);
     }
@@ -45,13 +45,7 @@ public sealed partial class NotesViewModel : ChartTabViewModelBase
         ErrorText = string.Empty;
         try
         {
-            await Api.CreateNoteAsync(PatientId, new
-            {
-                Title = NewTitle,
-                DocumentType = NewDocumentType,
-                NoteText = NewNoteText,
-                AuthorName = NewAuthor
-            });
+            await Data.CreateNoteAsync(PatientId, NewDocumentType, NewTitle, NewNoteText, NewAuthor);
             NewTitle = string.Empty;
             NewNoteText = string.Empty;
             NewAuthor = string.Empty;
@@ -61,19 +55,28 @@ public sealed partial class NotesViewModel : ChartTabViewModelBase
         catch (Exception ex) { ErrorText = ex.Message; }
     }
 
+    /// <summary>The user's e-signature code, verified by the workflow grain on sign.</summary>
+    [ObservableProperty] private string _signatureCode = string.Empty;
+
     [RelayCommand]
     private async Task SignNoteAsync()
     {
         if (SelectedNote == null) return;
+        if (string.IsNullOrWhiteSpace(SignatureCode))
+        {
+            ErrorText = "Enter your electronic signature code to sign.";
+            return;
+        }
         ErrorText = string.Empty;
         try
         {
-            await Api.SignNoteAsync(PatientId, SelectedNote.DocumentId, new
-            {
-                ElectronicSignature = "CPRS-ES"
-            });
+            // Verified by the workflow grain against the signed-in user's stored hash —
+            // this client previously signed with no code at all.
+            await Data.SignNoteAsync(PatientId, SelectedNote.DocumentId, SignatureCode);
+            SignatureCode = string.Empty;
             await ReloadAsync();
         }
+        catch (UnauthorizedAccessException) { ErrorText = "That electronic signature code was not accepted."; }
         catch (Exception ex) { ErrorText = ex.Message; }
     }
 
@@ -97,7 +100,7 @@ public sealed partial class NotesViewModel : ChartTabViewModelBase
         ErrorText = string.Empty;
         try
         {
-            var items = await Api.GetNoteHistoryAsync(PatientId, HistoryFrom, HistoryTo);
+            var items = await Data.GetNoteHistoryAsync(PatientId, HistoryFrom, HistoryTo);
             HistoryNotes.Clear();
             foreach (var n in items) HistoryNotes.Add(n);
         }

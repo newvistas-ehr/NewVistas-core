@@ -41,6 +41,7 @@ public static class ClinicalNarrativeServiceCollectionExtensions
         {
             services.AddSingleton<IClinicalNarrativeService>(_ => new MisconfiguredClinicalNarrativeService());
             services.AddSingleton<IRadiologyFindingExtractor>(_ => new MisconfiguredRadiologyFindingExtractor());
+            services.AddSingleton<IClinicalCodingAssistant>(_ => new MisconfiguredClinicalCodingAssistant());
             return services;
         }
 
@@ -52,6 +53,10 @@ public static class ClinicalNarrativeServiceCollectionExtensions
             new ResilientRadiologyFindingExtractor(
                 new ClaudeRadiologyFindingExtractor(options),
                 new HeuristicRadiologyFindingExtractor()));
+        services.AddSingleton<IClinicalCodingAssistant>(_ =>
+            new ResilientClinicalCodingAssistant(
+                new ClaudeClinicalCodingAssistant(options),
+                new LexiconCodingAssistant()));
 
         return services;
     }

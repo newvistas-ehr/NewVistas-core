@@ -34,7 +34,7 @@ file, You can obtain one at https://mozilla.org/MPL/2.0/.
                 <DataGrid.Columns>
                     <DataGridTextColumn Header="Year" Binding="{Binding FiscalYear}" Width="80"/>
                     <DataGridTextColumn Header="Encounter Date" Binding="{Binding EncounterDate, StringFormat=d}" Width="130"/>
-                    <DataGridTextColumn Header="Facility" Binding="{Binding FacilityName}" Width="*"/>
+                    <DataGridTextColumn Header="AIS Grade" Binding="{Binding AisGrade}" Width="*"/>
                     <DataGridTextColumn Header="Provider" Binding="{Binding ProviderName}" Width="*"/>
                 </DataGrid.Columns>
             </DataGrid>

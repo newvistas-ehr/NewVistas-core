@@ -113,8 +113,19 @@ public static class ProtoConditionAnalytics
     // Documented heuristic thresholds (illustrative — deliberately conservative, never significance tests).
     private const int MinAssessed = 5;
     private const int MinPresent = 3;
-    private const double SignalLift = 2.0;
-    private const double NoiseLiftCeiling = 1.3;
+    /// <summary>
+    /// Lift at or above which a feature is judged discriminating. Public so the diagnostic
+    /// stewardship analytics (ADR-006) share this exact number rather than copying it — one
+    /// meaning of "signal" site-wide, and a change here moves both.
+    /// </summary>
+    public const double SignalLift = 2.0;
+
+    /// <summary>
+    /// Lift at or below which a feature is judged not discriminating. Between this and
+    /// <see cref="SignalLift"/> the verdict stays <see cref="SignalVerdict.Insufficient"/>
+    /// deliberately — the ambiguous middle is reported as ambiguous, not forced into a call.
+    /// </summary>
+    public const double NoiseLiftCeiling = 1.3;
     private const int MaxSuggestions = 20;
 
     /// <summary>

@@ -165,7 +165,7 @@ public static class ExtremeLeeSickSeed
             {
                 string id = await wf.CreateNoteAsync(docType, null, text, subject,
                     authorId, authorName, null, null, null, locName, visitId, date);
-                await wf.SignNoteAsync(id);
+                await wf.SignNoteAsSystemAsync(id);
             }
 
             async Task Rx(string keySuffix, string drug, string dosage, string route, string schedule,

@@ -1,4 +1,4 @@
-// Copyright 2026 Merrimack Valley Software Works, LLC. All rights reserved.
+﻿// Copyright 2026 Merrimack Valley Software Works, LLC. All rights reserved.
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
@@ -111,6 +111,41 @@ public class CmopTransmissionGrain : Grain, ICmopTransmissionGrain
 /// </summary>
 public class CmopSuspenseGrain : Grain, ICmopSuspenseGrain
 {
+    /// <inheritdoc />
+    /// <remarks>Moved here from CmopController so every client seeds via one grain call.</remarks>
+    public async Task SeedDemoDataAsync()
+    {
+        (string RxId, string PatId, string Name, string Drug, string RxNum, int Qty, int Days, string Fill, string Priority)[] demo =
+        {
+            ("RX-CMOP-001", "PATIENT-001", "JONES,MICHAEL R", "LISINOPRIL 10MG TAB", "RX1001", 90, 90, "REFILL", "ROUTINE"),
+            ("RX-CMOP-002", "PATIENT-001", "JONES,MICHAEL R", "METFORMIN 500MG TAB", "RX1002", 180, 90, "REFILL", "ROUTINE"),
+            ("RX-CMOP-003", "PATIENT-002", "SMITH,SARAH L", "AMLODIPINE 5MG TAB", "RX2001", 90, 90, "ORIGINAL", "ROUTINE"),
+            ("RX-CMOP-004", "PATIENT-003", "WILLIAMS,JAMES T", "OMEPRAZOLE 20MG CAP", "RX3001", 90, 90, "REFILL", "ROUTINE"),
+            ("RX-CMOP-005", "PATIENT-003", "WILLIAMS,JAMES T", "ATORVASTATIN 40MG TAB", "RX3002", 90, 90, "REFILL", "URGENT"),
+        };
+
+        int offset = 15;
+        foreach (var d in demo)
+        {
+            await AddToSuspenseAsync(new CmopSuspenseEntry
+            {
+                PrescriptionId = d.RxId,
+                PatientId = d.PatId,
+                PatientName = d.Name,
+                DrugName = d.Drug,
+                RxNumber = d.RxNum,
+                Quantity = d.Qty,
+                DaysSupply = d.Days,
+                FillType = d.Fill,
+                // Staggered rather than randomised so repeat seeds are reproducible.
+                QueuedDate = DateTime.UtcNow.AddMinutes(-offset),
+                Priority = d.Priority,
+                MailingAddress = "123 MAIN ST, ANYTOWN, ST 12345",
+            });
+            offset += 45;
+        }
+    }
+
     private readonly IPersistentState<CmopSuspenseState> _state;
     private readonly IGrainFactory _grainFactory;
 

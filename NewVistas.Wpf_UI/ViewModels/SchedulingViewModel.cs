@@ -1,4 +1,4 @@
-// Copyright 2026 Merrimack Valley Software Works, LLC. All rights reserved.
+﻿// Copyright 2026 Merrimack Valley Software Works, LLC. All rights reserved.
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
@@ -15,21 +15,31 @@ public partial class SchedulingViewModel : BasePatientViewModel
 {
     [ObservableProperty] private ObservableCollection<AppointmentEntry> _appointments = new();
     [ObservableProperty] private ObservableCollection<ClinicEntry> _clinics = new();
-    [ObservableProperty] private AppointmentState? _selectedAppointment;
+    [ObservableProperty] private AppointmentEntry? _selectedAppointment;
 
     // Schedule form
     [ObservableProperty] private bool _showScheduleForm;
+    [ObservableProperty] private ClinicEntry? _selectedClinic;
     [ObservableProperty] private string _clinicId = string.Empty;
     [ObservableProperty] private string _clinicName = string.Empty;
     [ObservableProperty] private DateTime _appointmentDateTime = DateTime.Today.AddDays(7);
     [ObservableProperty] private int _durationMinutes = 30;
     [ObservableProperty] private string _purpose = "REGULAR";
+    [ObservableProperty] private string _appointmentType = "REGULAR";
     [ObservableProperty] private string _providerName = "Provider, Test";
 
     public string[] PurposeOptions { get; } = ["REGULAR", "FOLLOW-UP", "URGENT", "POST-OP", "PROCEDURE", "CONSULTATION"];
 
-    public SchedulingViewModel(OrleansGrainService grains, ApiClient api, PatientContext patientContext)
-        : base(grains, api, patientContext) { }
+    public string[] AppointmentTypeOptions { get; } = ["REGULAR", "COMPENSATION & PENSION", "CLASS II DENTAL", "SERVICE CONNECTED", "EMPLOYEE", "RESEARCH", "COLLATERAL OF VET."];
+
+    partial void OnSelectedClinicChanged(ClinicEntry? value)
+    {
+        ClinicId = value?.ClinicId ?? string.Empty;
+        ClinicName = value?.Name ?? string.Empty;
+    }
+
+    public SchedulingViewModel(OrleansGrainService grains, PatientContext patientContext)
+        : base(grains, patientContext) { }
 
     protected override async Task LoadDataAsync()
     {
@@ -62,9 +72,9 @@ public partial class SchedulingViewModel : BasePatientViewModel
                 null, // providerId
                 ProviderName,
                 Purpose,
-                null); // appointmentType
+                AppointmentType.Length > 0 ? AppointmentType : null);
             ShowScheduleForm = false;
-            ClinicName = string.Empty;
+            SelectedClinic = null; // clears ClinicId/ClinicName via OnSelectedClinicChanged
             await LoadDataAsync();
         }
         catch (Exception ex) { Error = ex.Message; }

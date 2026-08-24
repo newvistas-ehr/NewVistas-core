@@ -53,6 +53,21 @@ public class CptCodeIndexGrain : Grain, ICptCodeIndexGrain
         await _state.WriteStateAsync();
     }
 
+    public async Task AddCodesAsync(List<CptCodeIndexEntry> entries)
+    {
+        foreach (CptCodeIndexEntry entry in entries)
+        {
+            _state.State.Codes[entry.Code] = entry;
+        }
+
+        _state.State.IsLoaded = _state.State.Codes.Count > 0;
+        _state.State.LastLoadedDate = DateTime.UtcNow;
+        _state.State.TotalCodes = _state.State.Codes.Count;
+        _state.State.ActiveCodes = _state.State.Codes.Values.Count(e => e.Status == "ACTIVE");
+
+        await _state.WriteStateAsync();
+    }
+
     public Task<CptCodeIndexEntry?> GetCodeAsync(string code)
     {
         _state.State.Codes.TryGetValue(code, out CptCodeIndexEntry? entry);

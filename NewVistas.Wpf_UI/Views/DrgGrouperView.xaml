@@ -27,7 +27,7 @@ file, You can obtain one at https://mozilla.org/MPL/2.0/.
                     <DataGridTextColumn Header="Admission ID" Binding="{Binding AdmissionId}" Width="140"/>
                     <DataGridTextColumn Header="Patient" Binding="{Binding PatientName}" Width="160"/>
                     <DataGridTextColumn Header="DRG Code" Binding="{Binding DrgCode}" Width="80"/>
-                    <DataGridTextColumn Header="Description" Binding="{Binding Description}" Width="*"/>
+                    <DataGridTextColumn Header="Description" Binding="{Binding DrgDescription}" Width="*"/>
                     <DataGridTextColumn Header="Weight" Binding="{Binding RelativeWeight, StringFormat=F4}" Width="80"/>
                     <DataGridTextColumn Header="LOS" Binding="{Binding ActualLOS}" Width="60"/>
                     <DataGridTextColumn Header="CC/MCC" Binding="{Binding CcMccLevel}" Width="80"/>

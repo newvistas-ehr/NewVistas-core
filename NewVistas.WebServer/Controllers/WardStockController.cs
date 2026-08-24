@@ -1,4 +1,4 @@
-// Copyright 2026 Merrimack Valley Software Works, LLC. All rights reserved.
+﻿// Copyright 2026 Merrimack Valley Software Works, LLC. All rights reserved.
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
@@ -196,26 +196,8 @@ public class WardStockController : ControllerBase
     {
         try
         {
-            var demoItems = new[]
-            {
-                ("DRUG-ACE-001", "ACETAMINOPHEN 500MG TAB", 100, 20, 80, "TAB", false),
-                ("DRUG-IBU-001", "IBUPROFEN 200MG TAB", 60, 15, 45, "TAB", false),
-                ("DRUG-HEP-001", "HEPARIN 5000U/ML INJ", 30, 10, 20, "ML", false),
-                ("DRUG-MOR-001", "MORPHINE 4MG/ML INJ", 20, 5, 15, "ML", true),
-                ("DRUG-INS-001", "INSULIN REG 100U/ML", 25, 8, 17, "ML", false),
-                ("DRUG-NOR-001", "NORMAL SALINE 0.9% 1000ML", 40, 10, 30, "BAG", false),
-            };
-
-            foreach (var (drugId, name, par, reorder, qty, uom, controlled) in demoItems)
-            {
-                var grain = _grainFactory.GetGrain<IWardStockItemGrain>($"WARD-STOCK:{wardId}:{drugId}");
-                await grain.SetupItemAsync(drugId, name, wardId, "Medicine 3A", par, reorder, qty, uom, controlled);
-
-                WardStockItemState state = await grain.GetItemAsync();
-                await SyncIndexAsync(wardId, state);
-            }
-
-            return Ok(new { Message = $"Loaded {demoItems.Length} ward stock items." });
+            await _grainFactory.GetGrain<IWardStockIndexGrain>($"WARD-STOCK-INDEX:{wardId}").SeedDemoDataAsync();
+            return Ok(new { Message = "Loaded demo ward stock items." });
         }
         catch (Exception ex)
         {

@@ -94,6 +94,19 @@ public class SiteParametersGrain : Grain, ISiteParametersGrain
 
     public async Task EnableFeatureAsync(string featureName)
     {
+        // A one-way feature that has been disabled stays disabled. Throwing rather than
+        // no-opping is deliberate: a silent failure would leave an administrator believing the
+        // feature was back on and its statistics trustworthy, which is the precise outcome the
+        // latch exists to prevent.
+        if (_state.State.PermanentlyDisabledFeatures.Contains(featureName))
+        {
+            throw new InvalidOperationException(
+                $"Feature '{featureName}' was permanently disabled at this site and cannot be re-enabled. " +
+                "Its accumulated statistics have gaps for the period it was off, so resuming would " +
+                "report rates computed against an under-counted denominator. Re-enabling would require " +
+                "discarding and recomputing every derived counter, which is not supported.");
+        }
+
         if (_state.State.Features.Add(featureName))
         {
             _state.State.LastModifiedDate = DateTime.UtcNow;
@@ -101,9 +114,33 @@ public class SiteParametersGrain : Grain, ISiteParametersGrain
         }
     }
 
-    public async Task DisableFeatureAsync(string featureName)
+    public Task DisableFeatureAsync(string featureName)
+        => DisableFeatureAsync(featureName, null, null, null);
+
+    public async Task DisableFeatureAsync(
+        string featureName, string? byUserId, string? byUserName, string? reason)
     {
-        if (_state.State.Features.Remove(featureName))
+        bool removed = _state.State.Features.Remove(featureName);
+        bool tombstoned = false;
+
+        // Record the tombstone even when the feature was already absent from Features — a site
+        // could disable it twice, or disable something never enabled, and the caller's intent is
+        // the same either way: this must never come back.
+        if (SiteFeatures.OneWayDisable.Contains(featureName)
+            && _state.State.PermanentlyDisabledFeatures.Add(featureName))
+        {
+            _state.State.PermanentDisableLog.Add(new PermanentFeatureDisable
+            {
+                FeatureName = featureName,
+                DisabledUtc = DateTime.UtcNow,
+                DisabledByUserId = byUserId,
+                DisabledByUserName = byUserName,
+                Reason = reason
+            });
+            tombstoned = true;
+        }
+
+        if (removed || tombstoned)
         {
             _state.State.LastModifiedDate = DateTime.UtcNow;
             await _state.WriteStateAsync();
@@ -112,4 +149,10 @@ public class SiteParametersGrain : Grain, ISiteParametersGrain
 
     public Task<bool> IsFeatureEnabledAsync(string featureName)
         => Task.FromResult(_state.State.Features.Contains(featureName));
+
+    public Task<bool> IsFeaturePermanentlyDisabledAsync(string featureName)
+        => Task.FromResult(_state.State.PermanentlyDisabledFeatures.Contains(featureName));
+
+    public Task<List<PermanentFeatureDisable>> GetPermanentDisableLogAsync()
+        => Task.FromResult(_state.State.PermanentDisableLog);
 }

@@ -1,0 +1,245 @@
+@* Copyright 2026 Merrimack Valley Software Works, LLC. All rights reserved. *@
+@* This Source Code Form is subject to the terms of the Mozilla Public *@
+@* License, v. 2.0. If a copy of the MPL was not distributed with this *@
+@* file, You can obtain one at https://mozilla.org/MPL/2.0/.            *@
+@using NewVistas.Abstractions.Clinical
+@using NewVistas.Abstractions.GrainInterfaces
+@using NewVistas.Abstractions.GrainStates
+@inject NewVistas.BlazorWeb.Services.OrleansGrainService Grains
+
+@*
+    Diagnosis revision advisory (ADR-006).
+
+    PULL, NOT PUSH. This renders as one collapsed line that the clinician chooses to open. It
+    never blocks saving, never steals focus, and never appears as a modal. The self-suppressing
+    thresholds are the alert-fatigue control: only diagnoses that clear them show anything at all,
+    so this is rare by construction.
+
+    DISPLAY CONTRACT (binding — see DiagnosisRevisionAdvisory in Abstractions/Clinical):
+      * Counts are primary. "9 of 41 patients", with any percentage in parentheses.
+      * Nothing shaped like sensitivity/specificity. Physicians reliably misread conditional
+        probabilities and reliably read natural frequencies correctly; the representation is the
+        fix, not education.
+      * Tests are described as "arrived before the revision in N of M" — NEVER "this test would
+        have gotten you there". Reverse causation is unfixable from observational data: the
+        clinician who ordered the troponin already suspected ACS.
+      * A null rate is never rendered. When the band is Insufficient we say why instead.
+      * The disclaimer is not suppressible.
+*@
+
+@if (_advisory is not null && HasAnythingToSay)
+{
+    <div class="dx-advisory @BandClass">
+        <button type="button" class="dx-advisory-head" @onclick="() => _open = !_open">
+            <span class="dx-caret">@(_open ? "▾" : "▸")</span>
+            <span class="dx-headline">@Headline</span>
+            @if (CriticalCount > 0)
+            {
+                <span class="dx-critical-chip">@CriticalCount time-critical</span>
+            }
+        </button>
+
+        @if (_open)
+        {
+            <div class="dx-advisory-body">
+                @if (_advisory.RevisionRate is null)
+                {
+                    <p class="dx-note">
+                        No local rate yet — @(_advisory.InsufficientReason ?? "insufficient data").
+                        @if (_advisory.Alternatives.Any(a => a.FromBaseline))
+                        {
+                            <text>The pairings below come from published literature, not from this site.</text>
+                        }
+                    </p>
+                }
+                else
+                {
+                    @* Counts first. The percentage is parenthetical and secondary, deliberately. *@
+                    <p class="dx-rate">
+                        Revised in <strong>@_advisory.RevisedCount of @_advisory.AdjudicatedCount</strong>
+                        adjudicated episodes at this site
+                        <span class="dx-pct">(@_advisory.RevisionRate.Value.ToString("P0"))</span>.
+                        @if (_advisory.SiteWideRevisionRate is not null)
+                        {
+                            <text>Across all diagnoses here the rate is
+                            @_advisory.SiteWideRevisionRate.Value.ToString("P0").</text>
+                        }
+                    </p>
+                    <p class="dx-denominator">
+                        Also: @_advisory.RefinedCount refined, @_advisory.BroadenedCount broadened,
+                        @_advisory.StillOpenCount still open,
+                        @_advisory.ClosedUnadjudicatedCount closed without adjudication.
+                        Based on @_advisory.DistinctAdjudicatingProviders clinicians.
+                        @if (_advisory.NosTerminatingRevisedCount > 0)
+                        {
+                            <text>@_advisory.NosTerminatingRevisedCount revision(s) ended on an
+                            unspecified code.</text>
+                        }
+                    </p>
+                }
+
+                @if (_advisory.Alternatives.Count > 0)
+                {
+                    <div class="dx-section-label">What it turns out to be</div>
+                    <ul class="dx-list">
+                        @foreach (DiagnosisAlternative a in _advisory.Alternatives)
+                        {
+                            <li class="@(a.Harm == DiagnosticHarmIfMissed.Critical ? "dx-critical" : "")">
+                                <span class="code">@a.Code</span> @a.Display
+                                @if (a.OutOf > 0)
+                                {
+                                    <span class="dx-count">— @a.Count of @a.OutOf revised episodes</span>
+                                }
+                                else if (a.FromBaseline)
+                                {
+                                    <span class="dx-from-lit">— published pairing; not yet seen here</span>
+                                }
+                                @if (a.Harm == DiagnosticHarmIfMissed.Critical)
+                                {
+                                    <span class="dx-harm">time-critical</span>
+                                }
+                                @if (!string.IsNullOrWhiteSpace(a.Citation))
+                                {
+                                    <div class="dx-citation">@a.Citation</div>
+                                }
+                            </li>
+                        }
+                    </ul>
+                }
+
+                @if (_advisory.SuggestedTests.Count > 0)
+                {
+                    <div class="dx-section-label">Worth considering</div>
+                    <ul class="dx-list">
+                        @foreach (DiagnosticTestSuggestion t in _advisory.SuggestedTests)
+                        {
+                            <li>
+                                @t.Display
+                                @if (t.RevisedTotal > 0)
+                                {
+                                    @* Phrasing is a contract, not a style choice. *@
+                                    <span class="dx-count">
+                                        — arrived before the revision in @t.ArrivedBeforeRevision of
+                                        @t.RevisedTotal revised episodes, vs @t.ArrivedInNotRevised of
+                                        @t.NotRevisedTotal that were not revised
+                                    </span>
+                                }
+                                else if (t.FromBaseline)
+                                {
+                                    <span class="dx-from-lit">— published discriminator</span>
+                                }
+                            </li>
+                        }
+                    </ul>
+                }
+
+                <p class="dx-disclaimer">@_advisory.Disclaimer</p>
+            </div>
+        }
+    </div>
+}
+
+@code {
+    /// <summary>Patient whose workflow grain answers. Direct grain access — no HTTP.</summary>
+    [Parameter, EditorRequired] public string PatientId { get; set; } = "";
+
+    /// <summary>Working diagnosis code being asserted or reviewed.</summary>
+    [Parameter] public string? DiagnosisCode { get; set; }
+
+    /// <summary>Display text for the working diagnosis.</summary>
+    [Parameter] public string? DiagnosisDisplay { get; set; }
+
+    /// <summary>
+    /// When supplied, viewing a learned rate marks this episode as advisory-exposed, so it moves
+    /// out of the unexposed comparison arm. Omit while the clinician is still typing a code —
+    /// otherwise browsing the ICD-10 picker would poison the control arm.
+    /// </summary>
+    [Parameter] public string? ProblemId { get; set; }
+
+    private DiagnosisRevisionAdvisory? _advisory;
+    private bool _open;
+    private string? _lastCode;
+
+    private bool HasAnythingToSay
+        => _advisory is not null
+           && (_advisory.RevisionRate is not null
+               || _advisory.Alternatives.Count > 0
+               || _advisory.SuggestedTests.Count > 0);
+
+    private int CriticalCount
+        => _advisory?.Alternatives.Count(a => a.Harm == DiagnosticHarmIfMissed.Critical) ?? 0;
+
+    private string BandClass => _advisory?.Band switch
+    {
+        RevisionRateBand.Elevated => "dx-band-elevated",
+        RevisionRateBand.Borderline => "dx-band-borderline",
+        _ => "dx-band-quiet"
+    };
+
+    private string Headline
+    {
+        get
+        {
+            if (_advisory is null) return "";
+            if (_advisory.RevisionRate is not null)
+            {
+                string band = _advisory.Band == RevisionRateBand.Elevated ? "more often than usual here"
+                    : _advisory.Band == RevisionRateBand.Borderline ? "somewhat more often than usual here"
+                    : "about as often as other diagnoses here";
+                return $"This diagnosis is revised {band} — {_advisory.RevisedCount} of {_advisory.AdjudicatedCount}";
+            }
+            return CriticalCount > 0
+                ? "Known time-critical alternatives for this diagnosis"
+                : "Diagnostic considerations";
+        }
+    }
+
+    protected override async Task OnParametersSetAsync()
+    {
+        string code = (DiagnosisCode ?? "").Trim();
+        if (code.Length < 3) { _advisory = null; _lastCode = null; return; }
+        if (code == _lastCode) return;
+
+        _lastCode = code;
+        _open = false;
+        try
+        {
+            _advisory = await Grains.GetGrain<IPatientWorkflowGrain>(PatientId.Trim())
+                .GetDiagnosisRevisionAdvisoryAsync(code, DiagnosisDisplay ?? code, ProblemId);
+        }
+        catch
+        {
+            // Decoration on a clinical page. If stewardship is unavailable the page must still
+            // work — silence is the correct degraded state.
+            _advisory = null;
+        }
+    }
+}
+
+<style>
+    .dx-advisory { border: 1px solid #d4d9e0; border-radius: 4px; margin: 0.5rem 0 1rem; background: #fbfcfd; font-size: 0.85rem; }
+    .dx-band-elevated { border-color: #d97706; background: #fffbeb; }
+    .dx-band-borderline { border-color: #b9c8da; }
+    .dx-band-quiet { border-color: #d4d9e0; }
+
+    .dx-advisory-head { display: flex; align-items: center; gap: 0.5rem; width: 100%; padding: 0.5rem 0.75rem; background: none; border: none; cursor: pointer; text-align: left; font-size: 0.85rem; color: #1f2937; }
+    .dx-advisory-head:hover { background: #f4f6f9; }
+    .dx-caret { color: #6b7280; font-size: 0.75rem; }
+    .dx-headline { flex: 1; }
+    .dx-critical-chip { background: #b91c1c; color: #fff; border-radius: 10px; padding: 0.05rem 0.5rem; font-size: 0.7rem; white-space: nowrap; }
+
+    .dx-advisory-body { padding: 0 0.75rem 0.75rem 1.75rem; }
+    .dx-rate { margin: 0.25rem 0; }
+    .dx-pct { color: #6b7280; }
+    .dx-denominator, .dx-note { margin: 0.25rem 0 0.5rem; color: #4b5563; font-size: 0.8rem; }
+    .dx-section-label { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.03em; color: #003f72; font-weight: 600; margin-top: 0.6rem; }
+    .dx-list { margin: 0.3rem 0 0; padding-left: 1.1rem; }
+    .dx-list li { margin-bottom: 0.3rem; }
+    .dx-list .code { font-family: monospace; color: #003f72; margin-right: 0.3rem; }
+    .dx-count { color: #4b5563; }
+    .dx-from-lit { color: #6b7280; font-style: italic; }
+    .dx-critical { }
+    .dx-harm { background: #fee2e2; color: #b91c1c; border-radius: 3px; padding: 0 0.3rem; font-size: 0.7rem; margin-left: 0.35rem; }
+    .dx-citation { color: #6b7280; font-size: 0.75rem; margin-top: 0.1rem; }
+    .dx-disclaimer { margin-top: 0.75rem; padding-top: 0.5rem; border-top: 1px solid #e5e7eb; color: #6b7280; font-size: 0.72rem; }
+</style>

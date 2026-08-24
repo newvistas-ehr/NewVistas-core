@@ -1,4 +1,4 @@
-// Copyright 2026 Merrimack Valley Software Works, LLC. All rights reserved.
+﻿// Copyright 2026 Merrimack Valley Software Works, LLC. All rights reserved.
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
@@ -14,7 +14,6 @@ namespace NewVistas.Wpf_UI.ViewModels;
 
 public partial class EmergencyDepartmentViewModel : ObservableObject
 {
-    private readonly ApiClient _api;
     private readonly OrleansGrainService _grains;
 
     [ObservableProperty] private bool _isLoading;
@@ -33,9 +32,8 @@ public partial class EmergencyDepartmentViewModel : ObservableObject
 
     public string[] ArrivalModes { get; } = ["WALK_IN", "AMBULANCE", "HELICOPTER", "TRANSFER", "POLICE"];
 
-    public EmergencyDepartmentViewModel(ApiClient api, OrleansGrainService grains)
+    public EmergencyDepartmentViewModel(OrleansGrainService grains)
     {
-        _api = api;
         _grains = grains;
     }
 
@@ -108,7 +106,8 @@ public partial class EmergencyDepartmentViewModel : ObservableObject
     {
         try
         {
-            await _api.Http.PostAsJsonAsync("api/edis/demo/load", new { });
+            // The grain owns the demo seed, so this is one grain call - no HTTP.
+            await _grains.GetGrain<IEdBoardGrain>("ED-BOARD:MAIN").SeedDemoDataAsync();
             await LoadAsync();
         }
         catch (Exception ex) { Error = ex.Message; }

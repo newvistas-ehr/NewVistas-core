@@ -1,4 +1,4 @@
-// Copyright 2026 Merrimack Valley Software Works, LLC. All rights reserved.
+﻿// Copyright 2026 Merrimack Valley Software Works, LLC. All rights reserved.
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
@@ -26,11 +26,11 @@ public sealed partial class OrdersViewModel : ChartTabViewModelBase
     public string[] OrderTypes { get; } = ["LAB", "PHARMACY", "RADIOLOGY", "CONSULT", "NURSING", "DIET"];
     public string[] Priorities { get; } = ["ROUTINE", "STAT", "ASAP"];
 
-    public OrdersViewModel(ApiClient api, PatientContext context) : base(api, context) { }
+    public OrdersViewModel(ChartDataService data, PatientContext context) : base(data, context) { }
 
     protected override async Task LoadAsync()
     {
-        var items = await Api.GetOrdersAsync(PatientId);
+        var items = await Data.GetOrdersAsync(PatientId);
         Orders.Clear();
         foreach (var o in items) Orders.Add(o);
     }
@@ -49,7 +49,7 @@ public sealed partial class OrdersViewModel : ChartTabViewModelBase
         ErrorText = string.Empty;
         try
         {
-            var items = await Api.GetOrderHistoryAsync(PatientId, HistoryFrom, HistoryTo);
+            var items = await Data.GetOrderHistoryAsync(PatientId, HistoryFrom, HistoryTo);
             HistoryOrders.Clear();
             foreach (var o in items) HistoryOrders.Add(o);
         }
@@ -63,12 +63,7 @@ public sealed partial class OrdersViewModel : ChartTabViewModelBase
         ErrorText = string.Empty;
         try
         {
-            await Api.PlaceOrderAsync(PatientId, new
-            {
-                OrderText = NewOrderText,
-                OrderType = NewOrderType,
-                Priority = NewPriority
-            });
+            await Data.PlaceOrderAsync(PatientId, NewOrderType, NewOrderText, NewPriority);
             NewOrderText = string.Empty;
             ShowPlaceForm = false;
             await ReloadAsync();
@@ -76,19 +71,28 @@ public sealed partial class OrdersViewModel : ChartTabViewModelBase
         catch (Exception ex) { ErrorText = ex.Message; }
     }
 
+    /// <summary>The user's e-signature code, verified by the workflow grain on sign.</summary>
+    [ObservableProperty] private string _signatureCode = string.Empty;
+
     [RelayCommand]
     private async Task SignOrderAsync()
     {
         if (SelectedOrder == null) return;
+        if (string.IsNullOrWhiteSpace(SignatureCode))
+        {
+            ErrorText = "Enter your electronic signature code to sign.";
+            return;
+        }
         ErrorText = string.Empty;
         try
         {
-            await Api.SignOrderAsync(PatientId, SelectedOrder.OrderId, new
-            {
-                ElectronicSignature = "CPRS-ES"
-            });
+            // Verified by the workflow grain — this client previously signed with the
+            // literal placeholder "CPRS-ES".
+            await Data.SignOrderAsync(PatientId, SelectedOrder.OrderId, SignatureCode);
+            SignatureCode = string.Empty;
             await ReloadAsync();
         }
+        catch (UnauthorizedAccessException) { ErrorText = "That electronic signature code was not accepted."; }
         catch (Exception ex) { ErrorText = ex.Message; }
     }
 
@@ -99,7 +103,7 @@ public sealed partial class OrdersViewModel : ChartTabViewModelBase
         ErrorText = string.Empty;
         try
         {
-            await Api.DiscontinueOrderAsync(PatientId, SelectedOrder.OrderId);
+            await Data.DiscontinueOrderAsync(PatientId, SelectedOrder.OrderId);
             await ReloadAsync();
         }
         catch (Exception ex) { ErrorText = ex.Message; }

@@ -23,7 +23,7 @@ file, You can obtain one at https://mozilla.org/MPL/2.0/.
                     <DataGridTextColumn Header="Registry" Binding="{Binding RegistryType}" Width="140"/>
                     <DataGridTextColumn Header="Patient ID" Binding="{Binding PatientId}" Width="120"/>
                     <DataGridTextColumn Header="Patient Name" Binding="{Binding PatientName}" Width="*"/>
-                    <DataGridTextColumn Header="Status" Binding="{Binding EnrollmentStatus}" Width="120"/>
+                    <DataGridTextColumn Header="Status" Binding="{Binding Status}" Width="120"/>
                     <DataGridTextColumn Header="Enrolled" Binding="{Binding EnrollmentDate, StringFormat=d}" Width="110"/>
                 </DataGrid.Columns>
             </DataGrid>

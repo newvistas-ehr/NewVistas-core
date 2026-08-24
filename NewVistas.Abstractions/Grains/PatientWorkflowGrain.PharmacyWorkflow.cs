@@ -331,18 +331,4 @@ public partial class PatientWorkflowGrain
 
         return label;
     }
-
-    // ─── Pending DUR Status (PSOORED.m incomplete/pending status) ───────────
-
-    public async Task SetPendingDurReviewStatusAsync(string prescriptionId)
-    {
-        PharmacyState state = await PharmacyRx(prescriptionId).GetPrescriptionAsync();
-        if (state.Status == "ACTIVE")
-        {
-            // We don't change the PharmacyGrain status — the fill gate (IsDurClearedForPrescriptionAsync)
-            // already blocks fill/verify/refill. Instead we update MedStatusGroup to PENDING (1)
-            // so the UI and index can display the pending DUR state.
-            await PharmacyRx(prescriptionId).UpdateMedStatusGroupAsync();
-        }
-    }
 }

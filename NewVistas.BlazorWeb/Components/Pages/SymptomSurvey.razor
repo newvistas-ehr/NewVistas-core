@@ -58,7 +58,39 @@ net close later. Leave items <em>Unknown</em> only when they were genuinely not 
         {
             <div class="empty-state">No active clusters, or this patient matches none of them.</div>
         }
-        else
+
+        @* The "this matches nothing I know" gesture. Offered whenever nothing matched — the
+           moment a clinician would otherwise have nowhere to put the observation. What it
+           creates is a DRAFT: excluded from the active index, so it reaches no chart, banner
+           or sweep until an epidemiologist reviews and activates it. *@
+        @if (screenResults.Count == 0 || !screenResults.Any(r => r.Matches))
+        {
+            <div class="propose-box">
+                <div class="propose-head">Nothing here fits this patient?</div>
+                <p class="propose-why">
+                    Start a draft cluster from what you have recorded — the symptoms marked present,
+                    any etiologic tests that came back negative, and any abnormal results. The draft
+                    goes to the epidemiology team for review. It does not appear on this or any other
+                    patient's chart until they activate it.
+                </p>
+                <div class="propose-row">
+                    <input type="text" @bind="proposeName" placeholder="Working name (optional)" class="propose-input" />
+                    <button class="btn-primary" @onclick="Propose" disabled="@proposing">
+                        @(proposing ? "Drafting…" : "Start a cluster from this patient")
+                    </button>
+                </div>
+                @if (proposedId != null)
+                {
+                    <div class="propose-done">
+                        Draft created and this patient suggested as the index case.
+                        <a href="/emerging-conditions/@proposedId">Open the draft</a> —
+                        it stays invisible to charts until an epidemiologist activates it.
+                    </div>
+                }
+            </div>
+        }
+
+        @if (screenResults.Count > 0)
         {
             <table class="data-table">
                 <thead><tr><th>Cluster</th><th>Score</th><th>Matches</th><th></th></tr></thead>
@@ -89,6 +121,11 @@ else if (patientId != null)
     private List<SymptomCatalogEntry>? questions;
     private readonly Dictionary<string, SymptomPresence> answers = new();
     private List<ScreenRow>? screenResults;
+
+    // "Nothing matches" → draft a cluster (ADR-004 ↔ ADR-006)
+    private string? proposeName;
+    private string? proposedId;
+    private bool proposing;
 
     private record ScreenRow(string ProtoId, string Name, double Score, bool Matches);
 
@@ -163,6 +200,27 @@ else if (patientId != null)
         catch (Exception ex) { error = ex.Message; }
     }
 
+    private async Task Propose()
+    {
+        if (patientId == null) return;
+        error = success = null; proposing = true; proposedId = null;
+        try
+        {
+            // Answers are saved first so the draft is derived from what is actually recorded,
+            // not from unsaved form state.
+            await Save();
+            proposedId = await Grains.GetGrain<IPatientWorkflowGrain>(patientId)
+                .ProposeProtoConditionFromPatientAsync(
+                    proposeName ?? string.Empty,
+                    Grains.CurrentUserName ?? Grains.CurrentUserId ?? "web");
+            success = "Draft cluster created for epidemiologist review.";
+            proposeName = null;
+        }
+        catch (UnauthorizedAccessException) { error = "You don't have permission to propose a cluster."; }
+        catch (Exception ex) { error = ex.Message; }
+        finally { proposing = false; }
+    }
+
     private async Task Suggest(string protoId)
     {
         if (patientId == null) return;
@@ -179,6 +237,14 @@ else if (patientId != null)
 }
 
 <style>
+    /* "Nothing matches" → draft a cluster */
+    .propose-box { border: 1px solid #b9c8da; border-radius: 4px; background: #fbfcfd; padding: 0.9rem 1rem; margin: 1rem 0; max-width: 720px; }
+    .propose-head { font-weight: 600; color: #003f72; margin-bottom: 0.35rem; }
+    .propose-why { font-size: 0.82rem; color: #4b5563; margin: 0 0 0.7rem; }
+    .propose-row { display: flex; gap: 0.5rem; align-items: center; }
+    .propose-input { flex: 1; max-width: 320px; padding: 0.4rem 0.6rem; border: 1px solid #ccc; border-radius: 4px; font-size: 0.85rem; }
+    .propose-done { margin-top: 0.7rem; font-size: 0.82rem; color: #166534; background: #dcfce7; border: 1px solid #bbf7d0; border-radius: 4px; padding: 0.5rem 0.7rem; }
+
     .lede { color: var(--text-muted, #556); max-width: 62rem; }
     .toolbar { display: flex; gap: .5rem; margin: 1rem 0; }
     .survey-group { border: 1px solid #ccd; border-radius: 8px; margin: 0 0 1rem; padding: .5rem 1rem 1rem; }

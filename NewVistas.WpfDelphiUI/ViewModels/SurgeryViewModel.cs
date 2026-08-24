@@ -1,4 +1,4 @@
-// Copyright 2026 Merrimack Valley Software Works, LLC. All rights reserved.
+﻿// Copyright 2026 Merrimack Valley Software Works, LLC. All rights reserved.
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
@@ -20,11 +20,11 @@ public sealed partial class SurgeryViewModel : ChartTabViewModelBase
 
     public string[] AnesthesiaTypes { get; } = ["GENERAL", "SPINAL", "LOCAL", "MAC", "REGIONAL"];
 
-    public SurgeryViewModel(ApiClient api, PatientContext context) : base(api, context) { }
+    public SurgeryViewModel(ChartDataService data, PatientContext context) : base(data, context) { }
 
     protected override async Task LoadAsync()
     {
-        var items = await Api.GetSurgeriesAsync(PatientId);
+        var items = await Data.GetSurgeriesAsync(PatientId);
         Surgeries.Clear();
         foreach (var s in items) Surgeries.Add(s);
     }
@@ -41,12 +41,7 @@ public sealed partial class SurgeryViewModel : ChartTabViewModelBase
         ErrorText = string.Empty;
         try
         {
-            await Api.ScheduleSurgeryAsync(PatientId, new
-            {
-                PrincipalProcedure = NewProcedure,
-                PrincipalSurgeon = NewSurgeon,
-                AnesthesiaType = NewAnesthesiaType
-            });
+            await Data.ScheduleSurgeryAsync(PatientId, NewProcedure, DateTime.UtcNow, NewSurgeon);
             NewProcedure = string.Empty;
             NewSurgeon = string.Empty;
             ShowScheduleForm = false;

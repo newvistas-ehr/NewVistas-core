@@ -125,4 +125,108 @@ public class EmergingConditionWorkflowTests
         Assert.That(entry.Status, Is.EqualTo(ProtoMigrationStatus.Migrated));
         Assert.That(entry.ProblemId, Is.EqualTo(problemId));
     }
+
+    // ── Exclusion (per-patient audited wrapper) ──────────────────────────────
+
+    [Test]
+    public async Task ExcludeConfirmedMember_StandsDownTheBanner_AndRecordsWhy()
+    {
+        string id = await ActiveDropletProtoAsync();
+        string patient = $"ECW-{Guid.NewGuid()}";
+        await Wf(patient).SuggestForProtoConditionAsync(id, Epi);
+        await Wf(patient).ConfirmProtoMembershipAsync(id, Epi);
+
+        CoverSheetState before = await Wf(patient).GetCoverSheetAsync();
+        Assert.That(before.PrecautionBanners.Any(b => b.ProtoConditionId == id), Is.True,
+            "sanity: the confirmed member banners before exclusion");
+
+        await Wf(patient).ExcludeProtoMembershipAsync(id, "alternate diagnosis established", Epi);
+
+        IProtoConditionGrain proto = _cluster.GrainFactory.GetGrain<IProtoConditionGrain>($"PROTO:{id}");
+        List<ProtoMember> excluded = await proto.GetMembersByStatusAsync(ProtoMemberStatus.Excluded);
+        ProtoMember member = excluded.Single(m => m.PatientId == patient);
+        Assert.That(member.ReviewReason, Is.EqualTo("alternate diagnosis established"));
+        Assert.That(member.StatusChangedBy, Is.EqualTo(Epi));
+
+        Assert.That(await _cluster.GrainFactory
+            .GetGrain<IProtoCohortIndexGrain>($"PROTO-COHORT:{id}").ContainsAsync(patient), Is.False,
+            "exclusion must leave the confirmed cohort shard");
+
+        CoverSheetState after = await Wf(patient).GetCoverSheetAsync();
+        Assert.That(after.PrecautionBanners.Any(b => b.ProtoConditionId == id), Is.False,
+            "an excluded patient must not carry the precaution banner");
+    }
+
+    [Test]
+    public async Task ExcludeNonMember_IsAPreemptiveExclusion()
+    {
+        string id = await ActiveDropletProtoAsync();
+        string patient = $"ECW-{Guid.NewGuid()}"; // never suggested into the cluster
+
+        await Wf(patient).ExcludeProtoMembershipAsync(id, "known alternate diagnosis", Epi);
+
+        // A member row is created straight at Excluded, so future machine evals can never
+        // surface this patient (core tests pin that Excluded is never resurrected by machine).
+        IProtoConditionGrain proto = _cluster.GrainFactory.GetGrain<IProtoConditionGrain>($"PROTO:{id}");
+        List<ProtoMember> excluded = await proto.GetMembersByStatusAsync(ProtoMemberStatus.Excluded);
+        ProtoMember member = excluded.Single(m => m.PatientId == patient);
+        Assert.That(member.ReviewReason, Is.EqualTo("known alternate diagnosis"));
+
+        CoverSheetState cover = await Wf(patient).GetCoverSheetAsync();
+        Assert.That(cover.PrecautionBanners.Any(b => b.ProtoConditionId == id), Is.False);
+    }
+
+    [Test]
+    public async Task ExcludeAfterPromotion_IsRefused_TheDefinitionIsFrozen()
+    {
+        string id = await ActiveDropletProtoAsync();
+        string patient = $"ECW-{Guid.NewGuid()}";
+        await Wf(patient).SuggestForProtoConditionAsync(id, Epi);
+        await Wf(patient).ConfirmProtoMembershipAsync(id, Epi);
+
+        IProtoConditionGrain proto = _cluster.GrainFactory.GetGrain<IProtoConditionGrain>($"PROTO:{id}");
+        await proto.PromoteAsync("COVID-19", new() { "U07.1" }, null, null, new(), "", Epi);
+
+        Assert.ThrowsAsync<InvalidOperationException>(async () =>
+            await Wf(patient).ExcludeProtoMembershipAsync(id, "late review", Epi));
+    }
+
+    // ── Skipping a member's migration ────────────────────────────────────────
+
+    [Test]
+    public async Task SkipMigration_RecordsSkipped_StandsDownBanner_AndCanStillMigrateLater()
+    {
+        string id = await ActiveDropletProtoAsync();
+        string patient = $"ECW-{Guid.NewGuid()}";
+        await Wf(patient).SuggestForProtoConditionAsync(id, Epi);
+        await Wf(patient).ConfirmProtoMembershipAsync(id, Epi);
+
+        IProtoConditionGrain proto = _cluster.GrainFactory.GetGrain<IProtoConditionGrain>($"PROTO:{id}");
+        await proto.PromoteAsync("COVID-19", new() { "U07.1" }, "840539006", new DateTime(2020, 4, 1), new() { "US" }, "", Epi);
+
+        // While the recode is Pending the banner survives promotion.
+        CoverSheetState pending = await Wf(patient).GetCoverSheetAsync();
+        Assert.That(pending.PrecautionBanners.Any(b => b.ProtoConditionId == id), Is.True);
+
+        await Wf(patient).SkipMemberMigrationAsync(id, "patient deceased before recode", Epi);
+
+        ProtoConditionState state = await proto.GetAsync();
+        ProtoMigrationEntry entry = state.MigrationLog.Single(e => e.PatientId == patient);
+        Assert.That(entry.Status, Is.EqualTo(ProtoMigrationStatus.Skipped));
+        Assert.That(entry.Reason, Is.EqualTo("patient deceased before recode"));
+        Assert.That(entry.By, Is.EqualTo(Epi));
+        Assert.That(entry.ProblemId, Is.Null);
+
+        // A recorded skip is a decision, so the banner stands down.
+        CoverSheetState after = await Wf(patient).GetCoverSheetAsync();
+        Assert.That(after.PrecautionBanners.Any(b => b.ProtoConditionId == id), Is.False,
+            "a skipped member is no longer awaiting recode, so no banner");
+
+        // A skip is not final — migrating later flips the same log entry to Migrated.
+        string problemId = await Wf(patient).MigratePromotedProtoProblemAsync(id, Epi);
+        state = await proto.GetAsync();
+        entry = state.MigrationLog.Single(e => e.PatientId == patient);
+        Assert.That(entry.Status, Is.EqualTo(ProtoMigrationStatus.Migrated));
+        Assert.That(entry.ProblemId, Is.EqualTo(problemId));
+    }
 }

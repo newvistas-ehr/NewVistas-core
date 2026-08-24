@@ -1,4 +1,4 @@
-// Copyright 2026 Merrimack Valley Software Works, LLC. All rights reserved.
+﻿// Copyright 2026 Merrimack Valley Software Works, LLC. All rights reserved.
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
@@ -134,26 +134,8 @@ public class IncompleteRecordsController : ControllerBase
     {
         try
         {
-            var demoDeficiencies = new[]
-            {
-                ("PATIENT-001", "JONES,MICHAEL R", "UNSIGNED_NOTE", "Unsigned progress note from 02/15", DateTime.UtcNow.AddDays(-5), 30),
-                ("PATIENT-002", "SMITH,SARAH L", "MISSING_DISCHARGE_SUMMARY", "Discharge summary not dictated", DateTime.UtcNow.AddDays(-25), 30),
-                ("PATIENT-003", "WILLIAMS,JAMES T", "MISSING_HP", "History & Physical not completed within 24h", DateTime.UtcNow.AddDays(-35), 30),
-                ("PATIENT-001", "JONES,MICHAEL R", "UNSIGNED_ORDER", "Verbal order not cosigned within 48h", DateTime.UtcNow.AddDays(-3), 2),
-                ("PATIENT-004", "BROWN,PATRICIA A", "MISSING_OP_NOTE", "Operative note not dictated within 24h", DateTime.UtcNow.AddDays(-10), 1),
-            };
-
-            foreach (var (patId, patName, type, desc, dcDate, delinqDays) in demoDeficiencies)
-            {
-                string defId = $"DGPT-DEMO-{Guid.NewGuid():N}";
-                var grain = _grainFactory.GetGrain<IIncompleteRecordGrain>($"DGPT:{defId}");
-                await grain.CreateDeficiencyAsync(patId, patName, providerId, "DR. MARTINEZ", type, desc, null, null, dcDate, delinqDays);
-
-                IncompleteRecordState state = await grain.GetDeficiencyAsync();
-                await SyncIndexAsync(providerId, state);
-            }
-
-            return Ok(new { Message = $"Loaded {demoDeficiencies.Length} demo deficiencies." });
+            await _grainFactory.GetGrain<IIncompleteRecordIndexGrain>($"DGPT-INDEX:{providerId}").SeedDemoDataAsync();
+            return Ok(new { Message = "Loaded demo deficiencies." });
         }
         catch (Exception ex)
         {

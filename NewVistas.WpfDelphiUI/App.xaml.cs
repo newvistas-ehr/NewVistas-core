@@ -1,4 +1,4 @@
-// Copyright 2026 Merrimack Valley Software Works, LLC. All rights reserved.
+﻿// Copyright 2026 Merrimack Valley Software Works, LLC. All rights reserved.
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
@@ -6,6 +6,7 @@ using System.Net.Http;
 using System.Windows;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using Orleans.Hosting;
 using NewVistas.WpfDelphiUI.Services;
 using NewVistas.WpfDelphiUI.ViewModels;
 
@@ -24,13 +25,30 @@ public partial class App : Application
         base.OnStartup(e);
 
         _host = Host.CreateDefaultBuilder()
+            .UseOrleansClient((context, clientBuilder) =>
+            {
+                // This is an internal UI, so it is an Orleans cluster client: clinical reads
+                // and writes are direct grain calls. The WebServer is for outsiders and for
+                // authentication only.
+                clientBuilder.UseLocalhostClustering();
+
+                // Production would use:
+                // clientBuilder.UseAdoNetClustering(options => { ... });
+            })
             .ConfigureServices(services =>
             {
                 // Shared singletons
                 services.AddSingleton<PatientContext>();
                 services.AddSingleton<AuthService>();
 
-                // HttpClient for the NewVistas REST API
+                // Sets Orleans RequestContext (DUZ equivalent) from the JWT before each
+                // grain call, so the silo's AuthorizationCallFilter sees the caller.
+                services.AddSingleton<OrleansGrainService>();
+
+                // All chart data comes from grains through this service.
+                services.AddSingleton<ChartDataService>();
+
+                // HttpClient for AUTHENTICATION only (sign-in, MFA, sign-out, keepalive).
                 services.AddHttpClient<ApiClient>(c =>
                 {
                     c.BaseAddress = new Uri("https://localhost:7127/");

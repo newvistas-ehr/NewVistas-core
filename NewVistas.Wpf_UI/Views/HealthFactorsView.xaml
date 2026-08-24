@@ -27,13 +27,11 @@ file, You can obtain one at https://mozilla.org/MPL/2.0/.
                 <StackPanel>
                     <TextBlock Style="{StaticResource SectionHeader}" Text="Record Health Factor"/>
                     <TextBlock Style="{StaticResource FieldLabel}" Text="Factor Name"/>
-                    <TextBox Text="{Binding FactorName, UpdateSourceTrigger=PropertyChanged}" Width="400" HorizontalAlignment="Left"/>
+                    <TextBox Text="{Binding HealthFactorName, UpdateSourceTrigger=PropertyChanged}" Width="400" HorizontalAlignment="Left"/>
                     <TextBlock Style="{StaticResource FieldLabel}" Text="Category"/>
                     <ComboBox ItemsSource="{Binding CategoryOptions}" SelectedItem="{Binding Category}" Width="200" HorizontalAlignment="Left"/>
                     <TextBlock Style="{StaticResource FieldLabel}" Text="Severity"/>
-                    <ComboBox ItemsSource="{Binding SeverityOptions}" SelectedItem="{Binding Severity}" Width="200" HorizontalAlignment="Left"/>
-                    <TextBlock Style="{StaticResource FieldLabel}" Text="Numeric Value (optional)"/>
-                    <TextBox Text="{Binding NumericValue, UpdateSourceTrigger=PropertyChanged}" Width="120" HorizontalAlignment="Left"/>
+                    <ComboBox ItemsSource="{Binding SeverityOptions}" SelectedItem="{Binding LevelSeverity}" Width="200" HorizontalAlignment="Left"/>
                     <StackPanel Orientation="Horizontal" Margin="0,12,0,0">
                         <Button Content="Save" Style="{StaticResource PrimaryButton}"
                                 Command="{Binding RecordHealthFactorCommand}" Margin="0,0,8,0"/>
@@ -45,12 +43,11 @@ file, You can obtain one at https://mozilla.org/MPL/2.0/.
 
             <DataGrid ItemsSource="{Binding HealthFactors}">
                 <DataGrid.Columns>
-                    <DataGridTextColumn Header="Factor" Binding="{Binding FactorName}" Width="*"/>
+                    <DataGridTextColumn Header="Factor" Binding="{Binding HealthFactorName}" Width="*"/>
                     <DataGridTextColumn Header="Category" Binding="{Binding Category}" Width="140"/>
-                    <DataGridTextColumn Header="Severity" Binding="{Binding Severity}" Width="100"/>
-                    <DataGridTextColumn Header="Value" Binding="{Binding NumericValue}" Width="80"/>
-                    <DataGridTextColumn Header="Date" Binding="{Binding RecordedDate, StringFormat=d}" Width="110"/>
-                    <DataGridTextColumn Header="Provider" Binding="{Binding RecordedByName}" Width="160"/>
+                    <DataGridTextColumn Header="Severity" Binding="{Binding LevelSeverity}" Width="100"/>
+                    <DataGridTextColumn Header="Status" Binding="{Binding EvaluationStatus}" Width="100"/>
+                    <DataGridTextColumn Header="Date" Binding="{Binding EventDateTime, StringFormat=d}" Width="110"/>
                 </DataGrid.Columns>
             </DataGrid>
         </StackPanel>

@@ -104,8 +104,15 @@ public class PatientRecallGrain : Grain, IPatientRecallGrain
         });
         _state.State.ContactAttemptCount++;
 
-        if (result == "REACHED")
+        // A successful contact only advances an entry still awaiting contact
+        // (PENDING / LETTER_SENT / OVERDUE). Attempts against cancelled, completed,
+        // or already-scheduled entries are recorded for the audit trail but never
+        // change status — a REACHED call must not resurrect a CANCELLED recall.
+        if (result == "REACHED" &&
+            _state.State.Status is "PENDING" or "LETTER_SENT" or "OVERDUE")
+        {
             _state.State.Status = "CONTACTED";
+        }
 
         _state.State.LastModifiedDate = DateTime.UtcNow;
         await _state.WriteStateAsync();

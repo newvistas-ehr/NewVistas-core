@@ -106,7 +106,9 @@ public class MentalHealthState : EventSourcedStateBase
     public DateTime LastModifiedDate { get; set; } = DateTime.UtcNow;
 
     /// <summary>
-    /// Scoring method used — AUTO or MANUAL
+    /// Scoring method used — AUTO (a scoring definition drove the result), MANUAL, or a
+    /// "RAW-SUM (no scoring definition for this instrument)" marker when only a raw total
+    /// could be computed and no interpretation was attached
     /// </summary>
     [Id(20)]
     public string? ScoringMethodUsed { get; set; }

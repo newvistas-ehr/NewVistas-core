@@ -30,8 +30,8 @@ file, You can obtain one at https://mozilla.org/MPL/2.0/.
                             <DataGridTextColumn Header="Treatment Site" Binding="{Binding TreatmentSite}" Width="*"/>
                             <DataGridTextColumn Header="Modality" Binding="{Binding Modality}" Width="100"/>
                             <DataGridTextColumn Header="Status" Binding="{Binding Status}" Width="100"/>
-                            <DataGridTextColumn Header="Fractions" Binding="{Binding FractionsDelivered}" Width="80"/>
-                            <DataGridTextColumn Header="Total Dose" Binding="{Binding TotalDoseCgy, StringFormat='{}{0} cGy'}" Width="100"/>
+                            <DataGridTextColumn Header="Fractions" Binding="{Binding FractionsCompleted}" Width="80"/>
+                            <DataGridTextColumn Header="Total Dose" Binding="{Binding TotalDeliveredDoseCgy, StringFormat='{}{0} cGy'}" Width="100"/>
                         </DataGrid.Columns>
                     </DataGrid>
                 </StackPanel>
@@ -42,7 +42,7 @@ file, You can obtain one at https://mozilla.org/MPL/2.0/.
                         <DataGrid.Columns>
                             <DataGridTextColumn Header="#" Binding="{Binding FractionNumber}" Width="40"/>
                             <DataGridTextColumn Header="Date" Binding="{Binding TreatmentDate, StringFormat=d}" Width="100"/>
-                            <DataGridTextColumn Header="Dose (cGy)" Binding="{Binding DoseCgy}" Width="90"/>
+                            <DataGridTextColumn Header="Dose (cGy)" Binding="{Binding DoseDeliveredCgy}" Width="90"/>
                             <DataGridTextColumn Header="Status" Binding="{Binding Status}" Width="90"/>
                         </DataGrid.Columns>
                     </DataGrid>

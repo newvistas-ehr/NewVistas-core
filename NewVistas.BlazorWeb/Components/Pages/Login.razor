@@ -57,18 +57,25 @@
            and five of those lock the account for 15 minutes. On submit the browser
            sends the complete field values once, which also makes password-manager
            autofill work. *@
+        @* Plain inputs bound on oninput, NOT <InputText>. InputText commits only on the
+           change event, which fires on blur — so pressing Enter, or correcting a typo and
+           submitting without leaving the field, sent the PREVIOUS value (or none at all).
+           That is a silent wrong-password 401 with the right password visible on screen.
+           Binding on input keeps the model equal to what the user can see at all times. *@
         <EditForm Model="model" OnValidSubmit="LoginAsync" FormName="login">
             <div class="form-group">
                 <label for="access-code">Access Code (Username)</label>
-                <InputText id="access-code" @bind-Value="model.UserName"
-                           autocomplete="username" autocapitalize="characters"
-                           disabled="@isLoading" />
+                <input id="access-code" type="text" class="form-control"
+                       @bind="model.UserName" @bind:event="oninput"
+                       autocomplete="username" autocapitalize="characters"
+                       disabled="@isLoading" />
             </div>
 
             <div class="form-group">
                 <label for="verify-code">Verify Code (Password)</label>
-                <InputText id="verify-code" type="password" @bind-Value="model.Password"
-                           autocomplete="current-password" disabled="@isLoading" />
+                <input id="verify-code" type="password" class="form-control"
+                       @bind="model.Password" @bind:event="oninput"
+                       autocomplete="current-password" disabled="@isLoading" />
             </div>
 
             <button type="submit" class="btn-login" disabled="@isLoading">
@@ -91,6 +98,10 @@
 
     private async Task LoginAsync()
     {
+        // Enter can raise both a native form submit and a queued click; one attempt is enough,
+        // and a double attempt would burn two of the five tries before lockout.
+        if (isLoading) return;
+
         if (string.IsNullOrWhiteSpace(model.UserName) || string.IsNullOrWhiteSpace(model.Password))
         {
             error = "Please enter both access code and verify code.";

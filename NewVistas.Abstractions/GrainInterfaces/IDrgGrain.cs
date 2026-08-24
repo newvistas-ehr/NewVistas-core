@@ -37,4 +37,12 @@ public interface IDrgIndexGrain : IGrainWithStringKey
     Task<List<DrgAssignmentEntry>> GetAssignmentsByStatusAsync(string status);
     Task AddOrUpdateAsync(DrgAssignmentEntry entry);
     Task RemoveAsync(string admissionId);
+
+    /// <summary>
+    /// Seeds a small set of demo DRG assignments for this facility and indexes them.
+    /// Lives on the grain rather than in a controller so every client — Blazor, WPF and
+    /// the REST API — invokes the same seed instead of a UI reaching for HTTP to populate
+    /// its own screen. Idempotent: re-running overwrites the same admission ids.
+    /// </summary>
+    Task SeedDemoDataAsync();
 }

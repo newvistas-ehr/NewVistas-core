@@ -23,9 +23,9 @@ file, You can obtain one at https://mozilla.org/MPL/2.0/.
                     <DataGridTextColumn Header="Patient Name" Binding="{Binding PatientName}" Width="*"/>
                     <DataGridTextColumn Header="Status" Binding="{Binding Status}" Width="110"/>
                     <DataGridTextColumn Header="TBI Severity" Binding="{Binding TBISeverity}" Width="120"/>
-                    <DataGridTextColumn Header="ISS Score" Binding="{Binding ISSScore}" Width="90"/>
-                    <DataGridTextColumn Header="Trauma Mechanism" Binding="{Binding TraumaMechanism}" Width="160"/>
-                    <DataGridTextColumn Header="Enrollment Date" Binding="{Binding EnrollmentDate, StringFormat=d}" Width="130"/>
+                    <DataGridTextColumn Header="ISS Score" Binding="{Binding IssTotalScore}" Width="90"/>
+                    <DataGridTextColumn Header="Care Team" Binding="{Binding PrimaryCareTeam}" Width="160"/>
+                    <DataGridTextColumn Header="Registration Date" Binding="{Binding RegistrationDate, StringFormat=d}" Width="130"/>
                 </DataGrid.Columns>
             </DataGrid>
         </StackPanel>

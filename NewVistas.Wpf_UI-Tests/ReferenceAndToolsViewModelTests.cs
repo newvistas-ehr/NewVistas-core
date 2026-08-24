@@ -1,4 +1,4 @@
-// Copyright 2026 Merrimack Valley Software Works, LLC. All rights reserved.
+﻿// Copyright 2026 Merrimack Valley Software Works, LLC. All rights reserved.
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
@@ -28,7 +28,7 @@ public class ReferenceAndToolsViewModelTests : ViewModelTestBase
         });
         MockGrainFactory.GetGrain<IIcd10IndexGrain>(Arg.Any<string>(), Arg.Any<string?>()).Returns(mockIndex);
 
-        var vm = new Icd10BrowserViewModel(ApiClient, GrainService) { SearchTerm = "diabetes" };
+        var vm = new Icd10BrowserViewModel(GrainService) { SearchTerm = "diabetes" };
         await vm.SearchCommand.ExecuteAsync(null);
 
         Assert.That(vm.Results, Has.Count.EqualTo(1));
@@ -41,7 +41,7 @@ public class ReferenceAndToolsViewModelTests : ViewModelTestBase
         mockGrain.GetCodeAsync().Returns(new Icd10State { Code = "E11" });
         MockGrainFactory.GetGrain<IIcd10Grain>(Arg.Any<string>(), Arg.Any<string?>()).Returns(mockGrain);
 
-        var vm = new Icd10BrowserViewModel(ApiClient, GrainService);
+        var vm = new Icd10BrowserViewModel(GrainService);
         await vm.SelectCodeCommand.ExecuteAsync(new Icd10IndexEntry { Code = "E11" });
 
         Assert.That(vm.SelectedCode, Is.Not.Null);
@@ -51,7 +51,7 @@ public class ReferenceAndToolsViewModelTests : ViewModelTestBase
     [Test]
     public async Task Icd10Browser_EmptySearch_DoesNothing()
     {
-        var vm = new Icd10BrowserViewModel(ApiClient, GrainService) { SearchTerm = "" };
+        var vm = new Icd10BrowserViewModel(GrainService) { SearchTerm = "" };
         await vm.SearchCommand.ExecuteAsync(null);
         Assert.That(vm.Results, Has.Count.EqualTo(0));
     }
@@ -68,7 +68,7 @@ public class ReferenceAndToolsViewModelTests : ViewModelTestBase
         });
         MockGrainFactory.GetGrain<IDrugIndexGrain>(Arg.Any<string>(), Arg.Any<string?>()).Returns(mockIndex);
 
-        var vm = new DrugFileViewModel(ApiClient, GrainService) { SearchTerm = "aspirin" };
+        var vm = new DrugFileViewModel(GrainService) { SearchTerm = "aspirin" };
         await vm.SearchDrugsCommand.ExecuteAsync(null);
 
         Assert.That(vm.Results, Has.Count.EqualTo(1));
@@ -81,7 +81,7 @@ public class ReferenceAndToolsViewModelTests : ViewModelTestBase
         mockGrain.GetDrugAsync().Returns(new DrugState { LocalName = "ASPIRIN" });
         MockGrainFactory.GetGrain<IDrugGrain>(Arg.Any<string>(), Arg.Any<string?>()).Returns(mockGrain);
 
-        var vm = new DrugFileViewModel(ApiClient, GrainService);
+        var vm = new DrugFileViewModel(GrainService);
         await vm.SelectDrugCommand.ExecuteAsync(new DrugIndexEntry { Ien = "123" });
 
         Assert.That(vm.SelectedDrug, Is.Not.Null);
@@ -90,7 +90,7 @@ public class ReferenceAndToolsViewModelTests : ViewModelTestBase
     [Test]
     public async Task DrugFile_EmptySearch_DoesNothing()
     {
-        var vm = new DrugFileViewModel(ApiClient, GrainService) { SearchTerm = "" };
+        var vm = new DrugFileViewModel(GrainService) { SearchTerm = "" };
         await vm.SearchDrugsCommand.ExecuteAsync(null);
         Assert.That(vm.Results, Has.Count.EqualTo(0));
     }
@@ -107,7 +107,7 @@ public class ReferenceAndToolsViewModelTests : ViewModelTestBase
         });
         MockGrainFactory.GetGrain<IVaProductIndexGrain>(Arg.Any<string>(), Arg.Any<string?>()).Returns(mockIndex);
 
-        var vm = new DrugFormularyViewModel(ApiClient, GrainService) { SearchTerm = "metformin" };
+        var vm = new DrugFormularyViewModel(GrainService) { SearchTerm = "metformin" };
         await vm.SearchCommand.ExecuteAsync(null);
 
         Assert.That(vm.Results, Has.Count.EqualTo(1));
@@ -120,7 +120,7 @@ public class ReferenceAndToolsViewModelTests : ViewModelTestBase
         mockGrain.GetProductAsync().Returns(new VaProductState { Name = "METFORMIN" });
         MockGrainFactory.GetGrain<IVaProductGrain>(Arg.Any<string>(), Arg.Any<string?>()).Returns(mockGrain);
 
-        var vm = new DrugFormularyViewModel(ApiClient, GrainService);
+        var vm = new DrugFormularyViewModel(GrainService);
         await vm.SelectProductCommand.ExecuteAsync(new VaProductIndexEntry { Ien = "456" });
 
         Assert.That(vm.SelectedProduct, Is.Not.Null);
@@ -129,7 +129,7 @@ public class ReferenceAndToolsViewModelTests : ViewModelTestBase
     [Test]
     public async Task DrugFormulary_EmptySearch_DoesNothing()
     {
-        var vm = new DrugFormularyViewModel(ApiClient, GrainService) { SearchTerm = "" };
+        var vm = new DrugFormularyViewModel(GrainService) { SearchTerm = "" };
         await vm.SearchCommand.ExecuteAsync(null);
         Assert.That(vm.Results, Has.Count.EqualTo(0));
     }
@@ -143,7 +143,7 @@ public class ReferenceAndToolsViewModelTests : ViewModelTestBase
         mockGrain.SearchAsync("hypertension", null, 50).Returns(new List<LexiconIndexEntry> { new() });
         MockGrainFactory.GetGrain<ILexiconSearchGrain>(Arg.Any<string>(), Arg.Any<string?>()).Returns(mockGrain);
 
-        var vm = new LexiconViewModel(ApiClient, GrainService) { SearchTerm = "hypertension" };
+        var vm = new LexiconViewModel(GrainService) { SearchTerm = "hypertension" };
         await vm.SearchCommand.ExecuteAsync(null);
 
         Assert.That(vm.SearchResults, Has.Count.EqualTo(1));
@@ -156,7 +156,7 @@ public class ReferenceAndToolsViewModelTests : ViewModelTestBase
         mockGrain.LookupCodeAsync("I10", "ICD10").Returns(new LexiconIndexEntry { Code = "I10" });
         MockGrainFactory.GetGrain<ILexiconSearchGrain>(Arg.Any<string>(), Arg.Any<string?>()).Returns(mockGrain);
 
-        var vm = new LexiconViewModel(ApiClient, GrainService) { LookupSystem = "ICD10", LookupCode = "I10" };
+        var vm = new LexiconViewModel(GrainService) { LookupSystem = "ICD10", LookupCode = "I10" };
         await vm.LookupCommand.ExecuteAsync(null);
 
         Assert.That(vm.LookupResult, Is.Not.Null);
@@ -165,7 +165,7 @@ public class ReferenceAndToolsViewModelTests : ViewModelTestBase
     [Test]
     public async Task Lexicon_EmptySearch_SetsError()
     {
-        var vm = new LexiconViewModel(ApiClient, GrainService) { SearchTerm = "" };
+        var vm = new LexiconViewModel(GrainService) { SearchTerm = "" };
         await vm.SearchCommand.ExecuteAsync(null);
         Assert.That(vm.Error, Is.EqualTo("Enter a search term"));
     }
@@ -179,7 +179,7 @@ public class ReferenceAndToolsViewModelTests : ViewModelTestBase
         mockGrain.SearchAsync("Smith", 50).Returns(new List<MpiSearchResult> { new() });
         MockGrainFactory.GetGrain<IMpiSearchGrain>(Arg.Any<string>(), Arg.Any<string?>()).Returns(mockGrain);
 
-        var vm = new MasterPatientIndexViewModel(ApiClient, GrainService) { SearchQuery = "Smith" };
+        var vm = new MasterPatientIndexViewModel(GrainService) { SearchQuery = "Smith" };
         await vm.SearchCommand.ExecuteAsync(null);
 
         Assert.That(vm.SearchResults, Has.Count.EqualTo(1));
@@ -193,7 +193,7 @@ public class ReferenceAndToolsViewModelTests : ViewModelTestBase
             .Returns(new List<MpiMatchCandidate> { new() });
         MockGrainFactory.GetGrain<IMpiMatchGrain>(Arg.Any<string>(), Arg.Any<string?>()).Returns(mockGrain);
 
-        var vm = new MasterPatientIndexViewModel(ApiClient, GrainService)
+        var vm = new MasterPatientIndexViewModel(GrainService)
         {
             MatchName = "Smith", MatchSsn = "1234"
         };
@@ -205,7 +205,7 @@ public class ReferenceAndToolsViewModelTests : ViewModelTestBase
     [Test]
     public async Task Mpi_EmptySearch_SetsError()
     {
-        var vm = new MasterPatientIndexViewModel(ApiClient, GrainService) { SearchQuery = "" };
+        var vm = new MasterPatientIndexViewModel(GrainService) { SearchQuery = "" };
         await vm.SearchCommand.ExecuteAsync(null);
         Assert.That(vm.Error, Is.EqualTo("Enter a search query"));
     }
@@ -230,7 +230,7 @@ public class ReferenceAndToolsViewModelTests : ViewModelTestBase
         MockGrainFactory.GetGrain<IBedCapacityGrain>(Arg.Any<string>(), Arg.Any<string?>()).Returns(mockCapacity);
         MockGrainFactory.GetGrain<IInpatientUnitGrain>(Arg.Any<string>(), Arg.Any<string?>()).Returns(mockUnit);
 
-        var vm = new BedManagementViewModel(ApiClient, GrainService);
+        var vm = new BedManagementViewModel(GrainService);
         await vm.LoadCommand.ExecuteAsync(null);
 
         Assert.That(vm.Beds, Has.Count.EqualTo(1));
@@ -247,7 +247,7 @@ public class ReferenceAndToolsViewModelTests : ViewModelTestBase
         MockGrainFactory.GetGrain<IBedCapacityGrain>(Arg.Any<string>(), Arg.Any<string?>()).Returns(mockCapacity);
         MockGrainFactory.GetGrain<IInpatientUnitGrain>(Arg.Any<string>(), Arg.Any<string?>()).Returns(mockUnit);
 
-        var vm = new BedManagementViewModel(ApiClient, GrainService);
+        var vm = new BedManagementViewModel(GrainService);
         vm.SelectedBed = new BedBoardEntry("B1", "MED-3A", "Cleaning", null, null);
         await vm.MarkAvailableCommand.ExecuteAsync(null);
 
@@ -263,7 +263,7 @@ public class ReferenceAndToolsViewModelTests : ViewModelTestBase
         MockGrainFactory.GetGrain<IBedCapacityGrain>(Arg.Any<string>(), Arg.Any<string?>()).Returns(mockCapacity);
         MockGrainFactory.GetGrain<IInpatientUnitGrain>(Arg.Any<string>(), Arg.Any<string?>()).Returns(mockUnit);
 
-        var vm = new BedManagementViewModel(ApiClient, GrainService);
+        var vm = new BedManagementViewModel(GrainService);
         vm.SelectedBed = new BedBoardEntry("B1", "MED-3A", "Available", null, null);
         await vm.MarkDirtyCommand.ExecuteAsync(null);
 
@@ -281,7 +281,7 @@ public class ReferenceAndToolsViewModelTests : ViewModelTestBase
         mockGrain.GetNotesDisplayCountAsync().Returns(15);
         MockGrainFactory.GetGrain<ISiteParametersGrain>(Arg.Any<string>(), Arg.Any<string?>()).Returns(mockGrain);
 
-        var vm = new SiteParametersViewModel(ApiClient, GrainService);
+        var vm = new SiteParametersViewModel(GrainService);
         await vm.LoadDisplaySettingsCommand.ExecuteAsync(null);
 
         Assert.That(vm.VitalsDisplayCount, Is.EqualTo(10));
@@ -295,7 +295,7 @@ public class ReferenceAndToolsViewModelTests : ViewModelTestBase
         var mockGrain = Substitute.For<ISiteParametersGrain>();
         MockGrainFactory.GetGrain<ISiteParametersGrain>(Arg.Any<string>(), Arg.Any<string?>()).Returns(mockGrain);
 
-        var vm = new SiteParametersViewModel(ApiClient, GrainService)
+        var vm = new SiteParametersViewModel(GrainService)
         {
             VitalsDisplayCount = 20, OrdersDisplayCount = 10, NotesDisplayCount = 25
         };
@@ -316,7 +316,7 @@ public class ReferenceAndToolsViewModelTests : ViewModelTestBase
         });
         MockGrainFactory.GetGrain<ISiteParametersGrain>(Arg.Any<string>(), Arg.Any<string?>()).Returns(mockGrain);
 
-        var vm = new SiteParametersViewModel(ApiClient, GrainService);
+        var vm = new SiteParametersViewModel(GrainService);
         await vm.LoadParametersCommand.ExecuteAsync(null);
 
         Assert.That(vm.Parameters, Has.Count.EqualTo(1));
@@ -331,7 +331,7 @@ public class ReferenceAndToolsViewModelTests : ViewModelTestBase
         mockLoc.GetAllDrugsAsync().Returns(new List<DrugBalanceSummary> { new() });
         MockGrainFactory.GetGrain<IDrugAccountabilityLocationGrain>(Arg.Any<string>(), Arg.Any<string?>()).Returns(mockLoc);
 
-        var vm = new DrugAccountabilityViewModel(ApiClient, GrainService);
+        var vm = new DrugAccountabilityViewModel(GrainService);
         await vm.LoadInventoryCommand.ExecuteAsync(null);
 
         Assert.That(vm.Drugs, Has.Count.EqualTo(1));
@@ -344,7 +344,7 @@ public class ReferenceAndToolsViewModelTests : ViewModelTestBase
         mockGrain.GetTransactionHistoryAsync().Returns(new List<DrugAccountabilityTransaction> { new() });
         MockGrainFactory.GetGrain<IDrugAccountabilityGrain>(Arg.Any<string>(), Arg.Any<string?>()).Returns(mockGrain);
 
-        var vm = new DrugAccountabilityViewModel(ApiClient, GrainService);
+        var vm = new DrugAccountabilityViewModel(GrainService);
         await vm.SelectDrugCommand.ExecuteAsync(new DrugBalanceSummary { DrugId = "D1" });
 
         Assert.That(vm.TransactionHistory, Has.Count.EqualTo(1));
@@ -353,7 +353,7 @@ public class ReferenceAndToolsViewModelTests : ViewModelTestBase
     [Test]
     public async Task DrugAccountability_EmptyLocation_DoesNothing()
     {
-        var vm = new DrugAccountabilityViewModel(ApiClient, GrainService) { LocationId = "" };
+        var vm = new DrugAccountabilityViewModel(GrainService) { LocationId = "" };
         await vm.LoadInventoryCommand.ExecuteAsync(null);
         Assert.That(vm.Drugs, Has.Count.EqualTo(0));
     }
@@ -367,7 +367,7 @@ public class ReferenceAndToolsViewModelTests : ViewModelTestBase
         mockIdx.GetAllAssessmentsAsync().Returns(new List<GECAssessmentIndexEntry> { new() });
         MockGrainFactory.GetGrain<IGECAssessmentIndexGrain>(Arg.Any<string>(), Arg.Any<string?>()).Returns(mockIdx);
 
-        var vm = new GeriatricsExtendedCareViewModel(ApiClient, GrainService) { PatientId = "P1" };
+        var vm = new GeriatricsExtendedCareViewModel(GrainService) { PatientId = "P1" };
         await vm.LoadCommand.ExecuteAsync(null);
 
         Assert.That(vm.Assessments, Has.Count.EqualTo(1));
@@ -376,7 +376,7 @@ public class ReferenceAndToolsViewModelTests : ViewModelTestBase
     [Test]
     public async Task GeriatricsEC_EmptyPatient_DoesNothing()
     {
-        var vm = new GeriatricsExtendedCareViewModel(ApiClient, GrainService) { PatientId = "" };
+        var vm = new GeriatricsExtendedCareViewModel(GrainService) { PatientId = "" };
         await vm.LoadCommand.ExecuteAsync(null);
         Assert.That(vm.Assessments, Has.Count.EqualTo(0));
     }
@@ -390,7 +390,7 @@ public class ReferenceAndToolsViewModelTests : ViewModelTestBase
         mockIdx.GetAllDeficienciesAsync().Returns(new List<IncompleteRecordEntry> { new() });
         MockGrainFactory.GetGrain<IIncompleteRecordIndexGrain>(Arg.Any<string>(), Arg.Any<string?>()).Returns(mockIdx);
 
-        var vm = new IncompleteRecordsViewModel(ApiClient, GrainService) { ProviderId = "PROV1" };
+        var vm = new IncompleteRecordsViewModel(GrainService) { ProviderId = "PROV1" };
         await vm.LoadCommand.ExecuteAsync(null);
 
         Assert.That(vm.Deficiencies, Has.Count.EqualTo(1));
@@ -399,7 +399,7 @@ public class ReferenceAndToolsViewModelTests : ViewModelTestBase
     [Test]
     public async Task IncompleteRecords_EmptyProvider_SetsError()
     {
-        var vm = new IncompleteRecordsViewModel(ApiClient, GrainService) { ProviderId = "" };
+        var vm = new IncompleteRecordsViewModel(GrainService) { ProviderId = "" };
         await vm.LoadCommand.ExecuteAsync(null);
         Assert.That(vm.Error, Is.EqualTo("Enter a Provider ID"));
     }
@@ -413,7 +413,7 @@ public class ReferenceAndToolsViewModelTests : ViewModelTestBase
         MockGrainFactory.GetGrain<IIncompleteRecordGrain>(Arg.Any<string>(), Arg.Any<string?>()).Returns(mockGrain);
         MockGrainFactory.GetGrain<IIncompleteRecordIndexGrain>(Arg.Any<string>(), Arg.Any<string?>()).Returns(mockIdx);
 
-        var vm = new IncompleteRecordsViewModel(ApiClient, GrainService) { ProviderId = "PROV1" };
+        var vm = new IncompleteRecordsViewModel(GrainService) { ProviderId = "PROV1" };
         vm.SelectedDeficiency = new IncompleteRecordEntry { DeficiencyId = "D1" };
         await vm.CompleteCommand.ExecuteAsync(null);
 

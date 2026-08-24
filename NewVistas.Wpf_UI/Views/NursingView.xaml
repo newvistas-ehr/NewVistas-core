@@ -30,7 +30,7 @@ file, You can obtain one at https://mozilla.org/MPL/2.0/.
                 <DataGrid.Columns>
                     <DataGridTextColumn Header="Type" Binding="{Binding AssessmentType}" Width="160"/>
                     <DataGridTextColumn Header="Status" Binding="{Binding Status}" Width="110"/>
-                    <DataGridTextColumn Header="Date" Binding="{Binding AssessmentDate, StringFormat=d}" Width="110"/>
+                    <DataGridTextColumn Header="Date" Binding="{Binding AssessmentDateTime, StringFormat=d}" Width="110"/>
                     <DataGridTextColumn Header="Nurse" Binding="{Binding NurseName}" Width="*"/>
                 </DataGrid.Columns>
             </DataGrid>

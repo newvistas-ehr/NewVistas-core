@@ -1,4 +1,4 @@
-// Copyright 2026 Merrimack Valley Software Works, LLC. All rights reserved.
+﻿// Copyright 2026 Merrimack Valley Software Works, LLC. All rights reserved.
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
@@ -88,6 +88,45 @@ public class IncompleteRecordGrain : Grain, IIncompleteRecordGrain
 /// </summary>
 public class IncompleteRecordIndexGrain : Grain, IIncompleteRecordIndexGrain
 {
+    /// <inheritdoc />
+    /// <remarks>Moved here from IncompleteRecordsController so every client seeds via one grain call.</remarks>
+    public async Task SeedDemoDataAsync()
+    {
+        // The index is keyed "DGPT-INDEX:{providerId}" - seed for whichever provider this is.
+        string providerId = this.GetPrimaryKeyString().Replace("DGPT-INDEX:", string.Empty);
+
+        (string PatId, string PatName, string Type, string Desc, int DaysAgo, int DelinqDays)[] demo =
+        {
+            ("PATIENT-001", "JONES,MICHAEL R", "UNSIGNED_NOTE", "Unsigned progress note from 02/15", 5, 30),
+            ("PATIENT-002", "SMITH,SARAH L", "MISSING_DISCHARGE_SUMMARY", "Discharge summary not dictated", 25, 30),
+            ("PATIENT-003", "WILLIAMS,JAMES T", "MISSING_HP", "History and Physical not completed within 24h", 35, 30),
+            ("PATIENT-001", "JONES,MICHAEL R", "UNSIGNED_ORDER", "Verbal order not cosigned within 48h", 3, 2),
+            ("PATIENT-004", "BROWN,PATRICIA A", "MISSING_OP_NOTE", "Operative note not dictated within 24h", 10, 1),
+        };
+
+        foreach (var d in demo)
+        {
+            string defId = $"DGPT-DEMO-{Guid.NewGuid():N}";
+            var grain = GrainFactory.GetGrain<IIncompleteRecordGrain>($"DGPT:{defId}");
+            await grain.CreateDeficiencyAsync(
+                d.PatId, d.PatName, providerId, "DR. MARTINEZ", d.Type, d.Desc,
+                null, null, DateTime.UtcNow.AddDays(-d.DaysAgo), d.DelinqDays);
+
+            IncompleteRecordState state = await grain.GetDeficiencyAsync();
+            await AddOrUpdateAsync(new IncompleteRecordEntry
+            {
+                DeficiencyId = state.DeficiencyId,
+                PatientName = state.PatientName,
+                ProviderName = state.ProviderName,
+                DeficiencyType = state.DeficiencyType,
+                Status = state.Status,
+                DaysOutstanding = state.DaysOutstanding,
+                IsDelinquent = state.Status == "DELINQUENT" || state.DaysOutstanding > state.DelinquentAfterDays,
+                DischargeDate = state.DischargeDate,
+            });
+        }
+    }
+
     private readonly IPersistentState<IncompleteRecordIndexState> _state;
 
     public IncompleteRecordIndexGrain(

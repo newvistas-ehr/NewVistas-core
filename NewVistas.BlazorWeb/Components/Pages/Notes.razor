@@ -7,6 +7,8 @@
 @rendermode InteractiveServer
 @using NewVistas.BlazorWeb.Services
 @using NewVistas.Abstractions.GrainInterfaces
+@using NewVistas.Abstractions.Security
+@using NewVistas.Abstractions.Services
 @using NewVistas.Abstractions.GrainStates
 @inject OrleansGrainService Grains
 @inject PatientContextService PatientContext
@@ -103,7 +105,7 @@
             }
             <div class="form-row">
                 <label>Signer ID</label>
-                <input type="text" @bind="esigSignerId" placeholder="Your user ID" />
+                <input type="text" @bind="esigSignerId" readonly title="You are signing as the user you signed in as." />
             </div>
             <div class="form-row">
                 <label>Electronic Signature Code</label>
@@ -187,12 +189,85 @@
                 {
                     <button @onclick="() => PromptCosign(selectedNote.DocumentId)" class="btn btn-primary">Cosign</button>
                 }
+                <button @onclick="SuggestCodes" disabled="@suggesting" class="btn btn-secondary">
+                    @(suggesting ? "Reading note…" : "Suggest ICD-10 codes")
+                </button>
                 <button @onclick="() => selectedNote = null" class="btn btn-secondary">Close</button>
             </div>
         </div>
         <div class="note-body">
             <pre>@selectedNote.ReportText</pre>
         </div>
+
+        @* ── ICD-10 suggestions (coding assist) ──
+           Claims come from the assistant (offline lexicon, or a model when configured); codes
+           come ONLY from the site's ICD-10 index; every quote was verified verbatim against
+           this note. The Add button exists only for affirmed (Supports) claims — a negated or
+           not-assessed statement is evidence, not a diagnosis, and is shown for information. *@
+        @if (codeSuggestions != null)
+        {
+            <div class="sugg-panel">
+                <div class="sugg-head">
+                    Suggested codes
+                    <span class="sugg-provider">from @codeSuggestions.ProviderName</span>
+                </div>
+                @if (!string.IsNullOrEmpty(codeSuggestions.ConfigurationNotice))
+                {
+                    <div class="sugg-setup">@codeSuggestions.ConfigurationNotice</div>
+                }
+                @if (codeSuggestions.Suggestions.Count == 0 && codeSuggestions.UnresolvedClaims.Count == 0)
+                {
+                    <div class="empty-state">Nothing in this note mapped to a code.</div>
+                }
+                @foreach (var s in codeSuggestions.Suggestions)
+                {
+                    <div class="sugg-row">
+                        <div class="sugg-main">
+                            <span class="sugg-code">@s.Code</span>
+                            <span>@s.Display</span>
+                            @if (s.Claim.Polarity == EvidencePolarity.Refutes)
+                            {
+                                <span class="sugg-chip sugg-neg">denied in note</span>
+                            }
+                            else if (s.Claim.Polarity == EvidencePolarity.NotAssessed)
+                            {
+                                <span class="sugg-chip sugg-na">not assessed</span>
+                            }
+                            @if (s.Claim.Subject == ClaimSubject.FamilyMember)
+                            {
+                                <span class="sugg-chip">family history</span>
+                            }
+                            @if (s.Claim.Temporality == ClaimTemporality.History)
+                            {
+                                <span class="sugg-chip">past history</span>
+                            }
+                        </div>
+                        <div class="sugg-quote">"@s.Claim.SourceQuote"</div>
+                        @if (s.Claim.Polarity == EvidencePolarity.Supports)
+                        {
+                            <button class="btn-sm" disabled="@applying"
+                                    @onclick="() => ApplySuggestion(s)">Add as problem (Unconfirmed)</button>
+                        }
+                    </div>
+                }
+                @if (codeSuggestions.UnresolvedClaims.Count > 0)
+                {
+                    <div class="sugg-sub">Noticed but not mapped to a code:</div>
+                    @foreach (var c in codeSuggestions.UnresolvedClaims)
+                    {
+                        <div class="sugg-unresolved">
+                            @c.Term — "@c.SourceQuote"
+                            @if (!c.QuoteVerified)
+                            {
+                                <span class="sugg-chip sugg-neg">@c.VerificationNote</span>
+                            }
+                        </div>
+                    }
+                }
+                <div class="sugg-disclaimer">@codeSuggestions.Disclaimer</div>
+            </div>
+        }
+
         @if (selectedNote.AddendumIds?.Count > 0)
         {
             <div class="addenda-label">Addenda (@selectedNote.AddendumIds.Count)</div>
@@ -259,6 +334,12 @@
     private bool esigSubmitting;
     private string? esigError;
     private string esigCode = "";
+
+    // ICD-10 suggestion (coding assist)
+    private NoteCodingSuggestions? codeSuggestions;
+    private bool suggesting, applying;
+
+
     private string esigSignerId = "";
     private string esigAction = "sign";
     private string esigDocumentId = "";
@@ -289,6 +370,14 @@
         if (string.IsNullOrWhiteSpace(patientId)) return;
         PatientContext.SetPatient(patientId.Trim());
         loading = true; error = null; successMessage = null; selectedNote = null;
+        // Clear per-patient panel state so stale history, code suggestions, and note
+        // drafts from the previous patient never survive a patient switch.
+        codeSuggestions = null;
+        historyNotes = null; showHistory = false;
+        showNewNote = false;
+        newNoteDocType = "PROGRESS NOTE"; newNoteSubject = null;
+        newNoteAuthor = null; newNoteAuthorId = null;
+        newNoteLocation = null; newNoteText = "";
         try
         {
             var grain = Grains.GetGrain<IPatientWorkflowGrain>(patientId.Trim());
@@ -300,6 +389,7 @@
 
     private async Task ViewNote(string documentId)
     {
+        codeSuggestions = null;
         error = null;
         try
         {
@@ -351,7 +441,7 @@
         esigDocumentId = documentId;
         esigAction = action;
         esigCode = "";
-        esigSignerId = "";
+        esigSignerId = Grains.CurrentUserName ?? Grains.CurrentUserId ?? "";
         esigError = null;
         showEsigModal = true;
     }
@@ -362,16 +452,43 @@
         esigError = null;
     }
 
+    private async Task SuggestCodes()
+    {
+        if (selectedNote == null || patientId == null) return;
+        suggesting = true; error = null; codeSuggestions = null;
+        try
+        {
+            codeSuggestions = await Grains.GetGrain<IPatientWorkflowGrain>(patientId.Trim())
+                .SuggestCodesForNoteAsync(selectedNote.DocumentId);
+        }
+        catch (Exception ex) { error = $"Error suggesting codes: {ex.Message}"; }
+        finally { suggesting = false; }
+    }
+
+    private async Task ApplySuggestion(CodedSuggestion s)
+    {
+        if (selectedNote == null || patientId == null) return;
+        applying = true; error = null;
+        try
+        {
+            await Grains.GetGrain<IPatientWorkflowGrain>(patientId.Trim())
+                .ApplySuggestedCodeAsync(
+                    selectedNote.DocumentId, s.Code, s.Display, s.Claim.SourceQuote, s.Claim.Polarity);
+            successMessage = $"{s.Code} added to the problem list as Unconfirmed, citing this note.";
+            codeSuggestions?.Suggestions.Remove(s);
+        }
+        catch (UnauthorizedAccessException ex) { error = SecurityKeyError.Describe(ex); }
+        catch (Exception ex) { error = $"Error applying suggestion: {ex.Message}"; }
+        finally { applying = false; }
+    }
+
     private async Task SubmitEsig()
     {
+        // Guard against a queued second Enter — without this the flow can run twice.
+        if (esigSubmitting) return;
         if (string.IsNullOrWhiteSpace(esigCode))
         {
             esigError = "Electronic signature code is required.";
-            return;
-        }
-        if (string.IsNullOrWhiteSpace(esigSignerId))
-        {
-            esigError = "Signer ID is required.";
             return;
         }
 
@@ -379,21 +496,35 @@
         esigError = null;
         try
         {
+            // The code is verified BY THE WORKFLOW GRAIN against the signed-in caller's
+            // stored hash — enforcement lives on the grain so every client (web, terminal,
+            // desktop, API) inherits the same fail-closed gate; this dialog just collects
+            // the code and reports the outcome.
             var grain = Grains.GetGrain<IPatientWorkflowGrain>(patientId!.Trim());
             if (esigAction == "cosign")
             {
-                await grain.CosignNoteAsync(esigDocumentId);
+                await grain.CosignNoteAsync(esigDocumentId, esigCode);
             }
             else
             {
-                await grain.SignNoteAsync(esigDocumentId);
+                await grain.SignNoteAsync(esigDocumentId, esigCode);
             }
+
+            // The user may have clicked Cancel while verification was in flight; the note is
+            // signed either way (the grain call completed), so tell them rather than staying
+            // silent — but only reopen UI state if the modal is still up.
             showEsigModal = false;
-            successMessage = esigAction == "cosign" ? "Note cosigned." : "Note signed.";
             await ViewNote(esigDocumentId);
             await LoadNotes();
+            // After the reloads, or LoadNotes' state reset silently wipes the confirmation.
+            successMessage = esigAction == "cosign" ? "Note cosigned." : "Note signed.";
         }
-        catch (UnauthorizedAccessException ex) { esigError = SecurityKeyError.Describe(ex); }
+        catch (UnauthorizedAccessException)
+        {
+            // Deliberately does not say whether a code has ever been set for this user.
+            esigError = "That electronic signature code was not accepted.";
+            showEsigModal = true;
+        }
         catch (Exception ex) { esigError = $"Error: {ex.Message}"; }
         finally { esigSubmitting = false; }
     }
@@ -443,11 +574,11 @@
 
     .note-form { border: 1px solid #d4d9e0; border-radius: 6px; padding: 1.25rem; margin-bottom: 1.5rem; background: #f9fafb; }
     .note-form h3 { margin-bottom: 1rem; color: #003f72; }
-    .form-row { display: flex; flex-direction: column; gap: 0.25rem; margin-bottom: 0.75rem; max-width: 400px; }
+    .form-row { display: flex; flex-direction: column; align-items: stretch; gap: 0.25rem; margin-bottom: 0.75rem; max-width: 400px; }
     .form-row.full { max-width: 100%; }
     .form-row label { font-size: 0.8rem; font-weight: 600; color: #555; }
     .form-row input, .form-row select { padding: 0.4rem 0.6rem; border: 1px solid #ccc; border-radius: 4px; font-size: 0.85rem; }
-    .form-row textarea { padding: 0.5rem 0.6rem; border: 1px solid #ccc; border-radius: 4px; font-size: 0.85rem; font-family: monospace; resize: vertical; }
+    .form-row textarea { width: 100%; box-sizing: border-box; min-height: 16rem; padding: 0.5rem 0.6rem; border: 1px solid #ccc; border-radius: 4px; font-size: 0.85rem; font-family: monospace; resize: vertical; }
     .form-actions { display: flex; gap: 0.5rem; margin-top: 0.5rem; }
 
     .note-detail { border: 1px solid #d4d9e0; border-radius: 6px; overflow: hidden; margin-bottom: 1.5rem; }
@@ -467,4 +598,19 @@
 
     .history-filters { display: flex; gap: 1rem; align-items: flex-end; flex-wrap: wrap; margin-bottom: 1rem; }
     .history-result-count { margin-top: 0.5rem; }
+    /* ICD-10 suggestion panel (coding assist) */
+    .sugg-panel { border: 1px solid #b9c8da; border-radius: 4px; background: #fbfcfd; padding: 0.8rem 1rem; margin: 0.9rem 0; font-size: 0.85rem; }
+    .sugg-head { font-weight: 600; color: #003f72; margin-bottom: 0.4rem; }
+    .sugg-provider { font-weight: 400; color: #6b7280; font-size: 0.75rem; margin-left: 0.4rem; }
+    .sugg-setup { white-space: pre-line; background: #fffbeb; border: 1px solid #d97706; border-radius: 4px; padding: 0.5rem 0.7rem; margin-bottom: 0.6rem; font-size: 0.78rem; }
+    .sugg-row { border-top: 1px solid #eef1f5; padding: 0.5rem 0; }
+    .sugg-main { display: flex; align-items: center; gap: 0.45rem; flex-wrap: wrap; }
+    .sugg-code { font-family: monospace; color: #003f72; font-weight: 600; }
+    .sugg-chip { background: #eef4fb; color: #003f72; border: 1px solid #b9c8da; border-radius: 3px; padding: 0 0.3rem; font-size: 0.68rem; }
+    .sugg-chip.sugg-neg { background: #fde8e8; color: #b91c1c; border-color: #f5c6c6; }
+    .sugg-chip.sugg-na { background: #f3f4f6; color: #4b5563; border-color: #d1d5db; }
+    .sugg-quote { color: #4b5563; font-style: italic; margin: 0.25rem 0 0.35rem; }
+    .sugg-sub { margin-top: 0.6rem; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.03em; color: #6b7280; }
+    .sugg-unresolved { color: #4b5563; padding: 0.2rem 0; }
+    .sugg-disclaimer { margin-top: 0.7rem; padding-top: 0.5rem; border-top: 1px solid #e5e7eb; color: #6b7280; font-size: 0.72rem; }
 </style>

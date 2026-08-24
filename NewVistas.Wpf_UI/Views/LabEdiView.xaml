@@ -26,11 +26,11 @@ file, You can obtain one at https://mozilla.org/MPL/2.0/.
             <DataGrid ItemsSource="{Binding ReferenceLabs}" SelectedItem="{Binding SelectedLab}" AutoGenerateColumns="False" MaxHeight="200">
                 <DataGrid.Columns>
                     <DataGridTextColumn Header="Lab Name" Binding="{Binding LabName}" Width="180"/>
-                    <DataGridTextColumn Header="CLIA" Binding="{Binding Clia}" Width="120"/>
+                    <DataGridTextColumn Header="CLIA" Binding="{Binding CliaNumber}" Width="120"/>
                     <DataGridTextColumn Header="Connection" Binding="{Binding ConnectionType}" Width="100"/>
                     <DataGridCheckBoxColumn Header="Active" Binding="{Binding IsActive}" Width="60"/>
-                    <DataGridTextColumn Header="Orders Sent" Binding="{Binding OrdersSent}" Width="100"/>
-                    <DataGridTextColumn Header="Results Rcvd" Binding="{Binding ResultsReceived}" Width="*"/>
+                    <DataGridTextColumn Header="Orders Sent" Binding="{Binding TotalOrders}" Width="100"/>
+                    <DataGridTextColumn Header="Results Rcvd" Binding="{Binding TotalResults}" Width="*"/>
                 </DataGrid.Columns>
             </DataGrid>
 
@@ -38,9 +38,9 @@ file, You can obtain one at https://mozilla.org/MPL/2.0/.
             <DataGrid ItemsSource="{Binding Orders}" SelectedItem="{Binding SelectedOrder}" AutoGenerateColumns="False" MaxHeight="200">
                 <DataGrid.Columns>
                     <DataGridTextColumn Header="Order ID" Binding="{Binding OrderId}" Width="160"/>
-                    <DataGridTextColumn Header="Test" Binding="{Binding TestName}" Width="*"/>
-                    <DataGridTextColumn Header="Lab" Binding="{Binding LabName}" Width="140"/>
-                    <DataGridTextColumn Header="Order Date" Binding="{Binding OrderDate}" Width="130"/>
+                    <DataGridTextColumn Header="Tests" Binding="{Binding TestCount}" Width="*"/>
+                    <DataGridTextColumn Header="Lab" Binding="{Binding ReferenceLab}" Width="140"/>
+                    <DataGridTextColumn Header="Order Date" Binding="{Binding CreatedDate}" Width="130"/>
                     <DataGridTextColumn Header="Status" Binding="{Binding Status}" Width="100"/>
                 </DataGrid.Columns>
             </DataGrid>

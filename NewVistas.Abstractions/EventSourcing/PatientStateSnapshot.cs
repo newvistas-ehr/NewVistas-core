@@ -125,6 +125,24 @@ public class PatientStateSnapshot
             case ProblemInactivatedV1 e:
                 ApplyProblemInactivated(e);
                 break;
+            case ProblemAssertedV1 e:
+                ApplyProblemAsserted(e);
+                break;
+            case ProblemRevisedV1 e:
+                ApplyProblemRevised(e);
+                break;
+            case ProblemAssessedV1 e:
+                ApplyProblemAssessed(e);
+                break;
+            case ProblemSupersededV1 e:
+                ApplyProblemSuperseded(e);
+                break;
+            case ProblemEnteredInErrorV1 e:
+                ApplyProblemEnteredInError(e);
+                break;
+            case ProblemBaselineImportedV1 e:
+                ApplyProblemBaselineImported(e);
+                break;
             case OrderPlacedV1 e:
                 ApplyOrderPlaced(e);
                 break;
@@ -246,6 +264,142 @@ public class PatientStateSnapshot
         p.DateResolved = e.DateResolved;
         p.LastModifiedDate = e.OccurredUtc;
         Problems[idx] = p;
+    }
+
+    // ── Diagnosis provenance (ADR-006) ──────────────────────────────────────
+    //
+    // REPLAY INVARIANT: only ProblemAssertedV1, ProblemAddedV1 and ProblemBaselineImportedV1 may
+    // CREATE a head. Every other branch finds an existing head or returns. A revision arriving
+    // before its assertion (federation reordering, partial replica) must not conjure a problem
+    // out of a revision envelope — the result would be a diagnosis with no origin that still
+    // counts in the statistics.
+
+    private void ApplyProblemAsserted(ProblemAssertedV1 e)
+    {
+        if (Problems.Any(p => p.ProblemId == e.ProblemId)) return;
+
+        ProblemEntry p = e.Snapshot.Clone();
+        p.AssertionId = e.EventId;
+        p.RevisionNumber = 1;
+        p.VerificationStatus = e.VerificationStatus;
+        p.Evidence = new List<EvidenceRef>(e.Evidence);
+        p.SupersedesProblemId = e.SupersedesProblemId;
+        Problems.Add(p);
+    }
+
+    private void ApplyProblemRevised(ProblemRevisedV1 e)
+    {
+        int idx = Problems.FindIndex(p => p.ProblemId == e.ProblemId);
+        if (idx < 0) return;
+
+        ProblemEntry p = Problems[idx];
+
+        // Clinical fields move; identity and incidence anchors do NOT. ProblemId, CreatedDate
+        // and DateRecorded are what "when did this patient first get this problem" is computed
+        // from — letting a revision rewrite them would silently restate the patient's history.
+        p.Diagnosis = e.Snapshot.Diagnosis;
+        p.DiagnosisCode = e.Snapshot.DiagnosisCode;
+        p.Status = e.Snapshot.Status;
+        p.Condition = e.Snapshot.Condition;
+        p.Priority = e.Snapshot.Priority;
+        p.DateOfOnset = e.Snapshot.DateOfOnset;
+        p.DateResolved = e.Snapshot.DateResolved;
+        p.ResponsibleProviderId = e.Snapshot.ResponsibleProviderId;
+        p.ResponsibleProviderName = e.Snapshot.ResponsibleProviderName;
+        p.ClinicId = e.Snapshot.ClinicId;
+        p.ClinicName = e.Snapshot.ClinicName;
+        p.IsServiceConnected = e.Snapshot.IsServiceConnected;
+        p.Comments = e.Snapshot.Comments;
+
+        p.RevisionNumber = e.RevisionNumber;
+        p.LastRevisionReason = e.Reason;
+        p.LastRevisionNarrative = e.Narrative;
+        p.VerificationStatus = e.VerificationStatus;
+        // Wholesale replace: a revision restates what the new diagnosis rests on. Appending
+        // would leave the superseded diagnosis's evidence attached to a diagnosis it never
+        // supported.
+        p.Evidence = new List<EvidenceRef>(e.Evidence);
+        p.LastModifiedDate = e.OccurredUtc;
+
+        Problems[idx] = p;
+    }
+
+    private void ApplyProblemAssessed(ProblemAssessedV1 e)
+    {
+        int idx = Problems.FindIndex(p => p.ProblemId == e.ProblemId);
+        if (idx < 0) return;
+
+        ProblemEntry p = Problems[idx];
+
+        // Shared merge rule (EvidenceRefMerge): duplicates skip (RecentEventIds caps at
+        // RecentEventIdCap, so on a long replay a duplicate envelope beyond that window is no
+        // longer recognised as seen — without the dedupe the same citation would append
+        // twice), and same-identity updates replace in place so "not assessed" can later
+        // become "negative". Must stay identical to the live-grain mirror.
+        EvidenceRefMerge.MergeInto(p.Evidence, e.Evidence);
+
+        p.VerificationStatus = e.VerificationStatus;
+        // RevisionNumber deliberately untouched — an assessment is the workup proceeding, not
+        // a clinician changing their mind.
+        p.LastModifiedDate = e.OccurredUtc;
+
+        Problems[idx] = p;
+    }
+
+    private void ApplyProblemSuperseded(ProblemSupersededV1 e)
+    {
+        // Two independent heads; apply whichever half is present. Under federation one may have
+        // arrived and the other not.
+        int oldIdx = Problems.FindIndex(p => p.ProblemId == e.SupersededProblemId);
+        if (oldIdx >= 0)
+        {
+            ProblemEntry old = Problems[oldIdx];
+            old.SupersededByProblemId = e.SupersedingProblemId;
+            old.LastRevisionReason = e.Reason;
+            old.LastRevisionNarrative = e.Narrative;
+            old.Status = "INACTIVE";
+            old.LastModifiedDate = e.OccurredUtc;
+            Problems[oldIdx] = old;
+        }
+
+        int newIdx = Problems.FindIndex(p => p.ProblemId == e.SupersedingProblemId);
+        if (newIdx >= 0)
+        {
+            ProblemEntry fresh = Problems[newIdx];
+            fresh.SupersedesProblemId = e.SupersededProblemId;
+            fresh.LastModifiedDate = e.OccurredUtc;
+            Problems[newIdx] = fresh;
+        }
+    }
+
+    private void ApplyProblemEnteredInError(ProblemEnteredInErrorV1 e)
+    {
+        int idx = Problems.FindIndex(p => p.ProblemId == e.ProblemId);
+        if (idx < 0) return;
+
+        ProblemEntry p = Problems[idx];
+        p.VerificationStatus = ProblemVerificationStatus.EnteredInError;
+        // Status is the legacy safety filter every existing consumer honours (cover sheet,
+        // iCare dashboard, NDW export). A voided problem that stays ACTIVE keeps displaying as
+        // current, which is a patient-safety failure — so the coarse string is set even though
+        // "INACTIVE" imperfectly implies "resolved". VerificationStatus carries the truth.
+        p.Status = "INACTIVE";
+        p.LastRevisionReason = RevisionReason.EnteredInError;
+        p.LastRevisionNarrative = e.Reason;
+        p.LastModifiedDate = e.OccurredUtc;
+        // Never removed: a hard delete is what made replay and live state diverge in the first
+        // place, and a voided record still has to be auditable.
+        Problems[idx] = p;
+    }
+
+    private void ApplyProblemBaselineImported(ProblemBaselineImportedV1 e)
+    {
+        if (Problems.Any(p => p.ProblemId == e.ProblemId)) return;
+
+        ProblemEntry p = e.Snapshot.Clone();
+        // Deliberately does NOT set AssertionId, RevisionNumber or VerificationStatus. The
+        // import observed a row; it did not witness anyone assert anything.
+        Problems.Add(p);
     }
 
     private void ApplyOrderPlaced(OrderPlacedV1 e)

@@ -1,4 +1,4 @@
-// Copyright 2026 Merrimack Valley Software Works, LLC. All rights reserved.
+﻿// Copyright 2026 Merrimack Valley Software Works, LLC. All rights reserved.
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
@@ -16,6 +16,16 @@ public partial class NotesViewModel : BasePatientViewModel
     [ObservableProperty] private ObservableCollection<TiuNoteSummary> _notes = new();
     [ObservableProperty] private TiuDocumentState? _selectedNote;
 
+    /// <summary>List selection; loads the full document into <see cref="SelectedNote"/>.</summary>
+    [ObservableProperty] private TiuNoteSummary? _selectedNoteSummary;
+
+    partial void OnSelectedNoteSummaryChanged(TiuNoteSummary? value)
+    {
+        // Actions gate on the detail object; clear it before the async fetch so they can never target the previously selected record.
+        SelectedNote = null;
+        if (value is not null) _ = SelectNote(value);
+    }
+
     // Create note form
     [ObservableProperty] private bool _showCreateForm;
     [ObservableProperty] private string _documentType = "PROGRESS NOTE";
@@ -28,8 +38,8 @@ public partial class NotesViewModel : BasePatientViewModel
         "OPERATIVE REPORT", "RADIOLOGY REPORT", "EMERGENCY DEPARTMENT NOTE"
     ];
 
-    public NotesViewModel(OrleansGrainService grains, ApiClient api, PatientContext patientContext)
-        : base(grains, api, patientContext) { }
+    public NotesViewModel(OrleansGrainService grains, PatientContext patientContext)
+        : base(grains, patientContext) { }
 
     protected override async Task LoadDataAsync()
     {
@@ -81,17 +91,29 @@ public partial class NotesViewModel : BasePatientViewModel
         finally { IsLoading = false; }
     }
 
+    /// <summary>The user's e-signature code, verified by the workflow grain on sign.</summary>
+    [ObservableProperty] private string _signatureCode = string.Empty;
+
     [RelayCommand]
     private async Task SignNote()
     {
         if (SelectedNote is null || !HasPatient) return;
+        if (string.IsNullOrWhiteSpace(SignatureCode))
+        {
+            Error = "Enter your electronic signature code to sign.";
+            return;
+        }
         IsLoading = true; Error = null;
         try
         {
             var workflow = Grains.GetGrain<IPatientWorkflowGrain>(PatientId);
-            await workflow.SignNoteAsync(SelectedNote.DocumentId);
+            // The grain verifies the code against the signed-in user's stored hash — this
+            // client previously signed with a hardcoded placeholder string.
+            await workflow.SignNoteAsync(SelectedNote.DocumentId, SignatureCode);
+            SignatureCode = string.Empty;
             await LoadDataAsync();
         }
+        catch (UnauthorizedAccessException) { Error = "That electronic signature code was not accepted."; }
         catch (Exception ex) { Error = ex.Message; }
         finally { IsLoading = false; }
     }

@@ -1,4 +1,4 @@
-// Copyright 2026 Merrimack Valley Software Works, LLC. All rights reserved.
+﻿// Copyright 2026 Merrimack Valley Software Works, LLC. All rights reserved.
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
@@ -23,7 +23,7 @@ public class ConsultsViewModelTests : ViewModelTestBase
         };
         MockWorkflowGrain.GetConsultsAsync(null, 50).Returns(testData);
         SelectPatient("PATIENT-001");
-        var vm = new ConsultsViewModel(GrainService, ApiClient, PatientContext);
+        var vm = new ConsultsViewModel(GrainService, PatientContext);
 
         await vm.LoadAsync();
 
@@ -37,7 +37,7 @@ public class ConsultsViewModelTests : ViewModelTestBase
     {
         MockWorkflowGrain.GetConsultsAsync(null, 50).Throws(new Exception("Grain error"));
         SelectPatient("PATIENT-001");
-        var vm = new ConsultsViewModel(GrainService, ApiClient, PatientContext);
+        var vm = new ConsultsViewModel(GrainService, PatientContext);
 
         await vm.LoadAsync();
 
@@ -48,7 +48,7 @@ public class ConsultsViewModelTests : ViewModelTestBase
     [Test]
     public void LoadAsync_RequiresPatient()
     {
-        var vm = new ConsultsViewModel(GrainService, ApiClient, PatientContext);
+        var vm = new ConsultsViewModel(GrainService, PatientContext);
         Assert.That(vm.LoadCommand.CanExecute(null), Is.False);
     }
 }

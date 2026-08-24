@@ -156,7 +156,17 @@ public class DischargeSummaryMenu : IMenu
         string sig = ReadMasked();
         if (string.IsNullOrWhiteSpace(sig)) return;
 
-        await ctx.GetWorkflow().SignNoteAsync(unsigned[choice.Value - 1].DocumentId);
+        // The workflow grain verifies the code fail-closed; any keystroke used to sign.
+        try
+        {
+            await ctx.GetWorkflow().SignNoteAsync(unsigned[choice.Value - 1].DocumentId, sig);
+        }
+        catch (UnauthorizedAccessException)
+        {
+            TerminalIO.WriteError("Signature code not accepted. Summary NOT signed.");
+            TerminalIO.Pause();
+            return;
+        }
         TerminalIO.WriteLine("  D/C Summary signed.");
         await ctx.TouchSessionAsync();
         TerminalIO.Pause();

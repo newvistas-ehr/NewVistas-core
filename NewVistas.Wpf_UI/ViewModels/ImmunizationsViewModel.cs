@@ -1,4 +1,4 @@
-// Copyright 2026 Merrimack Valley Software Works, LLC. All rights reserved.
+﻿// Copyright 2026 Merrimack Valley Software Works, LLC. All rights reserved.
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
@@ -24,12 +24,15 @@ public partial class ImmunizationsViewModel : BasePatientViewModel
     [ObservableProperty] private string _lotNumber = string.Empty;
     [ObservableProperty] private string _route = "IM";
     [ObservableProperty] private string _dose = string.Empty;
+    [ObservableProperty] private string _site = string.Empty;
     [ObservableProperty] private string _administeredByName = "Nurse, Test";
 
     public string[] RouteOptions { get; } = ["IM", "SC", "ID", "PO", "IN", "IV"];
+    public string[] SiteOptions { get; } =
+        ["LEFT DELTOID", "RIGHT DELTOID", "LEFT THIGH", "RIGHT THIGH", "LEFT ARM", "RIGHT ARM"];
 
-    public ImmunizationsViewModel(OrleansGrainService grains, ApiClient api, PatientContext patientContext)
-        : base(grains, api, patientContext) { }
+    public ImmunizationsViewModel(OrleansGrainService grains, PatientContext patientContext)
+        : base(grains, patientContext) { }
 
     protected override async Task LoadDataAsync()
     {
@@ -58,7 +61,7 @@ public partial class ImmunizationsViewModel : BasePatientViewModel
                 LotNumber.Length > 0 ? LotNumber : null,
                 null, // manufacturer
                 null, AdministeredByName, // administeredBy
-                null, // administrationSite
+                Site.Length > 0 ? Site : null, // administrationSite
                 Route,
                 Dose.Length > 0 ? Dose : null,
                 null, null, // location

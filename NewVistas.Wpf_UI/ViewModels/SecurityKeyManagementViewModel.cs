@@ -3,17 +3,23 @@
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
 using System.Collections.ObjectModel;
-using System.Net.Http;
-using System.Net.Http.Json;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using NewVistas.Abstractions.GrainInterfaces;
+using NewVistas.Abstractions.GrainStates;
 using NewVistas.Wpf_UI.Services;
 
 namespace NewVistas.Wpf_UI.ViewModels;
 
+/// <summary>
+/// Security-key administration. Reads and writes go straight to
+/// <see cref="IAccessControlGrain"/>: the Web tier answers "are you who you say you are"
+/// (authentication), and the grain layer answers "may you do A but not B" (authorization).
+/// Routing key grants through HTTP would put the authorization decision on the wrong side
+/// of that line and drop the caller's grain-call context.
+/// </summary>
 public partial class SecurityKeyManagementViewModel : ObservableObject
 {
-    private readonly ApiClient _api;
     private readonly OrleansGrainService _grains;
 
     [ObservableProperty] private string _userId = string.Empty;
@@ -38,11 +44,16 @@ public partial class SecurityKeyManagementViewModel : ObservableObject
     public bool IsGrantTabActive => ActiveTab == "grant";
     public bool IsAuditTabActive => ActiveTab == "audit";
 
-    public SecurityKeyManagementViewModel(ApiClient api, OrleansGrainService grains)
+    public SecurityKeyManagementViewModel(OrleansGrainService grains)
     {
-        _api = api;
         _grains = grains;
     }
+
+    private IAccessControlGrain Acl() => _grains.GetGrain<IAccessControlGrain>($"ACL:{UserId.Trim()}");
+
+    /// <summary>Who the audit trail should attribute this change to — the signed-in admin.</summary>
+    private (string Id, string Name) Actor =>
+        (_grains.CurrentUserId ?? "ADMIN", _grains.CurrentUserName ?? "Admin User");
 
     partial void OnActiveTabChanged(string value)
     {
@@ -67,44 +78,51 @@ public partial class SecurityKeyManagementViewModel : ObservableObject
         SuccessMessage = null;
         try
         {
-            var stateResponse = await _api.Http.GetAsync($"api/accesscontrol/users/{Esc(UserId)}");
-            if (stateResponse.IsSuccessStatusCode)
+            IAccessControlGrain grain = Acl();
+            AccessControlState state = await grain.GetAccessControlStateAsync();
+            UserState = new AccessControlStateDto
             {
-                UserState = await stateResponse.Content.ReadFromJsonAsync<AccessControlStateDto>(ApiClient.Json);
-            }
-            else
-            {
-                Error = $"Error loading user: {stateResponse.StatusCode}";
-                return;
-            }
+                UserId = state.UserId,
+                SecurityKeys = state.SecurityKeys,
+                HasActiveSession = state.HasActiveSession,
+                SessionStartTime = state.SessionStartTime,
+                LastActivityTime = state.LastActivityTime,
+                ClientDevice = state.ClientDevice,
+                ClientIpAddress = state.ClientIpAddress,
+                SessionTimeoutMinutes = state.SessionTimeoutMinutes,
+            };
 
             if (AvailableKeys.Count == 0)
             {
-                var keysResponse = await _api.Http.GetAsync("api/accesscontrol/keys");
-                if (keysResponse.IsSuccessStatusCode)
-                {
-                    var keys = await keysResponse.Content.ReadFromJsonAsync<List<KeyDefinitionDto>>(ApiClient.Json) ?? [];
-                    AvailableKeys.Clear();
-                    foreach (var k in keys) AvailableKeys.Add(k);
+                // The key catalog is a static definition list, not stored data — it comes from
+                // the shared SecurityKeys catalog rather than an HTTP round trip.
+                AvailableKeys.Clear();
+                foreach (KeyDefinitionDto k in KeyCatalog) AvailableKeys.Add(k);
 
-                    Categories.Clear();
-                    Categories.Add(string.Empty); // "All Categories"
-                    foreach (var cat in keys.Select(k => k.Category).Distinct().OrderBy(c => c))
-                        Categories.Add(cat);
-                }
+                Categories.Clear();
+                Categories.Add(string.Empty); // "All Categories"
+                foreach (string cat in KeyCatalog.Select(k => k.Category).Distinct().OrderBy(c => c))
+                    Categories.Add(cat);
             }
 
-            var auditResponse = await _api.Http.GetAsync($"api/accesscontrol/users/{Esc(UserId)}/keys/audit");
-            if (auditResponse.IsSuccessStatusCode)
+            List<SecurityKeyAuditEntry> log = await grain.GetKeyAuditLogAsync();
+            AuditLog.Clear();
+            foreach (SecurityKeyAuditEntry e in log.OrderByDescending(e => e.ActionDateTime))
             {
-                var log = await auditResponse.Content.ReadFromJsonAsync<List<KeyAuditEntryDto>>(ApiClient.Json) ?? [];
-                AuditLog.Clear();
-                foreach (var e in log.OrderByDescending(e => e.ActionDateTime)) AuditLog.Add(e);
+                AuditLog.Add(new KeyAuditEntryDto
+                {
+                    KeyName = e.KeyName,
+                    Action = e.Action,
+                    PerformedByUserId = e.PerformedByUserId,
+                    PerformedByName = e.PerformedByName,
+                    ActionDateTime = e.ActionDateTime,
+                    Reason = e.Reason,
+                });
             }
 
             ApplyKeyFilter();
         }
-        catch (Exception ex) { Error = $"Cannot connect to API: {ex.Message}"; }
+        catch (Exception ex) { Error = $"Error loading user: {ex.Message}"; }
         finally { IsLoading = false; }
     }
 
@@ -116,19 +134,12 @@ public partial class SecurityKeyManagementViewModel : ObservableObject
         SuccessMessage = null;
         try
         {
-            var payload = new { KeyName = keyName, Reason = "Granted via admin UI" };
-            var response = await _api.Http.PostAsJsonAsync($"api/accesscontrol/users/{Esc(UserId)}/keys", payload);
-            if (response.IsSuccessStatusCode)
-            {
-                SuccessMessage = $"Key {keyName} granted.";
-                await LoadUserAsync();
-            }
-            else
-            {
-                Error = $"Error granting key: {response.StatusCode}";
-            }
+            (string actorId, string actorName) = Actor;
+            await Acl().GrantKeyAsync(keyName, actorId, actorName, "Granted via admin UI");
+            SuccessMessage = $"Key {keyName} granted.";
+            await LoadUserAsync();
         }
-        catch (Exception ex) { Error = $"Cannot connect to API: {ex.Message}"; }
+        catch (Exception ex) { Error = $"Error granting key: {ex.Message}"; }
     }
 
     [RelayCommand]
@@ -139,19 +150,12 @@ public partial class SecurityKeyManagementViewModel : ObservableObject
         SuccessMessage = null;
         try
         {
-            var response = await _api.Http.DeleteAsync(
-                $"api/accesscontrol/users/{Esc(UserId)}/keys/{Esc(keyName)}?reason=Revoked+via+admin+UI");
-            if (response.IsSuccessStatusCode)
-            {
-                SuccessMessage = $"Key {keyName} revoked.";
-                await LoadUserAsync();
-            }
-            else
-            {
-                Error = $"Error revoking key: {response.StatusCode}";
-            }
+            (string actorId, string actorName) = Actor;
+            await Acl().RevokeKeyAsync(keyName, actorId, actorName, "Revoked via admin UI");
+            SuccessMessage = $"Key {keyName} revoked.";
+            await LoadUserAsync();
         }
-        catch (Exception ex) { Error = $"Cannot connect to API: {ex.Message}"; }
+        catch (Exception ex) { Error = $"Error revoking key: {ex.Message}"; }
     }
 
     [RelayCommand]
@@ -162,18 +166,11 @@ public partial class SecurityKeyManagementViewModel : ObservableObject
         SuccessMessage = null;
         try
         {
-            var response = await _api.Http.PostAsync($"api/accesscontrol/users/{Esc(UserId)}/session/end", null);
-            if (response.IsSuccessStatusCode)
-            {
-                SuccessMessage = "Session ended.";
-                await LoadUserAsync();
-            }
-            else
-            {
-                Error = $"Error ending session: {response.StatusCode}";
-            }
+            await Acl().EndSessionAsync();
+            SuccessMessage = "Session ended.";
+            await LoadUserAsync();
         }
-        catch (Exception ex) { Error = $"Cannot connect to API: {ex.Message}"; }
+        catch (Exception ex) { Error = $"Error ending session: {ex.Message}"; }
     }
 
     [RelayCommand]
@@ -184,19 +181,23 @@ public partial class SecurityKeyManagementViewModel : ObservableObject
         SuccessMessage = null;
         try
         {
-            var response = await _api.Http.PostAsync("api/accesscontrol/demo/load", null);
-            if (response.IsSuccessStatusCode)
+            if (string.IsNullOrWhiteSpace(UserId))
             {
-                var result = await response.Content.ReadFromJsonAsync<DemoLoadResult>(ApiClient.Json);
-                SuccessMessage = result?.Message ?? "Demo keys loaded.";
-                if (!string.IsNullOrWhiteSpace(UserId)) await LoadUserAsync();
+                SuccessMessage = "Enter a User ID to load demo keys onto.";
+                return;
             }
-            else
-            {
-                Error = $"Error loading demo: {response.StatusCode}";
-            }
+
+            // Grants a standard demo key set to the named user, matching the Blazor admin page.
+            // The old endpoint fanned out over the Identity user store by role, which is
+            // WebServer-only data — a UI action should not depend on that.
+            (string actorId, string actorName) = Actor;
+            await Acl().SetKeysAsync(
+                new List<string> { "ORES", "PROVIDER", "LRLAB", "DGADMIT" },
+                actorId, actorName, "Demo key assignment");
+            SuccessMessage = "Demo keys loaded.";
+            await LoadUserAsync();
         }
-        catch (Exception ex) { Error = $"Cannot connect to API: {ex.Message}"; }
+        catch (Exception ex) { Error = $"Error loading demo: {ex.Message}"; }
         finally { IsLoading = false; }
     }
 
@@ -214,6 +215,27 @@ public partial class SecurityKeyManagementViewModel : ObservableObject
             : AvailableKeys.Where(k => k.Category == CategoryFilter);
         foreach (var k in source) FilteredKeys.Add(k);
     }
+
+    /// <summary>
+    /// Static catalog of the security keys an administrator can grant. These are
+    /// definitions, not stored state, so they live in the client rather than behind a
+    /// round trip. Mirrors the list on the Blazor admin page.
+    /// </summary>
+    private static readonly KeyDefinitionDto[] KeyCatalog =
+    {
+        new() { KeyName = "ORES", Description = "Order Entry/Results Reporting", Category = "CPRS" },
+        new() { KeyName = "ORELSE", Description = "Order Entry/Results Reporting (Elevated)", Category = "CPRS" },
+        new() { KeyName = "PROVIDER", Description = "Clinical Provider", Category = "Clinical" },
+        new() { KeyName = "XUMGR", Description = "System Manager", Category = "System" },
+        new() { KeyName = "XUPROG", Description = "Programmer", Category = "System" },
+        new() { KeyName = "XUPROGMODE", Description = "Programmer Mode", Category = "System" },
+        new() { KeyName = "PSJ RPHARM", Description = "Pharmacy - Registered Pharmacist", Category = "Pharmacy" },
+        new() { KeyName = "PSORPH", Description = "Pharmacy - Outpatient Pharmacist", Category = "Pharmacy" },
+        new() { KeyName = "LRVERIFY", Description = "Lab - Verify Results", Category = "Lab" },
+        new() { KeyName = "LRLAB", Description = "Lab - General Access", Category = "Lab" },
+        new() { KeyName = "DGADMIT", Description = "ADT - Admit Patients", Category = "ADT" },
+        new() { KeyName = "DGDISCHARGE", Description = "ADT - Discharge Patients", Category = "ADT" },
+    };
 
     // ── DTOs ──────────────────────────────────────────────────────────────
 

@@ -404,35 +404,57 @@ public class EmbeddedProblemTests
     }
 
     [Test]
-    public async Task UpdateProblem_ChangesConditionAndComments()
+    public async Task ReviseProblem_ChangesConditionAndComments()
     {
         IPatientGrain patient = NewPatient();
         ProblemEntry entry = MakeEntry("P-020", "Hypothyroidism", "E03.9",
             "ACTIVE", "CHRONIC");
         await patient.AddProblemAsync(entry);
 
-        entry.Condition = "STABLE";
-        entry.Comments = "Thyroid levels normalized on levothyroxine";
-        entry.LastModifiedDate = DateTime.UtcNow;
-        await patient.UpdateProblemAsync(entry);
+        await patient.ReviseProblemAsync(new ProblemRevisionCommand
+        {
+            ProblemId = "P-020",
+            Diagnosis = "Hypothyroidism",
+            DiagnosisCode = "E03.9",
+            Reason = RevisionReason.Amendment,
+            VerificationStatus = ProblemVerificationStatus.Confirmed,
+            Condition = "STABLE",
+            Comments = "Thyroid levels normalized on levothyroxine"
+        });
 
         ProblemEntry? updated = await patient.GetProblemAsync("P-020");
         Assert.That(updated!.Condition, Is.EqualTo("STABLE"));
         Assert.That(updated.Comments, Does.Contain("levothyroxine"));
+        Assert.That(updated.LastRevisionReason, Is.EqualTo(RevisionReason.Amendment));
+        Assert.That(updated.VerificationStatus, Is.EqualTo(ProblemVerificationStatus.Confirmed));
     }
 
     [Test]
-    public async Task RemoveProblem_RemovesById()
+    public async Task MarkProblemEnteredInError_RetainsRowAndMarksIt()
     {
         IPatientGrain patient = NewPatient();
         await patient.AddProblemAsync(MakeEntry("P-030", "PTSD", "F43.10"));
         await patient.AddProblemAsync(MakeEntry("P-031", "Tinnitus", "H93.19"));
 
-        await patient.RemoveProblemAsync("P-030");
+        await patient.MarkProblemEnteredInErrorAsync("P-030", "Wrong chart");
 
+        // The row is NOT deleted. A hard delete is what made replay and live state diverge,
+        // and a voided clinical record still has to be auditable.
         List<ProblemEntry> remaining = await patient.GetProblemsAsync();
-        Assert.That(remaining, Has.Count.EqualTo(1));
-        Assert.That(remaining[0].ProblemId, Is.EqualTo("P-031"));
+        Assert.That(remaining, Has.Count.EqualTo(2));
+
+        ProblemEntry voided = remaining.Single(p => p.ProblemId == "P-030");
+        Assert.That(voided.VerificationStatus, Is.EqualTo(ProblemVerificationStatus.EnteredInError));
+        Assert.That(voided.Status, Is.EqualTo("INACTIVE"));
+        Assert.That(voided.LastRevisionNarrative, Is.EqualTo("Wrong chart"));
+    }
+
+    [Test]
+    public void MarkProblemEnteredInError_RequiresAReason()
+    {
+        IPatientGrain patient = NewPatient();
+        Assert.ThrowsAsync<ArgumentException>(
+            () => patient.MarkProblemEnteredInErrorAsync("P-030", "  "));
     }
 
     [Test]
@@ -493,12 +515,13 @@ public class EmbeddedProblemTests
     }
 
     [Test]
-    public async Task RemoveProblem_NonexistentId_DoesNotThrow()
+    public async Task MarkProblemEnteredInError_NonexistentId_DoesNotThrow()
     {
         IPatientGrain patient = NewPatient();
         await patient.AddProblemAsync(MakeEntry("P-080", "Tinnitus"));
 
-        Assert.DoesNotThrowAsync(() => patient.RemoveProblemAsync("NONEXISTENT"));
+        Assert.DoesNotThrowAsync(
+            () => patient.MarkProblemEnteredInErrorAsync("NONEXISTENT", "Wrong chart"));
 
         List<ProblemEntry> problems = await patient.GetProblemsAsync();
         Assert.That(problems, Has.Count.EqualTo(1));

@@ -1,4 +1,4 @@
-// Copyright 2026 Merrimack Valley Software Works, LLC. All rights reserved.
+﻿// Copyright 2026 Merrimack Valley Software Works, LLC. All rights reserved.
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
@@ -53,8 +53,8 @@ public partial class OrdersViewModel : BasePatientViewModel
         "Unsigned"
     ];
 
-    public OrdersViewModel(OrleansGrainService grains, ApiClient api, PatientContext patientContext)
-        : base(grains, api, patientContext)
+    public OrdersViewModel(OrleansGrainService grains, PatientContext patientContext)
+        : base(grains, patientContext)
     {
         // Check for pending workflow action from Cover Sheet navigation
         var action = patientContext.TakePendingAction();
@@ -149,17 +149,29 @@ public partial class OrdersViewModel : BasePatientViewModel
         finally { IsLoading = false; }
     }
 
+    /// <summary>The user's e-signature code, verified by the workflow grain on sign.</summary>
+    [ObservableProperty] private string _signatureCode = string.Empty;
+
     [RelayCommand]
     private async Task SignOrder()
     {
         if (SelectedOrder is null || !HasPatient) return;
+        if (string.IsNullOrWhiteSpace(SignatureCode))
+        {
+            Error = "Enter your electronic signature code to sign.";
+            return;
+        }
         IsLoading = true; Error = null;
         try
         {
             var workflow = Grains.GetGrain<IPatientWorkflowGrain>(PatientId);
-            await workflow.SignOrderAsync(SelectedOrder.OrderId, "ESIG");
+            // The grain verifies the code against the signed-in user's stored hash — this
+            // client previously signed with the literal string "ESIG".
+            await workflow.SignOrderAsync(SelectedOrder.OrderId, SignatureCode);
+            SignatureCode = string.Empty;
             await LoadDataAsync();
         }
+        catch (UnauthorizedAccessException) { Error = "That electronic signature code was not accepted."; }
         catch (Exception ex) { Error = ex.Message; }
         finally { IsLoading = false; }
     }

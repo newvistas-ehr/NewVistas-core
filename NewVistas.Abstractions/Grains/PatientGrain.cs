@@ -1,4 +1,4 @@
-// Copyright 2026 Merrimack Valley Software Works, LLC. All rights reserved.
+﻿// Copyright 2026 Merrimack Valley Software Works, LLC. All rights reserved.
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
@@ -465,13 +465,74 @@ public class PatientGrain : Grain, IPatientGrain
         await this.DrainOutboxAsync(_state, GrainFactory);
     }
 
-    public async Task RemoveProblemAsync(string problemId)
+    /// <summary>
+    /// Link one problem as replacing another (ADR-006), emitting <c>ProblemSupersededV1</c>.
+    /// Used when a code-set change gives an existing working diagnosis a real code — the old
+    /// entry stays in the record, marked and linked, rather than being edited in place or
+    /// silently left alongside its replacement. Returns the event id, or null if neither
+    /// problem exists here.
+    /// </summary>
+    public async Task<string?> SupersedeProblemAsync(
+        string supersededProblemId, string supersedingProblemId,
+        RevisionReason reason, string? narrative, DateTime? effectiveUtc)
     {
-        if (_state.State.Problems.RemoveAll(p => p.ProblemId == problemId) > 0)
+        bool haveOld = _state.State.Problems.Any(p => p.ProblemId == supersededProblemId);
+        bool haveNew = _state.State.Problems.Any(p => p.ProblemId == supersedingProblemId);
+        if (!haveOld && !haveNew) return null;
+
+        var evt = new ProblemSupersededV1
         {
-            _state.State.LastModifiedDate = DateTime.UtcNow;
-            await _state.WriteStateAsync();
-        }
+            EventId = $"CEV-{Guid.NewGuid()}",
+            PatientId = this.GetPrimaryKeyString(),
+            OccurredUtc = DateTime.UtcNow,
+            UserId = RequestContext.Get(RequestContextKeys.UserId) as string,
+            UserName = RequestContext.Get(RequestContextKeys.UserName) as string,
+            SupersededProblemId = supersededProblemId,
+            SupersedingProblemId = supersedingProblemId,
+            Reason = reason,
+            Narrative = narrative,
+            EffectiveUtc = effectiveUtc
+        };
+
+        ApplyProblemSuperseded(evt);
+        _state.State.PendingEvents.Add(EventEnvelope.Wrap(evt));
+        await _state.WriteStateAsync();
+
+        await this.DrainOutboxAsync(_state, GrainFactory);
+        return evt.EventId;
+    }
+
+    /// <summary>
+    /// Void a problem that should never have been recorded (ADR-006). Replaces the former
+    /// <c>RemoveProblemAsync</c>, which hard-deleted the row and emitted nothing — so event
+    /// replay and live state disagreed permanently afterwards.
+    /// </summary>
+    public async Task MarkProblemEnteredInErrorAsync(string problemId, string reason)
+    {
+        if (string.IsNullOrWhiteSpace(reason))
+            throw new ArgumentException("A reason is required to void a clinical record.", nameof(reason));
+
+        int idx = _state.State.Problems.FindIndex(p => p.ProblemId == problemId);
+        if (idx < 0) return;
+        if (_state.State.Problems[idx].VerificationStatus == ProblemVerificationStatus.EnteredInError)
+            return;
+
+        var evt = new ProblemEnteredInErrorV1
+        {
+            EventId = $"CEV-{Guid.NewGuid()}",
+            PatientId = this.GetPrimaryKeyString(),
+            OccurredUtc = DateTime.UtcNow,
+            UserId = RequestContext.Get(RequestContextKeys.UserId) as string,
+            UserName = RequestContext.Get(RequestContextKeys.UserName) as string,
+            ProblemId = problemId,
+            Reason = reason
+        };
+
+        ApplyProblemEnteredInError(evt);
+        _state.State.PendingEvents.Add(EventEnvelope.Wrap(evt));
+        await _state.WriteStateAsync();
+
+        await this.DrainOutboxAsync(_state, GrainFactory);
     }
 
     public Task<List<ProblemEntry>> GetProblemsAsync() => Task.FromResult(_state.State.Problems);
@@ -479,15 +540,95 @@ public class PatientGrain : Grain, IPatientGrain
     public Task<ProblemEntry?> GetProblemAsync(string problemId)
         => Task.FromResult(_state.State.Problems.FirstOrDefault(p => p.ProblemId == problemId));
 
-    public async Task UpdateProblemAsync(ProblemEntry updated)
+    /// <summary>
+    /// Revise a diagnosis with a coded reason (ADR-006). Replaces the former
+    /// <c>UpdateProblemAsync(ProblemEntry)</c>, a silent full-object overwrite that emitted no
+    /// event — a diagnosis could be changed from E11.9 to C34.90 and the hash chain showed
+    /// nothing. Returns the event id, or null when the problem does not exist.
+    /// </summary>
+    public async Task<string?> ReviseProblemAsync(ProblemRevisionCommand command)
     {
-        int idx = _state.State.Problems.FindIndex(p => p.ProblemId == updated.ProblemId);
-        if (idx >= 0)
+        int idx = _state.State.Problems.FindIndex(p => p.ProblemId == command.ProblemId);
+        if (idx < 0) return null;
+
+        ProblemEntry current = _state.State.Problems[idx];
+
+        // Snapshot the post-revision shape from the CURRENT entry, so identity and incidence
+        // anchors survive untouched and only what the command names can move.
+        ProblemEntry next = current.Clone();
+        next.Diagnosis = command.Diagnosis;
+        next.DiagnosisCode = command.DiagnosisCode;
+        next.Condition = command.Condition ?? current.Condition;
+        next.Priority = command.Priority ?? current.Priority;
+        next.DateOfOnset = command.DateOfOnset ?? current.DateOfOnset;
+        next.Comments = command.Comments ?? current.Comments;
+        next.ResponsibleProviderId = command.ResponsibleProviderId ?? current.ResponsibleProviderId;
+        next.ResponsibleProviderName = command.ResponsibleProviderName ?? current.ResponsibleProviderName;
+        next.VerificationStatus = command.VerificationStatus;
+        next.Evidence = new List<EvidenceRef>(command.Evidence);
+        next.RevisionNumber = current.RevisionNumber + 1;
+        next.LastRevisionReason = command.Reason;
+        next.LastRevisionNarrative = command.Narrative;
+
+        var evt = new ProblemRevisedV1
         {
-            _state.State.Problems[idx] = updated;
-            _state.State.LastModifiedDate = DateTime.UtcNow;
-            await _state.WriteStateAsync();
-        }
+            EventId = $"CEV-{Guid.NewGuid()}",
+            PatientId = this.GetPrimaryKeyString(),
+            OccurredUtc = DateTime.UtcNow,
+            UserId = RequestContext.Get(RequestContextKeys.UserId) as string,
+            UserName = RequestContext.Get(RequestContextKeys.UserName) as string,
+            ProblemId = command.ProblemId,
+            Snapshot = next.Clone(),
+            RevisionNumber = next.RevisionNumber,
+            Reason = command.Reason,
+            Narrative = command.Narrative,
+            VerificationStatus = command.VerificationStatus,
+            Evidence = new List<EvidenceRef>(command.Evidence),
+            // Denormalized so one envelope answers "what changed" without walking back — the
+            // earlier envelope may not have arrived at a federated replica.
+            PriorDiagnosis = current.Diagnosis,
+            PriorDiagnosisCode = current.DiagnosisCode,
+            PriorVerificationStatus = current.VerificationStatus
+        };
+
+        ApplyProblemRevised(evt);
+        _state.State.PendingEvents.Add(EventEnvelope.Wrap(evt));
+        await _state.WriteStateAsync();
+
+        await this.DrainOutboxAsync(_state, GrainFactory);
+        return evt.EventId;
+    }
+
+    /// <summary>
+    /// Record new evidence about an existing diagnosis without changing the diagnosis (ADR-006).
+    /// Never moves the revision number — the workup proceeding is not a clinician being wrong.
+    /// Returns the event id, or null when the problem does not exist.
+    /// </summary>
+    public async Task<string?> AssessProblemAsync(ProblemAssessmentCommand command)
+    {
+        int idx = _state.State.Problems.FindIndex(p => p.ProblemId == command.ProblemId);
+        if (idx < 0) return null;
+
+        var evt = new ProblemAssessedV1
+        {
+            EventId = $"CEV-{Guid.NewGuid()}",
+            PatientId = this.GetPrimaryKeyString(),
+            OccurredUtc = DateTime.UtcNow,
+            UserId = RequestContext.Get(RequestContextKeys.UserId) as string,
+            UserName = RequestContext.Get(RequestContextKeys.UserName) as string,
+            ProblemId = command.ProblemId,
+            Evidence = new List<EvidenceRef>(command.Evidence),
+            VerificationStatus = command.VerificationStatus,
+            PriorVerificationStatus = _state.State.Problems[idx].VerificationStatus,
+            Narrative = command.Narrative
+        };
+
+        ApplyProblemAssessed(evt);
+        _state.State.PendingEvents.Add(EventEnvelope.Wrap(evt));
+        await _state.WriteStateAsync();
+
+        await this.DrainOutboxAsync(_state, GrainFactory);
+        return evt.EventId;
     }
 
     public async Task InactivateProblemAsync(string problemId, DateTime dateResolved)
@@ -530,6 +671,100 @@ public class PatientGrain : Grain, IPatientGrain
         p.Status = "INACTIVE";
         p.DateResolved = e.DateResolved;
         p.LastModifiedDate = e.OccurredUtc;
+        _state.State.Problems[idx] = p;
+        _state.State.LastModifiedDate = e.OccurredUtc;
+    }
+
+    // These mirror PatientStateSnapshot's branches for the same events. The duplication is the
+    // existing house pattern (live grain state and the replay projection are separate objects);
+    // the two must stay in step, which the round-trip replay tests enforce.
+
+    private void ApplyProblemRevised(ProblemRevisedV1 e)
+    {
+        int idx = _state.State.Problems.FindIndex(p => p.ProblemId == e.ProblemId);
+        if (idx < 0) return;
+
+        ProblemEntry p = _state.State.Problems[idx];
+        p.Diagnosis = e.Snapshot.Diagnosis;
+        p.DiagnosisCode = e.Snapshot.DiagnosisCode;
+        p.Status = e.Snapshot.Status;
+        p.Condition = e.Snapshot.Condition;
+        p.Priority = e.Snapshot.Priority;
+        p.DateOfOnset = e.Snapshot.DateOfOnset;
+        p.DateResolved = e.Snapshot.DateResolved;
+        p.ResponsibleProviderId = e.Snapshot.ResponsibleProviderId;
+        p.ResponsibleProviderName = e.Snapshot.ResponsibleProviderName;
+        p.ClinicId = e.Snapshot.ClinicId;
+        p.ClinicName = e.Snapshot.ClinicName;
+        p.IsServiceConnected = e.Snapshot.IsServiceConnected;
+        p.Comments = e.Snapshot.Comments;
+        p.RevisionNumber = e.RevisionNumber;
+        p.LastRevisionReason = e.Reason;
+        p.LastRevisionNarrative = e.Narrative;
+        p.VerificationStatus = e.VerificationStatus;
+        p.Evidence = new List<EvidenceRef>(e.Evidence);
+        p.LastModifiedDate = e.OccurredUtc;
+
+        _state.State.Problems[idx] = p;
+        _state.State.LastModifiedDate = e.OccurredUtc;
+    }
+
+    private void ApplyProblemAssessed(ProblemAssessedV1 e)
+    {
+        int idx = _state.State.Problems.FindIndex(p => p.ProblemId == e.ProblemId);
+        if (idx < 0) return;
+
+        ProblemEntry p = _state.State.Problems[idx];
+        // Shared merge rule (EvidenceRefMerge): duplicates skip, same-identity updates
+        // replace — so "not assessed" can later become "negative" instead of being
+        // silently discarded. Must stay identical to the snapshot mirror.
+        EvidenceRefMerge.MergeInto(p.Evidence, e.Evidence);
+
+        p.VerificationStatus = e.VerificationStatus;
+        p.LastModifiedDate = e.OccurredUtc;
+
+        _state.State.Problems[idx] = p;
+        _state.State.LastModifiedDate = e.OccurredUtc;
+    }
+
+    private void ApplyProblemSuperseded(ProblemSupersededV1 e)
+    {
+        int oldIdx = _state.State.Problems.FindIndex(p => p.ProblemId == e.SupersededProblemId);
+        if (oldIdx >= 0)
+        {
+            ProblemEntry old = _state.State.Problems[oldIdx];
+            old.SupersededByProblemId = e.SupersedingProblemId;
+            old.LastRevisionReason = e.Reason;
+            old.LastRevisionNarrative = e.Narrative;
+            old.Status = "INACTIVE";
+            old.LastModifiedDate = e.OccurredUtc;
+            _state.State.Problems[oldIdx] = old;
+        }
+
+        int newIdx = _state.State.Problems.FindIndex(p => p.ProblemId == e.SupersedingProblemId);
+        if (newIdx >= 0)
+        {
+            ProblemEntry fresh = _state.State.Problems[newIdx];
+            fresh.SupersedesProblemId = e.SupersededProblemId;
+            fresh.LastModifiedDate = e.OccurredUtc;
+            _state.State.Problems[newIdx] = fresh;
+        }
+
+        _state.State.LastModifiedDate = e.OccurredUtc;
+    }
+
+    private void ApplyProblemEnteredInError(ProblemEnteredInErrorV1 e)
+    {
+        int idx = _state.State.Problems.FindIndex(p => p.ProblemId == e.ProblemId);
+        if (idx < 0) return;
+
+        ProblemEntry p = _state.State.Problems[idx];
+        p.VerificationStatus = ProblemVerificationStatus.EnteredInError;
+        p.Status = "INACTIVE";
+        p.LastRevisionReason = RevisionReason.EnteredInError;
+        p.LastRevisionNarrative = e.Reason;
+        p.LastModifiedDate = e.OccurredUtc;
+
         _state.State.Problems[idx] = p;
         _state.State.LastModifiedDate = e.OccurredUtc;
     }
@@ -622,6 +857,27 @@ public class PatientGrain : Grain, IPatientGrain
     public Task<List<OrderSummary>> GetRecentOrdersAsync()
         => Task.FromResult(_state.State.RecentOrders);
 
+    public async Task UpdateRecentOrderAsync(OrderSummary summary)
+    {
+        // Replace in place so the entry keeps its position in the recent window. Absent means
+        // it aged out — the order index still has it, so silently doing nothing is correct.
+        int i = _state.State.RecentOrders.FindIndex(o => o.OrderId == summary.OrderId);
+        if (i < 0) return;
+
+        _state.State.RecentOrders[i] = summary;
+        _state.State.LastModifiedDate = DateTime.UtcNow;
+        await _state.WriteStateAsync();
+    }
+
+    public async Task RemoveRecentOrderAsync(string orderId)
+    {
+        int removed = _state.State.RecentOrders.RemoveAll(o => o.OrderId == orderId);
+        if (removed == 0) return;
+
+        _state.State.LastModifiedDate = DateTime.UtcNow;
+        await _state.WriteStateAsync();
+    }
+
     public async Task SetRecentOrdersAsync(List<OrderSummary> orders)
     {
         _state.State.RecentOrders = orders;
@@ -642,6 +898,25 @@ public class PatientGrain : Grain, IPatientGrain
 
     public Task<List<VitalSummary>> GetRecentVitalsAsync()
         => Task.FromResult(_state.State.RecentVitals);
+
+    public async Task UpdateRecentVitalAsync(VitalSummary summary)
+    {
+        int i = _state.State.RecentVitals.FindIndex(v => v.VitalId == summary.VitalId);
+        if (i < 0) return;
+
+        _state.State.RecentVitals[i] = summary;
+        _state.State.LastModifiedDate = DateTime.UtcNow;
+        await _state.WriteStateAsync();
+    }
+
+    public async Task RemoveRecentVitalAsync(string vitalId)
+    {
+        int removed = _state.State.RecentVitals.RemoveAll(v => v.VitalId == vitalId);
+        if (removed == 0) return;
+
+        _state.State.LastModifiedDate = DateTime.UtcNow;
+        await _state.WriteStateAsync();
+    }
 
     public async Task SetRecentVitalsAsync(List<VitalSummary> vitals)
     {
@@ -698,6 +973,25 @@ public class PatientGrain : Grain, IPatientGrain
 
     public Task<List<TiuNoteSummary>> GetRecentNotesAsync()
         => Task.FromResult(_state.State.RecentNotes);
+
+    public async Task UpdateRecentNoteAsync(TiuNoteSummary summary)
+    {
+        int i = _state.State.RecentNotes.FindIndex(n => n.DocumentId == summary.DocumentId);
+        if (i < 0) return;
+
+        _state.State.RecentNotes[i] = summary;
+        _state.State.LastModifiedDate = DateTime.UtcNow;
+        await _state.WriteStateAsync();
+    }
+
+    public async Task RemoveRecentNoteAsync(string documentId)
+    {
+        int removed = _state.State.RecentNotes.RemoveAll(n => n.DocumentId == documentId);
+        if (removed == 0) return;
+
+        _state.State.LastModifiedDate = DateTime.UtcNow;
+        await _state.WriteStateAsync();
+    }
 
     public async Task SetRecentNotesAsync(List<TiuNoteSummary> notes)
     {

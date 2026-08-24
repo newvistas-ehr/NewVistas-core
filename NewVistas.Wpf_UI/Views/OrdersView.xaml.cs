@@ -16,4 +16,11 @@ public partial class OrdersView : UserControl
         if (DataContext is OrdersViewModel vm && vm.SelectedOrderSet != null)
             vm.SelectOrderSetCommand.Execute(null);
     }
+
+    // PasswordBox cannot be data-bound (by WPF design); sync it to the ViewModel by hand.
+    private void EsigCodeBox_PasswordChanged(object sender, System.Windows.RoutedEventArgs e)
+    {
+        if (DataContext is OrdersViewModel vm && sender is PasswordBox box)
+            vm.SignatureCode = box.Password;
+    }
 }

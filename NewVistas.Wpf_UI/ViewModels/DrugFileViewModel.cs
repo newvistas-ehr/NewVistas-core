@@ -13,20 +13,27 @@ namespace NewVistas.Wpf_UI.ViewModels;
 
 public partial class DrugFileViewModel : ObservableObject
 {
-    private readonly ApiClient _api;
     private readonly OrleansGrainService _grains;
 
     [ObservableProperty] private string _searchTerm = string.Empty;
     [ObservableProperty] private ObservableCollection<DrugIndexEntry> _results = new();
     [ObservableProperty] private DrugState? _selectedDrug;
+
+    /// <summary>Grid selection; loads the full drug into <see cref="SelectedDrug"/>.</summary>
+    [ObservableProperty] private DrugIndexEntry? _selectedEntry;
+
+    partial void OnSelectedEntryChanged(DrugIndexEntry? value)
+    {
+        if (value is not null) _ = SelectDrug(value);
+    }
+
     [ObservableProperty] private ObservableCollection<OrderableItemIndexEntry> _orderableItems = new();
     [ObservableProperty] private int _selectedTab; // 0=Drugs, 1=Orderable Items
     [ObservableProperty] private bool _isLoading;
     [ObservableProperty] private string? _error;
 
-    public DrugFileViewModel(ApiClient api, OrleansGrainService grains)
+    public DrugFileViewModel(OrleansGrainService grains)
     {
-        _api = api;
         _grains = grains;
     }
 
@@ -63,7 +70,13 @@ public partial class DrugFileViewModel : ObservableObject
         IsLoading = true; Error = null;
         try
         {
-            var list = await _api.GetOrderableItemsAsync(100);
+            // Straight to the orderable-item index grain, same as the Blazor Drug File page.
+            // (This previously called api/drugfile/orderable-items, an endpoint that does not
+            // exist — the controller only exposes orderableitems/search — so the list was
+            // always empty.) An empty search term matches everything.
+            var oiIndex = _grains.GetGrain<IOrderableItemIndexGrain>("OI-INDEX");
+            List<OrderableItemIndexEntry> list = await oiIndex.SearchAsync(
+                string.Empty, type: null, activeOnly: true, maxResults: 100);
             OrderableItems.Clear();
             foreach (OrderableItemIndexEntry o in list) OrderableItems.Add(o);
         }

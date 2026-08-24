@@ -28,18 +28,18 @@ file, You can obtain one at https://mozilla.org/MPL/2.0/.
             <TextBlock Style="{StaticResource SectionHeader}" Text="Admissions"/>
             <DataGrid ItemsSource="{Binding Admissions}" AutoGenerateColumns="False" MaxHeight="200">
                 <DataGrid.Columns>
-                    <DataGridTextColumn Header="Admission Date" Binding="{Binding AdmissionDate, StringFormat=d}" Width="130"/>
+                    <DataGridTextColumn Header="Admission Date" Binding="{Binding AdmitDate, StringFormat=d}" Width="130"/>
                     <DataGridTextColumn Header="Center" Binding="{Binding CenterName}" Width="*"/>
                     <DataGridTextColumn Header="Status" Binding="{Binding Status}" Width="120"/>
-                    <DataGridTextColumn Header="Discharge Date" Binding="{Binding DischargeDate, StringFormat=d}" Width="130"/>
                 </DataGrid.Columns>
             </DataGrid>
             <TextBlock Style="{StaticResource SectionHeader}" Text="Outpatient Visits" Margin="0,12,0,0"/>
             <DataGrid ItemsSource="{Binding OutpatientVisits}" AutoGenerateColumns="False" MaxHeight="200">
                 <DataGrid.Columns>
                     <DataGridTextColumn Header="Visit Date" Binding="{Binding VisitDate, StringFormat=d}" Width="120"/>
-                    <DataGridTextColumn Header="Type" Binding="{Binding VisitType}" Width="140"/>
-                    <DataGridTextColumn Header="Clinician" Binding="{Binding ClinicianName}" Width="*"/>
+                    <DataGridTextColumn Header="Training Area" Binding="{Binding TrainingArea}" Width="140"/>
+                    <DataGridTextColumn Header="Therapist" Binding="{Binding TherapistName}" Width="*"/>
+                    <DataGridTextColumn Header="Status" Binding="{Binding Status}" Width="120"/>
                 </DataGrid.Columns>
             </DataGrid>
         </StackPanel>

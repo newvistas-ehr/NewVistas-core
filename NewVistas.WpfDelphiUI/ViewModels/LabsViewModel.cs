@@ -1,4 +1,4 @@
-// Copyright 2026 Merrimack Valley Software Works, LLC. All rights reserved.
+﻿// Copyright 2026 Merrimack Valley Software Works, LLC. All rights reserved.
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
@@ -21,13 +21,13 @@ public sealed partial class LabsViewModel : ChartTabViewModelBase
 
     public string[] Priorities { get; } = ["ROUTINE", "STAT", "ASAP"];
 
-    public LabsViewModel(ApiClient api, PatientContext context) : base(api, context) { }
+    public LabsViewModel(ChartDataService data, PatientContext context) : base(data, context) { }
 
     protected override async Task LoadAsync()
     {
         var items = ShowAbnormalOnly
-            ? await Api.GetAbnormalLabsAsync(PatientId)
-            : await Api.GetLabResultsAsync(PatientId);
+            ? await Data.GetAbnormalLabsAsync(PatientId)
+            : await Data.GetLabResultsAsync(PatientId);
         Results.Clear();
         foreach (var r in items) Results.Add(r);
     }
@@ -51,12 +51,7 @@ public sealed partial class LabsViewModel : ChartTabViewModelBase
         ErrorText = string.Empty;
         try
         {
-            await Api.OrderLabTestAsync(PatientId, new
-            {
-                TestName = NewTestName,
-                LoincCode = NewLoincCode,
-                Priority = NewPriority
-            });
+            await Data.OrderLabTestAsync(PatientId, NewTestName, NewLoincCode, NewPriority);
             NewTestName = string.Empty;
             NewLoincCode = string.Empty;
             ShowOrderForm = false;

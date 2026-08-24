@@ -120,7 +120,7 @@ public partial class PatientWorkflowGrain
             {
                 HealthFactorId = s.HealthFactorId, HealthFactorName = s.HealthFactorName,
                 Category = s.Category, EventDateTime = s.EventDateTime,
-                LevelSeverity = s.LevelSeverity
+                LevelSeverity = s.LevelSeverity, EvaluationStatus = s.EvaluationStatus
             }).ToList();
     }
 
@@ -137,7 +137,7 @@ public partial class PatientWorkflowGrain
             {
                 HealthFactorId = s.HealthFactorId, HealthFactorName = s.HealthFactorName,
                 Category = s.Category, EventDateTime = s.EventDateTime,
-                LevelSeverity = s.LevelSeverity
+                LevelSeverity = s.LevelSeverity, EvaluationStatus = s.EvaluationStatus
             }).ToList();
     }
 

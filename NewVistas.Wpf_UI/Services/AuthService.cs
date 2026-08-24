@@ -6,7 +6,10 @@ using System.IdentityModel.Tokens.Jwt;
 using System.Net.Http;
 using System.Windows.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
+using NewVistas.Abstractions.GrainInterfaces;
 using NewVistas.Abstractions.Security;
+using Orleans;
+using Orleans.Runtime;
 
 namespace NewVistas.Wpf_UI.Services;
 
@@ -18,12 +21,17 @@ namespace NewVistas.Wpf_UI.Services;
 public sealed partial class AuthService : ObservableObject, IDisposable
 {
     private readonly ApiClient _api;
+    private readonly IGrainFactory _grainFactory;
     private readonly DispatcherTimer _sessionTimer;
     private string? _token;
 
-    public AuthService(ApiClient api)
+    // IGrainFactory rather than OrleansGrainService: that service depends on THIS one for
+    // the token, so taking it here would be circular. Authentication (below) is the
+    // WebServer's job; authorization comes from the grain.
+    public AuthService(ApiClient api, IGrainFactory grainFactory)
     {
         _api = api;
+        _grainFactory = grainFactory;
 
         // Session keepalive — touch the server session every 5 minutes
         _sessionTimer = new DispatcherTimer { Interval = TimeSpan.FromMinutes(5) };
@@ -178,16 +186,28 @@ public sealed partial class AuthService : ObservableObject, IDisposable
         _sessionTimer.Start();
     }
 
+    /// <summary>
+    /// Loads the signed-in user's security keys from the AccessControl grain.
+    ///
+    /// Deliberately NOT over HTTP: the Web tier answers "are you who you say you are",
+    /// and the grain layer answers "what may you do". These keys are the second question,
+    /// so they come from the grain that owns them.
+    /// </summary>
     private async Task LoadSecurityKeysAsync(string userId)
     {
         try
         {
-            List<string>? keys = await _api.GetSecurityKeysAsync(userId);
-            if (keys is not null)
-            {
-                _securityKeys = [.. keys];
-                AccessibleAreas = MenuAccessMap.GetAccessibleAreas(_securityKeys);
-            }
+            // The token has just been stored, but OrleansGrainService (which normally
+            // populates this) depends on us — set the caller context directly so the
+            // silo's authorization filter sees who is asking.
+            RequestContext.Set(RequestContextKeys.UserId, userId);
+
+            IReadOnlySet<string> keys = await _grainFactory
+                .GetGrain<IAccessControlGrain>($"ACL:{userId}")
+                .GetKeysAsync();
+
+            _securityKeys = [.. keys];
+            AccessibleAreas = MenuAccessMap.GetAccessibleAreas(_securityKeys);
         }
         catch
         {

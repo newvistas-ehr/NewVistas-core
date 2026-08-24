@@ -66,10 +66,8 @@ file, You can obtain one at https://mozilla.org/MPL/2.0/.
                     <DataGridTextColumn Header="Type" Binding="{Binding TestType}" Width="130"/>
                     <DataGridTextColumn Header="Eligibility" Binding="{Binding EligibilityStatus}" Width="180"/>
                     <DataGridTextColumn Header="Priority" Binding="{Binding PriorityGroup}" Width="80"/>
-                    <DataGridTextColumn Header="Income" Binding="{Binding AnnualIncome, StringFormat=C}" Width="110"/>
-                    <DataGridTextColumn Header="Dependents" Binding="{Binding NumberOfDependents}" Width="90"/>
-                    <DataGridTextColumn Header="Date" Binding="{Binding TestDate, StringFormat=d}" Width="100"/>
-                    <DataGridTextColumn Header="Completed By" Binding="{Binding CompletedByName}" Width="160"/>
+                    <DataGridTextColumn Header="Status" Binding="{Binding Status}" Width="110"/>
+                    <DataGridTextColumn Header="Date" Binding="{Binding DateOfTest, StringFormat=d}" Width="100"/>
                 </DataGrid.Columns>
             </DataGrid>
         </StackPanel>

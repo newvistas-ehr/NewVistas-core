@@ -1,4 +1,4 @@
-// Copyright 2026 Merrimack Valley Software Works, LLC. All rights reserved.
+﻿// Copyright 2026 Merrimack Valley Software Works, LLC. All rights reserved.
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
@@ -273,36 +273,10 @@ public class CmopController : ControllerBase
     {
         try
         {
-            var suspense = _grainFactory.GetGrain<ICmopSuspenseGrain>($"CMOP-SUSPENSE:{siteId}");
-
-            var demoRxs = new[]
-            {
-                ("RX-CMOP-001", "PATIENT-001", "JONES,MICHAEL R", "LISINOPRIL 10MG TAB", "RX1001", 90, 90, "REFILL", "ROUTINE"),
-                ("RX-CMOP-002", "PATIENT-001", "JONES,MICHAEL R", "METFORMIN 500MG TAB", "RX1002", 180, 90, "REFILL", "ROUTINE"),
-                ("RX-CMOP-003", "PATIENT-002", "SMITH,SARAH L", "AMLODIPINE 5MG TAB", "RX2001", 90, 90, "ORIGINAL", "ROUTINE"),
-                ("RX-CMOP-004", "PATIENT-003", "WILLIAMS,JAMES T", "OMEPRAZOLE 20MG CAP", "RX3001", 90, 90, "REFILL", "ROUTINE"),
-                ("RX-CMOP-005", "PATIENT-003", "WILLIAMS,JAMES T", "ATORVASTATIN 40MG TAB", "RX3002", 90, 90, "REFILL", "URGENT"),
-            };
-
-            foreach (var (rxId, patId, name, drug, rxNum, qty, days, fill, priority) in demoRxs)
-            {
-                await suspense.AddToSuspenseAsync(new CmopSuspenseEntry
-                {
-                    PrescriptionId = rxId,
-                    PatientId = patId,
-                    PatientName = name,
-                    DrugName = drug,
-                    RxNumber = rxNum,
-                    Quantity = qty,
-                    DaysSupply = days,
-                    FillType = fill,
-                    QueuedDate = DateTime.UtcNow.AddMinutes(-Random.Shared.Next(10, 600)),
-                    Priority = priority,
-                    MailingAddress = "123 MAIN ST, ANYTOWN, ST 12345"
-                });
-            }
-
-            return Ok(new { Message = $"Loaded {demoRxs.Length} prescriptions to CMOP suspense queue." });
+            // Delegates to the grain, which owns the seed. Internal UIs call it directly;
+            // this endpoint remains for external callers and scripted setup.
+            await _grainFactory.GetGrain<ICmopSuspenseGrain>($"CMOP-SUSPENSE:{siteId}").SeedDemoDataAsync();
+            return Ok(new { Message = "Loaded demo prescriptions to the CMOP suspense queue." });
         }
         catch (Exception ex)
         {

@@ -108,15 +108,63 @@ public class SiteParametersState
     ///                                    workflow, employee-patient privacy guard, cascade opportunities (Modern; ENABLED BY DEFAULT, see SiteFeatures)
     ///   "BED_MANAGEMENT"               — Institution-aware bed board (unit/room/bed lifecycle + EVS turnover) and the inter-facility Transfer
     ///                                    Center (request→accept→complete; ADR-003) (Modern; ENABLED BY DEFAULT, see SiteFeatures)
+    ///   "DIAGNOSTIC_STEWARDSHIP"       — Diagnosis provenance + revision statistics (ADR-006) (Modern; ENABLED BY DEFAULT, and
+    ///                                    ONE-WAY: once disabled it cannot be re-enabled — see SiteFeatures.OneWayDisable)
     /// </summary>
     [Id(7)]
-    public HashSet<string> Features { get; set; } = new() { SiteFeatures.ExternalPharmacy, SiteFeatures.Oncology, SiteFeatures.PrecisionOncology, SiteFeatures.HomeBasedCare, SiteFeatures.HomeHealthMedicare, SiteFeatures.HospitalAtHome, SiteFeatures.ProcedurePriorAuth, SiteFeatures.NeonatalCare, SiteFeatures.Pharmacogenomics, SiteFeatures.HereditaryGenetics, SiteFeatures.SpecialtyCoverSheet, SiteFeatures.PersonIdentity, SiteFeatures.BedManagement, SiteFeatures.EmergingConditions, SiteFeatures.SocialCare };
+    public HashSet<string> Features { get; set; } = new() { SiteFeatures.ExternalPharmacy, SiteFeatures.Oncology, SiteFeatures.PrecisionOncology, SiteFeatures.HomeBasedCare, SiteFeatures.HomeHealthMedicare, SiteFeatures.HospitalAtHome, SiteFeatures.ProcedurePriorAuth, SiteFeatures.NeonatalCare, SiteFeatures.Pharmacogenomics, SiteFeatures.HereditaryGenetics, SiteFeatures.SpecialtyCoverSheet, SiteFeatures.PersonIdentity, SiteFeatures.BedManagement, SiteFeatures.EmergingConditions, SiteFeatures.SocialCare, SiteFeatures.BoneHealth, SiteFeatures.DiagnosticStewardship };
+
+    /// <summary>
+    /// Features that have been <b>permanently</b> disabled at this site and can never be turned
+    /// back on. Only features listed in <see cref="SiteFeatures.OneWayDisable"/> can land here.
+    ///
+    /// This exists because some features accumulate statistics whose validity depends on having
+    /// observed <i>every</i> qualifying event. Turning such a feature off stops the observation;
+    /// turning it back on would resume counting against denominators that silently missed the
+    /// dark period, producing a number that looks authoritative and is wrong. Re-enabling would
+    /// require discarding and recomputing every derived counter, which is not supported — so the
+    /// switch is one-way and the tombstone is kept forever.
+    ///
+    /// A fresh site starts with this empty, so a newly created database has every default
+    /// feature on (which is what demo seeding relies on).
+    /// </summary>
+    [Id(9)]
+    public HashSet<string> PermanentlyDisabledFeatures { get; set; } = new();
+
+    /// <summary>
+    /// Audit trail for <see cref="PermanentlyDisabledFeatures"/> — feature name → when and by whom.
+    /// Kept separately so the tombstone set stays a cheap membership test.
+    /// </summary>
+    [Id(10)]
+    public List<PermanentFeatureDisable> PermanentDisableLog { get; set; } = new();
 
     [Id(3)]
     public DateTime CreatedDate { get; set; } = DateTime.UtcNow;
 
     [Id(4)]
     public DateTime LastModifiedDate { get; set; } = DateTime.UtcNow;
+}
+
+/// <summary>
+/// One record of a feature having been permanently (irreversibly) disabled at a site.
+/// </summary>
+[GenerateSerializer]
+public class PermanentFeatureDisable
+{
+    /// <summary>The feature flag name that was disabled.</summary>
+    [Id(0)] public string FeatureName { get; set; } = string.Empty;
+
+    /// <summary>When it was disabled (UTC).</summary>
+    [Id(1)] public DateTime DisabledUtc { get; set; }
+
+    /// <summary>User id that requested the disable, when known.</summary>
+    [Id(2)] public string? DisabledByUserId { get; set; }
+
+    /// <summary>Display name of the user that requested the disable, when known.</summary>
+    [Id(3)] public string? DisabledByUserName { get; set; }
+
+    /// <summary>Free-text reason captured at the time, when supplied.</summary>
+    [Id(4)] public string? Reason { get; set; }
 }
 
 /// <summary>
@@ -285,4 +333,50 @@ public static class SiteFeatures
     /// quiet. Household resolution additionally depends on PERSON_IDENTITY.
     /// </summary>
     public const string SocialCare = "SOCIAL_CARE";
+
+    /// <summary>
+    /// Bone health / osteoporosis: a longitudinal record of serial DXA studies, bone turnover
+    /// markers (CTX, P1NP), fragility fractures, therapy courses, FRAX assessments and
+    /// secondary-cause workups — with the diagnostic rules that depend on sex and age applied
+    /// centrally rather than left to the reader. Exists because osteoporosis is managed over
+    /// decades and its data would otherwise stay trapped in radiology narratives and problem
+    /// comments where it cannot be trended. A "Modern" enhancement, <b>enabled by default</b>;
+    /// a site can turn it off (<c>DisableFeatureAsync("BONE_HEALTH")</c>) and the bone-health
+    /// nav and surface go quiet.
+    /// </summary>
+    public const string BoneHealth = "BONE_HEALTH";
+
+    /// <summary>
+    /// Diagnostic stewardship (ADR-006) — diagnosis provenance and revision statistics. Records
+    /// what a diagnosis was asserted on, when it changed and why, then aggregates across patients
+    /// so a clinician can be told "this working diagnosis is revised often; it usually turns out
+    /// to be Y; the result that most often preceded that revision is test T."
+    ///
+    /// A "Modern" enhancement, <b>enabled by default</b>. Unlike every other flag here it is
+    /// <b>ONE-WAY</b>: <c>DisableFeatureAsync("DIAGNOSTIC_STEWARDSHIP")</c> succeeds and can never
+    /// be undone (see <see cref="OneWayDisable"/> and
+    /// <see cref="SiteParametersState.PermanentlyDisabledFeatures"/>).
+    ///
+    /// The reason is statistical, not technical. Every counter this feature maintains is a ratio
+    /// whose denominator is "episodes we observed." While the feature is off no episodes are
+    /// opened, so the diagnoses asserted during the dark period are permanently absent from the
+    /// denominator. Resuming would divide new revisions by an under-counted base and report a
+    /// revision rate that is confidently, invisibly too high — the one failure mode this feature
+    /// must never have, because its whole output is telling a clinician how often they are wrong.
+    /// Recovering would mean discarding every shard and replaying all history, which is not
+    /// supported today.
+    /// </summary>
+    public const string DiagnosticStewardship = "DIAGNOSTIC_STEWARDSHIP";
+
+    /// <summary>
+    /// Features whose disable is irreversible. Disabling one of these records a tombstone in
+    /// <see cref="SiteParametersState.PermanentlyDisabledFeatures"/> and any later
+    /// <c>EnableFeatureAsync</c> for it throws.
+    ///
+    /// Membership here is a statement that the feature accumulates derived data which cannot be
+    /// reconstructed after a gap. Do not add a flag to this set merely because re-enabling would
+    /// be inconvenient — the bar is that re-enabling would produce *wrong numbers that look right*.
+    /// </summary>
+    public static readonly IReadOnlySet<string> OneWayDisable =
+        new HashSet<string>(StringComparer.Ordinal) { DiagnosticStewardship };
 }

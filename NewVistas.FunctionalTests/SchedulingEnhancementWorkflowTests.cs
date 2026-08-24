@@ -55,8 +55,11 @@ public class SchedulingEnhancementWorkflowTests
         IPatientGrain grain = GetPatient(patientId);
         await grain.UpdateDemographicsAsync(name, "M", new DateTime(1970, 1, 1), "123-45-6789");
 
-        // Set enrollment to make patient eligible for scheduling
-        IPatientEnrollmentGrain enrollment = _cluster.GrainFactory.GetGrain<IPatientEnrollmentGrain>($"ENROLL:{patientId}");
+        // Set enrollment to make patient eligible for scheduling.
+        // The workflow reads "ENROLLMENT:{patientId}" (PatientWorkflowGrain.Financial.cs) —
+        // this used to seed "ENROLL:{patientId}", a grain the workflow never reads, so the
+        // tests were passing via the never-enrolled fallback rather than the enrolled path.
+        IPatientEnrollmentGrain enrollment = _cluster.GrainFactory.GetGrain<IPatientEnrollmentGrain>($"ENROLLMENT:{patientId}");
         await enrollment.UpdateStatusAsync(EnrollmentStatus.Verified, "SYSTEM", null);
 
         return patientId;
@@ -472,6 +475,13 @@ public class SchedulingEnhancementWorkflowTests
         string clinicId = await SetupClinicAsync("Core VistA Clinic");
 
         IPatientWorkflowGrain workflow = GetWorkflow(patientId);
+
+        // The seeded enrollment must be what the workflow actually reads — pins the
+        // ENROLLMENT:{patientId} grain-key wiring so eligibility comes from the enrolled
+        // (Verified) path, not the never-enrolled fallback.
+        PatientEligibilityResult eligibility = await workflow.CheckPatientEligibilityForSchedulingAsync();
+        Assert.That(eligibility.IsEligible, Is.True);
+        Assert.That(eligibility.EnrollmentStatus, Is.EqualTo("Verified"));
 
         // Schedule
         DateTime apptTime = DateTime.UtcNow.Date.AddDays(7).AddHours(10);

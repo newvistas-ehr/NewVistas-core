@@ -1,4 +1,4 @@
-// Copyright 2026 Merrimack Valley Software Works, LLC. All rights reserved.
+﻿// Copyright 2026 Merrimack Valley Software Works, LLC. All rights reserved.
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
@@ -233,10 +233,52 @@ public interface IPatientGrain : IGrainWithStringKey
 
     // --- Embedded Problem List ---
     Task AddProblemAsync(GrainStates.ProblemEntry entry);
-    Task RemoveProblemAsync(string problemId);
     Task<List<GrainStates.ProblemEntry>> GetProblemsAsync();
     Task<GrainStates.ProblemEntry?> GetProblemAsync(string problemId);
-    Task UpdateProblemAsync(GrainStates.ProblemEntry updated);
+
+    /// <summary>
+    /// Revise a diagnosis with a coded reason, emitting <c>ProblemRevisedV1</c> (ADR-006).
+    ///
+    /// Replaces the former <c>UpdateProblemAsync(ProblemEntry)</c>, which overwrote the whole
+    /// object silently and emitted nothing — so a diagnosis code could change from E11.9 to
+    /// C34.90 with no trace in the hash chain. The narrow command type also removes that
+    /// method's second trap: a caller could rewrite <c>ProblemId</c>, <c>CreatedDate</c> and
+    /// <c>DateRecorded</c>, the fields patient incidence is computed from.
+    ///
+    /// Returns the event id, or null when the problem does not exist.
+    /// </summary>
+    Task<string?> ReviseProblemAsync(GrainStates.ProblemRevisionCommand command);
+
+    /// <summary>
+    /// Record new evidence about an existing diagnosis without changing the diagnosis, emitting
+    /// <c>ProblemAssessedV1</c> (ADR-006). Never moves the revision number — the workup
+    /// proceeding is not a clinician being wrong. Returns the event id, or null if not found.
+    /// </summary>
+    Task<string?> AssessProblemAsync(GrainStates.ProblemAssessmentCommand command);
+
+    /// <summary>
+    /// Void a problem that should never have been recorded, emitting
+    /// <c>ProblemEnteredInErrorV1</c> (ADR-006).
+    ///
+    /// Replaces the former <c>RemoveProblemAsync</c>, a hard delete with no tombstone and no
+    /// event, which left replay and live state permanently disagreeing. The row is retained and
+    /// marked, never deleted. Distinct from a diagnosis being <i>refuted</i>: a refuted
+    /// diagnosis means the patient genuinely was worked up; an entered-in-error row means
+    /// nothing happened to this patient at all.
+    /// </summary>
+    Task MarkProblemEnteredInErrorAsync(string problemId, string reason);
+
+    /// <summary>
+    /// Link one problem as replacing another, emitting <c>ProblemSupersededV1</c> (ADR-006).
+    ///
+    /// Used when a code-set change gives an existing working diagnosis a real code — a promoted
+    /// emerging cluster, an ICD revision. The old entry is retained, marked INACTIVE and linked
+    /// both ways, so the chart shows one condition with a navigable history rather than two
+    /// unrelated-looking rows. Returns the event id, or null if neither problem exists.
+    /// </summary>
+    Task<string?> SupersedeProblemAsync(
+        string supersededProblemId, string supersedingProblemId,
+        GrainStates.RevisionReason reason, string? narrative, DateTime? effectiveUtc);
 
     /// <summary>
     /// Inactivate a problem on the patient's problem list. Records a causal
@@ -280,6 +322,25 @@ public interface IPatientGrain : IGrainWithStringKey
     /// </summary>
     Task SetRecentOrdersAsync(List<GrainStates.OrderSummary> orders);
 
+    /// <summary>
+    /// Records a <b>change</b> to an order the patient may already be holding.
+    ///
+    /// If the order is in the recent cache it is replaced in place, keeping its position, so a
+    /// status change (signed, discontinued, completed) is reflected without rewriting the
+    /// patient record. If it is not in the cache — it aged out of the window — this is a
+    /// deliberate no-op: the order index remains the source of truth for anything older.
+    ///
+    /// Exists because <see cref="AddRecentOrderAsync"/> always inserts, so reusing it for a
+    /// change would duplicate the entry rather than update it.
+    /// </summary>
+    Task UpdateRecentOrderAsync(GrainStates.OrderSummary summary);
+
+    /// <summary>
+    /// Drops an order from the recent cache by id. For orders that should stop being shown
+    /// at all rather than shown with a new status. No-op when absent.
+    /// </summary>
+    Task RemoveRecentOrderAsync(string orderId);
+
     // --- Vitals (Recent Cache) ---
 
     /// <summary>
@@ -297,6 +358,15 @@ public interface IPatientGrain : IGrainWithStringKey
     /// Replaces the entire recent vitals cache. Used when rebuilding from index.
     /// </summary>
     Task SetRecentVitalsAsync(List<GrainStates.VitalSummary> vitals);
+
+    /// <summary>
+    /// Records a change to a cached vital (correction, entered-in-error re-file). Replaces in
+    /// place by vital id when present; no-op when it has aged out of the window.
+    /// </summary>
+    Task UpdateRecentVitalAsync(GrainStates.VitalSummary summary);
+
+    /// <summary>Drops a vital from the recent cache by id. No-op when absent.</summary>
+    Task RemoveRecentVitalAsync(string vitalId);
 
     // --- Vitals Legacy ---
     /// <summary>Legacy — kept for backward compatibility with importers.</summary>
@@ -325,6 +395,22 @@ public interface IPatientGrain : IGrainWithStringKey
     /// Replaces the entire recent notes cache. Used when rebuilding from index.
     /// </summary>
     Task SetRecentNotesAsync(List<GrainStates.TiuNoteSummary> notes);
+
+    /// <summary>
+    /// Records a change to a note the patient may already be holding — signature, addendum,
+    /// amendment. Replaces in place by document id, keeping its position; no-op when the note
+    /// has aged out of the window.
+    ///
+    /// Without this, signing a note re-inserted it through <see cref="AddRecentNoteAsync"/>
+    /// and the same note appeared twice in the cover sheet.
+    /// </summary>
+    Task UpdateRecentNoteAsync(GrainStates.TiuNoteSummary summary);
+
+    /// <summary>
+    /// Drops a note from the recent cache by document id — a retracted note must stop being
+    /// displayed, not merely change status. No-op when absent.
+    /// </summary>
+    Task RemoveRecentNoteAsync(string documentId);
 
     // --- Consults ---
     Task AddConsultIdAsync(string consultId);

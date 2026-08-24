@@ -21,11 +21,11 @@ file, You can obtain one at https://mozilla.org/MPL/2.0/.
             <DataGrid ItemsSource="{Binding Procedures}" SelectedItem="{Binding SelectedProcedure}" AutoGenerateColumns="False">
                 <DataGrid.Columns>
                     <DataGridTextColumn Header="Category" Binding="{Binding Category}" Width="140"/>
-                    <DataGridTextColumn Header="Name" Binding="{Binding ProcedureName}" Width="*"/>
+                    <DataGridTextColumn Header="Name" Binding="{Binding ProcedureDescription}" Width="*"/>
                     <DataGridTextColumn Header="Status" Binding="{Binding Status}" Width="120"/>
                     <DataGridTextColumn Header="Ordered" Binding="{Binding OrderedDate, StringFormat=d}" Width="110"/>
-                    <DataGridTextColumn Header="Scheduled" Binding="{Binding ScheduledDate, StringFormat=d}" Width="110"/>
-                    <DataGridTextColumn Header="Provider" Binding="{Binding OrderedByName}" Width="*"/>
+                    <DataGridTextColumn Header="Performed" Binding="{Binding PerformedDate, StringFormat=d}" Width="110"/>
+                    <DataGridTextColumn Header="Provider" Binding="{Binding ProviderName}" Width="*"/>
                 </DataGrid.Columns>
             </DataGrid>
         </StackPanel>

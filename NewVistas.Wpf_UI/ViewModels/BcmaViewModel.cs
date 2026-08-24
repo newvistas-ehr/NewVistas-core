@@ -1,4 +1,4 @@
-// Copyright 2026 Merrimack Valley Software Works, LLC. All rights reserved.
+﻿// Copyright 2026 Merrimack Valley Software Works, LLC. All rights reserved.
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
@@ -16,6 +16,7 @@ public partial class BcmaViewModel : BasePatientViewModel
     [ObservableProperty] private ObservableCollection<MarEntry> _marEntries = new();
     [ObservableProperty] private ObservableCollection<BcmaSummary> _administrations = new();
     [ObservableProperty] private int _selectedTab; // 0=MAR, 1=History
+    [ObservableProperty] private MarEntry? _selectedMarEntry;
 
     // Administer form
     [ObservableProperty] private bool _showAdminForm;
@@ -24,12 +25,13 @@ public partial class BcmaViewModel : BasePatientViewModel
     [ObservableProperty] private string _route = "PO";
     [ObservableProperty] private string _actionStatus = "GIVEN";
     [ObservableProperty] private string _administeredByName = "Nurse, Test";
+    [ObservableProperty] private string _adminNotes = string.Empty;
 
     public string[] ActionStatuses { get; } = ["GIVEN", "NOT GIVEN", "HELD", "REFUSED", "REFUSED-PATIENT EDUCATION"];
     public string[] RouteOptions { get; } = ["PO", "IV", "IM", "SC", "SL", "TOP", "INH", "PR", "ID"];
 
-    public BcmaViewModel(OrleansGrainService grains, ApiClient api, PatientContext patientContext)
-        : base(grains, api, patientContext) { }
+    public BcmaViewModel(OrleansGrainService grains, PatientContext patientContext)
+        : base(grains, patientContext) { }
 
     protected override async Task LoadDataAsync()
     {
@@ -45,6 +47,14 @@ public partial class BcmaViewModel : BasePatientViewModel
 
     [RelayCommand]
     private void ToggleAdminForm() => ShowAdminForm = !ShowAdminForm;
+
+    partial void OnSelectedMarEntryChanged(MarEntry? value)
+    {
+        if (value is null) return;
+        DrugName = value.DrugName;
+        Dosage = value.Dosage ?? string.Empty;
+        Route = value.Route ?? "PO";
+    }
 
     [RelayCommand]
     private async Task AdministerMedication()
@@ -67,9 +77,11 @@ public partial class BcmaViewModel : BasePatientViewModel
                 null, // injectionSite
                 null, // prescriptionId
                 null, // orderId
-                null); // comments
+                AdminNotes.Length > 0 ? AdminNotes : null); // comments
             ShowAdminForm = false;
+            SelectedMarEntry = null;
             DrugName = string.Empty;
+            AdminNotes = string.Empty;
             await LoadDataAsync();
         }
         catch (Exception ex) { Error = ex.Message; }

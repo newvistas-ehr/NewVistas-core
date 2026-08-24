@@ -1,4 +1,4 @@
-// Copyright 2026 Merrimack Valley Software Works, LLC. All rights reserved.
+﻿// Copyright 2026 Merrimack Valley Software Works, LLC. All rights reserved.
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
@@ -17,8 +17,18 @@ public partial class CollectionLettersViewModel : BasePatientViewModel
     [ObservableProperty] private CollectionLetterState? _selectedLetter;
     [ObservableProperty] private string? _actionMessage;
 
-    public CollectionLettersViewModel(OrleansGrainService grains, ApiClient api, PatientContext patientContext)
-        : base(grains, api, patientContext) { }
+    /// <summary>Grid selection; loads the full letter into <see cref="SelectedLetter"/>.</summary>
+    [ObservableProperty] private CollectionLetterIndexEntry? _selectedEntry;
+
+    partial void OnSelectedEntryChanged(CollectionLetterIndexEntry? value)
+    {
+        // Actions gate on the detail object; clear it before the async fetch so they can never target the previously selected record.
+        SelectedLetter = null;
+        if (value is not null) _ = ViewDetail(value);
+    }
+
+    public CollectionLettersViewModel(OrleansGrainService grains, PatientContext patientContext)
+        : base(grains, patientContext) { }
 
     protected override async Task LoadDataAsync()
     {

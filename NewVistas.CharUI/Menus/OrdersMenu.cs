@@ -2,7 +2,9 @@
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
-using System.Net.Http.Json;
+using System.Security.Cryptography;
+using System.Text;
+using NewVistas.Abstractions.GrainInterfaces;
 using NewVistas.Abstractions.GrainStates;
 using NewVistas.Abstractions.Security;
 using NewVistas.CharUI.Core;
@@ -143,8 +145,8 @@ public class OrdersMenu : IMenu
             return;
         }
 
-        // Verify e-signature via HTTP API if available
-        bool sigValid = await VerifyElectronicSignatureAsync(sig);
+        // Verify the e-signature against the hash on the user's person grain (fails closed).
+        bool sigValid = await VerifyElectronicSignatureAsync(ctx, sig);
         if (!sigValid)
         {
             TerminalIO.WriteError("*** INVALID SIGNATURE CODE ***");
@@ -270,19 +272,35 @@ public class OrdersMenu : IMenu
         return new string(chars.ToArray());
     }
 
-    private static async Task<bool> VerifyElectronicSignatureAsync(string sig)
+    /// <summary>
+    /// Verifies the user's electronic signature code against the hash held on their
+    /// NewPersonGrain — the same comparison XUSESIG ESVERIFY performs.
+    ///
+    /// This previously POSTed to the WebServer and <b>failed open</b> two different ways:
+    /// the catch returned <c>true</c> "if the HTTP API is unavailable", and the base address
+    /// was hardcoded to port 5000 while the WebServer listens on 5298 — so the call always
+    /// threw and every signature string was accepted. The success path was no better: it
+    /// returned <c>IsSuccessStatusCode</c>, but the endpoint answers 200 with
+    /// <c>{ "valid": false }</c> for a wrong code, so a bad signature also passed.
+    ///
+    /// An electronic signature is the legal attestation on a clinical order. It now reads
+    /// the grain that owns the hash and <b>fails closed</b> on any error.
+    /// </summary>
+    private static async Task<bool> VerifyElectronicSignatureAsync(MenuContext ctx, string sig)
     {
         try
         {
-            using var http = new HttpClient { BaseAddress = new Uri("http://localhost:5000") };
-            var payload = new { SignatureCode = sig };
-            HttpResponseMessage resp = await http.PostAsJsonAsync("/api/auth/signature/verify", payload);
-            return resp.IsSuccessStatusCode;
+            // Same hashing the AuthController applied before storing/comparing.
+            string hash = Convert.ToBase64String(SHA256.HashData(Encoding.UTF8.GetBytes(sig)));
+
+            var person = ctx.GetGrain<INewPersonGrain>($"USER:{ctx.Session.UserId}");
+            return await person.VerifyElectronicSignatureAsync(hash);
         }
-        catch
+        catch (Exception ex)
         {
-            // If HTTP API unavailable, accept signature (direct Orleans mode)
-            return true;
+            // Fail CLOSED: if we cannot verify, we have not verified.
+            TerminalIO.WriteError($"Could not verify signature: {ex.Message}");
+            return false;
         }
     }
 }

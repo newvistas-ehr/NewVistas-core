@@ -28,12 +28,12 @@ file, You can obtain one at https://mozilla.org/MPL/2.0/.
             <DataGrid ItemsSource="{Binding SearchResults}" AutoGenerateColumns="False" MaxHeight="200">
                 <DataGrid.Columns>
                     <DataGridTextColumn Header="ICN" Binding="{Binding Icn}" Width="140"/>
-                    <DataGridTextColumn Header="Name" Binding="{Binding Name}" Width="180"/>
+                    <DataGridTextColumn Header="Name" Binding="{Binding PatientName}" Width="180"/>
                     <DataGridTextColumn Header="SSN" Binding="{Binding Ssn}" Width="100"/>
-                    <DataGridTextColumn Header="DOB" Binding="{Binding Dob}" Width="100"/>
+                    <DataGridTextColumn Header="DOB" Binding="{Binding DateOfBirth, StringFormat=d}" Width="100"/>
                     <DataGridTextColumn Header="Sex" Binding="{Binding Sex}" Width="50"/>
-                    <DataGridTextColumn Header="Facilities" Binding="{Binding Facilities}" Width="80"/>
-                    <DataGridCheckBoxColumn Header="Deceased" Binding="{Binding Deceased}" Width="80"/>
+                    <DataGridTextColumn Header="Facilities" Binding="{Binding TreatingFacilities.Count}" Width="80"/>
+                    <DataGridCheckBoxColumn Header="Deceased" Binding="{Binding IsDeceased}" Width="80"/>
                 </DataGrid.Columns>
             </DataGrid>
 
@@ -67,9 +67,9 @@ file, You can obtain one at https://mozilla.org/MPL/2.0/.
             <DataGrid ItemsSource="{Binding MatchCandidates}" AutoGenerateColumns="False" MaxHeight="200" Margin="0,8,0,0">
                 <DataGrid.Columns>
                     <DataGridTextColumn Header="ICN" Binding="{Binding Icn}" Width="140"/>
-                    <DataGridTextColumn Header="Name" Binding="{Binding Name}" Width="180"/>
+                    <DataGridTextColumn Header="Name" Binding="{Binding PatientName}" Width="180"/>
                     <DataGridTextColumn Header="SSN" Binding="{Binding Ssn}" Width="100"/>
-                    <DataGridTextColumn Header="DOB" Binding="{Binding Dob}" Width="100"/>
+                    <DataGridTextColumn Header="DOB" Binding="{Binding DateOfBirth, StringFormat=d}" Width="100"/>
                     <DataGridTextColumn Header="Score" Binding="{Binding Score, StringFormat=F2}" Width="*"/>
                 </DataGrid.Columns>
             </DataGrid>

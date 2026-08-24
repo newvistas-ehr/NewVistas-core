@@ -1,4 +1,4 @@
-// Copyright 2026 Merrimack Valley Software Works, LLC. All rights reserved.
+﻿// Copyright 2026 Merrimack Valley Software Works, LLC. All rights reserved.
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
@@ -33,6 +33,13 @@ public interface IIncompleteRecordGrain : IGrainWithStringKey
 /// </summary>
 public interface IIncompleteRecordIndexGrain : IGrainWithStringKey
 {
+    /// <summary>
+    /// Seeds a small demo data set through this grain. Owned here rather than in a
+    /// controller so Blazor, WPF and the REST API all invoke one implementation — an
+    /// internal UI must never call the WebServer to populate its own screen.
+    /// </summary>
+    Task SeedDemoDataAsync();
+
     Task<List<IncompleteRecordEntry>> GetAllDeficienciesAsync();
     Task<List<IncompleteRecordEntry>> GetOpenDeficienciesAsync();
     Task<List<IncompleteRecordEntry>> GetDelinquentDeficienciesAsync();

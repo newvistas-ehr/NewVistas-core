@@ -20,15 +20,15 @@ file, You can obtain one at https://mozilla.org/MPL/2.0/.
                              Visibility="{Binding IsLoading, Converter={StaticResource BoolToVisibility}}"/>
             </StackPanel>
 
-            <DataGrid ItemsSource="{Binding AuditEvents}" SelectedItem="{Binding SelectedEvent}">
+            <DataGrid ItemsSource="{Binding Events}" SelectedItem="{Binding SelectedEntry}">
                 <DataGrid.Columns>
-                    <DataGridTextColumn Header="Timestamp" Binding="{Binding EventTimestamp, StringFormat=g}" Width="140"/>
+                    <DataGridTextColumn Header="Timestamp" Binding="{Binding Timestamp, StringFormat=g}" Width="140"/>
                     <DataGridTextColumn Header="Action" Binding="{Binding Action}" Width="160"/>
                     <DataGridTextColumn Header="Entity Type" Binding="{Binding EntityType}" Width="140"/>
                     <DataGridTextColumn Header="Entity ID" Binding="{Binding EntityId}" Width="160"/>
                     <DataGridTextColumn Header="User" Binding="{Binding UserName}" Width="160"/>
-                    <DataGridTextColumn Header="Result" Binding="{Binding Result}" Width="90"/>
-                    <DataGridTextColumn Header="IP Address" Binding="{Binding IpAddress}" Width="120"/>
+                    <DataGridTextColumn Header="Domain" Binding="{Binding Domain}" Width="90"/>
+                    <DataGridTextColumn Header="Location" Binding="{Binding LocationName}" Width="120"/>
                 </DataGrid.Columns>
             </DataGrid>
 
@@ -42,16 +42,16 @@ file, You can obtain one at https://mozilla.org/MPL/2.0/.
                             <ColumnDefinition Width="*"/>
                         </Grid.ColumnDefinitions>
                         <StackPanel>
-                            <TextBlock Style="{StaticResource FieldLabel}" Text="Session ID"/>
-                            <TextBlock Text="{Binding SelectedEvent.SessionId}" FontSize="12"/>
+                            <TextBlock Style="{StaticResource FieldLabel}" Text="Event Hash"/>
+                            <TextBlock Text="{Binding SelectedEvent.EventHash}" FontSize="12"/>
                             <TextBlock Style="{StaticResource FieldLabel}" Text="Old Value"/>
                             <TextBlock Text="{Binding SelectedEvent.OldValue}" FontSize="12" TextWrapping="Wrap"/>
                         </StackPanel>
                         <StackPanel Grid.Column="1" Margin="16,0,0,0">
                             <TextBlock Style="{StaticResource FieldLabel}" Text="New Value"/>
                             <TextBlock Text="{Binding SelectedEvent.NewValue}" FontSize="12" TextWrapping="Wrap"/>
-                            <TextBlock Style="{StaticResource FieldLabel}" Text="Notes"/>
-                            <TextBlock Text="{Binding SelectedEvent.Notes}" FontSize="12" TextWrapping="Wrap"/>
+                            <TextBlock Style="{StaticResource FieldLabel}" Text="Details"/>
+                            <TextBlock Text="{Binding SelectedEvent.Details}" FontSize="12" TextWrapping="Wrap"/>
                         </StackPanel>
                     </Grid>
                 </Border>

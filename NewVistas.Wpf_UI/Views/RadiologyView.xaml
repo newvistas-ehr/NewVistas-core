@@ -32,7 +32,7 @@ file, You can obtain one at https://mozilla.org/MPL/2.0/.
                     <TextBox Text="{Binding ClinicalHistory, UpdateSourceTrigger=PropertyChanged}"
                              Width="400" HorizontalAlignment="Left" AcceptsReturn="True" Height="60" VerticalScrollBarVisibility="Auto"/>
                     <TextBlock Style="{StaticResource FieldLabel}" Text="Priority"/>
-                    <ComboBox ItemsSource="{Binding PriorityOptions}" SelectedItem="{Binding Priority}" Width="160" HorizontalAlignment="Left"/>
+                    <ComboBox ItemsSource="{Binding UrgencyOptions}" SelectedItem="{Binding Urgency}" Width="160" HorizontalAlignment="Left"/>
                     <StackPanel Orientation="Horizontal" Margin="0,12,0,0">
                         <Button Content="Order" Style="{StaticResource PrimaryButton}"
                                 Command="{Binding OrderStudyCommand}" Margin="0,0,8,0"/>
@@ -42,14 +42,14 @@ file, You can obtain one at https://mozilla.org/MPL/2.0/.
                 </StackPanel>
             </Border>
 
-            <DataGrid ItemsSource="{Binding Studies}" SelectedItem="{Binding SelectedStudy}">
+            <DataGrid ItemsSource="{Binding Studies}" SelectedItem="{Binding SelectedSummary}">
                 <DataGrid.Columns>
                     <DataGridTextColumn Header="Procedure" Binding="{Binding ProcedureName}" Width="*"/>
                     <DataGridTextColumn Header="Status" Binding="{Binding Status}" Width="110"/>
-                    <DataGridTextColumn Header="Priority" Binding="{Binding Priority}" Width="80"/>
-                    <DataGridTextColumn Header="Date" Binding="{Binding ExamDate, StringFormat=d}" Width="110"/>
-                    <DataGridTextColumn Header="Radiologist" Binding="{Binding RadiologistName}" Width="160"/>
-                    <DataGridTextColumn Header="Report" Binding="{Binding ReportStatus}" Width="100"/>
+                    <DataGridTextColumn Header="Type" Binding="{Binding ImagingType}" Width="80"/>
+                    <DataGridTextColumn Header="Date" Binding="{Binding ExamDateTime, StringFormat=d}" Width="110"/>
+                    <DataGridTextColumn Header="Provider" Binding="{Binding RequestingProviderName}" Width="160"/>
+                    <DataGridCheckBoxColumn Header="Report" Binding="{Binding HasReport}" IsReadOnly="True" Width="100"/>
                 </DataGrid.Columns>
             </DataGrid>
 

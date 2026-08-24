@@ -1,4 +1,4 @@
-// Copyright 2026 Merrimack Valley Software Works, LLC. All rights reserved.
+﻿// Copyright 2026 Merrimack Valley Software Works, LLC. All rights reserved.
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
@@ -15,6 +15,14 @@ public partial class InpatientPharmacyViewModel : BasePatientViewModel
 {
     [ObservableProperty] private ObservableCollection<MarEntry> _marEntries = new();
     [ObservableProperty] private InpatientOrderState? _selectedOrder;
+    [ObservableProperty] private MarEntry? _selectedEntry;
+
+    partial void OnSelectedEntryChanged(MarEntry? value)
+    {
+        // Actions gate on the detail object; clear it before the async fetch so they can never target the previously selected record.
+        SelectedOrder = null;
+        if (value is not null) _ = SelectOrder(value);
+    }
 
     // New order form
     [ObservableProperty] private bool _showOrderForm;
@@ -32,8 +40,8 @@ public partial class InpatientPharmacyViewModel : BasePatientViewModel
     public string[] RouteOptions { get; } = ["PO", "IV", "IM", "SC", "SL", "TOP", "INH", "PR"];
     public string[] PriorityOptions { get; } = ["ROUTINE", "STAT", "ASAP"];
 
-    public InpatientPharmacyViewModel(OrleansGrainService grains, ApiClient api, PatientContext patientContext)
-        : base(grains, api, patientContext) { }
+    public InpatientPharmacyViewModel(OrleansGrainService grains, PatientContext patientContext)
+        : base(grains, patientContext) { }
 
     protected override async Task LoadDataAsync()
     {

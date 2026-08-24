@@ -1,0 +1,767 @@
+@* Copyright 2026 Merrimack Valley Software Works, LLC. All rights reserved. *@
+@* This Source Code Form is subject to the terms of the Mozilla Public *@
+@* License, v. 2.0. If a copy of the MPL was not distributed with this *@
+@* file, You can obtain one at https://mozilla.org/MPL/2.0/.            *@
+@page "/bone-health"
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+@rendermode InteractiveServer
+@using NewVistas.BlazorWeb.Services
+@using NewVistas.Abstractions.GrainInterfaces
+@using NewVistas.Abstractions.GrainStates
+@using NewVistas.Abstractions.Helpers
+@* Writes go STRAIGHT TO GRAINS via OrleansGrainService, like every other internal page.
+   The WebServer REST API exists for outsiders (patient portal, FHIR, inbound labs) and
+   for auth — an internal UI must not route its own reads or writes through it. *@
+@inject OrleansGrainService Grains
+
+<PageTitle>Bone Health</PageTitle>
+
+<h1>🦴 Bone Health</h1>
+<p class="lede">Osteoporosis is managed over decades, so this is a trajectory rather than a
+result. Bone density is read against the rule that applies to <strong>this patient's sex and
+age</strong>, serial scans are only compared when they came from the same machine, and a bone
+turnover marker is shown against the therapy in force when it was drawn.</p>
+
+<PatientBar @bind-PatientId="patientId" Loading="loading" OnLoad="Load" />
+<AlertBanner Error="@error" Success="@success" />
+
+@if (patientId != null && snapshot != null)
+{
+    <div class="toolbar">
+        <button class="btn-primary" @onclick="() => showForm = !showForm">
+            @(showForm ? "Close" : "＋ Record data")
+        </button>
+    </div>
+
+    @if (showForm)
+    {
+        <section class="panel form-panel">
+            <h2>Record</h2>
+            <div class="entry-tabs">
+                @foreach (EntryKind k in Enum.GetValues<EntryKind>())
+                {
+                    <button class="@(entryKind == k ? "tab tab-active" : "tab")" @onclick="() => entryKind = k">@TabLabel(k)</button>
+                }
+            </div>
+
+            @if (entryKind == EntryKind.TurnoverMarker)
+            {
+                <div class="form-grid">
+                    <label>Marker
+                        <select @bind="mkType">
+                            @foreach (BoneTurnoverMarkerType t in new[] { BoneTurnoverMarkerType.SerumCtx, BoneTurnoverMarkerType.P1np,
+                                                                          BoneTurnoverMarkerType.BoneSpecificAlkalinePhosphatase,
+                                                                          BoneTurnoverMarkerType.Osteocalcin, BoneTurnoverMarkerType.UrineNtx })
+                            {
+                                <option value="@t">@Describe(t)</option>
+                            }
+                        </select>
+                    </label>
+                    <label>Value <input type="number" step="0.1" @bind="mkValue" /></label>
+                    <label>Units <input type="text" @bind="mkUnits" /></label>
+                    <label>Collection date <input type="date" @bind="mkDate" /></label>
+                    <label>Collection time
+                        <input type="time" @bind="mkTime" disabled="@(!mkTimeKnown)" />
+                    </label>
+                    <label class="check">
+                        <input type="checkbox" @bind="mkTimeKnown" /> Collection time is known
+                    </label>
+                    <label>Fasting
+                        <select @bind="mkFasting">
+                            <option value="yes">Yes</option>
+                            <option value="no">No</option>
+                            <option value="unknown">Not recorded</option>
+                        </select>
+                    </label>
+                    <label>Assay <input type="text" @bind="mkAssay" /></label>
+                    <label>Performing lab <input type="text" @bind="mkLab" /></label>
+                </div>
+
+                @* Show the comparability verdict BEFORE saving, using the same classifier the
+                   snapshot uses — so a draw that will not be trendable is visible at entry time
+                   rather than discovered later. *@
+                <div class="preview @(PreviewInterpretability == BoneTurnoverInterpretability.Interpretable ? "preview-ok" : "preview-warn")">
+                    @if (PreviewInterpretability == BoneTurnoverInterpretability.Interpretable)
+                    {
+                        <strong>Comparable.</strong> <span>This value will be trended against previous fasting morning draws.</span>
+                    }
+                    else
+                    {
+                        <strong>Will not be trended.</strong> <span>@PreviewCaveat</span>
+                    }
+                </div>
+            }
+            else if (entryKind == EntryKind.Dxa)
+            {
+                <div class="form-grid">
+                    <label>Scan date <input type="date" @bind="dxDate" /></label>
+                    <label>Scanner ID <input type="text" @bind="dxScannerId" placeholder="e.g. DXA-HOLOGIC-01" /></label>
+                    <label>Scanner model <input type="text" @bind="dxScannerModel" /></label>
+                    <label>Facility <input type="text" @bind="dxFacility" /></label>
+                    <label>Least significant change (g/cm²) <input type="number" step="0.001" @bind="dxLsc" /></label>
+                    <label>Reference database <input type="text" @bind="dxRefDb" /></label>
+                </div>
+                <p class="muted small">Scanner ID and least significant change are what make the next
+                scan comparable with this one. Without them a later change cannot be called real.</p>
+
+                <table class="data-table">
+                    <thead><tr><th>Site</th><th>BMD (g/cm²)</th><th>T-score</th><th>Z-score</th><th>Region</th><th></th></tr></thead>
+                    <tbody>
+                        @for (int i = 0; i < dxSites.Count; i++)
+                        {
+                            int idx = i;
+                            <tr>
+                                <td>
+                                    <select @bind="dxSites[idx].Site">
+                                        @foreach (BoneDensitySite s in new[] { BoneDensitySite.LumbarSpine, BoneDensitySite.FemoralNeck,
+                                                                               BoneDensitySite.TotalHip, BoneDensitySite.ForearmRadius33 })
+                                        {
+                                            <option value="@s">@Describe(s)</option>
+                                        }
+                                    </select>
+                                </td>
+                                <td><input type="number" step="0.001" @bind="dxSites[idx].Bmd" /></td>
+                                <td><input type="number" step="0.1" @bind="dxSites[idx].T" /></td>
+                                <td><input type="number" step="0.1" @bind="dxSites[idx].Z" /></td>
+                                <td><input type="text" @bind="dxSites[idx].Region" /></td>
+                                <td><button class="btn-link" @onclick="() => dxSites.RemoveAt(idx)" disabled="@(dxSites.Count <= 1)">remove</button></td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+                <button class="btn-secondary" @onclick="() => dxSites.Add(new DxaSiteEntry())">＋ Add site</button>
+            }
+            else if (entryKind == EntryKind.Fracture)
+            {
+                <div class="form-grid">
+                    <label>Site <input type="text" @bind="frSite" placeholder="e.g. L1 vertebral body" /></label>
+                    <label>Date <input type="date" @bind="frDate" /></label>
+                    <label>Mechanism
+                        <select @bind="frMechanism">
+                            <option value="@FractureMechanism.Fragility">Fragility (fall from standing height or less)</option>
+                            <option value="@FractureMechanism.Trauma">Significant trauma</option>
+                            <option value="@FractureMechanism.Pathologic">Pathologic</option>
+                            <option value="@FractureMechanism.Unknown">Unknown</option>
+                        </select>
+                    </label>
+                    <label class="check"><input type="checkbox" @bind="frHipOrVertebral" /> Hip or vertebral</label>
+                    <label class="check"><input type="checkbox" @bind="frImaging" /> Imaging confirmed</label>
+                </div>
+                @if (frMechanism == FractureMechanism.Fragility && frHipOrVertebral)
+                {
+                    <div class="preview preview-warn">
+                        <strong>Diagnostic on its own.</strong>
+                        <span>A hip or vertebral fragility fracture establishes osteoporosis irrespective of bone density.</span>
+                    </div>
+                }
+            }
+            else
+            {
+                <div class="form-grid">
+                    <label>Agent <input type="text" @bind="thAgent" placeholder="e.g. Denosumab" /></label>
+                    <label>Class
+                        <select @bind="thClass">
+                            @foreach (OsteoporosisTherapyClass c in Enum.GetValues<OsteoporosisTherapyClass>())
+                            {
+                                @if (c != OsteoporosisTherapyClass.Unknown)
+                                {
+                                    <option value="@c">@Describe(c)</option>
+                                }
+                            }
+                        </select>
+                    </label>
+                    <label>Start date <input type="date" @bind="thStart" /></label>
+                    <label>Dose <input type="text" @bind="thDose" placeholder="e.g. 60 mg SC every 6 months" /></label>
+                    <label>Dosing interval (days) <input type="number" @bind="thIntervalDays" /></label>
+                    <label>Prescriber <input type="text" @bind="thPrescriber" /></label>
+                </div>
+                @if (thClass == OsteoporosisTherapyClass.RankLigandInhibitor)
+                {
+                    <div class="preview preview-warn">
+                        <strong>Interval is not flexible.</strong>
+                        <span>A RANK-ligand inhibitor must not lapse, and stopping it without transitioning
+                        to an antiresorptive causes rebound bone loss and multiple vertebral fractures.</span>
+                    </div>
+                }
+            }
+
+            <div class="form-actions">
+                <button class="btn-primary" @onclick="Save" disabled="@saving">@(saving ? "Recording…" : "Record")</button>
+                <button class="btn-secondary" @onclick="() => showForm = false" disabled="@saving">Cancel</button>
+            </div>
+        </section>
+    }
+
+    @if (!snapshot.IsEnrolled && snapshot.LatestDensities.Count == 0 && snapshot.TurnoverMarkers.Count == 0)
+    {
+        <div class="empty-state">No bone-health record for this patient.</div>
+    }
+    else
+    {
+        <!-- ── Diagnosis ─────────────────────────────────────────────── -->
+        <section class="panel">
+            <h2>Diagnosis</h2>
+            <div class="dx-line">
+                <span class="badge @CategoryBadge(snapshot.OverallCategory)">@Describe(snapshot.OverallCategory)</span>
+                @if (snapshot.PrimaryDiagnosis != null)
+                {
+                    <span class="dx-name">@snapshot.PrimaryDiagnosis</span>
+                }
+                @if (snapshot.LastDxaDate != null)
+                {
+                    <span class="muted">last DXA @snapshot.LastDxaDate.Value.ToString("yyyy-MM-dd")</span>
+                }
+            </div>
+            <p class="rationale">@snapshot.OverallRationale</p>
+        </section>
+
+        <!-- ── Interpretation caveats ────────────────────────────────── -->
+        @if (snapshot.Caveats.Count > 0)
+        {
+            <section class="panel caveat-panel">
+                <h2>Read these first</h2>
+                <ul class="caveat-list">
+                    @foreach (string c in snapshot.Caveats)
+                    {
+                        <li>@c</li>
+                    }
+                </ul>
+            </section>
+        }
+
+        <!-- ── Bone density ──────────────────────────────────────────── -->
+        <section class="panel">
+            <h2>Bone mineral density</h2>
+            @if (snapshot.LatestDensities.Count == 0)
+            {
+                <div class="empty-state">No DXA recorded.</div>
+            }
+            else
+            {
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>Site</th><th>BMD (g/cm²)</th><th>T-score</th><th>Z-score</th>
+                            <th>Classification</th><th>Basis</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (ClassifiedBoneDensity d in snapshot.LatestDensities)
+                        {
+                            <tr>
+                                <td>@Describe(d.Site)</td>
+                                @* 0 means the BMD was never recorded — a T-score-only historical
+                                   scan quoted from a note. Rendering "0.000" would assert a
+                                   measurement that does not exist. *@
+                                <td class="mono">@(d.BmdGramsPerCm2 == 0 ? "—" : d.BmdGramsPerCm2.ToString("0.000"))</td>
+                                <td class="mono @(d.ScoreUsed == "T-score" ? "score-used" : "")">@Fmt(d.TScore)</td>
+                                <td class="mono @(d.ScoreUsed == "Z-score" ? "score-used" : "")">@Fmt(d.ZScore)</td>
+                                <td><span class="badge @CategoryBadge(d.Category)">@Describe(d.Category)</span></td>
+                                <td class="rationale-cell">@d.Rationale</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+
+                @if (snapshot.DensityChanges.Count > 0)
+                {
+                    <h3>Change since the previous study</h3>
+                    <table class="data-table">
+                        <thead>
+                            <tr><th>Site</th><th>Interval</th><th>Change</th><th>Real change?</th></tr>
+                        </thead>
+                        <tbody>
+                            @foreach (BoneDensityChange c in snapshot.DensityChanges)
+                            {
+                                <tr>
+                                    <td>@Describe(c.Site)</td>
+                                    <td class="mono">@c.FromDate.ToString("yyyy-MM-dd") → @c.ToDate.ToString("yyyy-MM-dd")</td>
+                                    <td class="mono">@(c.ChangeGramsPerCm2 >= 0 ? "+" : "")@c.ChangeGramsPerCm2.ToString("0.000") (@c.PercentChange.ToString("+0.0;-0.0;0")%)</td>
+                                    <td>
+                                        @if (c.ExceedsLeastSignificantChange)
+                                        {
+                                            <span class="badge badge-info">exceeds measurement error</span>
+                                        }
+                                        else
+                                        {
+                                            <span class="badge badge-neutral">not established</span>
+                                        }
+                                        @if (c.Caveat != null)
+                                        {
+                                            <div class="muted small">@c.Caveat</div>
+                                        }
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                }
+            }
+        </section>
+
+        <!-- ── Bone turnover markers ─────────────────────────────────── -->
+        <section class="panel">
+            <h2>Bone turnover markers</h2>
+            <p class="muted small">CTX has marked circadian variation and is suppressed by food, so
+            only fasting morning draws are comparable. Values collected otherwise are shown but not
+            trended.</p>
+            @if (snapshot.TurnoverMarkers.Count == 0)
+            {
+                <div class="empty-state">No turnover markers recorded.</div>
+            }
+            else
+            {
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>Collected</th><th>Marker</th><th>Value</th><th>Change</th>
+                            <th>Therapy in force</th><th>Comparable?</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (ClassifiedTurnoverMarker m in snapshot.TurnoverMarkers)
+                        {
+                            <tr class="@(m.Interpretability == BoneTurnoverInterpretability.Interpretable ? "" : "row-warning")">
+                                <td class="mono">@(m.Result.CollectionTimeKnown
+                                    ? m.Result.CollectedAt.ToString("yyyy-MM-dd HH:mm")
+                                    : m.Result.CollectedAt.ToString("yyyy-MM-dd"))</td>
+                                <td>@Describe(m.Result.MarkerType)</td>
+                                <td class="mono">@m.Result.Value.ToString("0.#") @m.Result.Units</td>
+                                <td class="mono">
+                                    @if (m.PercentChangeFromPrevious != null)
+                                    {
+                                        @($"{m.PercentChangeFromPrevious.Value:+0.0;-0.0;0}%")
+                                    }
+                                    else
+                                    {
+                                        <span class="muted">—</span>
+                                    }
+                                </td>
+                                <td>@(m.TherapyInForce ?? "—")</td>
+                                <td>
+                                    @if (m.Interpretability == BoneTurnoverInterpretability.Interpretable)
+                                    {
+                                        <span class="badge badge-success">fasting a.m.</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="badge badge-warning">@Describe(m.Interpretability)</span>
+                                        <div class="muted small">@m.Caveat</div>
+                                    }
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            }
+        </section>
+
+        <!-- ── Therapy ───────────────────────────────────────────────── -->
+        <section class="panel">
+            <h2>Therapy</h2>
+            @if (record == null || record.Therapies.Count == 0)
+            {
+                <div class="empty-state">No osteoporosis therapy recorded.</div>
+            }
+            else
+            {
+                <table class="data-table">
+                    <thead>
+                        <tr><th>Agent</th><th>Class</th><th>Started</th><th>Stopped</th><th>Transitioned to</th><th>Status</th></tr>
+                    </thead>
+                    <tbody>
+                        @foreach (OsteoporosisTherapyCourse t in record.Therapies)
+                        {
+                            <tr>
+                                <td>@t.AgentName</td>
+                                <td>@Describe(t.TherapyClass)</td>
+                                <td class="mono">@t.StartDate.ToString("yyyy-MM-dd")</td>
+                                <td class="mono">@(t.StopDate?.ToString("yyyy-MM-dd") ?? "—")</td>
+                                <td>@(t.TransitionedToAgent ?? "—")</td>
+                                <td>
+                                    @if (t.StopDate == null)
+                                    {
+                                        <span class="badge badge-info">active</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="badge badge-neutral">stopped</span>
+                                    }
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            }
+        </section>
+
+        <!-- ── Fractures and risk ────────────────────────────────────── -->
+        <section class="panel">
+            <h2>Fractures and fracture risk</h2>
+            <p>
+                Recorded fragility fractures: <strong>@snapshot.FragilityFractureCount</strong>
+            </p>
+            @if (snapshot.LatestFrax != null)
+            {
+                <p>
+                    FRAX (@snapshot.LatestFrax.AssessmentDate.ToString("yyyy-MM-dd")) —
+                    major osteoporotic <strong>@snapshot.LatestFrax.MajorOsteoporoticFracturePercent.ToString("0.#")%</strong>,
+                    hip <strong>@snapshot.LatestFrax.HipFracturePercent.ToString("0.#")%</strong> over 10 years.
+                </p>
+            }
+            @if (record != null && record.Fractures.Count > 0)
+            {
+                <table class="data-table">
+                    <thead><tr><th>Date</th><th>Site</th><th>Mechanism</th><th>Hip/vertebral</th></tr></thead>
+                    <tbody>
+                        @foreach (BoneFracture f in record.Fractures)
+                        {
+                            <tr>
+                                <td class="mono">@f.FractureDate.ToString("yyyy-MM-dd")</td>
+                                <td>@f.Site</td>
+                                <td>@f.Mechanism</td>
+                                <td>@(f.IsHipOrVertebral ? "yes" : "no")</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            }
+        </section>
+
+        <!-- ── Secondary causes ──────────────────────────────────────── -->
+        @if (snapshot.IdentifiedSecondaryCauses.Count > 0 || (record?.SecondaryWorkups.Count ?? 0) > 0)
+        {
+            <section class="panel">
+                <h2>Secondary causes</h2>
+                <p class="muted small">Roughly half of osteoporosis in men is secondary to another
+                condition, so the workup is part of the diagnosis rather than an afterthought.</p>
+                @if (snapshot.IdentifiedSecondaryCauses.Count > 0)
+                {
+                    <ul>
+                        @foreach (string c in snapshot.IdentifiedSecondaryCauses)
+                        {
+                            <li>@c</li>
+                        }
+                    </ul>
+                }
+                @if (record != null)
+                {
+                    @foreach (SecondaryCauseWorkup w in record.SecondaryWorkups)
+                    {
+                        <h3>Workup @w.WorkupDate.ToString("yyyy-MM-dd")</h3>
+                        <table class="data-table">
+                            <thead><tr><th>Analyte</th><th>Result</th></tr></thead>
+                            <tbody>
+                                @foreach (KeyValuePair<string, string> r in w.Results)
+                                {
+                                    <tr><td>@r.Key</td><td class="mono">@r.Value</td></tr>
+                                }
+                            </tbody>
+                        </table>
+                    }
+                }
+            </section>
+        }
+    }
+}
+
+@code {
+    private string? patientId;
+    private bool loading, saving, showForm;
+    private string? error, success;
+    private BoneHealthSnapshot? snapshot;
+    private BoneHealthState? record;
+
+    private enum EntryKind { TurnoverMarker, Dxa, Fracture, Therapy }
+    private EntryKind entryKind = EntryKind.TurnoverMarker;
+
+    private static string TabLabel(EntryKind k) => k switch
+    {
+        EntryKind.TurnoverMarker => "Turnover marker",
+        EntryKind.Dxa => "DXA scan",
+        EntryKind.Fracture => "Fracture",
+        _ => "Therapy",
+    };
+
+    // ── Turnover marker form ────────────────────────────────────────────────
+    private BoneTurnoverMarkerType mkType = BoneTurnoverMarkerType.SerumCtx;
+    private decimal mkValue;
+    private string mkUnits = "pg/mL";
+    private DateTime mkDate = DateTime.Today;
+    private DateTime mkTime = DateTime.Today.AddHours(8);
+    private bool mkTimeKnown = true;
+    private string mkFasting = "yes";
+    private string? mkAssay, mkLab;
+
+    /// <summary>The result as currently entered, used both for the live preview and the save.</summary>
+    private BoneTurnoverMarkerResult BuildMarker() => new()
+    {
+        MarkerType = mkType,
+        Value = mkValue,
+        Units = mkUnits,
+        CollectedAt = mkTimeKnown
+            ? mkDate.Date.Add(mkTime.TimeOfDay)
+            : mkDate.Date,
+        CollectionTimeKnown = mkTimeKnown,
+        Fasting = mkFasting switch { "yes" => true, "no" => false, _ => (bool?)null },
+        Assay = string.IsNullOrWhiteSpace(mkAssay) ? null : mkAssay,
+        PerformingLab = string.IsNullOrWhiteSpace(mkLab) ? null : mkLab,
+    };
+
+    // Same helper the snapshot uses — one source of truth for the rule.
+    private BoneTurnoverInterpretability PreviewInterpretability =>
+        BoneDensityClassifier.ClassifyTurnoverMarker(BuildMarker()).Interpretability;
+
+    private string? PreviewCaveat =>
+        BoneDensityClassifier.ClassifyTurnoverMarker(BuildMarker()).Caveat;
+
+    // ── DXA form ────────────────────────────────────────────────────────────
+    private sealed class DxaSiteEntry
+    {
+        public BoneDensitySite Site { get; set; } = BoneDensitySite.LumbarSpine;
+        public decimal Bmd { get; set; }
+        public decimal? T { get; set; }
+        public decimal? Z { get; set; }
+        public string? Region { get; set; }
+    }
+
+    private DateTime dxDate = DateTime.Today;
+    private string? dxScannerId, dxScannerModel, dxFacility, dxRefDb;
+    private decimal? dxLsc = 0.030m;
+    private readonly List<DxaSiteEntry> dxSites = new() { new DxaSiteEntry() };
+
+    // ── Fracture form ───────────────────────────────────────────────────────
+    private string? frSite;
+    private DateTime frDate = DateTime.Today;
+    private FractureMechanism frMechanism = FractureMechanism.Fragility;
+    private bool frHipOrVertebral, frImaging = true;
+
+    // ── Therapy form ────────────────────────────────────────────────────────
+    private string? thAgent, thDose, thPrescriber;
+    private OsteoporosisTherapyClass thClass = OsteoporosisTherapyClass.Bisphosphonate;
+    private DateTime thStart = DateTime.Today;
+    private int? thIntervalDays;
+
+    /// <summary>
+    /// All writes go straight to the workflow grain — no HttpClient, no REST hop. The
+    /// WebServer's job is outsiders and auth, not this UI's data path.
+    /// </summary>
+    private async Task Save()
+    {
+        if (patientId == null) return;
+        error = success = null;
+        saving = true;
+        try
+        {
+            IPatientWorkflowGrain wf = Grains.GetGrain<IPatientWorkflowGrain>(patientId);
+
+            switch (entryKind)
+            {
+                case EntryKind.TurnoverMarker:
+                    if (mkValue <= 0) { error = "Enter a value greater than zero."; return; }
+                    await wf.RecordBoneTurnoverMarkerAsync(BuildMarker());
+                    success = $"{Describe(mkType)} recorded.";
+                    mkValue = 0;
+                    break;
+
+                case EntryKind.Dxa:
+                    if (dxSites.All(s => s.Bmd <= 0)) { error = "Enter a BMD for at least one site."; return; }
+                    var scan = new DxaScan
+                    {
+                        ScanDate = dxDate,
+                        ScannerId = string.IsNullOrWhiteSpace(dxScannerId) ? null : dxScannerId,
+                        ScannerModel = string.IsNullOrWhiteSpace(dxScannerModel) ? null : dxScannerModel,
+                        FacilityName = string.IsNullOrWhiteSpace(dxFacility) ? null : dxFacility,
+                        LeastSignificantChangeGramsPerCm2 = dxLsc,
+                        ReferenceDatabase = string.IsNullOrWhiteSpace(dxRefDb) ? null : dxRefDb,
+                    };
+                    foreach (DxaSiteEntry s in dxSites.Where(s => s.Bmd > 0))
+                    {
+                        scan.Measurements.Add(new DxaSiteMeasurement
+                        {
+                            Site = s.Site,
+                            BmdGramsPerCm2 = s.Bmd,
+                            TScore = s.T,
+                            ZScore = s.Z,
+                            RegionDetail = string.IsNullOrWhiteSpace(s.Region) ? null : s.Region,
+                        });
+                    }
+                    await wf.RecordDxaScanAsync(scan);
+                    success = "DXA study recorded.";
+                    dxSites.Clear();
+                    dxSites.Add(new DxaSiteEntry());
+                    break;
+
+                case EntryKind.Fracture:
+                    if (string.IsNullOrWhiteSpace(frSite)) { error = "Enter the fracture site."; return; }
+                    await wf.RecordBoneFractureAsync(new BoneFracture
+                    {
+                        Site = frSite!,
+                        FractureDate = frDate,
+                        Mechanism = frMechanism,
+                        IsHipOrVertebral = frHipOrVertebral,
+                        ImagingConfirmed = frImaging,
+                    });
+                    success = "Fracture recorded.";
+                    frSite = null;
+                    break;
+
+                default:
+                    if (string.IsNullOrWhiteSpace(thAgent)) { error = "Enter the agent."; return; }
+                    await wf.StartOsteoporosisTherapyAsync(new OsteoporosisTherapyCourse
+                    {
+                        AgentName = thAgent!,
+                        TherapyClass = thClass,
+                        StartDate = thStart,
+                        Dose = string.IsNullOrWhiteSpace(thDose) ? null : thDose,
+                        DosingIntervalDays = thIntervalDays,
+                        PrescriberName = string.IsNullOrWhiteSpace(thPrescriber) ? null : thPrescriber,
+                    });
+                    success = "Therapy course recorded.";
+                    thAgent = null;
+                    break;
+            }
+
+            await Load();
+        }
+        catch (InvalidOperationException ex) { error = ex.Message; }
+        catch (ArgumentException ex) { error = ex.Message; }
+        catch (Exception ex) { error = ex.Message; }
+        finally { saving = false; }
+    }
+
+    private async Task Load()
+    {
+        error = success = null;
+        snapshot = null;
+        record = null;
+        if (patientId == null) return;
+
+        loading = true;
+        try
+        {
+            IPatientWorkflowGrain wf = Grains.GetGrain<IPatientWorkflowGrain>(patientId);
+            snapshot = await wf.GetBoneHealthSnapshotAsync();
+            record = await wf.GetBoneHealthRecordAsync();
+        }
+        catch (Exception ex)
+        {
+            error = ex.Message;
+        }
+        finally
+        {
+            loading = false;
+        }
+    }
+
+    private static string Fmt(decimal? v) => v is null ? "—" : v.Value.ToString("0.0");
+
+    private static string CategoryBadge(BoneDensityCategory c) => c switch
+    {
+        BoneDensityCategory.SevereOsteoporosis or BoneDensityCategory.Osteoporosis
+            or BoneDensityCategory.ClinicalOsteoporosis => "badge-danger",
+        BoneDensityCategory.LowBoneMass or BoneDensityCategory.BelowExpectedRangeForAge => "badge-warning",
+        BoneDensityCategory.Normal or BoneDensityCategory.WithinExpectedRangeForAge => "badge-success",
+        _ => "badge-neutral",
+    };
+
+    private static string Describe(BoneDensityCategory c) => c switch
+    {
+        BoneDensityCategory.Normal => "Normal",
+        BoneDensityCategory.LowBoneMass => "Low bone mass",
+        BoneDensityCategory.Osteoporosis => "Osteoporosis",
+        BoneDensityCategory.SevereOsteoporosis => "Severe osteoporosis",
+        BoneDensityCategory.BelowExpectedRangeForAge => "Below expected range for age",
+        BoneDensityCategory.WithinExpectedRangeForAge => "Within expected range for age",
+        BoneDensityCategory.ClinicalOsteoporosis => "Clinical osteoporosis",
+        _ => "No data",
+    };
+
+    private static string Describe(BoneDensitySite s) => s switch
+    {
+        BoneDensitySite.LumbarSpine => "Lumbar spine",
+        BoneDensitySite.FemoralNeck => "Femoral neck",
+        BoneDensitySite.TotalHip => "Total hip",
+        BoneDensitySite.ForearmRadius33 => "33% radius",
+        BoneDensitySite.TotalBody => "Total body",
+        _ => "Unknown",
+    };
+
+    private static string Describe(BoneTurnoverMarkerType t) => t switch
+    {
+        BoneTurnoverMarkerType.SerumCtx => "CTX",
+        BoneTurnoverMarkerType.P1np => "P1NP",
+        BoneTurnoverMarkerType.BoneSpecificAlkalinePhosphatase => "Bone-specific ALP",
+        BoneTurnoverMarkerType.Osteocalcin => "Osteocalcin",
+        BoneTurnoverMarkerType.UrineNtx => "Urine NTX",
+        _ => "Marker",
+    };
+
+    private static string Describe(BoneTurnoverInterpretability i) => i switch
+    {
+        BoneTurnoverInterpretability.NotFasting => "not fasting",
+        BoneTurnoverInterpretability.OutsideMorningWindow => "afternoon draw",
+        BoneTurnoverInterpretability.CollectionConditionsUnknown => "conditions unknown",
+        BoneTurnoverInterpretability.AssayChanged => "assay changed",
+        _ => "not comparable",
+    };
+
+    private static string Describe(OsteoporosisTherapyClass c) => c switch
+    {
+        OsteoporosisTherapyClass.Bisphosphonate => "Bisphosphonate",
+        OsteoporosisTherapyClass.RankLigandInhibitor => "RANK-ligand inhibitor",
+        OsteoporosisTherapyClass.AnabolicPthAnalogue => "Anabolic (PTH analogue)",
+        OsteoporosisTherapyClass.SclerostinInhibitor => "Sclerostin inhibitor",
+        OsteoporosisTherapyClass.Serm => "SERM",
+        OsteoporosisTherapyClass.HormoneTherapy => "Hormone therapy",
+        OsteoporosisTherapyClass.TestosteroneReplacement => "Testosterone replacement",
+        OsteoporosisTherapyClass.Supplement => "Supplement",
+        _ => "Unknown",
+    };
+}
+
+<style>
+    .panel { border: 1px solid #e5e7eb; border-radius: 6px; padding: 1rem 1.25rem; margin-bottom: 1.25rem; }
+    .panel h2 { margin-top: 0; font-size: 1.05rem; color: #003366; }
+    .panel h3 { font-size: 0.92rem; color: #374151; margin-bottom: 0.4rem; }
+    .caveat-panel { border-left: 4px solid #b8860b; background: #fff8e6; }
+    .caveat-list { margin: 0; padding-left: 1.1rem; }
+    .caveat-list li { margin-bottom: 0.3rem; font-size: 0.86rem; color: #4a3b12; }
+    .dx-line { display: flex; align-items: center; gap: 0.6rem; flex-wrap: wrap; }
+    .dx-name { font-weight: 600; }
+    .rationale { color: #4b5563; font-size: 0.86rem; margin: 0.5rem 0 0; }
+    .rationale-cell { font-size: 0.78rem; color: #4b5563; max-width: 34rem; }
+    .muted { color: #6b7280; }
+    .small { font-size: 0.78rem; }
+    .mono { font-family: ui-monospace, SFMono-Regular, Consolas, monospace; }
+    .score-used { font-weight: 700; }
+
+    .toolbar { margin-bottom: 0.75rem; }
+    .form-panel { background: #f9fafb; }
+    .entry-tabs { display: flex; gap: 0.4rem; margin-bottom: 0.9rem; flex-wrap: wrap; }
+    .tab {
+        padding: 0.35rem 0.8rem; border: 1px solid #cbd5e1; background: #fff; border-radius: 4px;
+        cursor: pointer; font-size: 0.85rem;
+    }
+    .tab-active { background: #003366; color: #fff; border-color: #003366; }
+    .form-grid {
+        display: grid; grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr));
+        gap: 0.7rem 1rem; margin-bottom: 0.8rem;
+    }
+    .form-grid label { display: flex; flex-direction: column; font-size: 0.8rem; font-weight: 600; gap: 0.2rem; }
+    .form-grid label.check { flex-direction: row; align-items: center; gap: 0.4rem; font-weight: 500; }
+    .form-grid input, .form-grid select {
+        padding: 0.35rem 0.45rem; border: 1px solid #cbd5e1; border-radius: 4px;
+        font-size: 0.88rem; font-weight: 400;
+    }
+    .form-grid label.check input { width: auto; }
+    .form-actions { display: flex; gap: 0.6rem; margin-top: 0.9rem; }
+    .preview {
+        padding: 0.55rem 0.75rem; border-radius: 4px; font-size: 0.82rem; margin: 0.6rem 0;
+        display: flex; gap: 0.4rem; flex-wrap: wrap;
+    }
+    .preview-ok { background: #dcfce7; color: #166534; }
+    .preview-warn { background: #fef3c7; color: #92400e; }
+    .btn-link { background: none; border: none; color: #b91c1c; cursor: pointer; font-size: 0.8rem; }
+    .btn-link:disabled { color: #d1d5db; cursor: not-allowed; }
+</style>

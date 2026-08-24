@@ -32,6 +32,7 @@ public class ReferenceDataImportService : IReferenceDataImportService
         Stopwatch sw = Stopwatch.StartNew();
         ImportResult result = new();
         List<Icd10IndexEntry> indexEntries = new();
+        bool indexCleared = false;
 
         await foreach (string[] fields in ReadCsvAsync(csvStream))
         {
@@ -91,17 +92,19 @@ public class ReferenceDataImportService : IReferenceDataImportService
                 result.Errors.Add($"Line {result.TotalRecords}: {ex.Message}");
             }
 
-            // Batch index update
+            // Batch index update — the first flush clears the index once so the
+            // import replaces any stale catalog; every batch is then additive.
             if (indexEntries.Count >= BatchSize)
             {
-                await FlushIcd10IndexAsync(grainFactory, indexEntries);
+                await FlushIcd10IndexAsync(grainFactory, indexEntries, clearFirst: !indexCleared);
+                indexCleared = true;
             }
         }
 
         // Final flush
         if (indexEntries.Count > 0)
         {
-            await FlushIcd10IndexAsync(grainFactory, indexEntries);
+            await FlushIcd10IndexAsync(grainFactory, indexEntries, clearFirst: !indexCleared);
         }
 
         sw.Stop();
@@ -120,6 +123,7 @@ public class ReferenceDataImportService : IReferenceDataImportService
         Stopwatch sw = Stopwatch.StartNew();
         ImportResult result = new();
         List<VaProductIndexEntry> indexEntries = new();
+        bool indexCleared = false;
 
         await foreach (string[] fields in ReadCsvAsync(csvStream))
         {
@@ -225,13 +229,14 @@ public class ReferenceDataImportService : IReferenceDataImportService
 
             if (indexEntries.Count >= BatchSize)
             {
-                await FlushNdfIndexAsync(grainFactory, indexEntries);
+                await FlushNdfIndexAsync(grainFactory, indexEntries, clearFirst: !indexCleared);
+                indexCleared = true;
             }
         }
 
         if (indexEntries.Count > 0)
         {
-            await FlushNdfIndexAsync(grainFactory, indexEntries);
+            await FlushNdfIndexAsync(grainFactory, indexEntries, clearFirst: !indexCleared);
         }
 
         sw.Stop();
@@ -250,6 +255,7 @@ public class ReferenceDataImportService : IReferenceDataImportService
         Stopwatch sw = Stopwatch.StartNew();
         ImportResult result = new();
         List<CptCodeIndexEntry> indexEntries = new();
+        bool indexCleared = false;
 
         await foreach (string[] fields in ReadCsvAsync(csvStream))
         {
@@ -310,13 +316,14 @@ public class ReferenceDataImportService : IReferenceDataImportService
 
             if (indexEntries.Count >= BatchSize)
             {
-                await FlushCptIndexAsync(grainFactory, indexEntries);
+                await FlushCptIndexAsync(grainFactory, indexEntries, clearFirst: !indexCleared);
+                indexCleared = true;
             }
         }
 
         if (indexEntries.Count > 0)
         {
-            await FlushCptIndexAsync(grainFactory, indexEntries);
+            await FlushCptIndexAsync(grainFactory, indexEntries, clearFirst: !indexCleared);
         }
 
         sw.Stop();
@@ -335,6 +342,7 @@ public class ReferenceDataImportService : IReferenceDataImportService
         Stopwatch sw = Stopwatch.StartNew();
         ImportResult result = new();
         List<LoincCodeIndexEntry> indexEntries = new();
+        bool indexCleared = false;
 
         await foreach (string[] fields in ReadCsvAsync(csvStream))
         {
@@ -408,13 +416,14 @@ public class ReferenceDataImportService : IReferenceDataImportService
 
             if (indexEntries.Count >= BatchSize)
             {
-                await FlushLoincIndexAsync(grainFactory, indexEntries);
+                await FlushLoincIndexAsync(grainFactory, indexEntries, clearFirst: !indexCleared);
+                indexCleared = true;
             }
         }
 
         if (indexEntries.Count > 0)
         {
-            await FlushLoincIndexAsync(grainFactory, indexEntries);
+            await FlushLoincIndexAsync(grainFactory, indexEntries, clearFirst: !indexCleared);
         }
 
         sw.Stop();
@@ -428,32 +437,59 @@ public class ReferenceDataImportService : IReferenceDataImportService
     }
 
     // ─── Index flush helpers ─────────────────────────────────────────────────
+    //
+    // Batches are flushed via the additive AddCodesAsync/AddProductsAsync
+    // methods, NOT LoadCodesAsync/LoadProductsAsync — the Load* methods clear
+    // the whole index first, so calling them per batch would leave only the
+    // final ≤BatchSize entries of an import. To preserve the overall
+    // replace-stale-index semantic, the first flush of an import (clearFirst)
+    // clears the index exactly once before adding its batch.
 
-    private static async Task FlushIcd10IndexAsync(IGrainFactory grainFactory, List<Icd10IndexEntry> entries)
+    private static async Task FlushIcd10IndexAsync(
+        IGrainFactory grainFactory, List<Icd10IndexEntry> entries, bool clearFirst)
     {
         IIcd10IndexGrain index = grainFactory.GetGrain<IIcd10IndexGrain>("ICD10-INDEX");
-        await index.LoadCodesAsync(new List<Icd10IndexEntry>(entries));
+        if (clearFirst)
+        {
+            await index.ClearAsync();
+        }
+        await index.AddCodesAsync(new List<Icd10IndexEntry>(entries));
         entries.Clear();
     }
 
-    private static async Task FlushNdfIndexAsync(IGrainFactory grainFactory, List<VaProductIndexEntry> entries)
+    private static async Task FlushNdfIndexAsync(
+        IGrainFactory grainFactory, List<VaProductIndexEntry> entries, bool clearFirst)
     {
         IVaProductIndexGrain index = grainFactory.GetGrain<IVaProductIndexGrain>("NDF-PRODUCT-INDEX");
-        await index.LoadProductsAsync(new List<VaProductIndexEntry>(entries));
+        if (clearFirst)
+        {
+            await index.ClearAsync();
+        }
+        await index.AddProductsAsync(new List<VaProductIndexEntry>(entries));
         entries.Clear();
     }
 
-    private static async Task FlushCptIndexAsync(IGrainFactory grainFactory, List<CptCodeIndexEntry> entries)
+    private static async Task FlushCptIndexAsync(
+        IGrainFactory grainFactory, List<CptCodeIndexEntry> entries, bool clearFirst)
     {
         ICptCodeIndexGrain index = grainFactory.GetGrain<ICptCodeIndexGrain>("CPT-INDEX");
-        await index.LoadCodesAsync(new List<CptCodeIndexEntry>(entries));
+        if (clearFirst)
+        {
+            await index.ClearAsync();
+        }
+        await index.AddCodesAsync(new List<CptCodeIndexEntry>(entries));
         entries.Clear();
     }
 
-    private static async Task FlushLoincIndexAsync(IGrainFactory grainFactory, List<LoincCodeIndexEntry> entries)
+    private static async Task FlushLoincIndexAsync(
+        IGrainFactory grainFactory, List<LoincCodeIndexEntry> entries, bool clearFirst)
     {
         ILoincCodeIndexGrain index = grainFactory.GetGrain<ILoincCodeIndexGrain>("LOINC-INDEX");
-        await index.LoadCodesAsync(new List<LoincCodeIndexEntry>(entries));
+        if (clearFirst)
+        {
+            await index.ClearAsync();
+        }
+        await index.AddCodesAsync(new List<LoincCodeIndexEntry>(entries));
         entries.Clear();
     }
 

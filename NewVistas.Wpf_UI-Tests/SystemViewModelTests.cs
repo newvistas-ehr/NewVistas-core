@@ -1,4 +1,4 @@
-// Copyright 2026 Merrimack Valley Software Works, LLC. All rights reserved.
+﻿// Copyright 2026 Merrimack Valley Software Works, LLC. All rights reserved.
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
@@ -27,7 +27,7 @@ public class SystemViewModelTests : ViewModelTestBase
         });
         MockGrainFactory.GetGrain<IClinicalRegistrySiteIndexGrain>(Arg.Any<string>(), Arg.Any<string?>()).Returns(mockIndex);
 
-        var vm = new ClinicalCaseRegistriesViewModel(ApiClient, GrainService);
+        var vm = new ClinicalCaseRegistriesViewModel(GrainService);
         await vm.LoadCommand.ExecuteAsync(null);
 
         Assert.That(vm.Entries, Has.Count.EqualTo(1));
@@ -45,7 +45,7 @@ public class SystemViewModelTests : ViewModelTestBase
         MockGrainFactory.GetGrain<ICSInspectionLogGrain>(Arg.Any<string>(), Arg.Any<string?>()).Returns(mockInsp);
         MockGrainFactory.GetGrain<ICSDispenseLogGrain>(Arg.Any<string>(), Arg.Any<string?>()).Returns(mockDisp);
 
-        var vm = new ControlledSubstancesViewModel(ApiClient, GrainService);
+        var vm = new ControlledSubstancesViewModel(GrainService);
         await vm.LoadCommand.ExecuteAsync(null);
 
         Assert.That(vm.Inspections, Has.Count.EqualTo(1));
@@ -55,7 +55,7 @@ public class SystemViewModelTests : ViewModelTestBase
     [Test]
     public async Task ControlledSubstances_EmptyLocation_DoesNotLoad()
     {
-        var vm = new ControlledSubstancesViewModel(ApiClient, GrainService) { LocationId = "" };
+        var vm = new ControlledSubstancesViewModel(GrainService) { LocationId = "" };
         await vm.LoadCommand.ExecuteAsync(null);
 
         Assert.That(vm.Inspections, Has.Count.EqualTo(0));
@@ -73,7 +73,7 @@ public class SystemViewModelTests : ViewModelTestBase
         });
         MockGrainFactory.GetGrain<IEngineeringWorkOrderIndexGrain>(Arg.Any<string>(), Arg.Any<string?>()).Returns(mockIndex);
 
-        var vm = new EngineeringViewModel(ApiClient, GrainService);
+        var vm = new EngineeringViewModel(GrainService);
         await vm.LoadCommand.ExecuteAsync(null);
 
         Assert.That(vm.WorkOrders, Has.Count.EqualTo(1));
@@ -88,7 +88,7 @@ public class SystemViewModelTests : ViewModelTestBase
         mockIndex.GetAllAsync().Returns(new List<GpraReportIndexEntry> { new() });
         MockGrainFactory.GetGrain<IGpraReportIndexGrain>(Arg.Any<string>(), Arg.Any<string?>()).Returns(mockIndex);
 
-        var vm = new GpraReportingViewModel(ApiClient, GrainService);
+        var vm = new GpraReportingViewModel(GrainService);
         await vm.LoadCommand.ExecuteAsync(null);
 
         Assert.That(vm.Reports, Has.Count.EqualTo(1));
@@ -106,7 +106,7 @@ public class SystemViewModelTests : ViewModelTestBase
         MockGrainFactory.GetGrain<IHAICaseIndexGrain>(Arg.Any<string>(), Arg.Any<string?>()).Returns(mockCaseIdx);
         MockGrainFactory.GetGrain<IOutbreakIndexGrain>(Arg.Any<string>(), Arg.Any<string?>()).Returns(mockOutbreakIdx);
 
-        var vm = new InfectionControlViewModel(ApiClient, GrainService);
+        var vm = new InfectionControlViewModel(GrainService);
         await vm.LoadCommand.ExecuteAsync(null);
 
         Assert.That(vm.Cases, Has.Count.EqualTo(1));
@@ -122,7 +122,7 @@ public class SystemViewModelTests : ViewModelTestBase
         mockIndex.GetAllAsync().Returns(new List<PccSurveillanceMatchIndexEntry> { new() });
         MockGrainFactory.GetGrain<IPccSurveillanceMatchIndexGrain>(Arg.Any<string>(), Arg.Any<string?>()).Returns(mockIndex);
 
-        var vm = new PccSurveillanceViewModel(ApiClient, GrainService);
+        var vm = new PccSurveillanceViewModel(GrainService);
         await vm.LoadCommand.ExecuteAsync(null);
 
         Assert.That(vm.Matches, Has.Count.EqualTo(1));
@@ -137,7 +137,7 @@ public class SystemViewModelTests : ViewModelTestBase
         mockIndex.GetActivePatientAsync().Returns(new List<PolytraumaRegistrySummaryEntry> { new() });
         MockGrainFactory.GetGrain<IPolytraumaRegistryIndexGrain>(Arg.Any<string>(), Arg.Any<string?>()).Returns(mockIndex);
 
-        var vm = new PolytraumaTBIViewModel(ApiClient, GrainService);
+        var vm = new PolytraumaTBIViewModel(GrainService);
         await vm.LoadCommand.ExecuteAsync(null);
 
         Assert.That(vm.Patients, Has.Count.EqualTo(1));
@@ -152,7 +152,7 @@ public class SystemViewModelTests : ViewModelTestBase
         mockIndex.GetAllIncidentsAsync().Returns(new List<QMIncidentIndexEntry> { new() });
         MockGrainFactory.GetGrain<IQMIncidentIndexGrain>(Arg.Any<string>(), Arg.Any<string?>()).Returns(mockIndex);
 
-        var vm = new QualityManagementViewModel(ApiClient, GrainService);
+        var vm = new QualityManagementViewModel(GrainService);
         await vm.LoadCommand.ExecuteAsync(null);
 
         Assert.That(vm.Incidents, Has.Count.EqualTo(1));
@@ -167,7 +167,7 @@ public class SystemViewModelTests : ViewModelTestBase
         mockIndex.GetAllRequestsAsync().Returns(new List<ROIRequestIndexEntry> { new() });
         MockGrainFactory.GetGrain<IROIRequestIndexGrain>(Arg.Any<string>(), Arg.Any<string?>()).Returns(mockIndex);
 
-        var vm = new ReleaseOfInformationViewModel(ApiClient, GrainService);
+        var vm = new ReleaseOfInformationViewModel(GrainService);
         await vm.LoadCommand.ExecuteAsync(null);
 
         Assert.That(vm.Requests, Has.Count.EqualTo(1));
@@ -182,7 +182,7 @@ public class SystemViewModelTests : ViewModelTestBase
         mockIndex.GetAllStudiesAsync().Returns(new List<IrbStudyIndexEntry> { new() });
         MockGrainFactory.GetGrain<IResearchStudyIndexGrain>(Arg.Any<string>(), Arg.Any<string?>()).Returns(mockIndex);
 
-        var vm = new ResearchIRBViewModel(ApiClient, GrainService);
+        var vm = new ResearchIRBViewModel(GrainService);
         await vm.LoadCommand.ExecuteAsync(null);
 
         Assert.That(vm.Studies, Has.Count.EqualTo(1));
@@ -197,7 +197,7 @@ public class SystemViewModelTests : ViewModelTestBase
         mockIndex.GetHighRiskPatientsAsync().Returns(new List<PatientHighRiskSummary> { new() });
         MockGrainFactory.GetGrain<ISuicidePreventionIndexGrain>(Arg.Any<string>(), Arg.Any<string?>()).Returns(mockIndex);
 
-        var vm = new SuicidePreventionViewModel(ApiClient, GrainService) { ShowHighRiskOnly = true };
+        var vm = new SuicidePreventionViewModel(GrainService) { ShowHighRiskOnly = true };
         await vm.LoadCommand.ExecuteAsync(null);
 
         Assert.That(vm.Patients, Has.Count.EqualTo(1));
@@ -211,7 +211,7 @@ public class SystemViewModelTests : ViewModelTestBase
         mockIndex.GetAllPatientsAsync().Returns(new List<PatientHighRiskSummary> { new(), new() });
         MockGrainFactory.GetGrain<ISuicidePreventionIndexGrain>(Arg.Any<string>(), Arg.Any<string?>()).Returns(mockIndex);
 
-        var vm = new SuicidePreventionViewModel(ApiClient, GrainService) { ShowHighRiskOnly = false };
+        var vm = new SuicidePreventionViewModel(GrainService) { ShowHighRiskOnly = false };
         await vm.LoadCommand.ExecuteAsync(null);
 
         Assert.That(vm.Patients, Has.Count.EqualTo(2));
@@ -230,7 +230,7 @@ public class SystemViewModelTests : ViewModelTestBase
         MockGrainFactory.GetGrain<ITransplantWaitlistIndexGrain>(Arg.Any<string>(), Arg.Any<string?>()).Returns(mockWaitlist);
         MockGrainFactory.GetGrain<ITransplantDonorIndexGrain>(Arg.Any<string>(), Arg.Any<string?>()).Returns(mockDonor);
 
-        var vm = new TransplantViewModel(ApiClient, GrainService);
+        var vm = new TransplantViewModel(GrainService);
         await vm.LoadCommand.ExecuteAsync(null);
 
         Assert.That(vm.Waitlist, Has.Count.EqualTo(1));
@@ -246,7 +246,7 @@ public class SystemViewModelTests : ViewModelTestBase
         mockIndex.GetAllAsync().Returns(new List<VolunteerIndexEntry> { new() });
         MockGrainFactory.GetGrain<IVolunteerIndexGrain>(Arg.Any<string>(), Arg.Any<string?>()).Returns(mockIndex);
 
-        var vm = new VoluntaryServiceViewModel(ApiClient, GrainService);
+        var vm = new VoluntaryServiceViewModel(GrainService);
         await vm.LoadCommand.ExecuteAsync(null);
 
         Assert.That(vm.Volunteers, Has.Count.EqualTo(1));
@@ -259,7 +259,7 @@ public class SystemViewModelTests : ViewModelTestBase
         mockIndex.SearchAsync("Smith").Returns(new List<VolunteerIndexEntry> { new() });
         MockGrainFactory.GetGrain<IVolunteerIndexGrain>(Arg.Any<string>(), Arg.Any<string?>()).Returns(mockIndex);
 
-        var vm = new VoluntaryServiceViewModel(ApiClient, GrainService) { SearchText = "Smith" };
+        var vm = new VoluntaryServiceViewModel(GrainService) { SearchText = "Smith" };
         await vm.LoadCommand.ExecuteAsync(null);
 
         await mockIndex.Received().SearchAsync("Smith");
@@ -270,14 +270,14 @@ public class SystemViewModelTests : ViewModelTestBase
     [Test]
     public void PatientAdvocate_CanConstruct()
     {
-        var vm = new PatientAdvocateViewModel(ApiClient, GrainService);
+        var vm = new PatientAdvocateViewModel(GrainService);
         Assert.That(vm, Is.Not.Null);
     }
 
     [Test]
     public void RecordTracking_CanConstruct()
     {
-        var vm = new RecordTrackingViewModel(ApiClient, GrainService);
+        var vm = new RecordTrackingViewModel(GrainService);
         Assert.That(vm, Is.Not.Null);
     }
 }

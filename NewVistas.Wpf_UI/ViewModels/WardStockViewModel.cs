@@ -1,4 +1,4 @@
-// Copyright 2026 Merrimack Valley Software Works, LLC. All rights reserved.
+﻿// Copyright 2026 Merrimack Valley Software Works, LLC. All rights reserved.
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
@@ -14,7 +14,6 @@ namespace NewVistas.Wpf_UI.ViewModels;
 
 public partial class WardStockViewModel : ObservableObject
 {
-    private readonly ApiClient _api;
     private readonly OrleansGrainService _grains;
 
     [ObservableProperty] private bool _isLoading;
@@ -24,9 +23,8 @@ public partial class WardStockViewModel : ObservableObject
     [ObservableProperty] private ObservableCollection<WardStockSummaryEntry> _lowStockItems = new();
     [ObservableProperty] private ObservableCollection<ReplenishmentRequest> _replenishmentLog = new();
 
-    public WardStockViewModel(ApiClient api, OrleansGrainService grains)
+    public WardStockViewModel(OrleansGrainService grains)
     {
-        _api = api;
         _grains = grains;
     }
 
@@ -62,7 +60,8 @@ public partial class WardStockViewModel : ObservableObject
     {
         try
         {
-            await _api.Http.PostAsJsonAsync("api/ward-stock/demo/load", new { });
+            // The grain owns the demo seed, so this is one grain call - no HTTP.
+            await _grains.GetGrain<IWardStockIndexGrain>($"WARD-STOCK-INDEX:{WardId}").SeedDemoDataAsync();
             await LoadAsync();
         }
         catch (Exception ex) { Error = ex.Message; }

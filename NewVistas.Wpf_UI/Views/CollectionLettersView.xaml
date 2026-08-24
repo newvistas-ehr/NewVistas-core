@@ -24,14 +24,15 @@ file, You can obtain one at https://mozilla.org/MPL/2.0/.
                              Visibility="{Binding IsLoading, Converter={StaticResource BoolToVisibility}}"/>
             </StackPanel>
 
-            <DataGrid ItemsSource="{Binding Letters}" AutoGenerateColumns="False" IsReadOnly="True" Height="300">
+            <DataGrid ItemsSource="{Binding Letters}" SelectedItem="{Binding SelectedEntry}"
+                      AutoGenerateColumns="False" IsReadOnly="True" Height="300">
                 <DataGrid.Columns>
                     <DataGridTextColumn Header="Letter ID" Binding="{Binding LetterId}" Width="160"/>
                     <DataGridTextColumn Header="Type" Binding="{Binding LetterType}" Width="120"/>
                     <DataGridTextColumn Header="Status" Binding="{Binding Status}" Width="100"/>
-                    <DataGridTextColumn Header="Amount" Binding="{Binding BalanceAmount, StringFormat=C}" Width="100"/>
-                    <DataGridTextColumn Header="Created" Binding="{Binding CreatedDate, StringFormat=d}" Width="100"/>
-                    <DataGridTextColumn Header="Sent" Binding="{Binding SentDate, StringFormat=d}" Width="100"/>
+                    <DataGridTextColumn Header="Amount Due" Binding="{Binding TotalAmountDue, StringFormat=C}" Width="100"/>
+                    <DataGridTextColumn Header="Generated" Binding="{Binding GeneratedDate, StringFormat=d}" Width="100"/>
+                    <DataGridTextColumn Header="Dunning Seq" Binding="{Binding DunningSequence}" Width="100"/>
                 </DataGrid.Columns>
             </DataGrid>
 

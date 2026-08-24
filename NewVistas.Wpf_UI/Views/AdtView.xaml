@@ -69,9 +69,8 @@ file, You can obtain one at https://mozilla.org/MPL/2.0/.
                     <DataGridTextColumn Header="Type" Binding="{Binding MovementType}" Width="100"/>
                     <DataGridTextColumn Header="Ward" Binding="{Binding WardLocationName}" Width="160"/>
                     <DataGridTextColumn Header="Room/Bed" Binding="{Binding RoomBed}" Width="100"/>
-                    <DataGridTextColumn Header="Specialty" Binding="{Binding TreatingSpecialty}" Width="160"/>
                     <DataGridTextColumn Header="Attending" Binding="{Binding AttendingPhysicianName}" Width="160"/>
-                    <DataGridTextColumn Header="Date" Binding="{Binding MovementDate, StringFormat=d}" Width="110"/>
+                    <DataGridTextColumn Header="Date" Binding="{Binding MovementDateTime, StringFormat=d}" Width="110"/>
                     <DataGridTextColumn Header="Status" Binding="{Binding Status}" Width="100"/>
                 </DataGrid.Columns>
             </DataGrid>

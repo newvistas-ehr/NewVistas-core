@@ -18,7 +18,11 @@ namespace NewVistas.Abstractions.GrainInterfaces;
 /// </summary>
 public interface IRadiologyFindingExtractionGrain : IGrainWithStringKey
 {
-    /// <summary>Extracts findings from the report, verifies them, and stores the result.</summary>
+    /// <summary>
+    /// Extracts findings from the report, verifies them, and stores the result. Safe to re-run:
+    /// a disposition, once recorded, survives re-extraction — either carried onto the matching
+    /// new finding or retained verbatim. Only undispositioned findings are replaced.
+    /// </summary>
     Task<RadiologyExtractionState> ExtractAsync(string reportText, string patientId, string extractedBy);
 
     /// <summary>Returns the stored extraction (findings + acknowledgment state).</summary>

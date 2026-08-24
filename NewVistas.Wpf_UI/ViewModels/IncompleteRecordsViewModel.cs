@@ -1,4 +1,4 @@
-// Copyright 2026 Merrimack Valley Software Works, LLC. All rights reserved.
+﻿// Copyright 2026 Merrimack Valley Software Works, LLC. All rights reserved.
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
@@ -14,7 +14,6 @@ namespace NewVistas.Wpf_UI.ViewModels;
 
 public partial class IncompleteRecordsViewModel : ObservableObject
 {
-    private readonly ApiClient _api;
     private readonly OrleansGrainService _grains;
 
     [ObservableProperty] private bool _isLoading;
@@ -26,9 +25,8 @@ public partial class IncompleteRecordsViewModel : ObservableObject
 
     public string[] StatusOptions { get; } = [string.Empty, "OPEN", "DELINQUENT"];
 
-    public IncompleteRecordsViewModel(ApiClient api, OrleansGrainService grains)
+    public IncompleteRecordsViewModel(OrleansGrainService grains)
     {
-        _api = api;
         _grains = grains;
     }
 
@@ -85,7 +83,8 @@ public partial class IncompleteRecordsViewModel : ObservableObject
     {
         try
         {
-            await _api.Http.PostAsJsonAsync("api/incomplete-records/demo/load", new { });
+            // The grain owns the demo seed, so this is one grain call - no HTTP.
+            await _grains.GetGrain<IIncompleteRecordIndexGrain>("DGPT-INDEX:PROV-001").SeedDemoDataAsync();
             await LoadAsync();
         }
         catch (Exception ex) { Error = ex.Message; }

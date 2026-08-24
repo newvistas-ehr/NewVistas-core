@@ -43,6 +43,9 @@ public interface INewbornGrain : IGrainWithStringKey
 
     Task SetNurseryLevelAsync(NurseryLevelOfCare level, string reason);
 
+    /// <summary>Marks the newborn transferred to <paramref name="toLocation"/>.
+    /// Throws <see cref="InvalidOperationException"/> if no newborn record exists
+    /// (the id was never registered) — a transfer must not create a phantom record.</summary>
     Task TransferAsync(string toLocation, string reason);
 
     Task DischargeAsync(

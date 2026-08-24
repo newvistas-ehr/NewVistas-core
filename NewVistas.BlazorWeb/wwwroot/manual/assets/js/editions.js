@@ -1,4 +1,4 @@
-/* Site-aware editions for the NewVistas manual.
+﻿/* Site-aware editions for the NewVistas manual.
    When served by the app, fetches the site's enabled feature flags and (a) shows a
    "this site" banner and (b) dims/labels any flag-gated content that's off here.
    When opened as a static file (no server), the fetch fails and the manual is left
@@ -18,7 +18,7 @@
     HOME_BASED_CARE: "modern", HOME_HEALTH_MEDICARE: "modern", HOSPITAL_AT_HOME: "modern", PROCEDURE_PRIOR_AUTH: "modern", NEONATAL_CARE: "modern",
     PHARMACOGENOMICS: "modern", HEREDITARY_GENETICS: "modern", SPECIALTY_COVERSHEET: "modern",
     PERSON_IDENTITY: "modern", BED_MANAGEMENT: "modern", EMERGING_CONDITIONS: "modern",
-    SOCIAL_CARE: "modern"
+    SOCIAL_CARE: "modern", BONE_HEALTH: "modern", DIAGNOSTIC_STEWARDSHIP: "modern"
   };
 
   fetch("/api/site/features", { headers: { Accept: "application/json" } })

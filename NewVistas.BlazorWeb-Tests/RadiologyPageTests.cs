@@ -81,6 +81,46 @@ public class RadiologyPageTests : BlazorTestBase
     }
 
     [Test]
+    public async Task Radiology_DetailPanel_ClearedWhenLoadingAnotherPatient()
+    {
+        // Patient A has one study; open its detail panel.
+        var studies = new List<RadiologySummary>
+        {
+            new() { RadiologyId = "RAD-001", ProcedureName = "Chest X-Ray PA and Lateral",
+                     ImagingType = "GENERAL RADIOLOGY", Status = "COMPLETE",
+                     ExamDateTime = DateTime.UtcNow, RequestingProviderName = "Dr. Smith", HasReport = false }
+        };
+        MockWorkflowGrain.GetRadiologyStudiesAsync(100).Returns(studies);
+        MockWorkflowGrain.GetRadiologyStudyAsync("RAD-001").Returns(new RadiologyState
+        {
+            RadiologyId = "RAD-001",
+            ProcedureName = "Chest X-Ray PA and Lateral",
+            Status = "COMPLETE"
+        });
+        MockWorkflowGrain.GetRadiologyFindingsAsync("RAD-001")
+            .Returns(Task.FromResult<RadiologyExtractionState?>(null));
+
+        var cut = Ctx.Render<Radiology>();
+
+        cut.Find("input.lookup-input").Input("PATIENT-A");
+        await cut.Find("button.btn-primary").ClickAsync(new Microsoft.AspNetCore.Components.Web.MouseEventArgs());
+        await cut.Find("tr.clickable").ClickAsync(new Microsoft.AspNetCore.Components.Web.MouseEventArgs());
+
+        Assert.That(cut.FindAll("div.detail-panel"), Has.Count.EqualTo(1), "detail panel should open for patient A");
+        Assert.That(cut.Markup, Does.Contain("Study Detail"), "detail tab should be present for patient A");
+
+        // Switch to patient B (no studies). The stale detail from patient A must not survive.
+        MockWorkflowGrain.GetRadiologyStudiesAsync(100).Returns(new List<RadiologySummary>());
+
+        cut.Find("input.lookup-input").Input("PATIENT-B");
+        await cut.Find("button.btn-primary").ClickAsync(new Microsoft.AspNetCore.Components.Web.MouseEventArgs());
+
+        Assert.That(cut.FindAll("div.detail-panel"), Is.Empty, "stale detail panel survived the patient switch");
+        Assert.That(cut.Markup, Does.Not.Contain("Study Detail"), "stale detail tab survived the patient switch");
+        Assert.That(cut.Markup, Does.Contain("No radiology studies found"));
+    }
+
+    [Test]
     public async Task Radiology_ShowsErrorOnGrainFailure()
     {
         MockWorkflowGrain.GetRadiologyStudiesAsync(100).Returns<List<RadiologySummary>>(

@@ -110,6 +110,54 @@ public class ProblemEntry
     /// historical <see cref="ProblemEntry"/> snapshot stored on a clinical
     /// event payload (which would break the hash chain).
     /// </summary>
+    // ── Diagnosis provenance (ADR-006) ──────────────────────────────────────
+    //
+    // NOTE ON [Id(1)]: that slot is PERMANENTLY RETIRED. The numbering above jumps 0 → 2
+    // because [Id(1)] once held a `string PatientId`, removed when problems became embedded
+    // in PatientState (commit 9bc23279). Any row persisted under the old shape still carries
+    // a string there, so reusing the id would silently corrupt deserialization. New fields
+    // therefore start at 20.
+    //
+    // Every default below reads as *unknown*, which is what makes migration zero lines of code.
+
+    /// <summary>
+    /// Id of the assertion event that produced this head. Empty means no assertion event was
+    /// ever observed — a legacy row or an import, not an assertion made here.
+    /// </summary>
+    [Id(20)] public string AssertionId { get; set; } = string.Empty;
+
+    /// <summary>
+    /// How many times this diagnosis has been asserted, counting the first. Zero means no
+    /// assertion event was observed — deliberately <b>not</b> "revision 1", because backfilling
+    /// 1 would claim a deliberate assertion for rows that are copies of someone else's list.
+    /// </summary>
+    [Id(21)] public int RevisionNumber { get; set; }
+
+    /// <summary>Certainty of the current assertion. <c>Unspecified</c> means nobody stated one.</summary>
+    [Id(22)] public ProblemVerificationStatus VerificationStatus { get; set; }
+
+    /// <summary>
+    /// Structured citations for the current assertion, including
+    /// <see cref="EvidencePolarity.NotAssessed"/> rows recording what was deliberately not checked.
+    /// An empty list means no evidence was ever <i>recorded</i> — not that none existed.
+    /// </summary>
+    [Id(23)] public List<EvidenceRef> Evidence { get; set; } = new();
+
+    /// <summary>The problem this one replaced, when a revision split into a new entry.</summary>
+    [Id(24)] public string? SupersedesProblemId { get; set; }
+
+    /// <summary>The problem that replaced this one. Non-null means this entry is historical.</summary>
+    [Id(25)] public string? SupersededByProblemId { get; set; }
+
+    /// <summary>
+    /// Why this diagnosis last changed. Null means never revised — distinct from
+    /// <see cref="RevisionReason.Unspecified"/>, which means "revised, reason not stated."
+    /// </summary>
+    [Id(26)] public RevisionReason? LastRevisionReason { get; set; }
+
+    /// <summary>The clinician's own words about the last revision.</summary>
+    [Id(27)] public string? LastRevisionNarrative { get; set; }
+
     public ProblemEntry Clone() => new()
     {
         ProblemId = ProblemId,
@@ -130,6 +178,16 @@ public class ProblemEntry
         Priority = Priority,
         Comments = Comments,
         CreatedDate = CreatedDate,
-        LastModifiedDate = LastModifiedDate
+        LastModifiedDate = LastModifiedDate,
+        AssertionId = AssertionId,
+        RevisionNumber = RevisionNumber,
+        VerificationStatus = VerificationStatus,
+        // Shallow list copy is correct: EvidenceRef is an immutable record, and Clone() exists
+        // to stop an event snapshot aliasing live state — the list itself is what must not alias.
+        Evidence = new List<EvidenceRef>(Evidence),
+        SupersedesProblemId = SupersedesProblemId,
+        SupersededByProblemId = SupersededByProblemId,
+        LastRevisionReason = LastRevisionReason,
+        LastRevisionNarrative = LastRevisionNarrative
     };
 }

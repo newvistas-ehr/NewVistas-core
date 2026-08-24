@@ -8,6 +8,7 @@
 @using NewVistas.BlazorWeb.Services
 @using NewVistas.Abstractions.GrainInterfaces
 @using NewVistas.Abstractions.GrainStates
+@using NewVistas.Abstractions.Clinical
 @inject OrleansGrainService Grains
 
 <PageTitle>Problem List</PageTitle>
@@ -42,22 +43,273 @@
         {
             <table class="data-table">
                 <thead>
-                    <tr><th>Diagnosis</th><th>Code</th><th>Status</th><th>Onset</th><th>Condition</th><th>SC</th></tr>
+                    <tr><th>Diagnosis</th><th>Code</th><th>Status</th><th>Onset</th><th>Condition</th><th>SC</th><th></th></tr>
                 </thead>
                 <tbody>
                     @foreach (var p in items)
                     {
                         <tr>
-                            <td>@p.Diagnosis</td>
+                            <td>
+                                @p.Diagnosis
+                                @if (p.VerificationStatus is ProblemVerificationStatus.Unconfirmed
+                                     or ProblemVerificationStatus.Provisional
+                                     or ProblemVerificationStatus.Differential)
+                                {
+                                    @* A suspected diagnosis must not render identically to a
+                                       confirmed one — that reading error is the whole point. *@
+                                    <span class="vs-chip">@p.VerificationStatus.ToString().ToLowerInvariant()</span>
+                                }
+                            </td>
                             <td class="code">@p.DiagnosisCode</td>
                             <td class="status @(p.Status == "ACTIVE" ? "active" : "inactive")">@p.Status</td>
                             <td class="date">@p.DateOfOnset?.ToString("MM/dd/yyyy")</td>
                             <td class="condition">@p.Condition</td>
                             <td>@(p.IsServiceConnected ? "Yes" : "")</td>
+                            <td>
+                                <button type="button" class="btn-link ev-open"
+                                        @onclick="() => OpenEvidence(p)">Evidence</button>
+                                @if (openEpisodeProblemIds.Contains(p.ProblemId))
+                                {
+                                    <button type="button" class="btn-link"
+                                            @onclick="() => BeginAdjudication(p)">How did it turn out?</button>
+                                }
+                            </td>
                         </tr>
                     }
                 </tbody>
             </table>
+
+            @if (adjudicating is not null)
+            {
+                <div class="adjudicate-panel">
+                    <h3>How did this turn out?</h3>
+                    <p class="adjudicate-subject">
+                        <span class="code">@adjudicating.DiagnosisCode</span> @adjudicating.Diagnosis
+                    </p>
+                    <p class="adjudicate-why">
+                        Answering is optional and can be skipped. It is never required — a forced
+                        field produces default-clicked answers, which are worse than no answer at all
+                        because they cannot be told apart from real ones.
+                    </p>
+
+                    <FormField Label="Outcome">
+                        <select @bind="adjOutcome" class="form-input">
+                            <option value="@DiagnosticEpisodeOutcome.Confirmed">It was right</option>
+                            <option value="@DiagnosticEpisodeOutcome.Refined">Same condition, more specific</option>
+                            <option value="@DiagnosticEpisodeOutcome.Broadened">Same condition, less specific</option>
+                            <option value="@DiagnosticEpisodeOutcome.Revised">It was something else</option>
+                            <option value="@DiagnosticEpisodeOutcome.ResolvedWithoutAlternate">Resolved, never established</option>
+                            <option value="@DiagnosticEpisodeOutcome.ClosedUnadjudicated">Don't know / lost to follow-up</option>
+                        </select>
+                    </FormField>
+
+                    @if (adjOutcome is DiagnosticEpisodeOutcome.Revised
+                         or DiagnosticEpisodeOutcome.Refined
+                         or DiagnosticEpisodeOutcome.Broadened)
+                    {
+                        <FormField Label="What it actually was">
+                            <div class="icd-search">
+                                <input type="text" @bind="adjIcdTerm" @bind:event="oninput"
+                                       placeholder="Search ICD-10" class="icd-input" />
+                                <button type="button" class="btn btn-secondary" @onclick="SearchAdjIcd">Search</button>
+                            </div>
+                            @if (adjIcdResults is { Count: > 0 })
+                            {
+                                <ul class="icd-results">
+                                    @foreach (var r in adjIcdResults)
+                                    {
+                                        <li @onclick="() => PickAdjIcd(r)">
+                                            <span class="code">@r.Code</span> @r.ShortDescription
+                                        </li>
+                                    }
+                                </ul>
+                            }
+                            @if (!string.IsNullOrWhiteSpace(adjOutcomeCode))
+                            {
+                                <div class="adj-picked">
+                                    <span class="code">@adjOutcomeCode</span> @adjOutcomeDisplay
+                                </div>
+                            }
+                        </FormField>
+
+                        @if (proposal is not null)
+                        {
+                            @* The system proposes; the clinician confirms. What gets counted is
+                               the clinician's choice — a machine's opinion that a doctor was wrong
+                               is an accusation, a doctor's own coded statement is evidence. *@
+                            <div class="adj-proposal">
+                                Suggested: <strong>@proposal</strong>. Change it if that is wrong.
+                            </div>
+                        }
+                    }
+
+                    <FormField Label="Note">
+                        <textarea @bind="adjNote" rows="2" class="form-input"
+                                  placeholder="Optional — what changed your mind?"></textarea>
+                    </FormField>
+
+                    <div class="form-actions">
+                        <button class="btn btn-primary" disabled="@adjSubmitting" @onclick="SubmitAdjudication">
+                            @(adjSubmitting ? "Saving..." : "Record outcome")
+                        </button>
+                        <button class="btn btn-secondary" @onclick="() => adjudicating = null">Skip</button>
+                    </div>
+                </div>
+            }
+
+            @* ── Evidence panel (ADR-006 assertion head) ──
+               What this diagnosis rests on: Supports / Refutes / NotAssessed / Indeterminate
+               rows, each a structured citation. NotAssessed is first-class here — a positive
+               record that something was NOT checked, which otherwise reads as a silent
+               negative. Until this panel existed the model was writable only from seed code. *@
+            @if (evidenceProblem is not null)
+            {
+                <div class="evidence-panel">
+                    <div class="ev-head">
+                        <div>
+                            <strong>Evidence — @evidenceProblem.Diagnosis</strong>
+                            <span class="code">@evidenceProblem.DiagnosisCode</span>
+                            <span class="vs-chip">@evidenceProblem.VerificationStatus.ToString().ToLowerInvariant()</span>
+                            @if (evidenceProblem.RevisionNumber > 0)
+                            {
+                                <span class="ev-meta">revision @evidenceProblem.RevisionNumber</span>
+                            }
+                        </div>
+                        <button class="btn btn-secondary" @onclick="() => evidenceProblem = null">Close</button>
+                    </div>
+
+                    @if (evidenceProblem.SupersededByProblemId is not null)
+                    {
+                        <div class="ev-meta">Superseded by problem @evidenceProblem.SupersededByProblemId
+                            (@(evidenceProblem.LastRevisionReason?.ToString() ?? "unstated")).</div>
+                    }
+                    @if (evidenceProblem.SupersedesProblemId is not null)
+                    {
+                        <div class="ev-meta">Supersedes problem @evidenceProblem.SupersedesProblemId.</div>
+                    }
+
+                    @if (evidenceProblem.Evidence.Count == 0)
+                    {
+                        <div class="empty-state">
+                            No structured evidence recorded. An empty list means nothing was
+                            recorded — not that nothing exists, and not that findings were negative.
+                        </div>
+                    }
+                    else
+                    {
+                        @foreach (var ev in evidenceProblem.Evidence)
+                        {
+                            <div class="ev-row">
+                                <span class="ev-chip @PolarityClass(ev.Polarity)">@PolarityLabel(ev.Polarity)</span>
+                                <span class="ev-kind">@KindLabel(ev.Kind)</span>
+                                <span>@ev.Display</span>
+                                @if (!string.IsNullOrEmpty(ev.ObservedValue))
+                                {
+                                    <span class="ev-val">@ev.ObservedValue @ev.ObservedUnit</span>
+                                }
+                                @if (ev.ObservedUtc is not null)
+                                {
+                                    <span class="ev-meta">@ev.ObservedUtc.Value.ToString("MM/dd/yyyy")</span>
+                                }
+                                @if (ev.IsMachineCited)
+                                {
+                                    <span class="ev-chip ev-machine">machine-cited</span>
+                                }
+                                @if (!string.IsNullOrEmpty(ev.Note))
+                                {
+                                    <div class="ev-note">@ev.Note</div>
+                                }
+                            </div>
+                        }
+                    }
+
+                    <fieldset class="ev-add">
+                        <legend>Add evidence</legend>
+                        <FormField Label="This evidence">
+                            <select @bind="evPolarity" class="form-input">
+                                <option value="@EvidencePolarity.Supports">Supports the diagnosis</option>
+                                <option value="@EvidencePolarity.Refutes">Argues against it (informative negative)</option>
+                                <option value="@EvidencePolarity.NotAssessed">Was NOT assessed — record the gap</option>
+                                <option value="@EvidencePolarity.Indeterminate">Equivocal / indeterminate</option>
+                            </select>
+                        </FormField>
+                        <FormField Label="Kind">
+                            <select @bind="evKind" class="form-input">
+                                <option value="@EvidenceKind.LabResult">Lab result</option>
+                                <option value="@EvidenceKind.Symptom">Symptom</option>
+                                <option value="@EvidenceKind.Note">Note</option>
+                                <option value="@EvidenceKind.Imaging">Imaging</option>
+                                <option value="@EvidenceKind.Medication">Medication</option>
+                                <option value="@EvidenceKind.ClinicalJudgment">Exam / clinical judgment</option>
+                                <option value="@EvidenceKind.ExternalRecord">External record</option>
+                            </select>
+                        </FormField>
+
+                        @if (evPolarity != EvidencePolarity.NotAssessed && evKind == EvidenceKind.LabResult)
+                        {
+                            <FormField Label="Which result">
+                                <select @bind="evLabPick" class="form-input">
+                                    <option value="">-- pick a lab result --</option>
+                                    @for (int i = 0; i < evLabs.Count; i++)
+                                    {
+                                        <option value="@i">@evLabs[i].TestName — @evLabs[i].Value @evLabs[i].Units (@evLabs[i].ResultDate.ToString("MM/dd/yyyy"))</option>
+                                    }
+                                </select>
+                            </FormField>
+                        }
+                        else if (evPolarity != EvidencePolarity.NotAssessed && evKind == EvidenceKind.Note)
+                        {
+                            <FormField Label="Which note">
+                                <select @bind="evNotePick" class="form-input">
+                                    <option value="">-- pick a note --</option>
+                                    @for (int i = 0; i < evNotes.Count; i++)
+                                    {
+                                        <option value="@i">@(evNotes[i].Subject ?? evNotes[i].DocumentType) (@evNotes[i].ReferenceDate.ToString("MM/dd/yyyy"))</option>
+                                    }
+                                </select>
+                            </FormField>
+                        }
+                        else if (evPolarity != EvidencePolarity.NotAssessed && evKind == EvidenceKind.Symptom)
+                        {
+                            <FormField Label="Which symptom">
+                                <select @bind="evSymptomPick" class="form-input">
+                                    <option value="">-- pick a recorded symptom --</option>
+                                    @for (int i = 0; i < evSymptoms.Count; i++)
+                                    {
+                                        <option value="@i">@evSymptoms[i].Display — @evSymptoms[i].Presence (@evSymptoms[i].RecordedDate.ToString("MM/dd/yyyy"))</option>
+                                    }
+                                </select>
+                            </FormField>
+                        }
+                        else
+                        {
+                            <FormField Label="@(evPolarity == EvidencePolarity.NotAssessed ? "What was not checked" : "Describe it")" Required>
+                                <input type="text" @bind="evDisplay" class="form-input"
+                                       placeholder="@(evPolarity == EvidencePolarity.NotAssessed ? "e.g. Influenza PCR — never performed" : "e.g. Strength 3/5 in right deltoid on exam")" />
+                            </FormField>
+                        }
+
+                        <FormField Label="Comment">
+                            <input type="text" @bind="evNote" class="form-input" placeholder="Optional qualifier" />
+                        </FormField>
+                        <FormField Label="Certainty after this">
+                            <select @bind="evCertainty" class="form-input">
+                                <option value="KEEP">Leave unchanged (@evidenceProblem.VerificationStatus)</option>
+                                <option value="@ProblemVerificationStatus.Unconfirmed">Unconfirmed</option>
+                                <option value="@ProblemVerificationStatus.Provisional">Provisional</option>
+                                <option value="@ProblemVerificationStatus.Differential">Differential</option>
+                                <option value="@ProblemVerificationStatus.Confirmed">Confirmed</option>
+                                <option value="@ProblemVerificationStatus.Refuted">Refuted — actively disproved</option>
+                            </select>
+                        </FormField>
+                        <div class="form-actions">
+                            <button class="btn btn-primary" disabled="@evSubmitting" @onclick="SubmitEvidence">
+                                @(evSubmitting ? "Saving..." : "Add evidence")
+                            </button>
+                        </div>
+                    </fieldset>
+                </div>
+            }
         }
     }
 
@@ -98,6 +350,15 @@
             <FormField Label="ICD-10 Code">
                 <input type="text" @bind="form.DiagnosisCode" placeholder="Pick from search, or type e.g. E11.9" class="form-input" />
             </FormField>
+
+            @* Assertion-time advisory (ADR-006). Deliberately here — at the moment the working
+               diagnosis is chosen — rather than only at adjudication, where it would arrive to
+               congratulate a correction already made. ProblemId is null: the problem does not
+               exist yet, and marking exposure while someone browses codes would poison the
+               unexposed comparison arm. *@
+            <DiagnosisAdvisoryPanel PatientId="@patientId"
+                                    DiagnosisCode="@form.DiagnosisCode"
+                                    DiagnosisDisplay="@form.Diagnosis" />
             <FormField Label="Condition">
                 <select @bind="form.Condition" class="form-input">
                     <option value="">-- Select --</option>
@@ -173,6 +434,30 @@
     // Onset cannot be in the future — cap the date picker at today.
     private readonly string todayIso = DateTime.Today.ToString("yyyy-MM-dd");
 
+    // Diagnostic stewardship (ADR-006) — adjudication prompt state.
+    private HashSet<string> openEpisodeProblemIds = new(StringComparer.Ordinal);
+    private ProblemDto? adjudicating;
+    private DiagnosticEpisodeOutcome adjOutcome = DiagnosticEpisodeOutcome.Confirmed;
+    private string? adjOutcomeCode;
+    private string? adjOutcomeDisplay;
+    private string? adjNote;
+    private string adjIcdTerm = "";
+    private List<Icd10IndexEntry>? adjIcdResults;
+    private string? proposal;
+    private bool adjSubmitting;
+
+    // Evidence panel (ADR-006 assertion head)
+    private ProblemEntry? evidenceProblem;
+    private EvidencePolarity evPolarity = EvidencePolarity.Supports;
+    private EvidenceKind evKind = EvidenceKind.LabResult;
+    private string evLabPick = "", evNotePick = "", evSymptomPick = "";
+    private string? evDisplay, evNote;
+    private string evCertainty = "KEEP";
+    private bool evSubmitting;
+    private List<LabTestSummaryEntry> evLabs = new();
+    private List<TiuNoteSummary> evNotes = new();
+    private List<SymptomObservation> evSymptoms = new();
+
     protected override async Task OnInitializedAsync()
     {
         try { clinics = await Grains.GetGrain<IClinicIndexGrain>("SD-CLINIC-INDEX").GetAllClinicsAsync(); }
@@ -214,6 +499,14 @@
     {
         if (string.IsNullOrWhiteSpace(patientId)) return;
         loading = true; error = null; items = null; successMessage = null;
+        // Clear per-patient panel state so a stale adjudication/evidence panel from the
+        // previous patient never survives a patient switch.
+        adjudicating = null;
+        adjOutcome = DiagnosticEpisodeOutcome.Confirmed;
+        adjOutcomeCode = null; adjOutcomeDisplay = null; adjNote = null;
+        adjIcdTerm = ""; adjIcdResults = null; proposal = null;
+        evidenceProblem = null;
+        evLabs = new(); evNotes = new(); evSymptoms = new();
         try
         {
             var workflow = Grains.GetGrain<IPatientWorkflowGrain>(patientId.Trim());
@@ -222,16 +515,287 @@
                 : await workflow.GetAllProblemsAsync();
             items = problems.Select(p => new ProblemDto
             {
+                ProblemId = p.ProblemId,
                 Diagnosis = p.Diagnosis,
                 DiagnosisCode = p.DiagnosisCode,
                 Status = p.Status,
                 DateOfOnset = p.DateOfOnset,
                 Condition = p.Condition,
-                IsServiceConnected = p.IsServiceConnected
+                IsServiceConnected = p.IsServiceConnected,
+                VerificationStatus = p.VerificationStatus
             }).ToList();
+
+            await LoadOpenEpisodesAsync(workflow);
         }
         catch (Exception ex) { error = $"Error loading problems: {ex.Message}"; }
         finally { loading = false; }
+    }
+
+    /// <summary>
+    /// Which problems still have an unadjudicated episode, so only those offer the prompt.
+    /// Degrades to "none" when stewardship is off — the page must not depend on it.
+    /// </summary>
+    private async Task LoadOpenEpisodesAsync(IPatientWorkflowGrain workflow)
+    {
+        try
+        {
+            List<DiagnosticEpisode> episodes = await workflow.GetDiagnosticEpisodesAsync();
+            openEpisodeProblemIds = episodes
+                .Where(e => e.Outcome == DiagnosticEpisodeOutcome.Open)
+                .Select(e => e.ProblemId)
+                .ToHashSet(StringComparer.Ordinal);
+        }
+        catch { openEpisodeProblemIds = new(StringComparer.Ordinal); }
+    }
+
+    private void BeginAdjudication(ProblemDto p)
+    {
+        adjudicating = p;
+        adjOutcome = DiagnosticEpisodeOutcome.Confirmed;
+        adjOutcomeCode = null;
+        adjOutcomeDisplay = null;
+        adjNote = null;
+        adjIcdTerm = "";
+        adjIcdResults = null;
+        proposal = null;
+    }
+
+    private async Task SearchAdjIcd()
+    {
+        if (string.IsNullOrWhiteSpace(adjIcdTerm)) { adjIcdResults = null; return; }
+        try
+        {
+            adjIcdResults = await Grains.GetGrain<IIcd10IndexGrain>("ICD10-INDEX")
+                .SearchAsync(adjIcdTerm.Trim(), false, 15);
+        }
+        catch (Exception ex) { error = $"ICD-10 search failed: {ex.Message}"; }
+    }
+
+    private void PickAdjIcd(Icd10IndexEntry entry)
+    {
+        adjOutcomeCode = entry.Code;
+        adjOutcomeDisplay = entry.ShortDescription;
+        adjIcdResults = null;
+        adjIcdTerm = "";
+
+        // Offer the system's reading as a default the clinician can override. Computed on the
+        // client from the same shared rule the server uses, so the two cannot drift.
+        DiagnosticEpisodeOutcome suggested =
+            DiagnosisCodeRelation.Propose(adjudicating?.DiagnosisCode, adjOutcomeCode);
+        if (suggested is DiagnosticEpisodeOutcome.Refined
+            or DiagnosticEpisodeOutcome.Broadened
+            or DiagnosticEpisodeOutcome.Revised
+            or DiagnosticEpisodeOutcome.Confirmed)
+        {
+            adjOutcome = suggested;
+            proposal = suggested switch
+            {
+                DiagnosticEpisodeOutcome.Refined => "same condition, more specific",
+                DiagnosticEpisodeOutcome.Broadened => "same condition, less specific",
+                DiagnosticEpisodeOutcome.Revised => "it was something else",
+                _ => "it was right"
+            };
+        }
+    }
+
+    private async Task SubmitAdjudication()
+    {
+        if (adjudicating is null || string.IsNullOrWhiteSpace(patientId)) return;
+
+        adjSubmitting = true; error = null;
+        try
+        {
+            RevisionReason? reason = adjOutcome switch
+            {
+                DiagnosticEpisodeOutcome.Revised => RevisionReason.Correction,
+                DiagnosticEpisodeOutcome.Refined or DiagnosticEpisodeOutcome.Broadened
+                    => RevisionReason.Refinement,
+                DiagnosticEpisodeOutcome.ResolvedWithoutAlternate => RevisionReason.Resolution,
+                _ => null
+            };
+
+            bool ok = await Grains.GetGrain<IPatientWorkflowGrain>(patientId.Trim())
+                .AdjudicateDiagnosticEpisodeAsync(
+                    adjudicating.ProblemId, adjOutcome,
+                    adjOutcomeCode, adjOutcomeDisplay, reason,
+                    string.IsNullOrWhiteSpace(adjNote) ? null : adjNote);
+
+            successMessage = ok
+                ? "Outcome recorded. Thank you — this is what makes the statistics honest."
+                : "No open episode for that problem.";
+            adjudicating = null;
+            await Load();
+        }
+        catch (UnauthorizedAccessException ex) { error = SecurityKeyError.Describe(ex); }
+        catch (Exception ex) { error = $"Error recording outcome: {ex.Message}"; }
+        finally { adjSubmitting = false; }
+    }
+
+    // ── Evidence panel handlers (ADR-006) ───────────────────────────────────
+
+    private static string KindLabel(EvidenceKind k) => k switch
+    {
+        EvidenceKind.LabResult => "lab result",
+        EvidenceKind.ClinicalJudgment => "exam / judgment",
+        EvidenceKind.ExternalRecord => "external record",
+        EvidenceKind.ProtoCondition => "emerging cluster",
+        _ => k.ToString().ToLowerInvariant(),
+    };
+
+    private static string PolarityLabel(EvidencePolarity p) => p switch
+    {
+        EvidencePolarity.Supports => "supports",
+        EvidencePolarity.Refutes => "argues against",
+        EvidencePolarity.NotAssessed => "not assessed",
+        EvidencePolarity.Indeterminate => "equivocal",
+        EvidencePolarity.Stale => "stale",
+        _ => p.ToString().ToLowerInvariant(),
+    };
+
+    private static string PolarityClass(EvidencePolarity p) => p switch
+    {
+        EvidencePolarity.Supports => "ev-supports",
+        EvidencePolarity.Refutes => "ev-refutes",
+        EvidencePolarity.NotAssessed => "ev-na",
+        _ => "ev-other",
+    };
+
+    private async Task OpenEvidence(ProblemDto p)
+    {
+        if (string.IsNullOrWhiteSpace(patientId)) return;
+        error = null; adjudicating = null;
+        try
+        {
+            var wf = Grains.GetGrain<IPatientWorkflowGrain>(patientId.Trim());
+            evidenceProblem = await wf.GetProblemWithEvidenceAsync(p.ProblemId);
+
+            // Picker sources, loaded when the panel opens so the dropdowns are current.
+            evLabs = await wf.GetLabSummaryAsync();
+            evNotes = await wf.GetRecentNotesAsync();
+            evSymptoms = await wf.GetPatientSymptomsAsync();
+
+            evPolarity = EvidencePolarity.Supports;
+            evKind = EvidenceKind.LabResult;
+            evLabPick = evNotePick = evSymptomPick = "";
+            evDisplay = evNote = null;
+            evCertainty = "KEEP";
+        }
+        catch (Exception ex) { error = $"Error loading evidence: {ex.Message}"; }
+    }
+
+    private async Task SubmitEvidence()
+    {
+        if (evidenceProblem is null || string.IsNullOrWhiteSpace(patientId)) return;
+
+        EvidenceRef? built = BuildEvidenceRef();
+        if (built is null)
+        {
+            error = evPolarity == EvidencePolarity.NotAssessed
+                ? "Say what was not checked."
+                : "Pick a source record, or describe the evidence.";
+            return;
+        }
+
+        evSubmitting = true; error = null;
+        try
+        {
+            var wf = Grains.GetGrain<IPatientWorkflowGrain>(patientId.Trim());
+            ProblemVerificationStatus certainty = evCertainty == "KEEP"
+                ? evidenceProblem.VerificationStatus
+                : Enum.Parse<ProblemVerificationStatus>(evCertainty);
+
+            await wf.AssessProblemAsync(new ProblemAssessmentCommand
+            {
+                ProblemId = evidenceProblem.ProblemId,
+                Evidence = new List<EvidenceRef> { built },
+                VerificationStatus = certainty,
+                Narrative = string.IsNullOrWhiteSpace(evNote) ? null : evNote,
+            });
+
+            string evidenceProblemId = evidenceProblem.ProblemId;
+            await Load();   // refresh the list so a certainty change shows on the row chip
+                            // (Load clears the panel; re-open it for the same problem below)
+            evidenceProblem = await wf.GetProblemWithEvidenceAsync(evidenceProblemId);
+            evLabs = await wf.GetLabSummaryAsync();
+            evNotes = await wf.GetRecentNotesAsync();
+            evSymptoms = await wf.GetPatientSymptomsAsync();
+            successMessage = "Evidence recorded.";
+            evDisplay = evNote = null;
+            evLabPick = evNotePick = evSymptomPick = "";
+        }
+        catch (UnauthorizedAccessException ex) { error = SecurityKeyError.Describe(ex); }
+        catch (Exception ex) { error = $"Error recording evidence: {ex.Message}"; }
+        finally { evSubmitting = false; }
+    }
+
+    private EvidenceRef? BuildEvidenceRef()
+    {
+        if (evPolarity != EvidencePolarity.NotAssessed && evKind == EvidenceKind.LabResult
+            && int.TryParse(evLabPick, out int li) && li >= 0 && li < evLabs.Count)
+        {
+            LabTestSummaryEntry lab = evLabs[li];
+            return new EvidenceRef
+            {
+                Kind = EvidenceKind.LabResult,
+                // The lab summary carries no per-result grain id; the LOINC + value + date
+                // identify the observation, which is the clinically meaningful citation.
+                CodeSystem = "LOINC",
+                Code = lab.LoincCode,
+                Display = lab.TestName,
+                Polarity = evPolarity,
+                ObservedValue = lab.Value,
+                ObservedUnit = lab.Units,
+                ObservedUtc = lab.ResultDate.UtcDateTime,
+                Note = evNote,
+            };
+        }
+
+        if (evPolarity != EvidencePolarity.NotAssessed && evKind == EvidenceKind.Note
+            && int.TryParse(evNotePick, out int ni) && ni >= 0 && ni < evNotes.Count)
+        {
+            TiuNoteSummary note = evNotes[ni];
+            return new EvidenceRef
+            {
+                Kind = EvidenceKind.Note,
+                SourceId = note.DocumentId,
+                Display = $"{note.Subject ?? note.DocumentType} ({note.ReferenceDate:MM/dd/yyyy})",
+                Polarity = evPolarity,
+                ObservedUtc = note.ReferenceDate,
+                Note = evNote,
+            };
+        }
+
+        if (evPolarity != EvidencePolarity.NotAssessed && evKind == EvidenceKind.Symptom
+            && int.TryParse(evSymptomPick, out int si) && si >= 0 && si < evSymptoms.Count)
+        {
+            SymptomObservation sym = evSymptoms[si];
+            return new EvidenceRef
+            {
+                Kind = EvidenceKind.Symptom,
+                CodeSystem = "SNOMED",
+                Code = sym.Code,
+                Display = sym.Display,
+                Polarity = evPolarity,
+                ObservedValue = sym.Presence.ToString(),
+                ObservedUtc = sym.RecordedDate,
+                Note = evNote,
+            };
+        }
+
+        // Free-text path: NotAssessed rows ("Influenza PCR — never performed") and exam /
+        // external / other kinds with no local source record.
+        if (!string.IsNullOrWhiteSpace(evDisplay))
+        {
+            return new EvidenceRef
+            {
+                Kind = evKind,
+                Display = evDisplay.Trim(),
+                Polarity = evPolarity,
+                Note = evNote,
+            };
+        }
+
+        return null;
     }
 
     private async Task SubmitProblem()
@@ -267,12 +831,14 @@
 
     private class ProblemDto
     {
+        public string ProblemId { get; set; } = "";
         public string Diagnosis { get; set; } = "";
         public string? DiagnosisCode { get; set; }
         public string Status { get; set; } = "";
         public DateTime? DateOfOnset { get; set; }
         public string? Condition { get; set; }
         public bool IsServiceConnected { get; set; }
+        public ProblemVerificationStatus VerificationStatus { get; set; }
     }
 
     private class ProblemFormModel
@@ -338,4 +904,32 @@
     .icd-results .code { font-family: monospace; color: #003f72; margin-right: 0.4rem; }
     .icd-results .non-billable { color: #b45309; font-size: 0.75rem; margin-left: 0.3rem; }
     .icd-empty { color: #999; font-style: italic; font-size: 0.8rem; margin-top: 0.4rem; }
+
+    /* Diagnostic stewardship (ADR-006) */
+    .vs-chip { background: #eef4fb; color: #003f72; border: 1px solid #b9c8da; border-radius: 3px; padding: 0 0.3rem; font-size: 0.68rem; margin-left: 0.35rem; text-transform: lowercase; }
+    .btn-link { background: none; border: none; color: #003f72; cursor: pointer; font-size: 0.78rem; text-decoration: underline; padding: 0; }
+    .adjudicate-panel { margin-top: 1.25rem; padding: 1rem; border: 1px solid #b9c8da; border-radius: 4px; background: #fbfcfd; max-width: 640px; }
+    .adjudicate-panel h3 { margin: 0 0 0.35rem; font-size: 0.95rem; color: #003f72; }
+    .adjudicate-subject { margin: 0 0 0.5rem; font-size: 0.85rem; }
+    .adjudicate-why { margin: 0 0 0.85rem; font-size: 0.78rem; color: #6b7280; }
+    .adj-picked { margin-top: 0.4rem; font-size: 0.85rem; }
+    .adj-proposal { margin: 0.5rem 0 0.75rem; font-size: 0.8rem; color: #4b5563; background: #eef4fb; border-left: 3px solid #003f72; padding: 0.4rem 0.6rem; }
+
+    /* Evidence panel (ADR-006 assertion head) */
+    .evidence-panel { margin-top: 1.25rem; padding: 1rem; border: 1px solid #b9c8da; border-radius: 4px; background: #fbfcfd; max-width: 720px; }
+    .ev-head { display: flex; justify-content: space-between; align-items: baseline; gap: 1rem; margin-bottom: 0.6rem; }
+    .ev-row { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.5rem; padding: 0.35rem 0; border-bottom: 1px solid #f0f0f0; font-size: 0.85rem; }
+    .ev-chip { border-radius: 3px; padding: 0 0.35rem; font-size: 0.7rem; font-weight: 600; white-space: nowrap; }
+    .ev-supports { background: #dcfce7; color: #166534; border: 1px solid #bbf7d0; }
+    .ev-refutes { background: #fde8e8; color: #b91c1c; border: 1px solid #f5c6c6; }
+    .ev-na { background: #f3f4f6; color: #6b7280; border: 1px solid #d1d5db; }
+    .ev-other { background: #fef3c7; color: #92400e; border: 1px solid #fde68a; }
+    .ev-machine { background: #eef4fb; color: #003f72; border: 1px solid #b9c8da; font-weight: 500; }
+    .ev-kind { color: #6b7280; font-size: 0.72rem; text-transform: uppercase; }
+    .ev-val { font-family: monospace; color: #003f72; }
+    .ev-meta { color: #888; font-size: 0.78rem; }
+    .ev-note { flex-basis: 100%; color: #4b5563; font-size: 0.78rem; padding-left: 0.25rem; }
+    .ev-add { margin-top: 1rem; border: 1px solid #d4d9e0; border-radius: 4px; padding: 0.75rem 1rem 1rem; }
+    .ev-add legend { font-size: 0.85rem; font-weight: 600; color: #003f72; padding: 0 0.35rem; }
+    .ev-open { margin-right: 0.6rem; }
 </style>

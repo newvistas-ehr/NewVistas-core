@@ -1,4 +1,4 @@
-// Copyright 2026 Merrimack Valley Software Works, LLC. All rights reserved.
+﻿// Copyright 2026 Merrimack Valley Software Works, LLC. All rights reserved.
 // This Source Code Form is subject to the terms of the Mozilla Public
 // License, v. 2.0. If a copy of the MPL was not distributed with this
 // file, You can obtain one at https://mozilla.org/MPL/2.0/.
@@ -20,7 +20,6 @@ public partial class BedManagementViewModel : ObservableObject
 {
     private const string InstitutionId = "500";
 
-    private readonly ApiClient _api;
     private readonly OrleansGrainService _grains;
 
     [ObservableProperty] private bool _isLoading;
@@ -30,9 +29,8 @@ public partial class BedManagementViewModel : ObservableObject
     [ObservableProperty] private string _wardFilter = string.Empty;
     [ObservableProperty] private BedBoardStats? _stats;
 
-    public BedManagementViewModel(ApiClient api, OrleansGrainService grains)
+    public BedManagementViewModel(OrleansGrainService grains)
     {
-        _api = api;
         _grains = grains;
     }
 
